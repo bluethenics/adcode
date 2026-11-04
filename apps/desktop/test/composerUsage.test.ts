@@ -129,7 +129,7 @@ describe("the composer meter on a paid model", () => {
     expect(purchased).toMatchObject({ label: "Purchased", value: "48M", detail: "48M purchased" });
   });
 
-  it.each([["weekly", "Weekly", "subscription"], ["monthly", "Monthly", "gift"], ["pro", "Pro", "subscription"]] as const)("names the %s plan in the weekly meter and usage summary", (id, name, source) => {
+  it.each([["weekly", "Weekly", "subscription"], ["monthly", "Starter", "gift"], ["pro", "Pro", "subscription"]] as const)("names the %s plan in the weekly meter and usage summary", (id, name, source) => {
     const now = Date.now();
     const planned = { ...tokens, plan: { id, source, endsAt: now + 86_400_000 }, free: { ...tokens.free, limit: id === "pro" ? 150_000_000 : 60_000_000 } };
     const [weekly] = composerUsageModels(null, allowance({ unlimited: true, tokens: planned }), true, "heabsy-glm53-flash-unc");

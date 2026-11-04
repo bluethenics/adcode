@@ -1,12 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { effectiveWeeklyAllowance, hasActivePlan, hasUnlimitedPlan, requiresSubscription, parsePromo, planById, PLANS } from "../src/aiPlans.ts";
+import { effectiveWeeklyAllowance, hasActivePlan, hasAllModelAccess, PLANS_ON_SALE, hasUnlimitedPlan, requiresSubscription, parsePromo, planById, PLANS } from "../src/aiPlans.ts";
 
 describe("AI plans", () => {
-  it("prices and sizes the five plans", () => {
+  it("prices and sizes the five plans, three of them on sale", () => {
     expect(PLANS.map((p) => [p.id, p.priceCents, p.interval, p.weeklyTokens, p.invites])).toEqual([
-      ["weekly", 300, "week", 2_475_000, 0], ["monthly", 900, "month", 2_475_000, 0], ["pro", 2900, "month", 9_900_000, 2], ["max", 9900, "month", 33_000_000, 0], ["unlimited", 29900, "month", 82_500_000, 0]]);
+      ["weekly", 300, "week", 2_475_000, 0], ["monthly", 900, "month", 2_475_000, 0], ["pro", 2900, "month", 9_900_000, 2], ["max", 5900, "month", 20_900_000, 0], ["unlimited", 29900, "month", 82_500_000, 0]]);
+    expect(PLANS_ON_SALE.map((p) => [p.name, p.priceCents])).toEqual([["Starter", 900], ["Pro", 2900], ["Max", 5900]]);
     expect(planById("pro")?.name).toBe("Pro");
     expect(planById("free")).toBeNull();
+  });
+
+  it("gives Max every hosted model inside its own fair-use allowance", () => {
+    const now = 1_000;
+    const max = { plan: { id: "max" as const, endsAt: now + 1, source: "subscription" as const }, boostTokens: 0 };
+    expect(hasAllModelAccess(max, now)).toBe(true);
+    expect(effectiveWeeklyAllowance(max, 1_100_000, now)).toBe(20_900_000);
+    expect(hasAllModelAccess({ ...max, plan: { ...max.plan, id: "pro" } }, now)).toBe(false);
   });
 
   it("takes the best of plan, boost and the free allowance", () => {

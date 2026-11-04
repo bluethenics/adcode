@@ -1,7 +1,7 @@
 import { Icon } from "@/components/Icon";
 import { ArrowUpRight } from "lucide";
 import Link from "next/link";
-import { FREE_WEEKLY_TOKENS, PLANS, price, creditAmount } from "@/lib/pricing";
+import { FREE_WEEKLY_TOKENS, PLANS_ON_SALE, price, creditAmount } from "@/lib/pricing";
 
 export function FreePlan() {
   return (
@@ -18,14 +18,14 @@ export function FreePlan() {
         </div>
         <div>
           <dt>AI plans</dt>
-          <dd><strong>From {price(PLANS[0]!.priceCents)}</strong> per week for more included AI usage</dd>
+          <dd><strong>From {price(PLANS_ON_SALE[0]!.priceCents)}</strong> a month for more included AI usage</dd>
         </div>
         <div>
           <dt>Tagflow AI</dt>
           <dd><strong>Included</strong> in the shared daily credit allowance</dd>
         </div>
       </dl>
-      <p className="free-plan-limit">Plans raise the daily included AI allowance. Max adds 3,000 credits daily; Unlimited covers all hosted models within 7,500 daily fair-use credits. Other plans can use purchased credits after the daily allowance; Unlimited waits for its refill. Purchased credits never expire. Provider availability, model context limits and shared capacity still apply.</p>
+      <p className="free-plan-limit">Plans raise the daily included AI allowance: Starter 225 credits a day, Pro 900, and Max 1,900 fair-use credits on every hosted model, premium included. Starter and Pro can use purchased credits after the daily allowance; Max waits for its refill and never charges them. Purchased credits never expire. Provider availability, model context limits and shared capacity still apply.</p>
       <p className="free-plan-foot"><Link href="/pricing" className="home-text-link">Compare plans and credit packs <Icon node={ArrowUpRight} /></Link></p>
       <details className="free-plan-details">
         <summary>How the free plan works</summary>

@@ -487,7 +487,7 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
         const raw = await readJson(request);
         if (config.paid?.enabled !== true) return json(409, { error: "paid-off" });
         const selected = isRecord(raw) && typeof raw["plan"] === "string" ? planById(raw["plan"]) : null;
-        if (selected === null) return json(400, { error: "bad-plan" });
+        if (selected === null || !selected.onSale) return json(400, { error: "bad-plan" });
         if ((selected.id === "max" || selected.id === "unlimited") && config.paid.accounting !== "cost-v1") return json(409, { error: "not-configured" });
         const country = isRecord(raw) ? raw["billingCountry"] : undefined;
         if (typeof country !== "string" || !/^[A-Z]{2}$/.test(country)) return json(400, { error: "bad-country" });

@@ -49,7 +49,7 @@ export function ActiveSubscribersTable({ subscriptions }: { subscriptions: reado
 }
 
 function PlanSelect({ value, onChange, disabled = false }: { value: PlanId; onChange: (plan: PlanId) => void; disabled?: boolean }) {
-  return <label className="tagflow-field"><span>Plan</span><select className="select" value={value} disabled={disabled} onChange={(event) => onChange(event.target.value as PlanId)}>{PLANS.map(plan => <option key={plan.id} value={plan.id}>{plan.name} ({(plan.weeklyTokens / 11000).toLocaleString("en-US")} credits/day{plan.id === "unlimited" ? ", fair use" : ""})</option>)}</select></label>;
+  return <label className="tagflow-field"><span>Plan</span><select className="select" value={value} disabled={disabled} onChange={(event) => onChange(event.target.value as PlanId)}>{PLANS.map(plan => <option key={plan.id} value={plan.id}>{plan.name} ({(plan.weeklyTokens / 11000).toLocaleString("en-US")} credits/day{plan.allModels === true ? ", fair use, all models" : ""}{plan.onSale ? "" : ", retired"})</option>)}</select></label>;
 }
 
 function StatusNotice({ notice }: { notice: Notice | null }) {

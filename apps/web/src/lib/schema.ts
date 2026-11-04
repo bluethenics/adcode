@@ -17,7 +17,7 @@ import {
   formatMicros,
   ECONOMICS,
 } from "./site";
-import { FREE_WEEKLY_TOKENS, PACK_SUMMARY, PLANS, PLAN_SUMMARY, creditAmount } from "./pricing";
+import { FREE_WEEKLY_TOKENS, PACK_SUMMARY, PLANS_ON_SALE, PLAN_SUMMARY, creditAmount } from "./pricing";
 import type { PaidPack } from "@adcode/api/src/paidTokens.ts";
 
 type Node = Record<string, unknown>;
@@ -180,9 +180,9 @@ export function pricingOffers(packs: readonly PaidPack[]): Node {
     offers: [
       { "@type": "Offer", name: "Free editor", price: "0", priceCurrency: "USD", url: url("/versions"),
         description: `The free editor and ${creditAmount(FREE_WEEKLY_TOKENS)} daily credits shared by Tagflow AI and all other included models.` },
-      ...PLANS.map((plan) => ({
+      ...PLANS_ON_SALE.map((plan) => ({
         "@type": "Offer", name: `${plan.name} AI plan`, price: dollars(plan.priceCents), priceCurrency: "USD", url: url(`/ai-tokens?plan=${plan.id}`),
-        description: `${plan.unlimited ? "Unlimited included AI credits" : `${creditAmount(plan.weeklyTokens)} included AI credits each day`}, billed every ${plan.interval}.`,
+        description: `${creditAmount(plan.weeklyTokens)} included AI credits each day${plan.allModels === true ? " on every hosted model, premium included, under fair use" : ""}, billed every ${plan.interval}.`,
         priceSpecification: { "@type": "UnitPriceSpecification", price: dollars(plan.priceCents), priceCurrency: "USD",
           referenceQuantity: { "@type": "QuantitativeValue", value: 1, unitCode: plan.interval === "week" ? "WEE" : "MON" } },
       })),

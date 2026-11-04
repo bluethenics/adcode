@@ -15,7 +15,7 @@ import { SignInCard } from "@/components/SignInCard";
 import { apiFetch, MESSAGES } from "@/lib/api";
 import type { PlanId, PlanSpec } from "@adcode/api/src/aiPlans.ts";
 import { subscriptionBlocksCheckout, isPlanId } from "@adcode/api/src/aiPlans.ts";
-import { CodeRedeemer, InviteCard, PlanCards, planArrivalMessage, planName, planRequest } from "./Plans";
+import { CodeRedeemer, InviteCard, PlanCards, planArrivalMessage, planName, planRequest, plansOnOffer } from "./Plans";
 import { ModelWallet } from "./ModelWallet";
 import { dollars, formatTokens } from "./tokenFormatting";
 import { creditAmount } from "@adcode/api/src/aiEconomics.ts";
@@ -95,7 +95,7 @@ export function BalanceSummary({ tokens, now }: { tokens: TokensView; now: numbe
       <div className="stat">
         <span className="stat-label">Purchased</span>
         <span className="stat-value">{amount(tokens.purchased)} purchased {unit}</span>
-        <span className="stat-hint">{tokens.plan?.id === "unlimited" ? "Saved for later. Unlimited pauses at its fair-use allowance and does not charge these credits." : "Used after your daily allowance. They never expire."}</span>
+        <span className="stat-hint">{tokens.plan?.id === "max" || tokens.plan?.id === "unlimited" ? `Saved for later. ${planName(tokens.plan.id)} pauses at its fair-use allowance and does not charge these credits.` : "Used after your daily allowance. They never expire."}</span>
       </div>
     </div>
   );
@@ -248,7 +248,7 @@ export default function AiTokens() {
 
           {activity !== null && <BalanceSummary tokens={activity.tokens} now={now} />}
           {(activity?.tokens.legacyUntil ?? 0) > now && <p className="notice">Your previous allowance on the original included models is protected until {new Date(activity!.tokens.legacyUntil!).toLocaleDateString()}. New model access uses the new plans. Renewals follow the credit allowances shown below.</p>}
-          {activity?.tokens.accounting === "cost-v1" && !activity.tokens.plan && activity.tokens.free.remaining <= activity.tokens.free.limit * .2 && <p className="notice" role="status">Your daily credits are running low. <a href="#plans">Get 15× the daily credits with Monthly</a>, or wait for your free refill. No automatic charge.</p>}
+          {activity?.tokens.accounting === "cost-v1" && !activity.tokens.plan && activity.tokens.free.remaining <= activity.tokens.free.limit * .2 && <p className="notice" role="status">Your daily credits are running low. <a href="?plan=pro#plans">Get 9× the daily credits with Pro</a>, or wait for your free refill. No automatic charge.</p>}
           {balanceError !== null && <p className="notice" data-tone="error" role="alert">{balanceError} <button type="button" className="btn btn-outline btn-small" onClick={() => void refresh()}>Retry balance</button></p>}
           {user !== null && activity === null && balanceError === null && <p role="status" className="field-hint">Loading your AI access…</p>}
           {subscription !== null && <div className="ai-plan-management"><p>{planName(subscription.plan)} subscription. Manage your plan, payment method or cancellation in Dodo.</p><button type="button" className="btn btn-outline" disabled={busy !== null} onClick={() => void managePlan()}>{busy === "portal" ? "Opening portal…" : "Manage subscription"}</button></div>}
@@ -262,7 +262,7 @@ export default function AiTokens() {
                 <input id="t-country" className="input" aria-describedby="t-country-help" required pattern="[A-Z]{2}" autoComplete="country" maxLength={2} value={country} onChange={(event) => setCountry(event.target.value.toUpperCase())} />
                 <span id="t-country-help" className="field-hint">Two-letter code, like US or IN.</span>
               </div></div>}
-              <section id="plans" className="ai-plans-section" aria-labelledby="ai-plans-heading"><div className="ai-section-heading"><div><p className="ai-eyebrow">MAKE SPACE FOR WHAT’S NEXT</p><h2 id="ai-plans-heading">A plan for the way you build.</h2></div><p>More daily credits. Choose your pace.<br />Start free, upgrade when you need more.</p></div>{(offer.plans?.length ?? 0) > 0 ? <PlanCards plans={offer.plans!} current={activity?.tokens.plan?.id ?? null} busy={checkoutBusy} subscribed={subscribed} selected={selectedPlan} onChoose={(plan) => void choosePlan(plan)} /> : <p className="notice" role="status">Subscription plans are unavailable right now. Check the one-time top-ups below, or try again later.</p>}</section>
+              <section id="plans" className="ai-plans-section" aria-labelledby="ai-plans-heading"><div className="ai-section-heading"><div><p className="ai-eyebrow">MAKE SPACE FOR WHAT’S NEXT</p><h2 id="ai-plans-heading">A plan for the way you build.</h2></div><p>More daily credits. Choose your pace.<br />Start free, upgrade when you need more.</p></div>{(offer.plans?.length ?? 0) > 0 ? <PlanCards plans={plansOnOffer(offer.plans!, activity?.tokens.plan?.id ?? null)} current={activity?.tokens.plan?.id ?? null} busy={checkoutBusy} subscribed={subscribed} selected={selectedPlan} onChoose={(plan) => void choosePlan(plan)} /> : <p className="notice" role="status">Subscription plans are unavailable right now. Check the one-time top-ups below, or try again later.</p>}</section>
               <div className="ai-checkout-trust"><span>Secure checkout by Dodo Payments</span><span>Cancel your plan in the billing portal</span><span>Works in web + desktop</span></div>
               <section id="packs" className="ai-packs-section" aria-labelledby="ai-packs-heading"><div className="ai-section-heading"><div><p className="ai-eyebrow">JUST NEED A LITTLE EXTRA?</p><h2 id="ai-packs-heading">Top up. Keep going.</h2></div><p>A one-time purchase for a busy stretch.<br />Used after your daily allowance. No expiry.</p></div>{offer.packs.length > 0 ? <PackList packs={offer.packs} busy={checkoutBusy} onBuy={(pack) => void buy(pack)} /> : <p className="notice" role="status">No top-ups are available right now. Please check back later.</p>}</section>
               <p className="ai-purchase-note">Prices in USD before applicable tax. Plans renew at the interval shown; top-ups never renew. Provider availability and model limits apply. For a refund of unused top-ups, <a href="/support">contact support</a>.</p>

@@ -1,6 +1,7 @@
 import type { AiPlanState } from "./aiPlans.ts";
 
-export const REQUEST_PRIORITY = { free: 0, weekly: 1, monthly: 2, pro: 3, max: 4, unlimited: 5 } as const;
+/** Max shares the top rank with the retired Unlimited: it is the highest plan on sale. */
+export const REQUEST_PRIORITY = { free: 0, weekly: 1, monthly: 2, pro: 3, max: 5, unlimited: 5 } as const;
 export type RequestTier = keyof typeof REQUEST_PRIORITY;
 export function requestTier(state: Pick<AiPlanState,"plan">, now: number): RequestTier {
   return state.plan && state.plan.endsAt > now && Object.hasOwn(REQUEST_PRIORITY,state.plan.id) ? state.plan.id : "free";

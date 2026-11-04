@@ -75,13 +75,19 @@ export function percentLeft(remaining: number, limit: number): number {
 /** A current, recognised plan name. Older relays omit plans. */
 export function aiPlanName(plan: NonNullable<TagflowAllowanceView["tokens"]>["plan"], now: number): string | null {
   if (plan == null || plan.endsAt <= now) return null;
-  return plan.id === "weekly" ? "Weekly" : plan.id === "monthly" ? "Monthly" : plan.id === "pro" ? "Pro" : plan.id === "max" ? "Max" : plan.id === "unlimited" ? "Unlimited" : null;
+  return plan.id === "weekly" ? "Weekly" : plan.id === "monthly" ? "Starter" : plan.id === "pro" ? "Pro" : plan.id === "max" ? "Max" : plan.id === "unlimited" ? "Unlimited" : null;
 }
+
+/**
+ * Max (and the retired Unlimited) cover every hosted model inside a daily fair-use allowance and
+ * never spend purchased credits - the server's `allModels` plans. Mirrors services/api aiPlans.ts.
+ */
+export const isFairUsePlan = (id: string | undefined | null): boolean => id === "max" || id === "unlimited";
 
 /** The usage dialog's one line about paid tokens: the daily allowance on all included models, then what was bought. */
 export function paidTokensSummary(tokens: NonNullable<TagflowAllowanceView["tokens"]>, now: number): string {
   const free = tokens.free;
-  if (tokens.accounting === "cost-v1" && tokens.plan?.id === "unlimited") return `${(free.remaining / 11000).toLocaleString("en-US", { maximumFractionDigits: 2 })} daily fair-use credits left. All hosted models are covered. Usage pauses at the allowance and refills daily; purchased balances are not charged automatically.`;
+  if (tokens.accounting === "cost-v1" && isFairUsePlan(tokens.plan?.id)) return `${(free.remaining / 11000).toLocaleString("en-US", { maximumFractionDigits: 2 })} daily fair-use credits left. All hosted models are covered. Usage pauses at the allowance and refills daily; purchased balances are not charged automatically.`;
   if (tokens.accounting === "cost-v1") return `${(free.remaining / 11000).toLocaleString("en-US", { maximumFractionDigits: 2 })} daily credits left, then ${(tokens.purchased / 11000).toLocaleString("en-US", { maximumFractionDigits: 2 })} purchased credits. Model input, output and cached input use different credit rates. Daily credits refill automatically; upgrade for more at https://adcode.bluethenics.com/ai-tokens.`;
   const plan = aiPlanName(tokens.plan, now);
   const kind = plan === null ? "free" : "included";

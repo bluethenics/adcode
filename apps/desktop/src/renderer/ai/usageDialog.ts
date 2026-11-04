@@ -21,7 +21,7 @@ import { askThemed } from "../dialogs/confirmDialog.ts";
 import { button, el, openFormModal } from "../dialogs/formDialog.ts";
 import { createUsageActivity } from "./usageActivityView.ts";
 import { allowanceSummary } from "./allowanceSummary.ts";
-import { BUY_TOKENS_URL, UNLIMITED_REQUESTS_PER_MINUTE, aiPlanName, creditWindowSummary, percentLeft, untilText, type CreditsAllowance, type TagflowAllowanceView } from "../../shared/tagflow.ts";
+import { BUY_TOKENS_URL, UNLIMITED_REQUESTS_PER_MINUTE, aiPlanName, isFairUsePlan, creditWindowSummary, percentLeft, untilText, type CreditsAllowance, type TagflowAllowanceView } from "../../shared/tagflow.ts";
 import { openAudienceProfile } from "./audienceProfile.ts";
 
 const RANGE_KEY = "adcode.usage.range";
@@ -388,7 +388,7 @@ function includedAllowance(paid: NonNullable<TagflowAllowanceView["tokens"]>, re
   const costCredits=paid.accounting==="cost-v1";
   const amount=costCredits?(value:number)=>(value/11000).toLocaleString("en-US",{maximumFractionDigits:2}):formatTokens;
   const unit=costCredits?"credits":"tokens";
-  const fairUse=paid.plan?.id==="unlimited";
+  const fairUse=isFairUsePlan(paid.plan?.id);
   const now = Date.now();
   const split = el("div", "usage-split");
   const plan = aiPlanName(paid.plan, now);

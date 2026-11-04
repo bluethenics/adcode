@@ -68,7 +68,7 @@ describe("Dodo token packs", () => {
 });
 
 describe("Dodo subscriptions adapter", () => {
-  it.each([["max", 9900], ["unlimited", 29900]] as const)("checks %s price and uses its dedicated product", async (id, price) => {
+  it.each([["max", 5900], ["unlimited", 29900]] as const)("checks %s price and uses its dedicated product", async (id, price) => {
     vi.stubEnv("DODO_API_KEY", "test-key"); vi.stubEnv(`DODO_PLAN_${id.toUpperCase()}_ID`, `pdt_${id}`);
     const mock = vi.fn(async (url: unknown) => String(url).includes("/products/") ? Response.json({ price: { type: "recurring_price", currency: "USD", price, payment_frequency_count: 1, payment_frequency_interval: "month" } }) : Response.json({ session_id: "session", checkout_url: "https://checkout.dodo/plan" }));
     vi.stubGlobal("fetch", mock);

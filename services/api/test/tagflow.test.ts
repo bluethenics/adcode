@@ -197,11 +197,13 @@ describe("included Tagflow AI", () => {
       now += 86400000;
       const resumed = await chat(); expect(resumed.status).toBe(200); await resumed.text();
     });
-    it("does not grant premium wallet access to Max", async () => {
+    it("grants premium wallet access to Max, the all-models plan, but not to Pro", async () => {
       const saved = (await store.getTagflowConfig())!.config;
       await save({ ...saved, models: [{ ...saved.models[0]!, billing: "wallet" }] });
+      await store.giftPlan("user", "pro", 1, "admin-1", "gift", now);
+      const refused = await chat(); expect(refused.status).toBe(402); expect(upstream).not.toHaveBeenCalled();
       await store.giftPlan("user", "max", 1, "admin-1", "gift", now);
-      const response = await chat(); expect(response.status).toBe(402); expect(upstream).not.toHaveBeenCalled();
+      const response = await chat(); expect(response.status).toBe(200); await response.text();
     });
     it("protects an existing paid period on the original models and ends protection on time", async () => {
       const saved=(await store.getTagflowConfig())!.config;

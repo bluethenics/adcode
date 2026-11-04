@@ -29,7 +29,7 @@ describe("AI plans on the website", () => {
     expect(html).toContain("$9"); expect(html).toContain("$29"); expect(html).toContain("/month");
     expect(html).toContain("900 credits a day"); expect(html).toContain("225 credits a day");
     expect(html).toContain("Invite 2 friends"); expect(html).toContain("Current plan");
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Monthly: current plan"/);
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Starter: current plan"/);
   });
 
   it("prevents duplicate plan purchases while a subscription or checkout is active", () => {

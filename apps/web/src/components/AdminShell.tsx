@@ -11,6 +11,8 @@ import { adminPreviewData, type AdminPreviewData } from "@/lib/adminPreview";
 import { parseStatusView, type StatusView } from "@/lib/statusView";
 import { Mark } from "./Mark";
 import "./adminPanel.css";
+import "./adminShell.css";
+import { AdminPalette } from "./AdminPalette";
 import { readCached, writeCached } from "@/lib/adminCache";
 
 /**
@@ -200,6 +202,10 @@ export function jumpTarget(raw: string): string | null {
   return `/admin/people?${query}`;
 }
 
+const FOLD_KEY = "adcode.admin-rail-folded";
+/** The phone dock's four destinations, by `href` in ADMIN_NAV. */
+const DOCK = ["/admin", "/admin/review", "/admin/review?tab=feedback", "/admin/money"];
+
 export function AdminShell({
   title,
   subtitle,
@@ -223,6 +229,11 @@ export function AdminShell({
   const [counts, setCounts] = useState<AdminOverviewView | null>(null);
   const [health, setHealth] = useState<StatusView["overall"] | null>(null);
   const [jump, setJump] = useState("");
+  const [palette, setPalette] = useState(false);
+  // The rail folded to its icons, remembered per browser. A convenience, so storage may fail.
+  const [folded, setFolded] = useState(false);
+  useEffect(() => { try { setFolded(localStorage.getItem(FOLD_KEY) === "1"); } catch { /* private mode */ } }, []);
+  const fold = (): void => setFolded((was) => { try { localStorage.setItem(FOLD_KEY, was ? "0" : "1"); } catch { /* private mode */ } return !was; });
   const jumpRef = useRef<HTMLInputElement>(null);
   // Development only: made-up data, so the panel can be built without an admin sign-in.
   const [preview, setPreview] = useState<AdminPreviewData | null>(null);
@@ -255,6 +266,11 @@ export function AdminShell({
    */
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
+      if (event.key.toLowerCase() === "k" && (event.metaKey || event.ctrlKey) && !event.altKey) {
+        event.preventDefault();
+        setPalette((open) => !open);
+        return;
+      }
       if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
       const target = event.target as HTMLElement | null;
       if (target !== null && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
@@ -266,7 +282,7 @@ export function AdminShell({
   }, []);
 
   /* The drawer is navigation: arriving anywhere - a new page or a new tab - closes it. */
-  useEffect(() => setDrawer(false), [pathname, tab]);
+  useEffect(() => { setDrawer(false); setPalette(false); }, [pathname, tab]);
 
   useEffect(() => {
     if (!drawer) return;
@@ -448,6 +464,9 @@ export function AdminShell({
     </>
   );
 
+  // The phone's thumb row: the four places somebody opens most, each with its count.
+  const dockItems = DOCK.map((href) => ADMIN_NAV.flatMap((group) => group.items).find((item) => item.href === href)!).filter(Boolean);
+
   return (
     <section className="admin">
       {/* The phone's chrome: one slim bar, one icon, never on a laptop. */}
@@ -462,23 +481,60 @@ export function AdminShell({
           <SidebarGlyph />
         </button>
         <strong>{title}</strong>
+        <button type="button" className="admin-bar-go" onClick={() => setPalette(true)} aria-label="Go to any admin page">
+          <SideIcon name="list" /><span>Go to</span>
+        </button>
       </div>
 
-      {drawer && (
-        <div className="app-drawer">
-          {/* The gesture people already try: a tap off the sheet dismisses it. */}
-          <button
-            type="button"
-            className="app-drawer-scrim"
-            aria-label="Close the menu"
-            onClick={() => setDrawer(false)}
-          />
-          <div className="app-drawer-panel">{rail}</div>
-        </div>
-      )}
+      {/*
+        Always mounted below 900px so it can leave the way it came: the sheet slides back out
+        and the scrim fades, instead of vanishing on the frame the state flips. `inert` keeps
+        its links out of the tab order while it is closed.
+      */}
+      <div className="admin-sheet" data-open={drawer} inert={!drawer}>
+        {/* The gesture people already try: a tap off the sheet dismisses it. */}
+        <button
+          type="button"
+          className="admin-sheet-scrim"
+          aria-label="Close the menu"
+          tabIndex={-1}
+          onClick={() => setDrawer(false)}
+        />
+        <div className="admin-sheet-panel" role="dialog" aria-modal="true" aria-label="Admin menu">{rail}</div>
+      </div>
 
-      <div className="admin-layout">
-        <aside className="admin-rail"><Link href="/" className="workspace-brand"><Mark size={28} /><span>ADCode<small>Administration</small></span></Link>{rail}</aside>
+      <nav className="admin-dock" aria-label="Admin shortcuts">
+        {dockItems.map((item) => {
+          const count = counts === null || item.badge === undefined ? 0 : item.badge(counts);
+          return (
+            <Link key={item.href} href={item.href} className="admin-dock-item" aria-current={isCurrent(item) ? "page" : undefined}>
+              <SideIcon name={item.icon} />
+              <span>{item.label}</span>
+              {count > 0 && <b className="admin-badge" aria-label={`${count} waiting`}>{count > 99 ? "99+" : count}</b>}
+            </Link>
+          );
+        })}
+        <button type="button" className="admin-dock-item" aria-expanded={drawer} onClick={() => setDrawer(true)}>
+          <SidebarGlyph />
+          <span>More</span>
+        </button>
+      </nav>
+
+      <AdminPalette open={palette} onClose={() => setPalette(false)} />
+
+      <div className="admin-layout" data-folded={folded}>
+        <aside className="admin-rail">
+          <div className="admin-rail-top">
+            <Link href="/" className="workspace-brand" title="ADCode administration"><Mark size={28} /><span>ADCode<small>Administration</small></span></Link>
+            <button type="button" className="admin-fold" onClick={fold} aria-pressed={folded} aria-label={folded ? "Expand the menu" : "Collapse the menu to icons"} title={folded ? "Expand the menu" : "Collapse the menu"}>
+              <SidebarGlyph />
+            </button>
+          </div>
+          <button type="button" className="admin-palette-open" onClick={() => setPalette(true)} title="Go to any page (Ctrl K)">
+            <SideIcon name="list" /><span>Go to…</span><kbd aria-hidden="true">Ctrl K</kbd>
+          </button>
+          {rail}
+        </aside>
 
         {/*
           Keyed on the destination, so turning a page replays the entrance rather than

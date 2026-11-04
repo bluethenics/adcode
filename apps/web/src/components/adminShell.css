@@ -1,0 +1,386 @@
+/*
+ * The admin shell's second layer: the sheet that leaves the way it came, the phone dock, the
+ * folded rail, the Ctrl K palette, and the motion that makes the panel read as pages.
+ *
+ * Motion rules (Emil Kowalski's skills, as in adminPanel.css): transform and opacity only; one
+ * ease-out curve for entrances, the iOS drawer curve for the sheet; presses scale to .97; hover
+ * only on a real pointer; keyboard-opened things (the palette) get a short fade and no travel;
+ * under reduced motion everything keeps its fade and loses its movement.
+ *
+ * Every selector starts at `.admin` so it outranks globals.css and redesign.css.
+ */
+.admin {
+  --adm-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --adm-dock-h: 64px;
+}
+
+/* ── The sheet (under 900px) ─────────────────────────────────────────────── */
+
+.admin-sheet { display: none; }
+
+@media (max-width: 900px) {
+  .admin .admin-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 120;
+    display: block;
+    pointer-events: none;
+  }
+  .admin .admin-sheet[data-open="true"] { pointer-events: auto; }
+
+  .admin .admin-sheet-scrim {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    padding: 0;
+    background: rgb(0 0 0 / .5);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 240ms ease;
+  }
+  .admin .admin-sheet[data-open="true"] .admin-sheet-scrim { opacity: 1; }
+
+  .admin .admin-sheet-panel {
+    position: relative;
+    display: grid;
+    align-content: start;
+    gap: 16px;
+    width: min(84vw, 300px);
+    height: 100%;
+    padding: 20px 14px calc(30px + env(safe-area-inset-bottom));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: var(--card);
+    border-right: 1px solid var(--hairline);
+    box-shadow: 24px 0 60px rgb(0 0 0 / .35);
+    transform: translateX(-100%);
+    transition: transform 320ms var(--adm-drawer);
+  }
+  .admin .admin-sheet[data-open="true"] .admin-sheet-panel { transform: none; }
+  /* Leaving is quicker than arriving. */
+  .admin .admin-sheet[data-open="false"] .admin-sheet-panel { transition-duration: 220ms; }
+  .admin .admin-sheet[data-open="false"] .admin-sheet-scrim { transition-duration: 180ms; }
+
+  /* Its rows arrive a beat after the sheet, top to bottom. */
+  .admin .admin-sheet[data-open="true"] .app-side-group {
+    animation: adm-shell-rise 360ms var(--adm-ease) backwards;
+  }
+  .admin .admin-sheet[data-open="true"] .app-side-group:nth-child(2) { animation-delay: 30ms; }
+  .admin .admin-sheet[data-open="true"] .app-side-group:nth-child(3) { animation-delay: 60ms; }
+  .admin .admin-sheet[data-open="true"] .app-side-group:nth-child(4) { animation-delay: 90ms; }
+  .admin .admin-sheet[data-open="true"] .app-side-group:nth-child(n+5) { animation-delay: 120ms; }
+}
+
+/* ── The phone dock ──────────────────────────────────────────────────────── */
+
+.admin-dock { display: none; }
+
+@media (max-width: 900px) {
+  .admin { padding-bottom: calc(var(--adm-dock-h) + 24px + env(safe-area-inset-bottom)); }
+
+  .admin .admin-dock {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 90;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    height: calc(var(--adm-dock-h) + env(safe-area-inset-bottom));
+    padding: 6px 6px env(safe-area-inset-bottom);
+    background: color-mix(in srgb, var(--card) 92%, transparent);
+    backdrop-filter: saturate(160%) blur(18px);
+    -webkit-backdrop-filter: saturate(160%) blur(18px);
+    border-top: 1px solid var(--hairline);
+    animation: adm-dock-in 420ms var(--adm-drawer) both;
+  }
+
+  .admin .admin-dock-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 0;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: color 160ms ease, background-color 160ms ease, transform 140ms var(--adm-ease);
+  }
+  .admin .admin-dock-item > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .admin .admin-dock-item svg { width: 19px; height: 19px; }
+  .admin .admin-dock-item:active { transform: scale(.94); }
+  .admin .admin-dock-item[aria-current="page"] { color: var(--text); background: color-mix(in srgb, var(--text) 7%, transparent); }
+  .admin .admin-dock-item .admin-badge {
+    position: absolute;
+    top: 4px;
+    left: calc(50% + 6px);
+    min-width: 17px;
+    padding: 0 5px;
+    font-size: 10px;
+  }
+
+  /* The development data switch sits above the dock, not behind it. */
+  .admin .admin-preview-switch { bottom: calc(var(--adm-dock-h) + 14px + env(safe-area-inset-bottom)); }
+}
+
+/* ── The bar's "Go to" (phones), and the rail's palette row ──────────────── */
+
+/* The website's nav steps aside on /admin, so the bar sticks to the very top - it used to sit
+   66px down under a nav that isn't there, leaving an empty band above every page. */
+@media (max-width: 900px) {
+  .admin .app-bar { top: 0; padding-top: calc(9px + env(safe-area-inset-top)); }
+}
+
+.admin .admin-bar-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: transform 140ms var(--adm-ease), color 160ms ease;
+}
+.admin .admin-bar-go:active { transform: scale(.96); }
+
+.admin .admin-rail-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.admin .admin-fold {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, transform 140ms var(--adm-ease);
+}
+.admin .admin-fold:active { transform: scale(.94); }
+.admin .admin-fold svg { width: 17px; height: 17px; }
+
+.admin .admin-palette-open {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: color 160ms ease, border-color 160ms ease, transform 140ms var(--adm-ease);
+}
+.admin .admin-palette-open > span { flex: 1; }
+.admin .admin-palette-open kbd {
+  padding: 1px 6px;
+  border: 1px solid var(--hairline);
+  border-radius: 5px;
+  font: 11px var(--font-mono), monospace;
+  color: var(--faint, var(--muted));
+}
+.admin .admin-palette-open:active { transform: scale(.98); }
+
+/* ── The folded rail (laptops) ───────────────────────────────────────────── */
+
+@media (min-width: 901px) {
+  .admin .admin-layout[data-folded="true"] { grid-template-columns: 72px minmax(0, 1fr); }
+  .admin .admin-layout[data-folded="true"] .admin-rail { padding-inline: 10px; }
+  .admin .admin-layout[data-folded="true"] .admin-rail-top { flex-direction: column; }
+  .admin .admin-layout[data-folded="true"] .workspace-brand > span,
+  .admin .admin-layout[data-folded="true"] .admin-rail .admin-jump,
+  .admin .admin-layout[data-folded="true"] .admin-rail .app-side-group h2,
+  .admin .admin-layout[data-folded="true"] .admin-rail .app-side-item > span,
+  .admin .admin-layout[data-folded="true"] .admin-palette-open > :not(svg),
+  .admin .admin-layout[data-folded="true"] .admin-rail-status span,
+  .admin .admin-layout[data-folded="true"] .admin-rail-exit { display: none; }
+  .admin .admin-layout[data-folded="true"] :is(.admin-rail .app-side-item, .admin-palette-open, .admin-rail-status) { justify-content: center; padding-inline: 0; }
+  .admin .admin-layout[data-folded="true"] .admin-rail .app-side-group + .app-side-group { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--hairline); }
+  /* A count becomes a dot on the icon's corner: "something waits here" survives the fold. */
+  .admin .admin-layout[data-folded="true"] .admin-rail .app-side-item { position: relative; }
+  .admin .admin-layout[data-folded="true"] .admin-rail .admin-badge {
+    position: absolute;
+    top: 3px;
+    right: 9px;
+    min-width: 0;
+    width: 8px;
+    height: 8px;
+    padding: 0;
+    font-size: 0;
+  }
+  .admin .admin-layout[data-folded="true"] .admin-content { max-width: 1440px; }
+}
+
+/* ── The palette ─────────────────────────────────────────────────────────── */
+
+.admin-palette {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  justify-items: center;
+  align-items: start;
+  padding: 12vh 16px 16px;
+  background: rgb(0 0 0 / .45);
+  animation: adm-fade 140ms ease both;
+}
+.admin-palette-panel {
+  width: min(600px, 100%);
+  max-height: min(560px, 76vh);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: 0 24px 80px rgb(0 0 0 / .45);
+  animation: adm-palette-in 160ms var(--adm-ease, ease-out) both;
+}
+.admin-palette-input {
+  width: 100%;
+  padding: 16px 18px;
+  border: 0;
+  border-bottom: 1px solid var(--hairline);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  outline: none;
+}
+.admin-palette-list { margin: 0; padding: 6px; list-style: none; overflow-y: auto; overscroll-behavior: contain; }
+.admin-palette-item {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.admin-palette-item span { display: grid; gap: 2px; min-width: 0; }
+.admin-palette-item b { color: var(--text); font-size: 14px; font-weight: 500; }
+.admin-palette-item small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.admin-palette-item em { font: 11px var(--font-mono), monospace; font-style: normal; color: var(--faint, var(--muted)); }
+.admin-palette-item[aria-selected="true"] { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
+.admin-palette-foot { display: flex; align-items: center; gap: 6px; margin: 0; padding: 10px 16px; border-top: 1px solid var(--hairline); color: var(--muted); font-size: 12px; }
+.admin-palette-foot kbd { padding: 1px 6px; border: 1px solid var(--hairline); border-radius: 5px; font: 11px var(--font-mono), monospace; }
+.admin-palette-foot kbd + kbd { margin-left: -2px; }
+@media (max-width: 640px) {
+  .admin-palette { padding-top: 8vh; }
+  .admin-palette-item em { display: none; }
+}
+
+/* ── Rail rows: a marker that grows in on the current page ───────────────── */
+
+.admin .admin-rail .app-side-item,
+.admin .admin-sheet .app-side-item {
+  position: relative;
+  transition: background-color 160ms ease, color 160ms ease, transform 140ms var(--adm-ease);
+}
+.admin :is(.admin-rail, .admin-sheet) .app-side-item::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--text);
+  transform: scaleY(0);
+  transition: transform 260ms var(--adm-ease);
+}
+.admin :is(.admin-rail, .admin-sheet) .app-side-item[aria-current="page"]::before { transform: scaleY(1); }
+.admin :is(.admin-rail, .admin-sheet) .app-side-item:active { transform: scale(.98); }
+
+/* ── Content motion ──────────────────────────────────────────────────────── */
+
+/* A new page's blocks arrive in reading order, 40ms apart; everything is clickable at once.
+   The page itself only fades, so the two movements never add up. */
+.admin .admin-page-in { animation-name: adm-fade; }
+.admin .admin-page-in > * { animation: adm-shell-rise 360ms var(--adm-ease) backwards; }
+.admin .admin-page-in > :nth-child(2) { animation-delay: 40ms; }
+.admin .admin-page-in > :nth-child(3) { animation-delay: 80ms; }
+.admin .admin-page-in > :nth-child(4) { animation-delay: 120ms; }
+.admin .admin-page-in > :nth-child(n+5) { animation-delay: 160ms; }
+
+/* Counts arrive with a small pop, so a new one is noticed. */
+.admin .admin-badge { animation: adm-pop 260ms var(--adm-ease) backwards; }
+
+/* Section tabs: the current one's fill fades in instead of snapping. */
+.admin .admin-tab { transition: background-color 180ms ease, color 180ms ease, box-shadow 180ms ease, transform 140ms var(--adm-ease); }
+.admin .admin-tab:active { transform: scale(.97); }
+
+/* Every button in the panel answers a press. */
+.admin .admin-content :is(.btn, .adm-cta, .refresh-stamp-button) { transition: transform 140ms var(--adm-ease), background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease; }
+.admin .admin-content :is(.btn, .adm-cta):active:not(:disabled) { transform: scale(.97); }
+
+/* Messages arrive instead of appearing: saved, failed, nothing found. */
+.admin .admin-content :is(.notice, .empty) { animation: adm-shell-rise 280ms var(--adm-ease) backwards; }
+
+/* A disclosure's body settles in when it opens. */
+.admin .admin-content details[open] > :not(summary) { animation: adm-shell-rise 240ms var(--adm-ease) backwards; }
+.admin .admin-content summary { cursor: pointer; }
+
+/* Cards and rows step up under a real pointer: a surface change, never a jump. */
+.admin .admin-content :is(.adm-card, .adm-panel, .card) { transition: border-color 200ms ease, background-color 200ms ease; }
+.admin .admin-content tbody tr { transition: background-color 140ms ease; }
+
+@media (hover: hover) and (pointer: fine) {
+  .admin .admin-content :is(.adm-card, .adm-panel, .card):hover { border-color: var(--border-strong, var(--hairline)); }
+  .admin .admin-content tbody tr:hover { background: color-mix(in srgb, var(--text) 3%, transparent); }
+  .admin .admin-fold:hover, .admin .admin-palette-open:hover, .admin .admin-bar-go:hover { color: var(--text); border-color: var(--border-strong, var(--hairline)); }
+  .admin .admin-palette-open:hover kbd { color: var(--muted); }
+}
+
+/* ── Phone fixes found with ?preview=worst at 375px ─────────────────────── */
+
+@media (max-width: 640px) {
+  /* The BYOK toolbar: a select, a search and a checkbox can't share one unwrapped row. */
+  .admin .admin-content .admin-models-toolbar .admin-filters {
+    flex-wrap: wrap;
+    overflow: visible;
+    background: transparent;
+    padding: 0;
+    gap: 8px;
+  }
+  .admin .admin-content .admin-models-toolbar .admin-filters > :is(.select, .input) { flex: 1 1 100%; width: 100%; min-height: 40px; }
+  .admin .admin-content .admin-models-toolbar { position: static; }
+
+  .admin .admin-head { align-items: start; }
+  .admin .admin-head-actions { width: 100%; }
+  .admin .admin-content :is(input, select, textarea) { font-size: 16px; } /* no zoom-on-focus on iOS */
+}
+
+@keyframes adm-shell-rise { from { opacity: 0; transform: translateY(8px); } }
+@keyframes adm-fade { from { opacity: 0; } }
+@keyframes adm-palette-in { from { opacity: 0; transform: scale(.98); } }
+@keyframes adm-pop { from { opacity: 0; transform: scale(.6); } }
+@keyframes adm-dock-in { from { transform: translateY(100%); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .admin .admin-sheet-panel { transition: opacity 200ms ease; transform: none; opacity: 0; }
+  .admin .admin-sheet[data-open="true"] .admin-sheet-panel { opacity: 1; }
+  .admin :is(.admin-page-in > *, .admin-badge, .admin-content .notice, .admin-content .empty, .admin-content details[open] > :not(summary), .admin-sheet .app-side-group, .admin-dock) { animation-name: adm-fade; }
+  .admin-palette-panel { animation-name: adm-fade; }
+  .admin :is(.btn, .adm-cta, .admin-tab, .admin-dock-item, .app-side-item, .admin-fold, .admin-palette-open, .admin-bar-go):active { transform: none !important; }
+  .admin :is(.admin-rail, .admin-sheet) .app-side-item::before { transition: none; }
+}
