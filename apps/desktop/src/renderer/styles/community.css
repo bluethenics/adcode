@@ -1,0 +1,385 @@
+/*
+ * Community page: plugin directory, project artifacts, Studio and creator profile.
+ *
+ * Built from the design system (design-system.css): .ad-btn, .ad-tabs, .ad-switch,
+ * .ad-search, .ad-select, .ad-input, .ad-card-row, .ad-progress, .ad-icon-btn. This file only
+ * lays them out and adds what the system has no part for (listing cards, diffs, badges).
+ *
+ * Polish follows unslop (Damir Sokolovsky, CC BY 4.0): quiet chrome on a 4px grid, one
+ * accent, hairline borders, sentence case, no emoji as icons, no glowing pills. Motion
+ * follows Emil Kowalski's rules (emilkowalski/skills, MIT) through motion.css's variables:
+ * transform and opacity only, a strong ease-out, under 300ms, exits faster than entries,
+ * no animation on anything typed or repeated, and stillness when asked for.
+ */
+.community-page {
+  container: community / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-6) max(var(--space-6), calc((100% - 1180px) / 2)) var(--space-6);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+.community-page :is(button, input, select, textarea, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* The page scrolls, its rows do not shrink: a tab bar with overflow would otherwise collapse to its padding on a long tab. */
+.community-page > * { flex-shrink: 0; }
+
+/* ── Header ─────────────────────────────────────────────────────────── */
+
+.community-header { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
+.community-title { margin: 0; font-size: clamp(22px, 2vw, 26px); font-weight: 600; letter-spacing: -.02em; }
+.community-summary { margin: 4px 0 0; color: var(--text-secondary); font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+.community-header-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.community-search { width: min(280px, 100%); }
+.community-search svg { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.community-creator-chip {
+  min-height: var(--control-height);
+  padding: 0 12px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: 500 var(--text-sm) var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.community-creator-chip:hover { background: var(--bg-hover); color: var(--text-primary); }
+.community-creator-chip[hidden] { display: none; }
+
+/* The design system's segmented tabs, sized to their labels rather than stretched. */
+.community-tabs.ad-tabs { align-self: flex-start; max-width: 100%; overflow-x: auto; }
+.community-tabs .ad-tab { flex: none; display: inline-flex; align-items: center; gap: 6px; }
+.community-tab-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.community-tab-badge[hidden] { display: none; }
+
+.community-panel { display: grid; gap: var(--space-6); align-content: start; }
+.community-panel[hidden] { display: none; }
+
+/* A status line under the tabs: rises in, fades out quicker than it came. */
+.community-notice {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  transition: opacity 160ms ease-out, translate 160ms ease-out;
+}
+.community-notice[data-kind="error"] { border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+.community-notice[data-leaving="true"] { opacity: 0; translate: 0 -4px; }
+.community-notice[hidden] { display: none; }
+
+.community-empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-6) var(--space-4);
+  border: 1px dashed var(--border-hairline);
+  border-radius: var(--radius-md);
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+.community-empty p { margin: 0; }
+
+/* ── Discover ───────────────────────────────────────────────────────── */
+
+.community-doors {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-lg);
+  background: var(--bg-app);
+}
+.community-door .ad-card-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.community-door .ad-card-sub { white-space: normal; color: var(--text-secondary); line-height: 1.45; }
+.community-door-chevron { display: inline-grid; flex: none; color: var(--text-tertiary); transition: translate 180ms var(--motion-curve), color 120ms ease; }
+.community-door-chevron svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+.community-section { display: grid; gap: var(--space-3); }
+.community-section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.community-section-title { margin: 0; font-size: var(--text-md); font-weight: 600; }
+.community-section-note { margin: 4px 0 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.5; }
+.community-bar { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.community-bar .community-section-note { flex: 1; min-width: 240px; margin: 0; }
+.community-sort.ad-select { width: auto; min-width: 140px; }
+.community-categories { display: flex; gap: var(--space-1); flex-wrap: wrap; flex: 1; }
+.community-category {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: 500 var(--text-sm) var(--font-ui);
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.community-category:hover { color: var(--text-primary); background: var(--bg-hover); }
+.community-category[aria-pressed="true"] { border-color: var(--border-hairline); background: var(--surface-selected); color: var(--text-primary); }
+
+/* ── Cards ──────────────────────────────────────────────────────────── */
+
+.community-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--space-3); }
+.community-card {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-sheen), var(--bg-app);
+  transition: border-color 140ms ease, translate 180ms var(--motion-curve);
+}
+.community-card-top { display: flex; align-items: flex-start; gap: var(--space-3); }
+.community-monogram {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border-hairline);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-control);
+  color: var(--text-primary);
+  font: 500 15px var(--font-mono);
+}
+.community-card-names { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.community-card-title {
+  justify-self: start;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-primary);
+  font: 600 var(--text-sm) var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.community-card-title:hover { text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 3px; }
+.community-card-by { color: var(--text-tertiary); font-size: var(--text-xs); line-height: 1.45; font-variant-numeric: tabular-nums; }
+.community-card-text { margin: 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.community-card-meta { display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; color: var(--text-tertiary); font-size: var(--text-xs); }
+.community-stat strong { color: var(--text-secondary); font-weight: 500; font-variant-numeric: tabular-nums; }
+.community-rising { color: var(--success); font-variant-numeric: tabular-nums; }
+.community-card-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-top: var(--space-1); }
+.community-card-contributes { min-width: 0; color: var(--text-tertiary); font-size: var(--text-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.community-help-wanted { margin: 0; padding: var(--space-2) var(--space-3); border-left: 2px solid var(--accent); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; background: var(--bg-hover); color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.45; }
+.community-help-wanted strong { color: var(--text-primary); font-weight: 600; }
+
+/* Quiet text badges: no glow, no fill that competes with the primary button. */
+.community-chip { display: inline-flex; align-items: center; min-height: 20px; padding: 0 6px; border: 1px solid var(--border-hairline); border-radius: 6px; color: var(--text-tertiary); font-size: 11px; font-weight: 500; white-space: nowrap; }
+.community-chip-featured { color: var(--text-secondary); }
+.community-chip-soon { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 35%, transparent); }
+.community-status-open { color: var(--warning); }
+.community-status-accepted { color: var(--success); }
+.community-status-declined { color: var(--text-tertiary); }
+.community-installed-mark { display: inline-flex; align-items: center; gap: 6px; min-height: var(--control-height); color: var(--success); font-size: var(--text-sm); font-weight: 500; outline: none; }
+.community-installed-mark svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Star: a word and a count. The count is its own span so it can tick on its own. */
+.community-star { gap: 8px; }
+.community-star-count { display: inline-block; color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
+.community-star[aria-pressed="true"] .community-star-count { color: var(--accent); }
+
+/* ── Lists ──────────────────────────────────────────────────────────── */
+
+.community-installed { display: grid; margin: 0; padding: 0; list-style: none; border: 1px solid var(--border-hairline); border-radius: var(--radius-md); background: var(--bg-app); overflow: hidden; }
+.community-installed-row { display: flex; align-items: center; gap: var(--space-3); min-height: 56px; padding: var(--space-2) var(--space-3); }
+.community-installed-row .community-card-names { flex: 1; }
+.community-installed-row + .community-installed-row { border-top: 1px solid var(--border-hairline); }
+.community-installed-row .community-monogram { width: 32px; height: 32px; font-size: 13px; }
+.community-row-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-end; }
+.community-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-md);
+  background: var(--bg-app);
+  font-size: var(--text-sm);
+}
+.community-banner p { flex: 1; min-width: 240px; margin: 0; color: var(--text-secondary); line-height: 1.5; }
+.community-banner strong { color: var(--text-primary); font-weight: 600; }
+.community-activity { display: grid; margin: 0; padding: 0; list-style: none; }
+.community-activity li { display: flex; align-items: baseline; gap: var(--space-3); padding: var(--space-2) 0; border-bottom: 1px solid var(--border-hairline); font-size: var(--text-sm); }
+.community-activity li span { flex: 1; color: var(--text-secondary); }
+.community-activity li.community-unread span { color: var(--text-primary); }
+.community-activity li.community-unread::before { content: ""; flex: none; align-self: center; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.community-activity time { flex: none; }
+
+/* ── Profile ────────────────────────────────────────────────────────── */
+
+.community-profile { display: grid; gap: var(--space-3); padding: var(--space-5); border: 1px solid var(--border-hairline); border-radius: var(--radius-lg); background: var(--surface-sheen), var(--bg-app); }
+.community-level { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
+.community-level-name { font-size: var(--text-xl); font-weight: 600; letter-spacing: -.01em; }
+/* Filled with transform, not width, so the first paint can grow it on the compositor. */
+.community-progress > .community-progress-fill { width: 100%; transform: scaleX(var(--progress, 0)); transform-origin: left center; }
+.community-badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(156px, 1fr)); gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.community-badge { display: grid; gap: 2px; padding: var(--space-2) var(--space-3); border: 1px dashed var(--border-hairline); border-radius: var(--radius-sm); color: var(--text-tertiary); font-size: var(--text-xs); line-height: 1.4; }
+.community-badge strong { color: var(--text-secondary); font-size: var(--text-sm); font-weight: 500; }
+.community-badge-earned { border-style: solid; background: var(--surface-control); color: var(--text-secondary); }
+.community-badge-earned strong { color: var(--text-primary); }
+
+/* ── Studio ─────────────────────────────────────────────────────────── */
+
+.community-studio { display: grid; gap: var(--space-4); }
+.community-studio > .community-section-note { margin: 0; max-width: 72ch; }
+.community-studio-ai { display: flex; gap: var(--space-2); }
+.community-studio-ai .ad-input { flex: 1; }
+.community-studio-layout { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr); gap: var(--space-4); align-items: start; }
+@container community (max-width: 760px) { .community-studio-layout { grid-template-columns: 1fr; } }
+.community-studio-left, .community-studio-right { display: grid; gap: var(--space-3); min-width: 0; }
+.community-studio-toolbar { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.community-studio-toolbar .ad-select { width: auto; }
+.community-studio-editor.ad-textarea {
+  min-height: 460px;
+  padding: var(--space-3);
+  background: var(--bg-editor);
+  font: 400 12.5px/1.6 var(--font-mono);
+  resize: vertical;
+  tab-size: 2;
+}
+.community-studio-check { padding: var(--space-4); border: 1px solid var(--border-hairline); border-radius: var(--radius-md); background: var(--bg-app); font-size: var(--text-sm); transition: border-color 160ms ease; }
+.community-studio-check[data-verdict="ok"] { border-color: color-mix(in srgb, var(--success) 35%, transparent); }
+.community-studio-preview { display: grid; gap: var(--space-2); }
+.community-studio-ok { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: var(--success); font-weight: 500; }
+.community-studio-ok svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.community-studio-bad { margin: 0 0 var(--space-2); color: var(--warning); font-weight: 500; }
+.community-studio-actions { display: flex; justify-content: flex-end; gap: var(--space-2); }
+.community-problems, .community-adds, .community-versions, .community-changes { display: grid; gap: 4px; margin: 0; padding-left: 18px; color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.45; }
+.community-monetize { display: grid; gap: var(--space-2); padding: var(--space-4); border: 1px solid var(--border-hairline); border-radius: var(--radius-md); background: var(--bg-app); }
+.community-monetize-head { display: flex; align-items: center; gap: var(--space-2); }
+.community-monetize h3 { margin: 0; font-size: var(--text-sm); font-weight: 600; }
+.community-monetize p { margin: 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.5; }
+.community-monetize-form { display: flex; gap: var(--space-2); }
+.community-monetize-form .ad-input { flex: 1; min-width: 0; }
+
+/* ── Dialogs ────────────────────────────────────────────────────────── */
+
+.community-detail .form-dialog-card, .community-review .form-dialog-card, .community-share .form-dialog-card { width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 64px); overflow: auto; }
+.community-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.community-dialog-subtitle { margin: var(--space-4) 0 var(--space-1); color: var(--text-secondary); font-size: var(--text-sm); font-weight: 600; }
+.community-dialog-actions { flex-wrap: wrap; }
+.community-readme { max-height: 220px; margin: 0; padding: var(--space-3); overflow: auto; border-radius: var(--radius-sm); background: var(--bg-editor); color: var(--text-secondary); font: 400 12px/1.55 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.community-files summary, .community-diff summary { padding: var(--space-2) 0; font-size: var(--text-sm); cursor: pointer; }
+.community-files ul { max-height: 180px; margin: 0; padding-left: 18px; overflow: auto; color: var(--text-secondary); font: 400 12px/1.6 var(--font-mono); }
+.community-diffs { display: grid; gap: var(--space-1); }
+.community-diff { padding: 0 var(--space-3); border: 1px solid var(--border-hairline); border-radius: var(--radius-sm); background: var(--bg-app); }
+.community-diff-lines { max-height: 340px; margin: 0 0 var(--space-2); overflow: auto; font: 400 12px/1.5 var(--font-mono); white-space: pre; }
+.community-diff-lines span { display: block; padding: 0 6px; }
+.community-diff-add { background: color-mix(in srgb, var(--success) 14%, transparent); }
+.community-diff-remove { background: color-mix(in srgb, var(--danger) 14%, transparent); }
+.community-diff-skip { color: var(--text-tertiary); }
+.community-change-added { color: var(--success); }
+.community-change-deleted { color: var(--danger); }
+.community-diffstat { color: var(--text-tertiary); font: 400 11.5px var(--font-mono); }
+
+/* The sidebar's Community entry carries an unread count. */
+.vibe-page-community[data-unread]::after {
+  content: attr(data-unread);
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  margin-left: auto;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ── Motion ─────────────────────────────────────────────────────────────
+ * Every rule below runs from a start frame back to the element's natural style
+ * (`backwards` at most), so an animation that never runs leaves things where they belong.
+ * Each one has a job: a tab switch says the view changed, cards arriving say the data came,
+ * an install says it worked, a star says it counted. Nothing loops and nothing pulses.
+ */
+@keyframes community-fade { from { opacity: 0; } }
+@keyframes community-rise { from { opacity: 0; transform: translateY(6px); } }
+@keyframes community-pop { from { opacity: 0; transform: scale(.92); } }
+@keyframes community-tick { from { opacity: 0; transform: translateY(-60%); } }
+@keyframes community-fill { from { transform: scaleX(0); } }
+@keyframes community-draw { from { stroke-dashoffset: 18; } }
+
+@media (prefers-reduced-motion: no-preference) {
+  /* A tab you switch to fades in; it is clicked often, so it does not travel. */
+  :root:not([data-reduced-motion="true"]) .community-panel[data-enter="true"] {
+    animation: community-fade 150ms ease-out backwards;
+  }
+  /* Cards and badges arrive with a short stagger, once per visit to a tab (capped at 12 × 24ms). */
+  :root:not([data-reduced-motion="true"]) .community-grid[data-stagger="true"] > .community-card,
+  :root:not([data-reduced-motion="true"]) .community-badges[data-stagger="true"] > li {
+    animation: community-rise var(--motion-enter) var(--motion-curve) backwards;
+    animation-delay: calc(min(var(--i, 0), 12) * 24ms);
+  }
+  :root:not([data-reduced-motion="true"]) .community-notice[data-enter="true"] {
+    animation: community-rise 220ms var(--ease-toast) backwards;
+  }
+  :root:not([data-reduced-motion="true"]) .community-tab-badge[data-enter="true"] {
+    animation: community-pop 200ms var(--motion-curve) backwards;
+  }
+  /* Install worked: the check draws itself and the label settles in. */
+  :root:not([data-reduced-motion="true"]) .community-installed-mark[data-fresh="true"] {
+    animation: community-pop 220ms var(--motion-curve) backwards;
+  }
+  :root:not([data-reduced-motion="true"]) .community-installed-mark[data-fresh="true"] svg path {
+    stroke-dasharray: 18;
+    animation: community-draw 320ms 80ms var(--motion-curve) backwards;
+  }
+  /* A star counts: the number drops into place. */
+  :root:not([data-reduced-motion="true"]) .community-star[data-bump="true"] .community-star-count {
+    animation: community-tick 240ms var(--motion-curve);
+  }
+  /* The Studio's verdict only moves when it flips between ready and not, never per keystroke. */
+  :root:not([data-reduced-motion="true"]) .community-studio-check[data-flip="true"] > * {
+    animation: community-fade 180ms ease-out backwards;
+  }
+  :root:not([data-reduced-motion="true"]) .community-progress-fill {
+    animation: community-fill 480ms 120ms var(--motion-curve) backwards;
+  }
+  :root:not([data-reduced-motion="true"]) :is(.community-diff, .community-files)[open] > :not(summary) {
+    animation: community-fade 160ms ease-out;
+  }
+
+  /* Hover only where a real pointer hovers: a card lifts a pixel, a door's chevron leans in. */
+  @media (hover: hover) and (pointer: fine) {
+    :root:not([data-reduced-motion="true"]) .community-card:hover { translate: 0 -2px; border-color: var(--border-strong); }
+    :root:not([data-reduced-motion="true"]) .community-door:hover .community-door-chevron { translate: 3px 0; color: var(--text-secondary); }
+  }
+}
+
+/* Stillness asked for: colour still answers hover, nothing moves. */
+@media (hover: hover) and (pointer: fine) {
+  .community-card:hover { border-color: var(--border-strong); }
+}

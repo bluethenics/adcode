@@ -1,0 +1,11 @@
+{
+  "name": "@adcode/community",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The community hub's rules: plugin manifests, project artifacts and their improvements, trending and creator reputation. Plain TypeScript; no Electron, no DOM, no network.",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

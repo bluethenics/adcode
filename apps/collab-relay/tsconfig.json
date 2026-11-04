@@ -12,7 +12,13 @@
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "baseUrl": ".",
+    "paths": {
+      "@adcode/settings": [
+        "../../packages/settings/src/index.ts"
+      ]
+    }
   },
   "include": [
     "src/**/*.ts",

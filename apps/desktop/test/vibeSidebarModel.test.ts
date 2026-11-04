@@ -64,9 +64,9 @@ describe("Vibe project card", () => {
 });
 
 describe("Vibe pages", () => {
-  it("lists Chat, Agents and Tools in navigation order", () => {
-    expect(VIBE_PAGES.map((page) => page.id)).toEqual(["chat", "agents", "tools"]);
-    expect(VIBE_PAGES.map((page) => page.label)).toEqual(["Chat", "Agents", "Tools"]);
+  it("lists Chat, Agents, Tools and Community in navigation order", () => {
+    expect(VIBE_PAGES.map((page) => page.id)).toEqual(["chat", "agents", "tools", "community"]);
+    expect(VIBE_PAGES.map((page) => page.label)).toEqual(["Chat", "Agents", "Tools", "Community"]);
   });
 
   it("accepts only known pages when a stored or routed value comes back", () => {

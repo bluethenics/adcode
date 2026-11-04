@@ -6,12 +6,14 @@ interface __BaseEnv_CollabRelayEnv {
 	PROJECT_ACCOUNTS: DurableObjectNamespace<import("./src/index").ProjectDirectory>;
 	SHARED_PROJECTS: DurableObjectNamespace<import("./src/index").SharedProject>;
 	REQUEST_QUEUES: DurableObjectNamespace<import("./src/index").PriorityQueue>;
+	COMMUNITY: DurableObjectNamespace<import("./src/index").CommunityHub>;
+	ARTIFACT_VAULTS: DurableObjectNamespace<import("./src/index").ArtifactVault>;
 	ENTITLEMENTS: Service /* entrypoint ProjectEntitlements from adcode */;
 }
 declare namespace Cloudflare {
 	interface GlobalProps {
 		mainModule: typeof import("./src/index");
-		durableNamespaces: "CollabRoom" | "ProjectDirectory" | "SharedProject" | "PriorityQueue";
+		durableNamespaces: "CollabRoom" | "ProjectDirectory" | "SharedProject" | "PriorityQueue" | "CommunityHub" | "ArtifactVault";
 	}
 	interface Env extends __BaseEnv_CollabRelayEnv {}
 }

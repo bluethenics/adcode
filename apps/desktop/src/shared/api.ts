@@ -62,6 +62,7 @@ export interface ReportInput {
 
 import type { ActivityDelta } from "./activity.ts";
 import type { SharedProjectLibrary, SharedProjectSnapshot, ProjectChatMessage } from "@adcode/collab";
+import type { CommunityApi } from "./community.ts";
 export type { SharedProjectLibrary, SharedProjectSnapshot, ProjectChatMessage };
 import type { MilestoneName } from "./milestones.ts";
 import type { AssistantControlAction, AssistantControlsView } from "./assistantControls.ts";
@@ -793,6 +794,36 @@ export const CHANNELS = {
   collabStatus: "collab:status",
   projectsList: "projects:list",
   projectsDetails: "projects:details",
+  communityHome: "community:home",
+  communityPlugins: "community:plugins",
+  communityPlugin: "community:plugin",
+  communityArtifacts: "community:artifacts",
+  communityArtifact: "community:artifact",
+  communityMe: "community:me",
+  communityMarkRead: "community:mark-read",
+  communityInstalled: "community:installed",
+  communityInstall: "community:install",
+  communityInstallLocal: "community:install-local",
+  communityUninstall: "community:uninstall",
+  communitySetEnabled: "community:set-enabled",
+  communityCheckUpdates: "community:check-updates",
+  communityPublishPlugin: "community:publish-plugin",
+  communityRemovePlugin: "community:remove-plugin",
+  communityReadProjectManifest: "community:read-project-manifest",
+  communityWriteProjectManifest: "community:write-project-manifest",
+  communityStar: "community:star",
+  communityReport: "community:report",
+  communityPreviewArtifact: "community:preview-artifact",
+  communityPublishArtifact: "community:publish-artifact",
+  communityRemoveArtifact: "community:remove-artifact",
+  communityRemix: "community:remix",
+  communityProjectLink: "community:project-link",
+  communitySendImprovement: "community:send-improvement",
+  communityImprovement: "community:improvement",
+  communityDecide: "community:decide",
+  communityPullLatest: "community:pull-latest",
+  communityWaitlist: "community:waitlist",
+  communityPluginsChanged: "community:plugins-changed",
   sharedProjectLibrary: "shared-project:library",
   sharedProjectCreate: "shared-project:create",
   sharedProjectJoin: "shared-project:join",
@@ -2511,4 +2542,6 @@ export interface AdcodeApi {
     onCommitRequest(listener: (request: CollabCommitRequestView) => void): () => void;
     onNotice(listener: (detail: string) => void): () => void;
   };
+  /** The community hub: the public plugin directory, installed plugins, and project artifacts (main/community.ts). */
+  readonly community: CommunityApi;
 }

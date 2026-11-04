@@ -41,6 +41,7 @@ import "./styles/licences.css";
 import "./styles/floatingPanel.css";
 import "./styles/agents.css";
 import "./styles/tools.css";
+import "./styles/community.css";
 import "./styles/liveAgents.css";
 // The chat's single spacing system: one column, one rhythm, three control heights.
 import "./styles/conversation.css";
@@ -148,6 +149,10 @@ import { getSetting } from "@adcode/settings";
 import { CHECKS, messageFor, type CheckSpec } from "./checks/checkReport.ts";
 import { createChatWidget } from "./ai/chatWidget.ts";
 import { CHECK_APP_PROMPT } from "./ai/composerMenu.ts";
+import { createCommunityPage, type CommunityTab } from "./community/communityPage.ts";
+import { actionPrompt, activeTheme, pluginCommands, pluginSlashCommands, remixableFeatures } from "./community/communityModel.ts";
+import { SLASH_COMMANDS, setPluginSlashCommands } from "../shared/slashCommands.ts";
+import type { InstalledPluginView } from "../shared/community.ts";
 import { createAssistantDock } from "./workbench/assistantDock.ts";
 import { createFloatingPanel, resetAllFloatingPanels } from "./workbench/floatingPanel.ts";
 import { createAgentsPage } from "./agents/agentsPage.ts";
@@ -4782,6 +4787,7 @@ function showChatSurface(): void {
   if (!windowIsIde && assistantDock !== undefined) { assistantDock.showPage("chat"); return; }
   if (popupLayerState.primary === "agents") closePrimaryPopup("agents");
   if (popupLayerState.primary === "tools") closePrimaryPopup("tools");
+  if (popupLayerState.primary === "community") closePrimaryPopup("community");
   chat.open();
 }
 const agentsPage = createAgentsPage({
@@ -4828,6 +4834,93 @@ const toolsShell = windowIsIde
   })
   : null;
 if (toolsShell !== null) registerPrimaryPopup("tools", toolsShell, toolsPage);
+
+/*
+ * The Community page: the public plugin directory, project artifacts, the plugin Studio and
+ * your creator profile. Same two homes as Tools: a Vibe page, or a large popup in the IDE.
+ */
+const communityPage = createCommunityPage({
+  notify: (message) => setStatus(message, 6000),
+  openFolder: (root) => openFolderAt(root),
+  askAssistant: (prompt) => { showChatSurface(); chat.ask(prompt); },
+  features: () => remixableFeatures(featureRecords(), settingsValues, SLASH_COMMANDS),
+  builtInSlash: () => SLASH_COMMANDS.map((command) => command.id),
+  signIn: () => accountMenu.open("free-ai"),
+  onUnread: (count) => {
+    document.querySelectorAll<HTMLElement>(".vibe-page-community").forEach((item) => {
+      if (count > 0) item.dataset["unread"] = count > 99 ? "99+" : String(count); else delete item.dataset["unread"];
+    });
+  },
+});
+const communityShell = windowIsIde
+  ? createPopupShell({
+    id: "community",
+    title: "Community",
+    size: "workspace",
+    modal: true,
+    host: popupPrimaryHost,
+    content: communityPage.element,
+    initialFocus: () => communityPage.element.querySelector<HTMLElement>(".community-search"),
+    onRequestClose: () => closePrimaryPopup("community"),
+  })
+  : null;
+if (communityShell !== null) registerPrimaryPopup("community", communityShell, communityPage);
+function openCommunity(tab?: CommunityTab): void {
+  if (tab !== undefined) communityPage.showTab(tab);
+  if (!windowIsIde && assistantDock !== undefined) { assistantDock.showPage("community"); return; }
+  if (communityShell !== null) openPrimaryPopup("community", communityShell, document.querySelector<HTMLElement>(".project-tools") ?? chatLauncher, "keyboard");
+}
+
+/*
+ * Installed plugins, applied to this window: their AI actions and macros become palette
+ * commands, their chat commands join the composer, and an enabled theme recolours the
+ * workbench through its design tokens. Re-applied whole whenever the set changes.
+ */
+let pluginCommandIds: string[] = [];
+let pluginThemeTokens: string[] = [];
+function applyPlugins(installed: readonly InstalledPluginView[]): void {
+  setPluginSlashCommands(pluginSlashCommands(installed));
+  for (const id of pluginCommandIds) commands.unregister(id);
+  pluginCommandIds = [];
+  for (const plan of pluginCommands(installed)) {
+    pluginCommandIds.push(plan.id);
+    commands.register({
+      id: plan.id,
+      title: plan.title,
+      run: () => {
+        if (plan.kind === "macro") {
+          for (const command of plan.commands ?? []) {
+            if (commands.has(command)) commands.run(command);
+            else setStatus(`${plan.title}: this window has no "${command}" command, so it was skipped.`, 6000);
+          }
+          return;
+        }
+        const action = plan.action!;
+        if (action.uses === "selection" && (activePath === null || editorHost.assistantContext()?.selection == null)) {
+          setStatus("Select some code first, then run this action again.", 5000);
+          return;
+        }
+        if (action.uses === "file" && activePath === null) {
+          setStatus("Open a file first, then run this action again.", 5000);
+          return;
+        }
+        showChatSurface();
+        chat.ask(actionPrompt(action));
+      },
+    });
+  }
+  const rootStyle = document.documentElement.style;
+  for (const token of pluginThemeTokens) rootStyle.removeProperty(token);
+  const theme = activeTheme(installed);
+  pluginThemeTokens = theme === null ? [] : Object.keys(theme.tokens);
+  if (theme !== null) for (const [token, value] of Object.entries(theme.tokens)) rootStyle.setProperty(token, value);
+}
+window.adcode.community.onPluginsChanged(applyPlugins);
+void window.adcode.community.installed().then(applyPlugins, () => {});
+// Unread community activity: once shortly after start, then every 15 minutes.
+setTimeout(() => void communityPage.poll(), 20_000);
+setInterval(() => void communityPage.poll(), 15 * 60_000);
+
 function openTools(tab?: ToolsTab): void {
   if (tab !== undefined) toolsPage.showTab(tab);
   if (!windowIsIde && assistantDock !== undefined) { assistantDock.showPage("tools"); return; }
@@ -6037,6 +6130,22 @@ function registerCommands(): void {
   });
   add("tools.memory", "Tools: Project Memory", () => openTools("memory"));
   add("tools.builtIn", "Tools: The Assistant's Built-in Tools", () => openTools("built-in"));
+  add("community.open", "Community: Open", () => openCommunity("discover"));
+  add("community.plugins", "Community: Browse Plugins", () => openCommunity("plugins"));
+  add("community.studio", "Community: Build a Plugin", () => openCommunity("studio"));
+  // From a Feature library card: the Studio on a copy of that feature. No id: the Studio's picker.
+  add("community.remixFeature", "Community: Customize a Built-in Feature", (id) => {
+    openCommunity("studio");
+    if (id !== undefined && id.length > 0) { communityPage.remixFeature(id); return; }
+    requestAnimationFrame(() => communityPage.element.querySelector<HTMLSelectElement>(".community-studio-remix")?.focus());
+  });
+  add("community.artifacts", "Community: Browse Shared Projects", () => openCommunity("artifacts"));
+  add("community.shareProject", "Community: Share This Project", () => { openCommunity("artifacts"); communityPage.shareProject(); });
+  add("community.you", "Community: My Creator Profile", () => openCommunity("you"));
+  add("community.monetize", "Community: Sell My Plugins (Coming Soon)", () => {
+    openCommunity("studio");
+    requestAnimationFrame(() => communityPage.element.querySelector<HTMLElement>(".community-monetize")?.scrollIntoView({ block: "center" }));
+  });
   add("workspace.browser", "Open Browser", () => agentBrowserPane.open());
   add("workspace.preview", "Open Project Preview", () => { if (!previewPane.isOpen()) void previewPane.toggle(); });
   add("ai.terminalTeam", "Start an AI Team in the Terminal", () => void openTerminalTeamSetup());
@@ -6481,6 +6590,10 @@ const featureLibrary = createFeatureLibrary({
     return typeof value === "boolean" ? value : undefined;
   },
   runAction: (action) => runFeatureAction(action),
+  customize: {
+    can: (feature) => !feature.entry.id.startsWith("community.") && remixableFeatures([feature], settingsValues, SLASH_COMMANDS).length > 0,
+    run: (feature) => commands.run("community.remixFeature", feature.entry.id),
+  },
 });
 
 const featuresShell = createPopupShell({
@@ -6753,9 +6866,11 @@ assistantDock = createAssistantDock({
 if (!windowIsIde) {
   assistantDock.pageHost("agents").append(agentsPage.element);
   assistantDock.pageHost("tools").append(toolsPage.element);
+  assistantDock.pageHost("community").append(communityPage.element);
   assistantDock.onPageChange((page) => {
     if (page === "agents") agentsPage.shown(); else agentsPage.hidden();
     if (page === "tools") toolsPage.shown(); else toolsPage.hidden();
+    if (page === "community") communityPage.shown(); else communityPage.hidden();
   });
 }
 

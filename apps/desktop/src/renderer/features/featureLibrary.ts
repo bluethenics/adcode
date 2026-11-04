@@ -38,6 +38,11 @@ export interface FeatureLibraryDeps {
   readonly hasCommand: (command: string) => boolean;
   readonly settingValue: (settingId: string) => boolean | undefined;
   readonly runAction: (action: FeatureAction) => void;
+  /**
+   * "Customize": open the plugin Studio on a copy of this feature, so anybody can make and
+   * share their own version of it. Absent where there is no Studio (the web version).
+   */
+  readonly customize?: { readonly can: (feature: FeatureRecord) => boolean; readonly run: (feature: FeatureRecord) => void };
 }
 
 const GROUP_TITLES: Readonly<Record<string, string>> = {
@@ -217,6 +222,18 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
       actions.append(actionButton(presentation.primary, true));
     for (const secondary of presentation.secondary.slice(0, 2))
       actions.append(actionButton(secondary, false));
+    if (deps.customize?.can(feature) === true) {
+      const customize = document.createElement("button");
+      customize.type = "button";
+      customize.className = "feature-library-secondary feature-library-customize";
+      customize.textContent = "Customize";
+      customize.title = "Make your own version of this feature as a plugin, and share it if you like";
+      customize.addEventListener("click", () => {
+        deps.onRequestClose();
+        deps.customize?.run(feature);
+      });
+      actions.append(customize);
+    }
     actions.append(createHelpButton(feature.entry, helpPopover));
     row.append(copy, actions);
     return row;

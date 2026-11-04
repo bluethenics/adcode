@@ -1,7 +1,8 @@
 import { DurableObject } from "cloudflare:workers";
 import { verifyIdToken } from "../../cloud/src/auth.ts";
 import { boundedJson, projectRoute, ProjectDirectory, SharedProject } from "./projects.ts";
-export { ProjectDirectory, SharedProject };
+import { communityRoute, CommunityHub, ArtifactVault } from "./community.ts";
+export { ProjectDirectory, SharedProject, CommunityHub, ArtifactVault };
 export { PriorityQueue, RequestPriority } from "./priority.ts";
 
 type Env = CollabRelayEnv;
@@ -97,6 +98,13 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/health") return json({ ok: true });
+    if (url.pathname === "/community" || url.pathname.startsWith("/community/")) {
+      // Reading the directory is public; the route itself decides what needs an account.
+      const token = (request.headers.get("authorization") ?? "").replace(/^Bearer /,"");
+      const who = token ? await verifyIdToken(token, env.FIREBASE_PROJECT_ID) : null;
+      if (token && !who && request.method !== "GET") return json({ error: "Your ADCode sign-in has expired. Sign in again." }, 401);
+      return communityRoute(request, env, who);
+    }
     if (url.pathname === "/projects" || url.pathname.startsWith("/projects/")) {
       const who = await verifyIdToken((request.headers.get("authorization") ?? "").replace(/^Bearer /,""),env.FIREBASE_PROJECT_ID);
       if (!who?.email) return json({ error: "Sign in with Google, GitHub, or email to use shared projects." },401);

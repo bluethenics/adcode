@@ -25,6 +25,8 @@ export interface Command {
 
 export interface CommandRegistry {
   register(command: Command): void;
+  /** Remove a command, for the ones plugins add and take away again. */
+  unregister(id: string): void;
   /** Register a command that just triggers a Monaco action. */
   registerEditorAction(id: string, title: string, actionId: string): void;
   run(id: string, arg?: string): void;
@@ -41,6 +43,10 @@ export function createCommandRegistry(deps: {
   return {
     register(command) {
       commands.set(command.id, command);
+    },
+
+    unregister(id) {
+      commands.delete(id);
     },
 
     registerEditorAction(id, title, actionId) {

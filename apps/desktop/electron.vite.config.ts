@@ -42,6 +42,7 @@ export const alias = {
   "@adcode/highlight": resolve(import.meta.dirname, "../../packages/highlight/src/index.ts"),
   "@adcode/debug": resolve(import.meta.dirname, "../../packages/debug/src/index.ts"),
   "@adcode/connect": resolve(import.meta.dirname, "../../packages/connect/src/index.ts"),
+  "@adcode/community": resolve(import.meta.dirname, "../../packages/community/src/index.ts"),
 };
 
 /**

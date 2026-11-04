@@ -54,6 +54,30 @@ export const SLASH_COMMANDS: readonly SlashCommand[] = [
 ];
 
 /**
+ * Slash commands that installed plugins add, or whose instruction they replace.
+ *
+ * Both processes keep a copy: the window offers and parses them, the main process expands
+ * them into the request. A plugin command never shadows an action command (/new, /model) -
+ * those open app UI rather than send words, and replacing one would break the app - and only
+ * replaces a prompt command's instruction when its manifest said `overrides: true`.
+ */
+let pluginCommands: readonly SlashCommand[] = [];
+
+export function setPluginSlashCommands(commands: readonly (SlashCommand & { readonly overrides?: boolean })[]): void {
+  pluginCommands = commands.filter((command) => {
+    const builtIn = SLASH_COMMANDS.find((one) => one.id === command.id);
+    return builtIn === undefined ? command.overrides !== true : builtIn.kind !== "action" && command.overrides === true;
+  }).map(({ id, hint, kind, prompt }) => (prompt === undefined ? { id, hint, kind } : { id, hint, kind, prompt }));
+}
+
+/** The built-in commands with plugin overrides applied, then the commands plugins add. */
+export function allSlashCommands(): readonly SlashCommand[] {
+  if (pluginCommands.length === 0) return SLASH_COMMANDS;
+  const replaced = SLASH_COMMANDS.map((command) => pluginCommands.find((one) => one.id === command.id) ?? command);
+  return [...replaced, ...pluginCommands.filter((one) => !SLASH_COMMANDS.some((command) => command.id === one.id))];
+}
+
+/**
  * A command typed out in full - `/fix the login bug` - and the words after it.
  *
  * Only a known command counts, and only as the whole first word, so a message that merely
@@ -61,7 +85,7 @@ export const SLASH_COMMANDS: readonly SlashCommand[] = [
  */
 export function parseSlashCommand(
   text: string,
-  commands: readonly SlashCommand[] = SLASH_COMMANDS,
+  commands: readonly SlashCommand[] = allSlashCommands(),
 ): { readonly command: SlashCommand; readonly rest: string } | null {
   const match = /^\s*\/([A-Za-z][\w-]*)(?:\s+([\s\S]*))?$/.exec(text);
   if (match === null) return null;
@@ -77,7 +101,7 @@ export function parseSlashCommand(
  * With no words, the instruction's dangling "...: " lead-in is closed as a sentence, so
  * `/explain` alone asks about "this" - the open file and selection, which ride every turn.
  */
-export function expandSlashCommand(text: string, commands: readonly SlashCommand[] = SLASH_COMMANDS): string {
+export function expandSlashCommand(text: string, commands: readonly SlashCommand[] = allSlashCommands()): string {
   const parsed = parseSlashCommand(text, commands);
   if (parsed === null || parsed.command.prompt === undefined) return text;
   const prompt = parsed.command.prompt;

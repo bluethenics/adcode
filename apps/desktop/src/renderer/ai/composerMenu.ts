@@ -7,7 +7,7 @@
  * matching below are pure and tested without a window; the popup at the bottom is the DOM.
  */
 
-import { SLASH_COMMANDS, type SlashCommand } from "../../shared/slashCommands.ts";
+import { allSlashCommands, type SlashCommand } from "../../shared/slashCommands.ts";
 
 // The commands themselves are shared with the main process, which expands them for the model.
 export { CHECK_APP_PROMPT, SLASH_COMMANDS, expandSlashCommand, parseSlashCommand } from "../../shared/slashCommands.ts";
@@ -39,7 +39,7 @@ export function menuTriggerAt(text: string, caret: number): MenuTrigger | null {
 }
 
 /** Commands whose name starts with the query first, then ones that merely contain it. */
-export function matchSlashCommands(query: string, commands: readonly SlashCommand[] = SLASH_COMMANDS): SlashCommand[] {
+export function matchSlashCommands(query: string, commands: readonly SlashCommand[] = allSlashCommands()): SlashCommand[] {
   const needle = query.toLowerCase();
   if (needle.length === 0) return [...commands];
   const starts = commands.filter((command) => command.id.startsWith(needle));

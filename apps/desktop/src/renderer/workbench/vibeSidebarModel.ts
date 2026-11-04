@@ -78,12 +78,13 @@ function formatCount(value: number): string {
 }
 
 /** The pages Vibe's centre switches between. Everything else opens as a floating panel. */
-export type VibePage = "chat" | "agents" | "tools";
+export type VibePage = "chat" | "agents" | "tools" | "community";
 
 export const VIBE_PAGES: readonly { readonly id: VibePage; readonly label: string }[] = [
   { id: "chat", label: "Chat" },
   { id: "agents", label: "Agents" },
   { id: "tools", label: "Tools" },
+  { id: "community", label: "Community" },
 ];
 
 /** A routed or remembered page name, or Chat when it is not one this build knows. */
