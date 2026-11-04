@@ -6,6 +6,8 @@ export const WALLET_ORDER_PREFIX = "aiw_";
 export const WALLET_MARKUP_PERCENT = 35;
 export const WALLET_TOPUPS_CENTS = [1000, 2000, 5000, 10000] as const;
 export const WALLET_URL = "https://adcode.bluethenics.com/ai-tokens#wallet";
+/** Where an editor too old for paid models gets the current release. */
+export const DOWNLOAD_URL = "https://adcode.bluethenics.com/versions";
 export interface WalletRates { inputPrice: number; outputPrice: number; cacheInputPrice?: number; cacheWritePrice?: number }
 /** Peak rates are saved in admin; ordinary off-peak hours receive the provider's 50% reduction. */
 export function walletRates(model: WalletRates & { pricingSchedule?: "deepseek"; provider?: string; upstreamModel?: string }, now: number, inputTokens = 0): WalletRates {

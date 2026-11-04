@@ -53,6 +53,11 @@ describe("paid model dollar wallet",()=>{
  it("refuses older clients before charging a misleading free-model view",async()=>{
   await fund();expect((await chat({"x-adcode-paid-credits":""})).status).toBe(402);expect(fetcher).not.toHaveBeenCalled();expect((await store.getModelWallet("u",NOW)).balanceMicros).toBe(10_000_000);
  });
+ it("gives an older client, which shows the message as it is, a link to the update",async()=>{
+  const body=await (await chat({"x-adcode-paid-credits":""})).json() as {error:{code:string;message:string;buyUrl:string}};
+  expect(body.error).toMatchObject({code:"wallet-client-update",buyUrl:"https://adcode.bluethenics.com/versions"});
+  expect(body.error.message).toContain("Download the latest version at https://adcode.bluethenics.com/versions");
+ });
  it("charges provider-reported cost, returns unused hold, and preserves included tokens",async()=>{
   await fund();await store.grantTokens("u",1000,"admin","test",NOW);
   expect((await chat()).status).toBe(200);
