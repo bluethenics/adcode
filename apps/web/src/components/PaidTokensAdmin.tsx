@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Paid AI tokens in the admin panel: the switch, the free weekly allowance and the packs (saved
+ * Paid AI tokens in the admin panel: the switch, the free daily allowance and the packs (saved
  * with the rest of the free-models config), plus granting tokens and the sales by day.
  * Spec: docs/superpowers/specs/2026-10-21-paid-ai-tokens-design.md.
  */
@@ -12,30 +12,29 @@ import { formatTokens } from "@/app/ai-tokens/AiTokens";
 
 export function PaidTokensSettings({ value, onChange }: { value: PaidConfig | undefined; onChange: (next: PaidConfig) => void }) {
   const paid = value ?? DEFAULT_PAID_CONFIG;
+  const costCredits = paid.accounting === "cost-v1";
+  const display = (units: number) => costCredits ? `${(units / 11000).toLocaleString("en-US")} credits` : formatTokens(units);
   const pack = (index: number, patch: Partial<PaidPack>): void => onChange({ ...paid, packs: paid.packs.map((one, at) => at === index ? { ...one, ...patch } : one) });
   return (
     <>
       <div className="tagflow-checks">
-        <label><input type="checkbox" checked={paid.enabled} onChange={(event) => onChange({ ...paid, enabled: event.target.checked })} /> Sell tokens for paid models</label>
+        <label><input type="checkbox" checked={paid.enabled} onChange={(event) => onChange({ ...paid, enabled: event.target.checked })} /> Enable shared included AI tokens and token sales</label>
       </div>
       <div className="tagflow-fields">
-        <label className="tagflow-field"><span>Paid providers (IDs, comma-separated)</span>
-          <input className="input" value={paid.providers.join(", ")} onChange={(event) => onChange({ ...paid, providers: event.target.value.split(",").map((id) => id.trim()).filter((id) => id.length > 0) })} />
-          <small>Only registered custom providers. Tagflow is always free.</small></label>
-        <label className="tagflow-field"><span>Free tokens per person per week</span>
-          <input className="input" type="number" min={0} step={1_000_000} value={paid.freeWeeklyTokens} onChange={(event) => onChange({ ...paid, freeWeeklyTokens: event.currentTarget.valueAsNumber || 0 })} />
-          <small>{formatTokens(paid.freeWeeklyTokens)} a week, from a person's first request on these models.</small></label>
+        <label className="tagflow-field"><span>{costCredits ? "Free credits per person per day" : "Free tokens per person per day"}</span>
+          <input className="input" type="number" min={0} step={costCredits ? 1 : 1_000_000} value={costCredits ? paid.freeWeeklyTokens / 11000 : paid.freeWeeklyTokens} onChange={(event) => onChange({ ...paid, freeWeeklyTokens: (event.currentTarget.valueAsNumber || 0) * (costCredits ? 11000 : 1) })} />
+          <small>{display(paid.freeWeeklyTokens)} a day, from a person's first request on any included model.</small></label>
       </div>
       <div className="admin-models-scroll">
         <table className="admin-models-table">
-          <thead><tr><th scope="col">Pack ID</th><th scope="col">Price (cents)</th><th scope="col">Tokens</th><th scope="col">Per million</th></tr></thead>
+          <thead><tr><th scope="col">Pack ID</th><th scope="col">Price (cents)</th><th scope="col">{costCredits ? "Credits" : "Tokens"}</th><th scope="col">{costCredits ? "Per 1,000 credits" : "Per million"}</th></tr></thead>
           <tbody>
             {paid.packs.map((one, index) => (
               <tr key={index}>
                 <td><input className="input" aria-label="Pack ID" value={one.id} onChange={(event) => pack(index, { id: event.target.value })} /></td>
                 <td><input className="input" type="number" aria-label="Price in cents" min={100} value={one.priceCents} onChange={(event) => pack(index, { priceCents: event.currentTarget.valueAsNumber || 0 })} /></td>
-                <td><input className="input" type="number" aria-label="Tokens" min={1} value={one.tokens} onChange={(event) => pack(index, { tokens: event.currentTarget.valueAsNumber || 0 })} /></td>
-                <td>{one.tokens > 0 ? `$${(one.priceCents / 100 / (one.tokens / 1_000_000)).toFixed(3)}` : "-"}</td>
+                <td><input className="input" type="number" aria-label="Tokens" min={1} value={costCredits ? one.tokens / 11000 : one.tokens} onChange={(event) => pack(index, { tokens: (event.currentTarget.valueAsNumber || 0) * (costCredits ? 11000 : 1) })} /></td>
+                <td>{one.tokens > 0 ? `$${(one.priceCents / 100 / (one.tokens / (costCredits ? 11_000_000 : 1_000_000))).toFixed(3)}` : "-"}</td>
               </tr>
             ))}
           </tbody>

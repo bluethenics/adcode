@@ -19,20 +19,20 @@ describe("the AI tokens page", () => {
   });
 
   it("lists every pack with its price and tokens, and the per-million price", () => {
-    const html = renderToStaticMarkup(<PackList packs={[{ id: "50m", priceCents: 1000, tokens: 50_000_000 }, { id: "300m", priceCents: 5000, tokens: 300_000_000 }]} busy={null} onBuy={() => undefined} />);
+    const html = renderToStaticMarkup(<PackList packs={[{ id: "50m", priceCents: 1000, tokens: 55_000_000 }, { id: "300m", priceCents: 5000, tokens: 330_000_000 }]} busy={null} onBuy={() => undefined} />);
     expect(html).toContain("$10");
-    expect(html).toContain("50M tokens");
+    expect(html).toContain("5,000 credits");
     expect(html).toContain("$50");
-    expect(html).toContain("300M tokens");
-    expect(html).toContain("$0.20 per million");
-    expect(html).toContain("$0.17 per million");
+    expect(html).toContain("30,000 credits");
+    expect(html).toContain("$2.00 per 1,000 credits");
+    expect(html).toContain("$1.67 per 1,000 credits");
   });
 
   it("shows the free week and purchased balance, and says when the free tokens refill", () => {
     const html = renderToStaticMarkup(<BalanceSummary tokens={{ enabled: true, free: { limit: 10_000_000, used: 4_000_000, held: 0, remaining: 6_000_000, resetsAt: Date.parse("2026-10-25T00:00:00Z") }, purchased: 48_000_000 }} now={Date.parse("2026-10-21T00:00:00Z")} />);
-    expect(html).toContain("6M of 10M free");
+    expect(html).toContain("6M of 10M tokens");
     expect(html).toContain("48M purchased");
-    expect(html).toContain("refill in 4 days");
+    expect(html).toContain("refills in 4 days");
   });
 });
 
@@ -49,9 +49,10 @@ describe("coming back from checkout", () => {
 
 describe("the AI tokens page for search engines and link previews", () => {
   it("has a complete share card and a heading in the server-rendered page", async () => {
-    const { metadata, AiTokensHeading } = await import("../src/app/ai-tokens/page");
+    const { metadata } = await import("../src/app/ai-tokens/page");
+    const { AiTokensHeading } = await import("../src/app/ai-tokens/AiTokensHeading");
     expect(metadata.openGraph).toBeDefined();
     expect(metadata.twitter).toBeDefined();
-    expect(renderToStaticMarkup(<AiTokensHeading />)).toMatch(/<h1[^>]*>AI tokens<\/h1>/);
+    expect(renderToStaticMarkup(<AiTokensHeading />)).toMatch(/<h1[^>]*>AI credits<\/h1>/);
   });
 });

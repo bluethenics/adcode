@@ -78,6 +78,8 @@ export interface GuestTransport {
 }
 
 export interface HostTransportOptions {
+  readonly sharedProjectId?: string;
+  readonly token?: string;
   /**
    * Which interface to bind.
    *
@@ -88,7 +90,7 @@ export interface HostTransportOptions {
    *
    * `"loopback"` exists for tests and for a user sharing between two windows on one machine.
    */
-  readonly bind: "lan" | "loopback";
+  readonly bind: "lan" | "loopback" | "internet";
   /**
    * A fixed port, or 0 to let the OS choose.
    *
@@ -111,7 +113,7 @@ export interface TransportFactory {
     events: HostTransportEvents,
   ) => Promise<HostTransport>;
   readonly connectGuest: (
-    target: { readonly host: string; readonly port: number },
+    target: { readonly host: string; readonly port: number; readonly token?: string },
     events: GuestTransportEvents,
   ) => Promise<GuestTransport>;
 }

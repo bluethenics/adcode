@@ -1,0 +1,19 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "adcode-projects",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-13",
+  "workers_dev": true,
+  "preview_urls": false,
+  "routes": [{ "pattern": "projects.bluethenics.com", "custom_domain": true }],
+  "observability": { "enabled": true },
+  "vars": { "FIREBASE_PROJECT_ID": "adcode-idle" },
+  "services": [{ "binding": "ENTITLEMENTS", "service": "adcode", "entrypoint": "ProjectEntitlements" }],
+  "durable_objects": { "bindings": [
+    { "name": "ROOMS", "class_name": "CollabRoom" },
+    { "name": "PROJECT_ACCOUNTS", "class_name": "ProjectDirectory" },
+    { "name": "SHARED_PROJECTS", "class_name": "SharedProject" },
+    { "name": "REQUEST_QUEUES", "class_name": "PriorityQueue" }
+  ] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["CollabRoom", "ProjectDirectory", "SharedProject", "PriorityQueue"] }]
+}

@@ -243,8 +243,6 @@ describe("the bar as a whole", () => {
       "view.debugConsole",
       "view.ports",
       "view.earnings",
-      "collab.panel",
-      "collab.leave",
       "preview.reload",
       "preview.maximise",
       "preview.switchMode",
@@ -263,6 +261,8 @@ describe("the bar as a whole", () => {
     ]) {
       expect(commands, `${command} is in no menu`).toContain(command);
     }
+    expect(commands).not.toContain("collab.panel");
+    expect(commands).not.toContain("collab.leave");
   });
 
   it("names the complete guides plainly", () => {

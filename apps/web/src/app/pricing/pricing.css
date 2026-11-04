@@ -33,9 +33,9 @@
 .pricing-plan-extra { display: block; max-width: 18ch; margin-top: 7px; color: var(--muted); font-size: 11px; line-height: 1.6; }
 .pricing-plan-price { display: flex; align-items: baseline; gap: 4px; font-variant-numeric: tabular-nums; }
 .pricing-plan-price strong { font-size: 30px; line-height: 1; font-weight: 500; letter-spacing: -.04em; }
-.pricing-plan-price > span, .pricing-plan-tokens > span { color: var(--muted); font-size: 12px; }
-.pricing-plan-tokens { display: grid; gap: 5px; }
-.pricing-plan-tokens > strong { font-size: 22px; line-height: 1; font-weight: 500; font-variant-numeric: tabular-nums; }
+.pricing-plan-price > span, .pricing-plan-fit > span { color: var(--muted); font-size: 12px; }
+.pricing-plan-fit { display: grid; gap: 5px; }
+.pricing-plan-fit > strong { font-size: 15px; line-height: 1; font-weight: 500; font-variant-numeric: tabular-nums; }
 .pricing-plan-note { margin-top: 18px; max-width: 92ch; }
 .pricing-notice { padding: 16px 20px; margin-bottom: 22px; border: 1px solid var(--hairline); border-radius: 8px; color: var(--text); font-size: 14px; }
 .pricing-packs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; list-style: none; margin: 0 0 20px; padding: 0; }
@@ -75,8 +75,56 @@
   .pricing-free-details dl > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   .pricing-section, .pricing-invites { margin-top: 48px; }.pricing-plan-labels { display: none; }
   .pricing-plan { grid-template-columns: 1fr 1fr; align-items: start; padding: 24px 14px; gap: 22px 12px; }
-  .pricing-plan-price { justify-self: end; }.pricing-plan-tokens { align-self: center; }.pricing-plan .pricing-button { justify-self: end; }
+  .pricing-plan-price { justify-self: end; }.pricing-plan-fit { align-self: center; }.pricing-plan .pricing-button { justify-self: end; }
   .pricing-packs { grid-template-columns: minmax(0, 1fr); gap: 0; }.pricing-packs li { flex-direction: row; align-items: center; border-top: 0; padding-block: 22px; }.pricing-packs li:first-child { border-top: 1px solid var(--hairline); }
   .pricing-packs strong { font-size: 24px; }.pricing-packs p { margin-top: 10px; }.pricing-packs a { min-height: 44px; display: inline-flex; align-items: center; }
   .pricing-invites { grid-template-columns: minmax(0, 1fr); gap: 22px; padding-block: 30px; }.pricing-invites h2 { max-width: 22ch; }.pricing-faq { margin-top: 48px; }
 }
+.pricing-credit-rates { margin-block: 1.5rem; }
+.pricing-credit-rates summary { cursor: pointer; font-weight: 600; padding-block: .75rem; }
+.pricing-credit-scroll { max-width: 100%; overflow-x: auto; }
+.pricing-credit-scroll table { border-collapse: collapse; width: 100%; font-size: .875rem; }
+.pricing-credit-scroll th, .pricing-credit-scroll td { padding: .75rem; text-align: left; border-bottom: 1px solid var(--border, #8884); }
+.pricing-credit-scroll td { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Capacity-first catalogue: comparable monthly cards, a weekly option and a disclosed all-model tier. */
+.pricing-plans { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 18px; border: 0; }
+.pricing-plan { display: flex; flex-direction: column; align-items: stretch; padding: 28px; gap: 22px; border: 1px solid var(--hairline); border-radius: 16px; min-width: 0; }
+.pricing-plan[data-pro="true"] { border-color: var(--text); background: var(--card); box-shadow: 0 0 0 1px var(--text); }
+.pricing-card-title { min-height: 65px; display: flex; flex-direction: column; gap: 10px; align-items: start; }
+.pricing-recommendation,.pricing-value { font-size: 11px; line-height: 1.5; color: var(--muted); }
+.pricing-recommendation { color: var(--text); font-weight: 600; }
+.pricing-card-description { color: var(--muted); font-size: 13px; line-height: 1.75; min-height: 70px; }
+.pricing-card-features { list-style: none; padding: 0; margin: 0 0 8px; display: grid; gap: 12px; font-size: 13px; }
+.pricing-card-features li::before { content: "✓"; margin-right: 10px; color: var(--muted); }
+.pricing-plan > .pricing-button { margin-top: auto; }
+.pricing-plan[data-pro="true"] > .pricing-button { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.pricing-weekly { margin-block: 24px; padding: 22px 24px; border: 1px solid var(--hairline); border-radius: 12px; display: flex; justify-content: space-between; align-items: center; gap: 24px; }
+.pricing-weekly p { max-width: 65ch; color: var(--muted); font-size: 13px; line-height: 1.75; margin-top: 8px; }
+.pricing-unlimited { display: grid; grid-template-columns: minmax(0,1fr) 240px; gap: 64px; margin-top: 64px; padding: 40px; border-radius: 16px; border: 1px solid var(--hairline); background: var(--card); }
+.pricing-unlimited h2 { font-size: clamp(27px,3vw,36px); line-height: 1.2; margin-block: 14px; }
+.pricing-unlimited > div > p:not(.pricing-eyebrow,.pricing-small,.pricing-plan-price) { font-size: 14px; line-height: 1.8; color: var(--muted); }
+.pricing-unlimited .pricing-unlimited-allowance { margin-block: 22px 10px; }
+.pricing-unlimited-allowance strong { color: var(--text); }
+.pricing-unlimited-action { display: flex; flex-direction: column; justify-content: center; gap: 24px; }
+.pricing-unlimited .pricing-plan-price strong { font-size: 48px; }
+.pricing-credit-scroll table { min-width: 620px; }
+@media(max-width:900px) { .pricing-plan { padding: 24px 18px; }.pricing-unlimited { gap: 32px; padding: 30px; grid-template-columns: minmax(0,1fr) 190px; } }
+@media(max-width:680px) { .pricing-plans { grid-template-columns: minmax(0,1fr); }.pricing-plan { padding: 26px; gap: 20px; }.pricing-card-title,.pricing-card-description { min-height: 0; }.pricing-plan-price { justify-self: start; }.pricing-weekly { flex-direction: column; align-items: start; }.pricing-unlimited { grid-template-columns: minmax(0,1fr); padding: 26px; gap: 28px; }.pricing-unlimited-action { align-items: start; }.pricing-plan .pricing-button { width: 100%; box-sizing: border-box; } }
+
+/* Value framing: a price at the scale it is used, and credits as the work they buy. */
+.pricing-per-day { margin-left: 8px; padding-left: 8px; border-left: 1px solid var(--hairline); }
+.pricing-steps { margin: 0; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pricing-steps strong { color: inherit; font-weight: 500; font-size: 15px; }
+.pricing-steps span { display: block; margin-top: 4px; font-size: 12px; }
+.pricing-new { margin-left: 8px; padding: 1px 7px; border: 1px solid var(--hairline); border-radius: 999px; font-size: 10px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); vertical-align: 1px; }
+.pricing-reassure { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 20px 0 0; font-size: 13px; color: var(--muted); }
+.pricing-reassure span::before { content: "✓"; margin-right: 8px; }
+/* Cards lift a hair under the pointer and the button arrow leans toward its destination. */
+.pricing-plan { transition: transform 200ms cubic-bezier(.23,1,.32,1), box-shadow 200ms cubic-bezier(.23,1,.32,1); }
+.pricing-button svg { transition: transform 160ms cubic-bezier(.23,1,.32,1); }
+@media (hover: hover) and (pointer: fine) {
+  .pricing-plan:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgb(0 0 0 / .08); }
+  .pricing-button:hover svg { transform: translate(2px, -2px); }
+}
+@media (prefers-reduced-motion: reduce) { .pricing-plan, .pricing-button svg { transition: none; } .pricing-plan:hover { transform: none; } }

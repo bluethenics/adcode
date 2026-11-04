@@ -80,7 +80,8 @@ describe("contributor scaffolding", () => {
     const workflow = read(".github/workflows/verify.yml");
     expect(workflow).toContain("pull_request:");
     expect(workflow).not.toContain("pull_request_target");
-    expect(workflow).not.toContain("secrets.");
+    expect([...workflow.matchAll(/secrets\.(\w+)/g)].map(match => match[1])).toEqual(["ADCODE_PKG_TOKEN"]);
+    expect(workflow).toContain("npm --prefix apps/web ci --ignore-scripts");
     expect(workflow).toMatch(/permissions:\s*\n\s*contents: read/);
     expect(workflow).toContain("npm run verify");
   });

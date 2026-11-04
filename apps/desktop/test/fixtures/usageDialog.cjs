@@ -76,6 +76,7 @@ app.whenReady().then(async () => {
       allowance.limits.dailyRequests = 1000000; allowance.limits.requestsPerMinute = 1000; allowance.usage.requests = 1000001; changed(); await pause(40);
       results.unlimitedRequests = allowanceCard.textContent.includes('AI requestsUnlimited') && allowanceCard.textContent.includes('1,000,001 requests used today') && allowanceCard.querySelectorAll('progress').length === 1 && !allowanceCard.querySelector('.usage-allowance-warning');
       results.unlimitedRateExplained = help.textContent.includes('ADCode has no per-minute request cap') && help.textContent.includes('provider may still limit');
+      window.__usageAllowance = allowance;
       window.__usageResults = results;
       window.__usageChanged = changed;
       window.__usageClear = () => clearCalls;
@@ -98,12 +99,32 @@ app.whenReady().then(async () => {
         if (!layout) console.log('USAGE_LAYOUT=' + JSON.stringify({ theme, width, height, bounds: await win.webContents.executeJavaScript(`(() => { const dialog = document.querySelector('.ai-usage-dialog'), body = document.querySelector('.usage-body'); return { viewport: [innerWidth, innerHeight], dialog: dialog.getBoundingClientRect().toJSON(), body: [body.clientHeight, body.clientWidth, body.scrollWidth], overflowing: [...body.querySelectorAll('*')].filter(el => el.getBoundingClientRect().right > body.getBoundingClientRect().right + 1).slice(0, 5).map(el => el.className) }; })()`) }));
       }
     }
+    results.sharedWeekly = await win.webContents.executeJavaScript(`(async () => {
+      const allowance = window.__usageAllowance;
+      allowance.unlimited = false;
+      allowance.tokens = { enabled: true, free: { limit: 11000000, used: 6300000, held: 100000, remaining: 4600000, resetsAt: Date.now() + 86400000 }, purchased: 0, paidModels: ['tagflow-code-27b'] };
+      window.__usageChanged(); await new Promise(resolve => setTimeout(resolve, 80));
+      const card = document.querySelector('.usage-allowance');
+      const result = card.textContent.includes('Included AI · Free') && card.textContent.includes('Tagflow AI and all other included models') && !card.textContent.includes('Unlimited') && card.querySelectorAll('progress').length === 1;
+      delete allowance.tokens; delete allowance.unlimited; window.__usageChanged(); await new Promise(resolve => setTimeout(resolve, 80));
+      return result;
+    })()`);
     results.reducedMotion = await win.webContents.executeJavaScript(`(() => { document.documentElement.dataset.reducedMotion = 'true'; return getComputedStyle(document.querySelector('.ad-btn')).transitionDuration === '0s'; })()`);
+    // Reported on a laptop: the balance cards sat outside the scrolling area, leaving the range
+    // content a strip about one row tall. Everything but the footer now scrolls together.
+    win.setContentSize(1140, 600);
+    await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width: 1140, height: 600, deviceScaleFactor: 1, mobile: false });
+    await new Promise(resolve => setTimeout(resolve, 120));
+    results.roomyScroll = await win.webContents.executeJavaScript(`(() => {
+      const scroller = document.querySelector('.usage-scroll'), card = document.querySelector('.ai-usage-dialog .form-dialog-card');
+      return scroller !== null && scroller.contains(document.querySelector('.usage-allowance')) && scroller.contains(document.querySelector('.usage-body'))
+        && scroller.clientHeight >= card.clientHeight * 0.6 && getComputedStyle(document.querySelector('.usage-tabs')).position === 'sticky';
+    })()`);
     win.setContentSize(1100, 920);
     await win.webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', { width: 1100, height: 920, deviceScaleFactor: 1, mobile: false });
     await win.webContents.executeJavaScript("document.documentElement.dataset.theme='dark'; document.querySelector('[role=tab]').click();");
     await new Promise(resolve => setTimeout(resolve, 90));
-    await win.webContents.executeJavaScript("document.querySelector('.usage-body').scrollTop = 0; document.querySelector('[role=tab]').focus({ preventScroll: true });");
+    await win.webContents.executeJavaScript("document.querySelector('.usage-scroll').scrollTop = 0; document.querySelector('[role=tab]').focus({ preventScroll: true });");
     if (process.env.ADCODE_USAGE_SCREENSHOT) {
       win.setPosition(-4000, 0); win.showInactive();
       await new Promise(resolve => setTimeout(resolve, 180));

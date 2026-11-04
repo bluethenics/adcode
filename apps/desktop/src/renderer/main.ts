@@ -5,6 +5,8 @@ import { createAgentBrowserPane } from "./preview/agentBrowserPane.ts";
  * Everything except the text-editing surface itself is ours (brief §2).
  */
 import "./styles/tokens.css";
+import { createAccountGate } from "./onboarding/accountGate.ts";
+import { showFirstOnboarding } from "./onboarding/welcomeJourney.ts";
 // The web look's type and tokens, shared by the web version and the desktop Vibe window
 // (surface.ts). Before everything else so a window wearing the frame has its fonts at once.
 import "./styles/webTheme.css";
@@ -130,6 +132,9 @@ import { createStructurePopup } from "./panels/structurePopup.ts";
 import { createEarningsPopover } from "./panels/earningsPopover.ts";
 import { createInvitePanel } from "./invite/invitePanel.ts";
 import { createCollabPanel } from "./collab/collabPanel.ts";
+import { createProjectsPanel } from "./collab/projectsPanel.ts";
+import "./styles/projects.css";
+import "./styles/accountJourney.css";
 import { createCollabSession } from "./collab/collabSession.ts";
 import { createPreviewPane } from "./preview/previewPane.ts";
 import { elementAttachment } from "./preview/elementInspector.ts";
@@ -3388,6 +3393,7 @@ const accountMenu = createAccountMenu(
  * animation, and short enough that it is still obviously about the app that just opened -
  * the same reasoning behind the 900ms the sheet itself waits for.
  */
+const accountGate = createAccountGate(accountMenu, () => {});
 const PIN_PROMPT_DELAY_MS = 1_200;
 
 const pinPromptCard = createPinPromptCard(document.body);
@@ -3443,17 +3449,14 @@ async function createProjectForIdea(idea: string): Promise<boolean> {
   }
 }
 
-void window.adcode.onboarding.completed().then((seen) => {
-  if (seen) {
+void showFirstOnboarding(accountGate, { completed: () => window.adcode.onboarding.completed(), open: () => onboarding.open() }).then((shown) => {
+  if (!shown) {
     // Already welcomed, so nothing is about to cover the corner. This is the path the
     // second ask arrives on; main decides whether this launch is one of the two.
     window.setTimeout(() => pinPromptCard.offer(), PIN_PROMPT_DELAY_MS);
     return;
   }
 
-  // A beat after first paint. Opening a modal in the same frame as the window appearing
-  // reads as a stutter rather than as a welcome.
-  window.setTimeout(() => onboarding.open(), 900);
 }).catch(() => undefined);
 
 /**
@@ -5136,11 +5139,22 @@ const collabPanel = createCollabPanel({
   confirm: (title, body, confirmLabel) =>
     confirmDialog.ask({ title, body, confirmLabel }),
   prompt: (title, body, value) => promptDialog.ask({ title, body, value }),
+  openProjects: () => projectsPanel.open(),
 });
 
-el("status-collab").addEventListener("click", () => collabPanel.toggle());
+const projectsPanel = createProjectsPanel({
+  workspaceRoot: () => workspaceRoot,
+  openProject: async root => { await openFolderAt(root); },
+});
+// Shared projects are paused. Keep stored projects and conversations intact.
+el("open-projects").hidden = true;
+el("status-collab").hidden = true;
+
+el("status-collab").addEventListener("click", () => { window.adcode.milestones.record("collab_opened"); collabPanel.toggle(); });
+document.getElementById("join-discord")?.addEventListener("click", () => { window.adcode.milestones.record("discord_opened"); window.open("https://discord.gg/WH2UBsQd3", "_blank", "noopener"); });
 
 window.adcode.collab.onStatus((status) => {
+  projectsPanel.update(status);
   collabPanel.update(status);
   collabSession.applyStatus(status);
 
@@ -5174,6 +5188,9 @@ window.adcode.collab.onStatus((status) => {
    * the session moves without the mode moving.
    */
   const control = el("status-collab");
+  // Keep a way to manage or leave an already running session while new sharing is paused.
+  control.hidden = status.mode !== "hosting" && status.mode !== "joined" && status.mode !== "connecting";
+  if (control.hidden) collabPanel.close();
   const spoken = label.textContent ?? "Share";
   control.dataset["tip"] = `Live session - ${spoken}`;
   control.setAttribute("aria-label", `Live session: ${spoken}`);
@@ -5869,9 +5886,6 @@ function registerCommands(): void {
     openPrimaryPopup("earnings", earningsShell, earningsActivity, "keyboard"),
   );
   add("invite.open", "Invite & Earn", () => openInvite("keyboard"));
-  add("collab.panel", "Live Session: Share or Join", () =>
-    collabPanel.toggle(),
-  );
   add(
     "collab.leave",
     "Live Session: Leave",
@@ -5930,7 +5944,7 @@ function registerCommands(): void {
   add("ai.compactConversation", "AI: Compact Conversation", () => chat.compactConversation());
   add("ai.showUsage", "AI: Show Usage", () => void openUsageDialog());
   add("ai.showCredits", "AI: Show Free AI Credits", () => void openUsageDialog());
-  add("ai.buyTokens", "AI: Buy AI Tokens", () => void window.open(BUY_TOKENS_URL, "_blank", "noopener"));
+  add("ai.buyTokens", "AI: Buy AI Credits", () => void window.open(BUY_TOKENS_URL, "_blank", "noopener"));
   add("ai.upgradePlan", "AI: Upgrade Plan", () => void window.open(BUY_TOKENS_URL, "_blank", "noopener"));
   add("ads.openNetworks", "Ads: Open Network Settings", () => void window.open("https://adcode.bluethenics.com/admin/ad-networks", "_blank", "noopener"));
   add("ai.showCacheSavings", "AI: Show Prompt Cache Savings", () => void openUsageDialog());
@@ -6456,6 +6470,7 @@ const palette = createPalette({
 
 const featureLibrary = createFeatureLibrary({
   overlayHost: document.body,
+  visibleFeature: feature => feature.entry.id !== "workbench.collab",
   onRequestClose: () => closePrimaryPopup("features"),
   hasCommand: (command) => commands.has(command),
   settingValue: (settingId) => {

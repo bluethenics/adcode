@@ -69,10 +69,10 @@ export function leanTools(tools: readonly ToolDefinition[]): ToolDefinition[] {
  * message keeps its tool results whole - it is what the model is about to act on - and
  * the model is told it can read a file again when it needs the rest.
  */
-export function leanHistory(messages: readonly Message[], keep = LEAN_RESULT_CHARS): Message[] {
+export function leanHistory(messages: readonly Message[], keep = LEAN_RESULT_CHARS, includeLatest = false): Message[] {
   const last = messages.length - 1;
   return messages.map((message, index) => {
-    if (index === last || !message.content.some((block) => block.type === "tool-result" && block.content.length > keep)) {
+    if ((!includeLatest && index === last) || !message.content.some((block) => block.type === "tool-result" && block.content.length > keep)) {
       return message;
     }
     return {

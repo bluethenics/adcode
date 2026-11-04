@@ -2,6 +2,7 @@ import type { Env } from "./env.ts";
 
 const READ = new Set(["/v1/config", "/v1/balance", "/v1/ledger", "/v1/activity", "/v1/referrals", "/v1/payouts", "/v1/payout-corridors", "/v1/email-preferences", "/v1/ai/tagflow/config", "/v1/ai/tagflow/usage", "/v1/ai/tagflow/audience"]);
 export function accountApiAllowed(path: string, method: string): boolean {
+  if (path === "/v1/ai/account/verification") return method === "GET" || method === "POST";
   if (method === "GET") return READ.has(path);
   if (method === "PATCH") return path === "/v1/referrals" || path === "/v1/email-preferences";
   if (method === "POST") return ["/v1/serve", "/v1/receipts", "/v1/referrals/claim", "/v1/payouts/profile", "/v1/withdrawals", "/v1/ai/tagflow/chat/completions", "/v1/ai/tagflow/feedback", "/v1/ai/tagflow/audience"].includes(path) || /^\/v1\/withdrawals\/[a-zA-Z0-9_-]+\/cancel$/.test(path);
@@ -27,7 +28,7 @@ export async function forwardAccountApi(request: Request, env: Env): Promise<Res
   const url = new URL(request.url);
   if (!accountApiAllowed(url.pathname, request.method)) return Response.json({ error: "not-found" }, { status: 404 });
   const headers = new Headers();
-  for (const name of ["authorization", "content-type", "accept", "x-adcode-ai-source", "x-adcode-ai-persona"]) {
+  for (const name of ["authorization", "content-type", "accept", "x-adcode-ai-source", "x-adcode-ai-persona", "x-adcode-paid-credits"]) {
     const value = request.headers.get(name);
     if (value !== null) headers.set(name, value);
   }

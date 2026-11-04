@@ -21,7 +21,7 @@ async function setup() {
     if (String(input) === config.http!.serveUrl) return Response.json({ ad: { id: "remote-ad", advertiser: "Sponsor", headline: "A useful tool", clickUrl: "https://sponsor.com/tool", logo: "https://images.sponsor.com/logo.png" } });
     expect(String(input)).toBe("https://images.sponsor.com/logo.png");
     expect(init?.headers).toEqual({ accept: "image/png,image/jpeg,image/webp" });
-    expect(init?.redirect).toBe("error");
+    expect(init?.redirect).toBe("manual");
     return new Response(png, { headers: { "content-type": "image/png" } });
   });
   const api = createFetchHandler({ store, verifier: { async verify() { return { uid: "alice", claims: { email_verified: true } }; } }, adNetworks: { encryptionKeys: () => [encryption], fetchImpl } });

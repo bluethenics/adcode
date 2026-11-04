@@ -104,3 +104,6 @@ apps/cloud/.wrangler/
 
 # Local workspace memory is runtime state, never release source.
 /.adcode/
+
+# Private support exports contain account email addresses.
+/output/*.private.json

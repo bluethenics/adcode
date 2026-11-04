@@ -30,8 +30,8 @@ describe("landing pages", () => {
       expect(page).not.toBeNull();
       if (page === null) continue;
       const text = landingPlainText(page);
-      expect(text).toContain("Tagflow AI has no personal token or request quota");
-      expect(text).toContain("10M free tokens a week");
+      expect(text).toContain("Tagflow AI and other free included models share");
+      expect(text).toContain("share 100 free credits a day");
       expect(text).not.toContain("No request cap on the AI features");
       const markup = renderToStaticMarkup(<LandingArticle page={page} />);
       expect(markup).toContain(`href="${WEB_VERSION_URL}"`);

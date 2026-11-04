@@ -15,6 +15,7 @@
  */
 import { CONTINUE_PROMPT, describeAiFailure, OUTPUT_LIMIT_AGAIN, resumeAfterModelSwitch, retryAfterFailure, type AiFailure } from "./aiFailure.ts";
 import { createChatQueue, type QueuedMessage } from "./chatQueue.ts";
+import { sendWhenConversationIdle } from "./conversationSend.ts";
 import { createEditSummary } from "./editSummary.ts";
 import { chipLabel, modelChoices, rememberModel, switchedFrom, type ModelChoice, type ModelInUse } from "./modelSwitch.ts";
 import { askThemed } from "../dialogs/confirmDialog.ts";
@@ -486,7 +487,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       }
       nodes.push({
         label: choice.modelName,
-        accelerator: choice.current ? "✓" : choice.recommended ? "Recommended" : choice.free ? "Free" : "",
+        accelerator: choice.current ? "✓" : choice.isNew ? "New" : choice.recommended ? "Recommended" : choice.free ? "Free" : "",
         run: () => void switchModel(choice).catch(() => deps.openConnect()),
       });
     }
@@ -1192,11 +1193,34 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       ], () => options.setAttribute("aria-expanded", "false"));
     });
 
+    let previewTimer: number | undefined, hoverPreview: HTMLElement | null = null;
+    const hidePreview = () => { clearTimeout(previewTimer); hoverPreview?.remove(); hoverPreview = null; openIt.removeAttribute("aria-describedby"); };
+    const showPreview = (pointer: boolean) => {
+      hidePreview();
+      const show = () => {
+        if (!row.isConnected) return;
+        hoverPreview = document.createElement("aside"); hoverPreview.className = "chat-hover-preview";
+        hoverPreview.id = `history-preview-${session.id}`; openIt.setAttribute("aria-describedby", hoverPreview.id);
+        hoverPreview.dataset["pointer"] = String(pointer); hoverPreview.setAttribute("role", "tooltip");
+        const title = document.createElement("strong"); title.textContent = session.title;
+        const detail = document.createElement("p"); detail.textContent = new Date(session.updatedAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) + " · " + session.messages.length + " messages";
+        hoverPreview.append(title, detail); document.body.append(hoverPreview);
+        const rect = row.getBoundingClientRect();
+        hoverPreview.style.left = Math.max(12, Math.min(window.innerWidth - hoverPreview.offsetWidth - 12, rect.right + 12)) + "px";
+        hoverPreview.style.top = Math.max(12, Math.min(window.innerHeight - hoverPreview.offsetHeight - 12, rect.top)) + "px";
+      };
+      if (pointer) previewTimer = window.setTimeout(show, 350); else show();
+    };
+    row.addEventListener("pointerenter", event => { if (event.pointerType === "mouse") showPreview(true); });
+    row.addEventListener("pointerleave", hidePreview); row.addEventListener("focusin", () => showPreview(false));
+    row.addEventListener("focusout", hidePreview); row.addEventListener("click", hidePreview);
+    row.addEventListener("keydown", event => { if (event.key === "Escape") hidePreview(); });
     row.append(openIt, options);
     return row;
   }
 
   function renderHistory(): void {
+    document.querySelectorAll(".chat-hover-preview").forEach(preview => preview.remove());
     const needle = historySearch.value.trim().toLowerCase();
     historyList.replaceChildren();
 
@@ -1245,6 +1269,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   /** Draw a past conversation back into the transcript. */
   let resumeGeneration = 0;
   async function resume(id: string): Promise<void> {
+    window.dispatchEvent(new Event("adcode-private-chat"));
     const generation = ++resumeGeneration;
     if (docked) api.open();
     if (id !== activeSessionId) leaveShownChat();
@@ -1400,11 +1425,11 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     modal.dialog.showModal();
   }
 
-  async function compactNow(focus?: string): Promise<void> {
-    if (compacting) return;
+  async function compactNow(focus?: string): Promise<boolean> {
+    if (compacting) return false;
     if (turnActive) {
       complain("Wait for the current answer to finish, then compact.");
-      return;
+      return false;
     }
     compacting = true;
     contextMeter.element.dataset["busy"] = "true";
@@ -1414,8 +1439,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       const result = await window.adcode.ai.compact(focus);
       if (result.ok) composerNotice.hidden = true;
       else complain(result.message);
+      return result.ok;
     } catch (error) {
       complain(error instanceof Error ? error.message : "Could not compact the conversation.");
+      return false;
     } finally {
       compacting = false;
       delete contextMeter.element.dataset["busy"];
@@ -3227,29 +3254,39 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   /** Re-send a prompt, unless a turn is already running. */
   /** Output-limit stops since a turn last finished: a second one means Continue is not helping. */
   let outputLimitStops = 0;
+  let recoverySend: AbortController | null = null;
+  let recoveryWaiting = false;
+  let recoverySendGeneration = 0;
+  async function sendRecovery(prompt: string, attachments: readonly AiAttachmentView[] | undefined, editor: AiEditorContextView | null, stillWanted?: () => boolean): Promise<boolean> {
+    recoverySend?.abort();
+    const controller=new AbortController(), generation=++recoverySendGeneration, conversation=activeSessionId;
+    recoverySend=controller;
+    const current=()=>generation===recoverySendGeneration && activeSessionId===conversation && (stillWanted?.() ?? true);
+    try {
+      const ok=await sendWhenConversationIdle({sessionId:conversation,runs:()=>window.adcode.ai.runs(),subscribe:listener=>window.adcode.ai.onRunsChanged(listener),signal:controller.signal,current,waiting:()=>{recoveryWaiting=true;},sending:()=>{recoveryWaiting=false;},send:()=>window.adcode.ai.send(prompt,attachments,editor,conversation ?? undefined)});
+      if(!ok && current()){finishActivityFailed();setSendMode("send");}
+      return ok;
+    } catch(error) {
+      if(!controller.signal.aborted && current()) { finishActivityFailed();setSendMode("send");failureCard(error instanceof Error?error.message:String(error)); }
+      return false;
+    } finally { if(recoverySend===controller){recoverySend=null;recoveryWaiting=false;} }
+  }
   /**
    * Send once the turn that just ended has fully returned. The step-limit error arrives
    * while main is still finishing that turn, and a send in that moment is refused.
    */
-  function continueWhenIdle(prompt: string, attempts = 12, stillWanted?: () => boolean): void {
+  function continueWhenIdle(prompt: string, _attempts = 12, stillWanted?: () => boolean): void {
     if (stillWanted !== undefined && !stillWanted()) return;
     setSendMode("stop");
     streamingBubble = null;
-    void window.adcode.ai.send(prompt, undefined, currentEditorContext()).then((ok) => {
-      if (!ok) setSendMode("send");
-    }, (error: unknown) => {
-      if (attempts > 0 && /already handling/i.test(String(error))) {
-        window.setTimeout(() => continueWhenIdle(prompt, attempts - 1, stillWanted), 400);
-        return;
-      }
-      setSendMode("send");
-    });
+    void sendRecovery(prompt,undefined,currentEditorContext(),stillWanted);
   }
 
   function resend(prompt: string): boolean {
     if (sendButton.dataset["mode"] === "stop") return false;
     if (prompt.trim().length === 0) return false;
     const editor = currentEditorContext();
+    const conversation=activeSessionId;
     if (parseSlashCommand(prompt)?.command.kind === "diff") {
       // A retried /review or /commit looks at the changes as they are now, attached again.
       void (deps.uncommittedDiff?.() ?? Promise.resolve(""))
@@ -3257,10 +3294,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         .then((diff) => {
           const data = diff.length > MAX_TEXT_CHARS ? diff.slice(0, MAX_TEXT_CHARS) : diff;
           const attached: AiAttachmentView[] = data.trim().length === 0 ? [] : [{ name: DIFF_CHIP, kind: "text", mediaType: "text/plain", data }];
-          return window.adcode.ai.send(prompt, attached.length === 0 ? undefined : attached, editor);
+          return sendRecovery(prompt, attached.length === 0 ? undefined : attached, editor,()=>activeSessionId===conversation);
         })
         .catch(() => undefined);
-    } else void window.adcode.ai.send(prompt, undefined, editor).catch(() => undefined);
+    } else void sendRecovery(prompt, undefined, editor);
     setSendMode("stop");
     streamingBubble = null;
     return true;
@@ -3348,13 +3385,27 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       if (kind === "retry") {
         const retry = action("Try again", () => { if (resend(retryAfterFailure(failure, lastUserPrompt))) retry.disabled = true; }, primary);
         retry.disabled = lastUserPrompt.trim().length === 0;
+      } else if (kind === "compact-continue") {
+        const compact = action("Compact and continue", () => {
+          const session = activeSessionId; compact.disabled = true;
+          void compactNow().then(ok => { if (ok && activeSessionId === session) resend(CONTINUE_PROMPT); }).finally(() => { compact.disabled = false; });
+        }, primary);
+      } else if (kind === "save-continue") {
+        const save = action("Save all and continue", () => {
+          save.disabled = true;
+          deps.saveAllOpenFiles();
+          // Saving is asynchronous in the editor; give it a moment before the task goes on.
+          window.setTimeout(() => { if (!resend(CONTINUE_PROMPT)) save.disabled = false; }, 400);
+        }, primary);
       } else if (kind === "usage") {
         action("View AI usage", () => void openUsageDialog(), primary);
+      } else if (kind === "buy-model-credits") {
+        action("Add paid credits", () => void window.open(`${BUY_TOKENS_URL}#wallet`, "_blank", "noopener"), primary);
       } else if (kind === "buy-tokens") {
-        // Paying happens on the website; the paused task resumes by itself once the tokens arrive.
-        action("Buy tokens", () => void window.open(BUY_TOKENS_URL, "_blank", "noopener"), primary);
+        // Paying happens on the website; the paused task resumes by itself once the credits arrive.
+        action("Buy credits", () => void window.open(BUY_TOKENS_URL, "_blank", "noopener"), primary);
       } else if (kind === "upgrade-plan") {
-        action("Upgrade plan", () => void window.open(BUY_TOKENS_URL, "_blank", "noopener"), primary);
+        action("Upgrade plan", () => void window.open(`${BUY_TOKENS_URL}#plans`, "_blank", "noopener"), primary);
       } else if (kind === "models") {
         action("Switch model", () => deps.openConnect(), primary).title = "Choose another model - the request carries on with it";
       } else if (kind === "new-conversation") {
@@ -3372,16 +3423,17 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         // links - a newcomer's first build carries on instead of waiting to be retyped.
         const request = lastUserPrompt;
         let waiting: (() => void) | null = null;
-        const signIn = action("Sign in", () => {
+        const needsVerification=failure.title==="Verify your email to use free AI";
+        const signIn = action(needsVerification?"Verify email":"Sign in", () => {
           deps.openAccount?.();
           if (waiting !== null || request.trim().length === 0) return;
-          signIn.textContent = "Waiting for sign-in…";
+          signIn.textContent = needsVerification?"Waiting for verification…":"Waiting for sign-in…";
           waiting = window.adcode.account.onChanged((state) => {
             if (state.state !== "linked") return;
             waiting?.(); waiting = null;
-            signIn.textContent = "Signed in";
+            signIn.textContent = needsVerification?"Account refreshed":"Signed in";
             signIn.disabled = true;
-            text.textContent = "You're signed in. Sending your message again…";
+            text.textContent = needsVerification?"Checking your account and sending your message again…":"You're signed in. Sending your message again…";
             continueWhenIdle(request);
           });
         }, primary);
@@ -4492,7 +4544,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       bringCardsDown();
     }
     // Anything but a status line means the paused task is moving again.
-    if (event.kind !== "status") hideLimitCard();
+    if (event.kind !== "status") { waitingForIncludedLimit = false; if (!(choosingModel && event.kind === "cancelled")) includedWaitGeneration += 1; hideLimitCard(); }
     if (event.kind === "tool-draft") {
       const path = typeof event["path"] === "string" ? event["path"] : null;
       const label = path === null ? "Writing a file" : `Writing ${path}`;
@@ -4533,6 +4585,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           break;
         }
         hideLimitCard();
+        waitingForIncludedLimit = false;
         if (/^(?:Free AI (?:allowance reached|is temporarily limited)|This (?:session|week)'s free AI credits are used up)\./.test(text)) waitingForIncludedLimit = true;
         else if (text === "Checking the limit and resuming this task automatically…") waitingForIncludedLimit = false;
         // A helper's own line ("Helper 2 of 3 · Tests: editing src/a.ts") belongs to its
@@ -4994,9 +5047,12 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
    */
   function stopTurn(): void {
     if (sendButton.dataset["mode"] !== "stop") return;
+    const onlyWaiting=recoveryWaiting && (activeSessionId===null || !runningChats.has(activeSessionId));
+    recoverySend?.abort(); recoverySend=null; recoveryWaiting=false; recoverySendGeneration+=1;
     waitingForIncludedLimit = false;
     includedWaitGeneration += 1;
     closeOpenMenu();
+    if(onlyWaiting){setSendMode("send");return;}
     workingText.textContent = "Stopping";
     workingStop.disabled = true;
     window.adcode.ai.cancel(activeSessionId ?? undefined);
@@ -5030,22 +5086,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       resetActivity();
       ensureTimeline();
     }
-    void window.adcode.ai.send(text, payload.length === 0 ? undefined : payload, currentEditorContext()).then(
-      (ok) => {
-        if (!ok) {
-          finishActivityFailed();
-          setSendMode("send");
-        }
-      },
-      (error: unknown) => {
-        if (attempts > 0 && /already handling/i.test(String(error))) {
-          window.setTimeout(() => sendQueued(item, attempts - 1), 400);
-          return;
-        }
-        finishActivityFailed();
-        setSendMode("send");
-      },
-    );
+    void sendRecovery(text, payload.length === 0 ? undefined : payload, currentEditorContext());
   }
 
   /** The next queued follow-up, once the turn before it has finished well. */
@@ -5239,6 +5280,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     },
 
     newConversation(): void {
+      window.dispatchEvent(new Event("adcode-private-chat"));
       api.open();
       resetButton.click();
       requestAnimationFrame(() => requestAnimationFrame(() => input.focus()));

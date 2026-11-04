@@ -36,7 +36,7 @@ export function corsHeaders(origin: string | undefined): Record<string, string> 
     // Echoing one origin means caches must key on it, or a response for the site origin could
     // be served to a different origin from a shared cache.
     vary: "Origin",
-    "access-control-allow-headers": "authorization, content-type",
+    "access-control-allow-headers": "authorization, content-type, x-adcode-paid-credits, x-adcode-ai-source, x-adcode-ai-persona, x-adcode-platform",
     "access-control-allow-methods": "GET, POST, PUT, PATCH, OPTIONS",
     "access-control-max-age": "600",
   };

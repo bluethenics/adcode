@@ -4,7 +4,7 @@ import { CHANNELS } from "../src/shared/api.ts";
 const mocks = vi.hoisted(() => ({
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
   github: vi.fn(), google: vi.fn(), completion: vi.fn(),
-  auth: { uid: () => "test-user", profile: vi.fn(), linkGitHub: vi.fn(), linkGoogle: vi.fn(), getToken: vi.fn(), signInGitHub: vi.fn() },
+  auth: { uid: () => "test-user", profile: vi.fn(), linkGitHub: vi.fn(), linkGoogle: vi.fn(), linkPassword: vi.fn(), signInPassword: vi.fn(), getToken: vi.fn(), signInGitHub: vi.fn() },
 }));
 vi.mock("electron", () => ({ app: { getPath: () => ".tmp/account-connection-test" }, ipcMain: { handle: (channel: string, handler: (...args: unknown[]) => unknown) => mocks.handlers.set(channel, handler) }, BrowserWindow: { getAllWindows: () => [] } }));
 vi.mock("../src/main/backend.ts", () => ({ backendAccount: () => mocks.auth, apiBaseUrl: () => "http://127.0.0.1" }));
@@ -22,6 +22,8 @@ beforeEach(() => {
   mocks.auth.profile.mockResolvedValue({ ok: true, value: { email: "test@example.com", displayName: "Test", photoUrl: null, providers: ["github.com"] } });
   mocks.auth.getToken.mockResolvedValue({ ok: false });
   mocks.auth.signInGitHub.mockResolvedValue({ ok: true });
+  mocks.auth.linkPassword.mockResolvedValue({ ok: true });
+  mocks.auth.signInPassword.mockResolvedValue({ ok: true });
   mocks.completion.mockResolvedValue(undefined);
   registerAccountIpc();
 });
@@ -55,4 +57,20 @@ it("keeps Google's own callback page separate from GitHub completion", async () 
   await expect(link("google")).resolves.toMatchObject({ ok: true });
   expect(mocks.auth.linkGoogle).toHaveBeenCalledWith("test-identity");
   expect(mocks.completion).not.toHaveBeenCalled();
+});
+
+const emailLink = (email: unknown, password: unknown) => mocks.handlers.get(CHANNELS.accountLinkEmail)!(null, email, password);
+it("validates email sign-in and links a new email account", async () => {
+  await expect(emailLink("invalid", "long-password")).resolves.toMatchObject({ ok: false });
+  await expect(emailLink("test@example.com", "short")).resolves.toMatchObject({ ok: false });
+  expect(mocks.auth.linkPassword).not.toHaveBeenCalled();
+  await expect(emailLink(" test@example.com ", "long-password")).resolves.toMatchObject({ ok: true, state: { state: "linked" } });
+  expect(mocks.auth.linkPassword).toHaveBeenCalledWith("test@example.com", "long-password");
+});
+it("signs into an existing email account after the explicit account-switch choice", async () => {
+  mocks.auth.linkPassword.mockResolvedValueOnce({ ok: false, error: { reason: "account-exists", detail: "Exists" } });
+  await expect(emailLink("test@example.com", "long-password")).resolves.toMatchObject({ ok: false, decide: "sign-in-instead" });
+  expect(mocks.auth.signInPassword).not.toHaveBeenCalled();
+  await expect(mocks.handlers.get(CHANNELS.accountSignInInstead)!(null)).resolves.toMatchObject({ ok: true });
+  expect(mocks.auth.signInPassword).toHaveBeenCalledWith("test@example.com", "long-password");
 });

@@ -39,6 +39,7 @@ const VIEW_BOX = "0 0 16 16";
  * should look related is that they do related things.
  */
 export const ICON = {
+  projects: "M2 5h4l1.5 2H14v7H2zM3.5 5V2h4l1.5 2h3.5v3",
   /* ── Dismissal ──────────────────────────────────────────────────────────── */
 
   /** Symmetric about (8, 8): the diagonals cross exactly at the centre. */

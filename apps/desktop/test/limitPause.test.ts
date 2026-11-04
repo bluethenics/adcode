@@ -23,15 +23,15 @@ describe("the usage-limit card", () => {
   });
   it("offers an upgrade and the wait, and promises the task carries on by itself", () => {
     const paid = limitPauseView({ reason: "paid", resumeAt: at(2, 30), recheckAt: at(0, 2) }, now, "en-US");
-    expect(paid.title).toBe("You've reached your weekly limit for this model");
-    expect(paid.body).toContain("Upgrade your plan or buy tokens to keep going now, or wait until 4:30 PM");
+    expect(paid.title).toBe("You've used today's credits");
+    expect(paid.body).toContain("Upgrade for more daily credits or add a credit pack to keep going now, or wait until 4:30 PM");
     expect(paid.resume).toBe("Continues automatically at 4:30 PM (in 2 h 30 min) - keep ADCode open.");
     expect(paid.actions).toEqual(["upgrade-plan", "buy-tokens", "models"]);
     const weekly = limitPauseView({ reason: "weekly", resumeAt: at(20), recheckAt: at(0, 2) }, now, "en-US");
     expect(weekly.title).toBe("You've reached this week's free AI limit");
     expect(weekly.body).toContain("Wait until tomorrow at 10:00 AM");
     expect(weekly.resume).toBe("Continues automatically tomorrow at 10:00 AM (in 20 h) - keep ADCode open.");
-    expect(weekly.actions[0]).toBe("upgrade-plan");
+    expect(weekly.actions).toEqual(["upgrade-plan", "buy-tokens", "models"]);
   });
   it("does not sell a plan for a per-minute or provider limit a plan cannot lift", () => {
     for (const reason of ["rate", "upstream"] as const) {

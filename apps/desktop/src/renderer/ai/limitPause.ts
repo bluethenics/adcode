@@ -61,15 +61,15 @@ export function limitPauseView(pause: LimitPause, now: number, locale?: string):
   const resume = `Continues automatically ${when} - keep ADCode open.`;
   switch (pause.reason) {
     case "paid":
-      return { title: "You've reached your weekly limit for this model",
-        body: `Upgrade your plan or buy tokens to keep going now, or wait until ${until}. This task picks up where it stopped - nothing is lost.`,
+      return { title: "You've used today's credits",
+        body: `Upgrade for more daily credits or add a credit pack to keep going now, or wait until ${until}. This task picks up where it stopped - nothing is lost.`,
         resume, actions: ["upgrade-plan", "buy-tokens", "models"] };
     case "weekly":
     case "session":
     case "daily":
       return { title: pause.reason === "session" ? "You've reached this session's free AI limit" : pause.reason === "weekly" ? "You've reached this week's free AI limit" : "You've reached today's free AI limit",
-        body: `Wait until ${until}, or upgrade your plan for more AI on Heabsy models and switch model to keep going now. This task picks up where it stopped - nothing is lost.`,
-        resume, actions: ["upgrade-plan", "models"] };
+        body: `Wait until ${until}, or upgrade your plan or add a credit pack to keep going now. You can also use your own connected model. This task picks up where it stopped - nothing is lost.`,
+        resume, actions: ["upgrade-plan", "buy-tokens", "models"] };
     case "upstream":
       return { title: "This model is busy right now",
         body: `Its provider is limiting requests for everyone. Wait until ${until}, or switch to another model to keep going now.`,
@@ -115,7 +115,7 @@ export function createLimitPauseCard(run: (action: LimitAction, pause: LimitPaus
   let current: LimitPause | null = null;
   let ticker: number | null = null;
   let drawnActions = "";
-  const labels: Record<LimitAction, string> = { "upgrade-plan": "Upgrade plan", "buy-tokens": "Buy tokens", models: "Switch model" };
+  const labels: Record<LimitAction, string> = { "upgrade-plan": "Upgrade plan", "buy-tokens": "Buy credits", models: "Switch model" };
 
   function paint(): void {
     if (current === null) return;

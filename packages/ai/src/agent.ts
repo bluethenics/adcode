@@ -26,6 +26,7 @@ import type {
   ContentBlock,
 } from "./types.ts";
 import { isRequestTooLarge, LEAN_SYSTEM, leanHistory, leanTools } from "./requestSize.ts";
+import { networkFailure } from "./includedLimitRecovery.ts";
 import { createToolDraftReader, type ToolDraftReader } from "./toolDraft.ts";
 import {
   compactedHistory,
@@ -334,18 +335,18 @@ export function createAgent(deps: AgentDeps): Agent {
    * is only touched once a non-empty summary is in hand, so every failure - an error, a
    * refusal, an empty answer, a Stop - leaves the conversation exactly as it was.
    */
-  async function* compactHistory(signal: AbortSignal, focus?: string): AsyncGenerator<AgentEvent, CompactOutcome> {
+  async function* compactHistory(signal: AbortSignal, focus?: string, recovery = false): AsyncGenerator<AgentEvent, CompactOutcome> {
     const window = deps.compaction?.contextWindow() ?? 0;
     const budget = inputBudget(window, maxOutput);
     const before = estimateTokens(lastSystem, messages, lastTools);
     // Keep the newest turns: under a third of what the model can read, and at most about
     // a third of what is there now, so asking to compact always frees real room.
-    const keep = Math.floor(Math.min(budget * 0.3, before * 0.35));
+    const keep = Math.floor(Math.min(budget * 0.3, before * 0.35, recovery ? 4000 : Infinity));
     const plan = planCompaction(messages, keep);
     if (plan === null) return { ok: false, reason: "There is not enough conversation to compact yet." };
 
     yield { kind: "compacting" };
-    const ask = summaryRequest(plan.older, focus, Math.floor(inputBudget(window, SUMMARY_MAX_TOKENS) * 3 * 0.8));
+    const ask = summaryRequest(plan.older, focus, Math.min(recovery ? 16000 : Infinity, Math.floor(inputBudget(window, SUMMARY_MAX_TOKENS) * 3 * 0.8)));
     const request: ProviderRequest = { model: deps.model, system: ask.system, messages: ask.messages, tools: [], maxTokens: SUMMARY_MAX_TOKENS };
     let summary = "";
     try {
@@ -357,12 +358,14 @@ export function createAgent(deps: AgentDeps): Agent {
         if (event.kind === "stop" && event.reason === "refusal") return { ok: false, reason: "The model declined to summarise." };
       }
     } catch (error) {
-      return { ok: false, reason: error instanceof Error ? error.message : "summarising failed" };
+      if (!recovery || !isRequestTooLarge(error instanceof Error ? error.message : "")) return { ok: false, reason: error instanceof Error ? error.message : "summarising failed" };
+      const extracts = summaryRequest(plan.older, focus, 10000).messages[0]?.content.find(block => block.type === "text");
+      summary = "Compact transcript extracts (some older detail omitted). Completed tool calls must not be repeated. Read current files before editing.\n" + (extracts?.type === "text" ? extracts.text : "");
     }
     if (signal.aborted) return { ok: false, reason: "cancelled" };
     if (summary.trim().length === 0) return { ok: false, reason: "The model returned an empty summary." };
 
-    messages.splice(0, messages.length, ...compactedHistory(summary, plan.tail, plan.request));
+    messages.splice(0, messages.length, ...compactedHistory(summary, recovery ? leanHistory(plan.tail, 1500, true) : plan.tail, plan.request));
     const after = estimateTokens(lastSystem, messages, lastTools);
     const outcome = { ok: true as const, summary: summary.trim(), before, after, keptMessages: plan.tail.length };
     yield { kind: "compacted", summary: outcome.summary, before, after, keptMessages: outcome.keptMessages };
@@ -408,13 +411,14 @@ export function createAgent(deps: AgentDeps): Agent {
     let smallerEdits = false;
     let compactionFailed = false;
     let justCompacted = false;
-    let reactiveTried = false;
+    let reactiveTried = 0;
     // The output allowance for this send: it starts where the host set it and doubles toward
     // the model's ceiling each time a reply is cut off.
     const ceiling = Math.max(maxOutput, deps.maxOutputTokens ?? DEFAULT_OUTPUT_CEILING);
     let budget = maxOutput;
     let continuations = 0;
     let emptyRetries = 0;
+    let interruptionRecoveries = 0;
     const grow = (): void => {
       budget = Math.min(ceiling, budget * 2);
     };
@@ -441,6 +445,7 @@ export function createAgent(deps: AgentDeps): Agent {
       let stop: StopReason = "end-turn";
       let stopDetail: string | undefined;
       let failed = false;
+      let continueInterrupted = false;
       // What this request cost: the provider's count when it gives one, otherwise counted
       // here from what went out and what came back.
       let sent: ProviderRequest | null = null;
@@ -563,14 +568,16 @@ export function createAgent(deps: AgentDeps): Agent {
               break;
           }
         }
+        reactiveTried = 0;
         streamed = true;
       } catch (error) {
         const detail = error instanceof Error ? error.message : "provider failed";
         // Too big for this model: summarise the older part and ask again - once. The
         // estimate that decides compaction is an estimate; this is the provider's word.
-        if (deps.compaction !== undefined && !reactiveTried && assistantContent.length === 0 && !signal.aborted && isRequestTooLarge(detail)) {
-          reactiveTried = true;
-          const outcome = yield* compactHistory(signal);
+        if (deps.compaction !== undefined && reactiveTried < 2 && assistantContent.length === 0 && !signal.aborted && isRequestTooLarge(detail)) {
+          reactiveTried++;
+          yield { kind: "status", text: "Making room in this conversation, then continuing your task…" };
+          const outcome = yield* compactHistory(signal, undefined, true);
           if (signal.aborted) {
             yield { kind: "cancelled" };
             return;
@@ -594,7 +601,13 @@ export function createAgent(deps: AgentDeps): Agent {
         }
         // §9: the provider being down costs the user an answer, never the editor.
         failed = true;
-        if (!signal.aborted) yield { kind: "error", detail };
+        const transient = error as { code?: string; status?: number } | null;
+        // Preserve the partial answer in history and request a continuation. Completed tools
+        // from prior steps stay in history; drafts from this interrupted response never run.
+        continueInterrupted = deps.provider.id === "tagflow" && !signal.aborted && interruptionRecoveries < 2 && pendingCalls.length === 0 &&
+          assistantContent.some(block => block.type === "text" && block.text.trim().length > 0) &&
+          (transient?.code === "stream-interrupted" || networkFailure(error) !== null);
+        if (!signal.aborted && !continueInterrupted) yield { kind: "error", detail };
       }
 
       // A request the provider refused outright cost nothing; one that answered, even in
@@ -625,6 +638,12 @@ export function createAgent(deps: AgentDeps): Agent {
         return;
       }
 
+      if (continueInterrupted) {
+        interruptionRecoveries++;
+        messages.push({ role: "user", content: [{ type: "text", text: "The connection interrupted your last response. Continue the same task from where that response stopped. Do not repeat text already delivered or completed tool actions. Read current files before making further edits." }] });
+        yield { kind: "status", text: "The connection interrupted the response. Continuing this task from the saved progress without repeating completed tools…" };
+        continue;
+      }
       if (failed) return;
 
       if (stop === "refusal") {

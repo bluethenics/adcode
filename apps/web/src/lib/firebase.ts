@@ -25,6 +25,7 @@ import {
   getAdditionalUserInfo,
   type Auth,
   type User,
+  reload,
 } from "firebase/auth";
 
 const CONFIG = {
@@ -68,7 +69,8 @@ export async function signInEmail(email: string, password: string): Promise<bool
 }
 
 export async function registerEmail(email: string, password: string): Promise<boolean> {
-  await createUserWithEmailAndPassword(auth(), email, password);
+  const result = await createUserWithEmailAndPassword(auth(), email, password);
+  await requestEmailVerification(result.user, true).catch(() => undefined);
   return true;
 }
 
@@ -85,7 +87,20 @@ export async function signInGoogle(): Promise<boolean> {
  * repositories in front of a button whose only job is to say hello.
  */
 export async function signInGithub(): Promise<boolean> {
-  return getAdditionalUserInfo(await signInWithPopup(auth(), new GithubAuthProvider()))?.isNewUser === true;
+  const result = await signInWithPopup(auth(), new GithubAuthProvider());
+  const created = getAdditionalUserInfo(result)?.isNewUser === true;
+  if (created && !result.user.emailVerified) await requestEmailVerification(result.user, true).catch(() => undefined);
+  return created;
+}
+
+export interface EmailVerificationResult { verified?: boolean; sent?: boolean; message: string; retryAfter?: number }
+export async function requestEmailVerification(user: User, send: boolean): Promise<EmailVerificationResult> {
+  const response = await fetch("/v1/ai/account/verification", { method: send ? "POST" : "GET", headers: { authorization: `Bearer ${await user.getIdToken()}` } });
+  const result = await response.json() as EmailVerificationResult;
+  if (typeof result.message !== "string") throw new Error("Verification could not be checked. Please try again.");
+  if (result.verified) { await reload(user); await user.getIdToken(true); }
+  window.dispatchEvent(new CustomEvent("adcode-email-verification", { detail: result }));
+  return result;
 }
 
 export async function signOutNow(): Promise<void> {

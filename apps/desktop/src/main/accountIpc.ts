@@ -174,7 +174,21 @@ async function offerSignIn(auth: FirebaseAuth, held: Held): Promise<LinkOutcome>
   };
 }
 
+let verificationAnnouncedUid: string | null = null;
 export function registerAccountIpc(): void {
+  ipcMain.handle(CHANNELS.accountVerification, async (_event, send: unknown) => {
+    if (typeof send !== "boolean") throw new Error("Choose whether to send a verification link.");
+    const auth = account(), token = await auth?.getToken();
+    if (!token?.ok) return { message: "Sign in before verifying your email." };
+    try {
+      const response = await fetch(`${apiBaseUrl()}/ai/account/verification`, { method: send ? "POST" : "GET", headers: { authorization: `Bearer ${token.value}` }, signal: AbortSignal.timeout(15_000) });
+      const data = await response.json() as { verified?: boolean; sent?: boolean; email?: string | null; retryAfter?: number; message?: string };
+      if (data.verified && auth && auth.uid() !== verificationAnnouncedUid) {
+        verificationAnnouncedUid = auth.uid(); auth.invalidate(); broadcast(await currentAccount());
+      }
+      return { ...data, message: data.message ?? "Verification could not be checked. Please try again." };
+    } catch { return { message: "Verification could not connect. Check your connection and try again." }; }
+  });
   ipcMain.handle(CHANNELS.accountStatus, async (): Promise<AccountState> => currentAccount());
 
   ipcMain.handle(CHANNELS.accountLink, async (_event, provider: unknown): Promise<LinkOutcome> => {

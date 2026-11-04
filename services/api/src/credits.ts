@@ -22,7 +22,7 @@ export interface CreditPlan {
 }
 
 /** The old daily allowance (2M tokens on the main pool) now refills every five hours. */
-export const DEFAULT_CREDIT_PLAN: CreditPlan = { sessionCredits: 2000, weeklyCredits: 20000, sessionHours: 5 };
+export const DEFAULT_CREDIT_PLAN: CreditPlan = { sessionCredits: 2200, weeklyCredits: 22000, sessionHours: 5 };
 export const WEEK_MS = 7 * 86_400_000;
 export const MAX_CREDITS = 10_000_000;
 export const MAX_CREDIT_RATE = 100;

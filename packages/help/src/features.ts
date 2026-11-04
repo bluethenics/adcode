@@ -18,6 +18,18 @@ import type {
 interface FeatureMetadata {
   readonly actions?: readonly FeatureCommandAction[];
   readonly keywords?: readonly string[];
+  /** "YYYY-MM-DD" it shipped, so the library can say New. */
+  readonly added?: string;
+}
+
+/** Days a feature counts as new after it ships, the same as a newly offered model. */
+export const NEW_FEATURE_DAYS = 45;
+
+/** Whether a feature shipped recently enough to be marked New. */
+export function isNewFeature(record: Pick<FeatureRecord, "added">, now: number = Date.now()): boolean {
+  if (record.added === undefined) return false;
+  const shipped = Date.parse(`${record.added}T00:00:00Z`);
+  return Number.isFinite(shipped) && now >= shipped && now - shipped < NEW_FEATURE_DAYS * 86_400_000;
 }
 
 const command = (commandId: string, label: string): FeatureCommandAction => ({
@@ -40,6 +52,7 @@ const command = (commandId: string, label: string): FeatureCommandAction => ({
  */
 const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   "ads.networks": {
+    added: "2026-10-25",
     actions: [command("ads.openNetworks", "Open ad network settings")],
     keywords: ["ad networks", "provider api key", "imprezia", "beehiiv", "click payout", "view payout", "advertising inventory"],
   },
@@ -131,10 +144,12 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     keywords: ["credits", "free credits", "ai credits", "5 hour", "five hour", "session limit", "weekly limit", "usage limit", "refill", "reset", "claude max", "allowance", "daily allowance", "quota", "out of credits", "heabsy", "rate"],
   },
   "ai.buyTokens": {
-    actions: [command("ai.buyTokens", "Buy tokens")],
+    added: "2026-10-21",
+    actions: [command("ai.buyTokens", "Buy credits")],
     keywords: ["buy tokens", "buy credits", "top up", "pay", "purchase", "more tokens", "out of tokens", "glm", "qwen", "mimo", "50m", "pricing", "price", "paid ai", "dodo"],
   },
   "ai.plans": {
+    added: "2026-10-25",
     actions: [command("ai.upgradePlan", "Upgrade plan")],
     keywords: ["subscription", "subscribe", "monthly", "weekly", "pro plan", "promo code", "invite", "referral", "cancel subscription"],
   },
@@ -214,7 +229,9 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     keywords: ["browser", "website", "screen size", "responsive", "inspect element", "box model", "padding margin", "width height"],
   },
   "workbench.collab": {
-    actions: [command("collab.panel", "Open"), command("collab.leave", "Leave session")],
+    // Starting or joining a session is paused (docs/ui-restoration-2026-11-02.md); one already
+    // running keeps its status-bar control and can still be left.
+    actions: [command("collab.leave", "Leave session")],
     keywords: ["share", "join", "pair", "live session"],
   },
   "workbench.imagePreview": {
@@ -382,13 +399,16 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     keywords: ["dont stop", "step limit", "finish the job", "work until done", "carry on by itself"],
   },
   "ai.mcpSignIn": {
+    added: "2026-10-27",
     actions: [command("tools.signInConnector", "Sign in to a connector")],
     keywords: ["oauth", "sign in to connector", "connector sign in", "gmail mcp", "gmail connector", "google mcp", "missing required authentication credential", "bearer token", "mcp login", "authorization", "pkce", "refresh token", "sign out connector"],
   },
   "adcode.ads.chatSponsored": {
+    added: "2026-10-28",
     keywords: ["imprezia", "ads in chat", "sponsored reply", "ad under answer", "chat ads", "send my prompt to advertisers", "ad partner", "turn off chat ads"],
   },
   "adcode.ai.askBeforeConnectorTools": {
+    added: "2026-10-27",
     keywords: ["connector permission", "mcp permission", "stop asking", "allow once", "auto approve tools", "approve connector calls", "mcp approval"],
   },
   "ai.backgroundChats": {
@@ -675,6 +695,7 @@ const records: readonly FeatureRecord[] = HELP_ENTRIES.map((entry) => {
     actions,
     keywords: [groupTitle(entry), ...(metadata?.keywords ?? [])],
     surface: surfaceOf(entry),
+    ...(metadata?.added === undefined ? {} : { added: metadata.added }),
   };
 });
 

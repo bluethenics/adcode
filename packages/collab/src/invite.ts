@@ -23,6 +23,7 @@
  */
 
 export interface Invite {
+  readonly project?: string;
   /** An IPv4 address or hostname. Never a URL: no scheme, no path, no credentials. */
   readonly host: string;
   readonly port: number;
@@ -144,6 +145,7 @@ export function encodeInvite(invite: Invite): string {
     p: invite.port,
     t: invite.token,
     l: invite.label.slice(0, MAX_LABEL),
+    ...(invite.project === undefined ? {} : { r: invite.project }),
   });
 
   const bytes = new TextEncoder().encode(payload);
@@ -183,13 +185,15 @@ export function decodeInvite(code: string): Invite | null {
   const port = record["p"];
   const token = record["t"];
   const label = record["l"];
+  const project = record["r"];
 
   if (typeof host !== "string" || !isPlausibleHost(host)) return null;
   if (typeof port !== "number" || !isPlausiblePort(port)) return null;
   if (typeof token !== "string" || token.length === 0 || token.length > 128) return null;
   if (typeof label !== "string" || label.length > MAX_LABEL) return null;
+  if (project !== undefined && (typeof project !== "string" || project.length > 200 || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(project))) return null;
 
-  return { host, port, token, label };
+  return { host, port, token, label, ...(project === undefined ? {} : { project: project as string }) };
 }
 
 /**

@@ -71,7 +71,11 @@ export function createChatRuns(options: { readonly maxParallel: () => number; re
       if (runs.has(sessionId)) return { ok: false, reason: "This conversation is already working." };
       const limit = Math.max(1, options.maxParallel());
       if (runs.size >= limit) {
-        return { ok: false, reason: `${String(limit)} chats are already working. Stop one, or wait for one to finish.` };
+        // Reported as "1 chats are already working": with one slot, name the chat that holds it.
+        const busy = runs.values().next().value?.info.title.trim();
+        return { ok: false, reason: limit === 1
+          ? `Another chat${busy ? ` ("${busy}")` : ""} is still working. Stop it, or wait for it to finish, then send again.`
+          : `${String(limit)} chats are already working. Stop one, or wait for one to finish.` };
       }
       runs.set(sessionId, { info: { sessionId, title, startedAt: now, continued: 0 }, events: [] });
       return { ok: true };

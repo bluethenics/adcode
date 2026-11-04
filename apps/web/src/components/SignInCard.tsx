@@ -25,7 +25,7 @@ import {
  */
 export type SignInAudience = "developer" | "advertiser";
 
-export function SignInCard({ heading = "Sign in", audience = "developer" }: { heading?: string; audience?: SignInAudience }) {
+export function SignInCard({ heading = "Sign in", audience = "developer", headingTag: HeadingTag = "h1" }: { heading?: string; audience?: SignInAudience; headingTag?: "h1" | "h2" }) {
   const advertiser = audience === "advertiser";
   const [mode, setMode] = useState<"in" | "up">(advertiser ? "up" : "in");
   const [email, setEmail] = useState("");
@@ -124,7 +124,7 @@ export function SignInCard({ heading = "Sign in", audience = "developer" }: { he
       >
         <header className="auth-form-heading">
           <p className="auth-eyebrow" key={mode}>{mode === "in" ? "WELCOME BACK" : "MAKE YOURSELF AT HOME"}</p>
-          <h1 id={`${panelId}-heading`}>{mode === "in" ? heading : advertiser ? "Start advertising" : "Create your account"}</h1>
+          <HeadingTag id={`${panelId}-heading`}>{mode === "in" ? heading : advertiser ? "Start advertising" : "Create your account"}</HeadingTag>
           <p>Choose how you&apos;d like to {mode === "in" ? "continue." : "get started."}</p>
         </header>
         <div className="auth-mode" data-mode={mode} role="tablist" aria-label="Account action" onKeyDown={onTabKey}>

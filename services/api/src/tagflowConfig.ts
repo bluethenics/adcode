@@ -11,7 +11,7 @@ export const UNLIMITED_REQUESTS_PER_MINUTE = 1000;
 
 export const DEFAULT_TAGFLOW_CONFIG: TagflowConfig = {
   enabled: false, baseUrl: "", defaultModel: "", models: [],
-  limits: { dailyRequests: UNLIMITED_DAILY_REQUESTS, dailyTokens: 1_000_000, dailyCostMicros: 1_000_000, requestsPerMinute: UNLIMITED_REQUESTS_PER_MINUTE },
+  limits: { dailyRequests: UNLIMITED_DAILY_REQUESTS, dailyTokens: 1_100_000, dailyCostMicros: 1_100_000, requestsPerMinute: UNLIMITED_REQUESTS_PER_MINUTE },
   maxInputTokens: 262_144, maxOutputTokens: 4096,
 };
 
@@ -69,7 +69,7 @@ export function parseTagflowConfig(raw: unknown): TagflowConfig | null {
   if (typeof enabled !== "boolean" || typeof raw["baseUrl"] !== "string" || typeof defaultModel !== "string") return null;
   const baseUrl = raw["baseUrl"].trim().replace(/\/+$/, "");
   if (baseUrl !== "" && !isTagflowUrl(baseUrl)) return null;
-  if (!integer(maxInputTokens, 1_000_000) || maxInputTokens < 1 || !integer(maxOutputTokens, 65_536) || maxOutputTokens < 1) return null;
+  if (!integer(maxInputTokens, 10_000_000) || maxInputTokens < 1 || !integer(maxOutputTokens, 65_536) || maxOutputTokens < 1) return null;
   const limits = parseTagflowLimits(raw["limits"]);
   const providers = parseCustomProviders(raw["providers"]);
   const credits = raw["credits"] === undefined ? undefined : parseCreditPlan(raw["credits"]);
@@ -78,14 +78,18 @@ export function parseTagflowConfig(raw: unknown): TagflowConfig | null {
   if (paid === null) return null;
   const campaign = raw["campaign"] === undefined ? undefined : parseCampaign(raw["campaign"]);
   if (campaign === null) return null;
-  if (limits === null || providers === null || !Array.isArray(raw["models"]) || raw["models"].length > 50) return null;
+  if (limits === null || providers === null || !Array.isArray(raw["models"]) || raw["models"].length > 100) return null;
   const models: TagflowModel[] = [];
   for (const item of raw["models"]) {
-    if (!record(item) || !fields(item, ["id", "name", "provider", "upstreamModel", "enabled", "contextWindow", "maxOutput", "inputPrice", "outputPrice", "creditRate"])) return null;
+    if (!record(item) || !fields(item, ["id", "name", "provider", "upstreamModel", "enabled", "contextWindow", "maxOutput", "inputPrice", "outputPrice", "creditRate", "billing", "cacheInputPrice", "pricingSchedule", "releaseDate"])) return null;
     if (item["provider"] !== undefined && !providerConnections(providers).some((provider) => provider.id === item["provider"])) return null;
     if (item["upstreamModel"] !== undefined && !id(item["upstreamModel"])) return null;
     if (item["enabled"] !== undefined && typeof item["enabled"] !== "boolean") return null;
     if (item["creditRate"] !== undefined && !isCreditRate(item["creditRate"])) return null;
+    if (item["pricingSchedule"] !== undefined && item["pricingSchedule"] !== "deepseek") return null;
+    if (item["billing"] !== undefined && item["billing"] !== "wallet") return null;
+    if (item["cacheInputPrice"] !== undefined && !price(item["cacheInputPrice"])) return null;
+    if (item["releaseDate"] !== undefined && (typeof item["releaseDate"] !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(item["releaseDate"]) || Number.isNaN(Date.parse(item["releaseDate"])))) return null;
     const { name, contextWindow, maxOutput, inputPrice, outputPrice } = item;
     if (!id(item["id"]) || typeof name !== "string" || !name.trim() || name.length > 120 ||
         !integer(contextWindow, 10_000_000) || contextWindow < 1 || !integer(maxOutput, 65_536) || maxOutput < 1 ||
@@ -95,6 +99,10 @@ export function parseTagflowConfig(raw: unknown): TagflowConfig | null {
       ...(item["upstreamModel"] === undefined ? {} : { upstreamModel: item["upstreamModel"] as string }),
       ...(item["enabled"] === undefined ? {} : { enabled: item["enabled"] as boolean }),
       ...(item["creditRate"] === undefined ? {} : { creditRate: item["creditRate"] as number }),
+      ...(item["pricingSchedule"] === undefined ? {} : { pricingSchedule: "deepseek" as const }),
+      ...(item["billing"] === undefined ? {} : { billing: "wallet" as const }),
+      ...(item["cacheInputPrice"] === undefined ? {} : { cacheInputPrice: item["cacheInputPrice"] as number }),
+      ...(item["releaseDate"] === undefined ? {} : { releaseDate: item["releaseDate"] as string }),
     });
   }
   if (defaultModel !== "" && !models.some((model) => model.id === defaultModel && model.enabled !== false)) return null;
@@ -102,4 +110,12 @@ export function parseTagflowConfig(raw: unknown): TagflowConfig | null {
   return { enabled, baseUrl, defaultModel, models, limits, maxInputTokens, maxOutputTokens, ...(providers.length === 0 ? {} : { providers }), ...(credits === undefined ? {} : { credits }), ...(paid === undefined ? {} : { paid }), ...(campaign === undefined ? {} : { campaign }) };
 }
 
-export const tagflowCost = (model: TagflowModel, input: number, output: number): number => Math.ceil(input * model.inputPrice + output * model.outputPrice);
+/**
+ * Provider list cost in micro-dollars. Cached input is priced at the cache rate, as credits are:
+ * pricing it at the full input rate overstated agent chats - which resend the same history every
+ * step - several times over in the admin cost reports (2 November 2026).
+ */
+export const tagflowCost = (model: TagflowModel, input: number, output: number, cached = 0): number => {
+  const hit = Math.max(0, Math.min(input, cached));
+  return Math.ceil((input - hit) * model.inputPrice + hit * (model.cacheInputPrice ?? model.inputPrice) + output * model.outputPrice);
+};

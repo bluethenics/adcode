@@ -317,6 +317,20 @@
   font-weight: 650;
 }
 
+/* Shipped in the last weeks: a quiet accent chip, not a banner. */
+.feature-library-new {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: .02em;
+  vertical-align: 1px;
+}
+
 .feature-library-row-plain {
   margin: 3px 0 0;
   color: var(--text-secondary);

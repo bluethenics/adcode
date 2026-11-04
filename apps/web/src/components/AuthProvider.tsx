@@ -1,4 +1,5 @@
 "use client";
+import { EmailVerificationNotice } from "./EmailVerificationNotice";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AuthContext as Ctx, type AuthState } from "./AuthContext";
@@ -117,5 +118,5 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [user, loading, token, isAdmin, adminLoading, adminError, retryAdmin],
   );
 
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={value}><EmailVerificationNotice />{children}</Ctx.Provider>;
 }

@@ -93,9 +93,9 @@ describe("join", () => {
 
   it("refuses with a reason once the session is full", () => {
     let state = startSession("h", "Ada");
-    for (let i = 0; i < 31; i++) state = join(state, `p${i}`, `Guest ${i}`).state;
+    for (let i = 0; i < 63; i++) state = join(state, `p${i}`, `Guest ${i}`).state;
 
-    expect(state.participants).toHaveLength(32);
+    expect(state.participants).toHaveLength(64);
 
     const overflow = join(state, "one-too-many", "Nope");
     expect(overflow.participant).toBeNull();

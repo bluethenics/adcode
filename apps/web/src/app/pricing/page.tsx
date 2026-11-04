@@ -10,7 +10,7 @@ export const metadata: Metadata = pageMetadata({
   path: "/pricing",
   title: "Pricing: free code editor, AI plans from $3 a week",
   socialTitle: "ADCode pricing: free editor, optional AI plans",
-  description: "Start with ADCode's free editor and included AI. Compare Weekly $3, Monthly $9 and Pro $19 plans, or buy one-time token packs that never expire.",
+  description: "Start with ADCode's free editor and included AI. Compare Weekly $3, Monthly $9 and Pro $29, Max $99 and Unlimited $299 plans with clear fair-use limits, or buy one-time credit packs that never expire.",
 });
 
 export const revalidate = 60;

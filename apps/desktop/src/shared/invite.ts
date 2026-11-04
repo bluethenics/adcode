@@ -87,7 +87,8 @@ export function collabInviteText(link: string, sessionCode: string): string {
     "Join my live coding session in ADCode.",
     "",
     `1. Install ADCode (free): ${link}`,
-    `2. Open Live Session, choose Join, and paste: ${sessionCode}`,
+    "2. Open a checkout of the same GitHub project.",
+    `3. Open Live Session, choose Join, and paste: ${sessionCode}`,
   ].join("\n");
 }
 

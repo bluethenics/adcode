@@ -17,7 +17,7 @@ import {
   formatMicros,
   ECONOMICS,
 } from "./site";
-import { FREE_WEEKLY_TOKENS, PACK_SUMMARY, PLANS, PLAN_SUMMARY, tokenAmount } from "./pricing";
+import { FREE_WEEKLY_TOKENS, PACK_SUMMARY, PLANS, PLAN_SUMMARY, creditAmount } from "./pricing";
 import type { PaidPack } from "@adcode/api/src/paidTokens.ts";
 
 type Node = Record<string, unknown>;
@@ -179,16 +179,16 @@ export function pricingOffers(packs: readonly PaidPack[]): Node {
     operatingSystem: "Windows, Linux",
     offers: [
       { "@type": "Offer", name: "Free editor", price: "0", priceCurrency: "USD", url: url("/versions"),
-        description: `The editor, Tagflow AI and ${tokenAmount(FREE_WEEKLY_TOKENS)} free Heabsy tokens each week.` },
+        description: `The free editor and ${creditAmount(FREE_WEEKLY_TOKENS)} daily credits shared by Tagflow AI and all other included models.` },
       ...PLANS.map((plan) => ({
         "@type": "Offer", name: `${plan.name} AI plan`, price: dollars(plan.priceCents), priceCurrency: "USD", url: url(`/ai-tokens?plan=${plan.id}`),
-        description: `${tokenAmount(plan.weeklyTokens)} Heabsy tokens each week, billed every ${plan.interval}.`,
+        description: `${plan.unlimited ? "Unlimited included AI credits" : `${creditAmount(plan.weeklyTokens)} included AI credits each day`}, billed every ${plan.interval}.`,
         priceSpecification: { "@type": "UnitPriceSpecification", price: dollars(plan.priceCents), priceCurrency: "USD",
           referenceQuantity: { "@type": "QuantitativeValue", value: 1, unitCode: plan.interval === "week" ? "WEE" : "MON" } },
       })),
       ...packs.map((pack) => ({
-        "@type": "Offer", name: `${tokenAmount(pack.tokens)} token pack`, price: dollars(pack.priceCents), priceCurrency: "USD", url: url("/ai-tokens#packs"),
-        description: "One-time Heabsy tokens that never expire.",
+        "@type": "Offer", name: `${creditAmount(pack.tokens)} credit pack`, price: dollars(pack.priceCents), priceCurrency: "USD", url: url("/ai-tokens#packs"),
+        description: "One-time included AI credits that never expire.",
       })),
     ],
   };
@@ -320,15 +320,15 @@ export function changelog(
 export const FAQ: readonly { q: string; a: string }[] = [
   {
     q: "What is ADCode?",
-    a: "ADCode is a free, ad-supported code editor with Monaco editing, integrated terminals, git, workspace search and AI agents. Sponsored cards help fund the editor, and a share of eligible advertising revenue goes to the developer. Optional plans and token packs add more Heabsy AI usage.",
+    a: "ADCode is a free, ad-supported code editor with Monaco editing, integrated terminals, git, workspace search and AI agents. Sponsored cards help fund the editor, and a share of eligible advertising revenue goes to the developer. Optional plans and credit packs add more Heabsy AI usage.",
   },
   {
     q: "How much does ADCode cost?",
-    a: `The editor is free with no subscription required. Optional Heabsy AI plans are ${PLAN_SUMMARY}. One-time token packs are ${PACK_SUMMARY}; purchased tokens never expire. Prices are in USD before applicable tax. Compare the options on the Pricing page.`,
+    a: `The editor is free with no subscription required. Optional included AI plans are ${PLAN_SUMMARY}. One-time credit packs are ${PACK_SUMMARY}; purchased credits never expire. Prices are in USD before applicable tax. Compare the options on the Pricing page.`,
   },
   {
     q: "Is the AI in ADCode free?",
-    a: `Tagflow AI has no personal token or request quota from ADCode. Heabsy models include ${tokenAmount(FREE_WEEKLY_TOKENS)} free tokens each week per account; plans raise the allowance, and purchased tokens are used afterward. Sign in with a verified account without setting up an API key. Provider availability and context limits still apply. You can also connect your own provider or local model.`,
+    a: `Tagflow AI and all other included models share ${creditAmount(FREE_WEEKLY_TOKENS)} free credits each day per account; plans raise the allowance, and purchased credits are used afterward. Sign in with a verified account without setting up an API key. Provider availability and context limits still apply. You can also connect your own provider or local model.`,
   },
   {
     q: "How much can you earn using ADCode?",

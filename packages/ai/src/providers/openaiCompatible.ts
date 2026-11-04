@@ -400,13 +400,17 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
       // comment becomes one waiting note so a long queue reads as waiting, and
       // only the first — a note per keepalive would flood the trace.
       let sawData = false;
+      let sawDone = false;
       let queueAnnounced = false;
 
+      try {
       while (!signal.aborted) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
+        let chunk: Awaited<ReturnType<typeof reader.read>>;
+        try { chunk = await reader.read(); }
+        catch (error) { if (finish !== null || sawDone) break; throw error; }
+        const { done, value } = chunk;
+        // Process a valid final SSE record even without its trailing newline.
+        buffer += done ? decoder.decode() + "\n" : decoder.decode(value, { stream: true });
 
         let newline = buffer.indexOf("\n");
         while (newline !== -1) {
@@ -423,7 +427,7 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
           }
           if (!line.startsWith("data:")) continue;
           const payload = line.slice(5).trim();
-          if (payload === "[DONE]") continue;
+          if (payload === "[DONE]") { sawDone = true; continue; }
 
           let parsed: unknown;
           try {
@@ -436,7 +440,8 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
 
           const failure = providerErrorMessage(parsed);
           if (failure !== null) {
-            throw new Error(`${deps.displayName}: ${failure}`);
+            const fields = (parsed as { error?: { code?: unknown; retryable?: unknown } }).error;
+            throw Object.assign(new Error(`${deps.displayName}: ${failure}`), { code: fields?.code, retryable: fields?.retryable, status: fields?.code === "stream-interrupted" ? 502 : undefined });
           }
           // The count rides a chunk of its own with no choices (OpenAI, OpenRouter, DeepSeek),
           // or under x_groq on Groq's last chunk.
@@ -512,8 +517,12 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
             }
           }
         }
+        if (done) break;
       }
 
+      if (!signal.aborted && finish === null && !sawDone) {
+        throw Object.assign(new Error("The AI stream ended before the response was complete."), { code: "stream-interrupted", status: 502, retryable: true });
+      }
       if (signal.aborted) return;
 
       // Native calls are authoritative, and a reply cut short never runs what it was writing.
@@ -577,6 +586,10 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
         yield { kind: "stop", reason: "tool-use" };
       } else {
         yield { kind: "stop", reason: "end-turn" };
+      }
+      } finally {
+        await reader.cancel().catch(() => undefined);
+        reader.releaseLock();
       }
     },
   };

@@ -1,6 +1,8 @@
 /** Production assembly; only the API and scheduled Worker import this file. */
 import { createSupabaseMailingStore } from "@adcode/api/adapters/supabaseMailingStore.ts";
-import { runAnnouncementBatch, runMailingBatch, sendReportReply } from "@adcode/api/src/mailingDelivery.ts";
+import { runAnnouncementBatch, runMailingBatch, sendReportReply, resendEmail } from "@adcode/api/src/mailingDelivery.ts";
+import { createAccountEmailProof, emailProofHash } from "@adcode/api/src/accountEmailProof.ts";
+import { createAccountEmailProofStore } from "@adcode/api/adapters/accountEmailProofStore.ts";
 import { createSupabaseStatusAlertStore } from "@adcode/api/adapters/supabaseStatusAlertStore.ts";
 import { createSupabaseStore } from "@adcode/api/adapters/supabaseStore.ts";
 import { runStatusAlertBatch, runStatusWatch, sendStatusConfirmation } from "@adcode/api/src/statusAlerts.ts";
@@ -10,6 +12,19 @@ import { createSupabasePurchaseReceiptStore } from "@adcode/api/adapters/supabas
 import { runPurchaseReceiptBatch } from "@adcode/api/src/purchaseReceipts.ts";
 
 export const mailingStore = createSupabaseMailingStore();
+export const accountEmailProof = createAccountEmailProof({
+  store: createAccountEmailProofStore(),
+  origin: process.env["NEXT_PUBLIC_SITE_ORIGIN"] ?? "https://adcode.bluethenics.com",
+  async send({email,token,url}) {
+    const key=process.env["RESEND_API_KEY"];
+    if (!key || !(await mailingStore.settings()).senderVerified || await mailingStore.undeliverable(email)) return false;
+    const body={to:[email],subject:"Verify your email for ADCode",text:`Confirm your email address to use ADCode AI.\n\n${url}\n\nThis link expires in one hour. Open it and choose Verify my email. If you did not request this, ignore this email.\n\nThe ADCode team`,html:`<!doctype html><html lang="en"><meta charset="utf-8"><body style="font:16px/1.6 Arial,sans-serif;color:#25241f;background:#f1efea;padding:24px"><main style="max-width:560px;margin:auto;background:#fcfbf7;border-radius:16px;padding:28px"><h1 style="font-size:24px">Verify your email for ADCode</h1><p>Confirm your email address to start using ADCode AI.</p><p><a href="${url}" style="display:inline-block;background:#245b38;color:#fff;padding:13px 22px;border-radius:8px;text-decoration:none">Verify my email</a></p><p>This link expires in one hour. After opening it, choose <strong>Verify my email</strong>.</p><p>If you did not request this, ignore this email. Your account stays unchanged.</p><p>The ADCode team</p></main></body></html>`,tags:[{name:"campaign",value:"account-verification"}]};
+    const idempotency="account-verification/"+emailProofHash(token);
+    let result=await resendEmail(fetch,key,idempotency,body);
+    if (!("providerId" in result) && result.retry) { await new Promise(resolve=>setTimeout(resolve,600)); result=await resendEmail(fetch,key,idempotency,body); }
+    return "providerId" in result;
+  },
+});
 export const statusAlertStore = createSupabaseStatusAlertStore();
 const advertiserWelcomeStore = createSupabaseAdvertiserWelcomeStore();
 const purchaseReceiptStore = createSupabasePurchaseReceiptStore();

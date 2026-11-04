@@ -19,6 +19,10 @@ describe("chats working at once", () => {
     const refused = runs.begin("c", "Three", 3);
     expect(refused.ok).toBe(false);
     expect(!refused.ok && refused.reason).toBe("2 chats are already working. Stop one, or wait for one to finish.");
+    const single = createChatRuns({ maxParallel: () => 1 });
+    single.begin("x", "Fix the login page", 0);
+    const one = single.begin("y", "Other", 0);
+    expect(!one.ok && one.reason).toBe("Another chat (\"Fix the login page\") is still working. Stop it, or wait for it to finish, then send again.");
     runs.end("a");
     expect(runs.begin("c", "Three", 4)).toEqual({ ok: true });
     expect(MAX_PARALLEL_CHATS).toBeGreaterThanOrEqual(3);

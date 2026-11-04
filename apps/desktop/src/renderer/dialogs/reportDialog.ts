@@ -1,4 +1,5 @@
 import { bindBackdropDismissal } from "./backdropDismissal.ts";
+import { composeReportBody, REPORT_BODY_MAX, REPORT_DEBUG_RESERVE, REPORT_LOG_DIVIDER, reportDetailsLimit } from "./reportText.ts";
 
 /**
  * The report form: a bug, a feature request, or a question.
@@ -63,15 +64,15 @@ const CHOICES: readonly Choice[] = [
 ];
 
 const TITLE_MAX = 120;
-const BODY_MAX = 4000;
+const BODY_MAX = REPORT_BODY_MAX;
 
 const FOOTNOTE =
   "Sends your message with the app version and your operating system. Never your files, paths, or project names.";
 const FOOTNOTE_WITH_LOG =
-  "Sends your message, the app version, your operating system and the debug log above. Never your keys, files, paths, or project names.";
+  `Sends your message, the app version, your operating system and the debug log above. Keep details within ${reportDetailsLimit(true).toLocaleString("en-US")} characters so diagnostics fit. Never your keys, files, paths, or project names.`;
 
 /** Keeps the debug log apart from what the user wrote, in the one text field the server takes. */
-const LOG_DIVIDER = "\n\n--- Debug log ---\n";
+const LOG_DIVIDER = REPORT_LOG_DIVIDER;
 
 export function createReportDialog(
   host: HTMLElement,
@@ -168,12 +169,13 @@ export function createReportDialog(
   const refreshLog = (): void => {
     if (debugSummary === undefined) return;
     const room = Math.max(0, BODY_MAX - detail.value.trim().length - LOG_DIVIDER.length);
-    void debugSummary(Math.max(300, room)).then((text) => {
+    void debugSummary(Math.max(REPORT_DEBUG_RESERVE, room)).then((text) => {
       logSummary = text;
       logPreviewText.textContent = text;
     }, () => { logSummary = ""; logPreviewText.textContent = "The debug log could not be read."; });
   };
   logCheck.addEventListener("change", () => {
+    detail.maxLength=reportDetailsLimit(logCheck.checked);
     logPreview.hidden = !logCheck.checked;
     footnote.textContent = logCheck.checked ? FOOTNOTE_WITH_LOG : FOOTNOTE;
     if (logCheck.checked) refreshLog();
@@ -236,6 +238,7 @@ export function createReportDialog(
     summary.value = (prefill.title ?? "").slice(0, TITLE_MAX);
     detail.value = (prefill.body ?? "").slice(0, BODY_MAX);
     logCheck.checked = prefill.includeDebugLog === true && debugSummary !== undefined;
+    detail.maxLength=reportDetailsLimit(logCheck.checked);
     logPreview.hidden = !logCheck.checked;
     logPreview.open = false;
     footnote.textContent = logCheck.checked ? FOOTNOTE_WITH_LOG : FOOTNOTE;
@@ -267,15 +270,14 @@ export function createReportDialog(
       return;
     }
 
+    const composed=composeReportBody(trimmedBody,logCheck.checked?logSummary:undefined);
+    if(!composed.ok){setStatus(composed.message);detail.focus();return;}
     sending = true;
     send.disabled = true;
     send.textContent = "Sending…";
     setStatus(null);
 
-    // The log rides in the body, after what the user wrote, cut to whatever room is left.
-    const withLog = logCheck.checked && logSummary.length > 0
-      ? `${trimmedBody}${LOG_DIVIDER}${logSummary}`.slice(0, BODY_MAX)
-      : trimmedBody;
+    const withLog = composed.body;
     void submit({ kind: selected.kind, title: trimmedTitle, body: withLog }).then(
       (result) => {
         if (result.ok) {

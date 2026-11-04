@@ -43,7 +43,7 @@ describe("buying AI tokens", () => {
     expect(orderId.startsWith("ait_")).toBe(true);
     expect(checkoutUrl).toBe("https://checkout.test/cs_1");
     expect(checkouts[0]).toMatchObject({ orderId, product: "ai-tokens", amountMicros: 25_000_000n, billingCountry: "DE", advertiserEmail: "user@adcode.test", returnUrl: `https://adcode.test/ai-tokens?order=${orderId}` });
-    expect((await store.listTokenActivity("user")).orders[0]).toMatchObject({ orderId, tokens: 140_000_000, priceCents: 2500, status: "pending", checkoutSession: "cs_1" });
+    expect((await store.listTokenActivity("user")).orders[0]).toMatchObject({ orderId, tokens: 154_000_000, priceCents: 2500, status: "pending", checkoutSession: "cs_1" });
   });
 
   it("refuses an unknown pack, a bad country, an unverified account, and a switched-off feature", async () => {

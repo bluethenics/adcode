@@ -84,9 +84,13 @@ If you use the feedback button, we receive what you typed, the app version, and 
 
 ### AI features
 
+Heabsy-hosted routes include both models served on Heabsy hardware and partner-hosted models, labelled “Heabsy partner” in the model picker. Partner-hosted models do not carry Heabsy’s own-hardware zero-retention guarantee and may process data outside the EEA. Choose a model whose provider terms fit your data.
+
 You choose included AI when available, a provider using your own API key, or a local model. Chat and agent tools can send your prompt, relevant source text, and tool results to the chosen provider so it can answer or edit your project. Automatic inline completion sends bounded text around the cursor (up to 6,000 characters before it and 2,000 after it), the language, and a small output allowance; it does not send the file path. You can turn inline completion off in Settings.
 
 With your own key, AI traffic goes directly from the desktop app to the selected provider. With included AI, prompts, source context and tool results pass through ADCode's dedicated AI relay to the provider identified on the selected model (Tagflow AI, Heabsy, OpenAI, Gemini, Groq, OpenRouter, or another provider named on that model), under that provider's terms and privacy policy. This route uses a server-side provider key and requires a verified account. The relay stores daily request and token counts, estimated spending, reservations for active requests, and allowance settings by account so it can enforce shared limits. Administrators can view those counts and change allowances. It does not store prompts or replies in the server database, and AI content is not used by the advertising pipeline.
+
+When you share a GitHub project live, project file content, cursors, participant display names and guest AI file-tool requests pass through ADCode’s encrypted collaboration relay to the host and invited teammates. The host keeps the project files and controls read or edit access. Sessions expire after 24 hours and end when the host disconnects. The relay stores session credentials and expiry, and does not persist source files or log message bodies. GitHub credentials are not included in invitations. Fixed app events, such as opening the Discord invite, joining a shared project, waiting for an AI retry or cancelling a task, are recorded as names, times and counts without project content.
 
 For included AI reporting, the relay also records the account identifier, request identifier, model and provider revision, request times, token counts, estimated cost, workload type, response speed, generated tool-call counts, outcome and a fixed error category. It does not record tool arguments, file paths or raw provider errors. Administrators use this metadata to prepare aggregate reports on demand, usage, reliability and performance for model providers. Those reports exclude account identifiers and conversation content.
 
@@ -159,7 +163,7 @@ The [status page](/status#subscribe) lets anyone ask for email alerts, with no A
 
 Alerts come from noreply@bluethenics.com through Resend, on the same terms as above, and each one has a one-click unsubscribe. Unsubscribing takes the address off both lists. A bounce or spam complaint does the same and adds the address to the suppression list.
 
-When ADCode asks you to verify your email before using free AI, the verification link is sent by Firebase Authentication from the project's Firebase address, at most once an hour.
+When ADCode asks you to verify your email before using free AI, ADCode sends a verification link through Resend from adcode@bluethenics.com. We store a one-way hash of the single-use code, the account and address it verifies, and its expiry. The link expires after one hour, and opening it shows a confirmation button before anything changes. Resends are limited to prevent repeated messages. Firebase still handles sign-in and may also send its own authentication emails.
 
 ## Sharing
 

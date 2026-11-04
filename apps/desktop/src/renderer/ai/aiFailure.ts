@@ -12,7 +12,7 @@
  */
 import { CONTINUE_PROMPT } from "../../shared/continuePrompt.ts";
 
-export type AiFailureAction = "retry" | "models" | "usage" | "new-conversation" | "report" | "sign-in" | "buy-tokens" | "upgrade-plan";
+export type AiFailureAction = "compact-continue" | "retry" | "models" | "usage" | "new-conversation" | "report" | "sign-in" | "buy-tokens" | "buy-model-credits" | "upgrade-plan" | "save-continue";
 
 export interface AiFailure {
   readonly kind:
@@ -85,6 +85,17 @@ export function describeAiFailure(raw: string): AiFailure {
   const make = (kind: AiFailure["kind"], title: string, explanation: string, actions: readonly AiFailureAction[]): AiFailure =>
     ({ kind, title, explanation, actions, detail });
 
+  if (/wallet-balance|paid credits cannot cover/i.test(detail)) {
+    return make("tokens", "Add paid model credits", detail, ["buy-model-credits", "models"]);
+  }
+  if (/wallet-client-update/i.test(detail)) {
+    return make("tokens", "Update ADCode for paid models", detail, ["models"]);
+  }
+
+  if (/subscription-required|Heabsy models require an active subscription/i.test(detail)) {
+    return make("tokens", "Choose a plan to use Heabsy", "Heabsy models require an active subscription. Choose Weekly, Monthly or Pro, or select a free included model. Purchased tokens alone do not unlock Heabsy.", ["upgrade-plan", "models"]);
+  }
+
   if (/The signed-in account changed\./i.test(detail)) {
     return make("auth", "Your signed-in account changed", "This task stopped when the account changed. Try again to continue with the current account. Work already saved in your project is still there.", ["retry"]);
   }
@@ -106,8 +117,11 @@ export function describeAiFailure(raw: string): AiFailure {
   if (who === "Included AI" || /\bincluded AI\b/i.test(detail)) {
     if (/\bbanned\b|code banned/i.test(detail) && !/verify/i.test(detail) && /HTTP 403|code banned/i.test(detail)) return make("auth", "Free AI isn't available for this account", "This account can't use ADCode's free AI. You can still use your own provider key or a model on this computer.", ["models"]);
     if (/disabled for this account|code blocked/i.test(detail)) return make("auth", "Free AI is turned off for this account", "An administrator switched off free AI for this account. Use your own provider key or a local model, or contact the team.", ["models"]);
+    if (/did not share an email address/i.test(detail)) {
+      return make("sign-in", "Add an email to use free AI", "Your sign-in did not share an email address, so there is nowhere to send a verification link. Open Account to add one - it stays on this same account - or sign out and continue with Google.", ["sign-in", "models"]);
+    }
     if (/verified email|verification link|verification email/i.test(detail)) {
-      return make("sign-in", "Verify your email to use free AI", "Open the verification link sent to your account's email, then try again. Check spam if it is missing. Being signed in and having a verified email are separate steps; Google sign-in also verifies the address.", ["retry", "sign-in", "models"]);
+      return make("sign-in", "Verify your email to use free AI", "Open Account to send a verification link or check its status. Check spam or junk too. Being signed in and verifying your email are separate steps. After opening the link, choose “I've verified” to continue your message.", ["sign-in", "retry", "models"]);
     }
     if (/HTTP 40[13]\b|missing-token|invalid-token|verify-account|sign in (?:in account )?to use included AI|sign in and verify/i.test(detail)) {
       return make("sign-in", "Sign in to use free AI", "Free AI needs an ADCode account with a verified email, so it can give you your own free AI credits. Sign in with Google or GitHub - no API key or card - and your message sends again by itself.", ["sign-in", "models"]);
@@ -116,7 +130,7 @@ export function describeAiFailure(raw: string): AiFailure {
   // Paid tokens (relays from 2026-10-21): the free week on a paid provider's models is spent and nothing is bought.
   if (who === "Included AI" && /free tokens on .+ models\. Buy tokens/i.test(detail)) {
     const refill = /refill in ([^,.]{1,40})/i.exec(detail)?.[1]?.trim();
-    return make("tokens", "This week's free Heabsy tokens are used up", `Buy tokens or a plan to keep using Heabsy models now, or switch to Tagflow AI, which stays free. ${refill ? `Your free tokens refill in ${refill}; ` : ""}a task that was running carries on by itself when they do, as long as ADCode stays open.`, ["buy-tokens", "upgrade-plan", "models", "usage"]);
+    return make("tokens", "This week's included AI tokens are used up", `Buy tokens or a plan to keep using included AI now, or use your own connected model. ${refill ? `Your free tokens refill in ${refill}; ` : ""}a task that was running carries on by itself when they do, as long as ADCode stays open.`, ["buy-tokens", "upgrade-plan", "models", "usage"]);
   }
   // Credits (relays from 2026-10-15): the message names the window and when it refills.
   if (who === "Included AI" && /free AI credits/i.test(detail)) {
@@ -124,6 +138,15 @@ export function describeAiFailure(raw: string): AiFailure {
     const weekly = /this week's free AI credits/i.test(detail);
     const refill = /refill in ([^,.]{1,40})/i.exec(detail)?.[1]?.trim();
     return make("daily-limit", weekly ? "This week's free AI credits are used up" : "This session's free AI credits are used up", `${refill ? `They refill in ${refill}.` : "They refill when the window ends."} A task that was running carries on by itself then, as long as ADCode stays open. Every free model shares this one balance; your own connected models still work now.`, ["usage", "models"]);
+  }
+  // Cost credits (relays from 1 November 2026). This is the moment someone most wants to keep
+  // going, and the card offered only Usage and Models: say when credits refill, and how to go on now.
+  if (who === "Included AI" && /credits left today|remaining (?:daily fair-use )?credits cannot cover|credits refill in|allowance refills in/i.test(detail)) {
+    const refill = /refills? in ([^,.]{1,40})/i.exec(detail)?.[1]?.trim();
+    const when = refill ? `They refill in ${refill}` : "They refill with your next daily allowance";
+    // Unlimited never spends purchased credits, so a pack would not help there.
+    if (/fair-use/i.test(detail)) return make("daily-limit", "You've used today's fair-use credits", `${when}, and a running task carries on by itself then. Your saved purchased credits are not charged. Use your own connected model to keep going now.`, ["models", "usage"]);
+    return make("daily-limit", "You've used today's credits", `${when}, and a running task carries on by itself then. To keep going now, upgrade for more daily credits or add a credit pack - or switch to a model that uses no credits.`, ["upgrade-plan", "buy-tokens", "models"]);
   }
   if (who === "Included AI" && /\bdaily-limit\b|daily included AI allowance/i.test(detail)) {
     if (/cannot fit.*even after a reset/i.test(detail)) return make("daily-limit", "This request exceeds your free AI allowance", "The request is larger than your full daily allowance. Start a smaller conversation, choose another model, or ask an administrator to increase the allowance. A daily reset will not make this request fit.", ["usage", "new-conversation", "models"]);
@@ -134,12 +157,26 @@ export function describeAiFailure(raw: string): AiFailure {
       : except ? `Free models share this allowance, except ${except} models, which have their own.` : "All free models share this allowance.";
     return make("daily-limit", "Today's free AI allowance cannot cover this request", `Your remaining tokens, AI requests or service budget cannot cover this request and its reply. Check AI usage for your balance and reset time. Wait for the daily reset, or use your own connected model. ${shared}`, ["usage", "models"]);
   }
+  // The relay's request queue, not a per-minute limit: say which of the two kinds refused.
+  if (who === "Included AI" && /most AI requests running at once|already has several requests in progress/i.test(detail)) {
+    return make("rate-limit", "Your other AI chats are still running", "Your plan runs a set number of AI requests at once, and parallel chats and helpers count towards it. Try again when one finishes, or stop one you no longer need.", ["retry", "usage", "models"]);
+  }
+  if (who === "Included AI" && /could not get a provider slot|provider queue is full/i.test(detail)) {
+    return make("rate-limit", "Free AI is busy right now", "Every slot on this model's provider is in use. Try again in a few seconds, or pick another included model - each provider has its own queue. Paid plans are served first when it is busy.", ["retry", "models", "upgrade-plan"]);
+  }
   if (who === "Included AI" && /\b(?:rate|upstream-rate)-limit\b|HTTP 429/i.test(detail)) {
     if (/per-minute AI request allowance is zero/i.test(detail)) return make("rate-limit", "Included AI requests are disabled", "An administrator set this account's request allowance to zero. Ask them to change the allowance before continuing.", ["usage", "models"]);
     const upstream = /\bupstream-rate-limit\b/i.test(detail);
     return make("rate-limit", upstream ? "This free model is temporarily busy" : "Too many AI requests in a minute", upstream
       ? "The model provider has reached a temporary rate limit. Your free AI credits may still have room. Try again shortly, or choose a different model."
       : "Your account reached its per-minute request limit. Your free AI credits may still have room. Wait about a minute, then try again. Chats and agents on all your devices share this limit.", ["retry", "usage", "models"]);
+  }
+  // The unsaved-work guard, met mid-run. Reported (2.4.4): the model retried a refused command
+  // three times and the card said only "stopped with an error", so the user had to work out
+  // that saving was the fix. Saving is one click, and the task carries on from where it was.
+  if (/before AI file edits/i.test(detail)) {
+    const files = /Save (.{1,160}?) before AI file edits/i.exec(detail)?.[1];
+    return make("history", "Save your open files to let the assistant continue", `${files ? `${files} ${/ and \d+ more|, /.test(files) ? "have" : "has"} unsaved changes` : "Some open files have unsaved changes"}, and the assistant will not edit or run commands over work you have not saved. Save them and the task carries on where it stopped - nothing it did is lost.`, ["save-continue", "models"]);
   }
   if (/invalid JSON tool arguments|invalid tool arguments|cut off the tool arguments/i.test(detail)) {
     return make("tool-format", "The model could not finish an edit", "The failed call did not change your files. Earlier edits are still available below. Try again to continue with smaller edits, or switch model.", ["retry", "models", "report"]);
@@ -181,15 +218,39 @@ export function describeAiFailure(raw: string): AiFailure {
       ["new-conversation", "retry"],
     );
   }
+  // Ollama's own context setting, which a request cannot raise through its OpenAI-style API.
+  // Reported (2.4.7): "request (5293 tokens) exceeds the available context size (4096 tokens)".
+  const local = /request \((\d[\d,]*) tokens\) exceeds the available context size \((\d[\d,]*) tokens\)/i.exec(detail);
+  if (local !== null) {
+    return make(
+      "too-large",
+      "Ollama's context window is too small",
+      `Ollama is set to ${local[2]} tokens and this step needed ${local[1]} - ADCode's file tools alone take a few thousand. In the Ollama app open Settings and raise Context length to 32k or more (or set OLLAMA_CONTEXT_LENGTH=32768 and restart Ollama), then try again.`,
+      ["retry", "models"],
+    );
+  }
+  // Credits, not the model's context: the balance is positive but cannot cover this long step.
+  // Reported as "conversation too big" by users who had just started, so name the real cause.
+  if (who === "Included AI" && /Not enough credits left for this step|too large for the remaining [\d.]+ credits/i.test(detail)) {
+    const left = /you have ([\d.]+) credits|remaining ([\d.]+) credits/i.exec(detail);
+    const amount = left?.[1] ?? left?.[2];
+    const free = /switch to ([^,]{1,60}?), which uses no credits/i.exec(detail)?.[1];
+    return make(
+      "too-large",
+      "Not enough credits left for this long step",
+      `${amount ? `You have ${amount} credits left` : "You still have credits"}, but this conversation costs more than that to send on this model. Compact it and continue, ${free ? `switch to ${free} (free, no credits)` : "pick a cheaper model"}, or add credits - completed work stays here.`,
+      ["compact-continue", "models", "buy-tokens"],
+    );
+  }
   if (/HTTP 413|request too large|context[_ ]length|maximum context|too many tokens|prompt is too long|reduce the length/i.test(detail)) {
     const numbers = tokenNumbers(detail);
     return make(
       "too-large",
-      "This conversation is too big for the model",
+      "Make room and keep going",
       numbers === null
-        ? `${who} refused a request this large. Start a new conversation to send less history, or choose a model with a larger context window.`
-        : `${who} allows ${numbers.limit.toLocaleString()} tokens here and this request needed ${numbers.requested.toLocaleString()}. Start a new conversation to send less history, or choose a model with a higher limit.`,
-      ["new-conversation", "models", "retry"],
+        ? `The automatic recovery could not fit this step yet. Compact this conversation and continue the same task, keeping completed work.`
+        : `${who} allows ${numbers.limit.toLocaleString()} tokens here and this step needed ${numbers.requested.toLocaleString()}. Compact and continue here; completed work stays in this conversation.`,
+      ["compact-continue", "models"],
     );
   }
   if (/HTTP 429|rate[_ ]limit|too many requests|tokens per (minute|day)|requests per (minute|day)|\bTPM\b|\bRPM\b/i.test(detail)) {
@@ -207,6 +268,11 @@ export function describeAiFailure(raw: string): AiFailure {
   if (/HTTP 40[13]\b|invalid[_ ]api[_ ]key|incorrect api key|unauthori[sz]ed|authentication|permission denied|forbidden/i.test(detail)) {
     return make("auth", `${who} did not accept your key`, "The key may be mistyped, revoked, or missing access to this model. Check it in Connect a model.", ["models"]);
   }
+  // Relays before 2 November 2026 refused new models during an older paid period with a 402,
+  // which the rule below called "out of credit" while the subscriber still had plenty.
+  if (who === "Included AI" && /\blegacy-plan-model\b|keeps its original model allowances/i.test(detail)) {
+    return make("model-missing", "This model was added after your plan period began", "Your current paid period covers the models it started with. Pick one of those for now - newer models open up as the service updates, with no new purchase needed.", ["models", "retry"]);
+  }
   if (/insufficient[_ ](credit|quota|balance)|credit|billing|payment required|HTTP 402|quota (?:is )?(?:reached|exceeded)|exceeded your (?:current )?quota/i.test(detail)) {
     return make("credits", `${who} account is out of credit`, "Add credit with the provider, or switch to another model in Connect a model.", ["models"]);
   }
@@ -222,7 +288,10 @@ export function describeAiFailure(raw: string): AiFailure {
     );
   }
   if (/HTTP 404|model[^.]{0,40}(not found|does not exist|not available|decommissioned|deprecated)|unknown model|no such model|No endpoints found for|\(code 404\)/i.test(detail)) {
-    return make("model-missing", "This model is not available", `${who} does not offer this model any more, or not to your account. Pick another one in Connect a model.`, ["models"]);
+    // Providers retiring a model often name its successor ("update your code to use
+    // models/gemini-3.5-flash-lite"); pass that on rather than leaving the user to guess.
+    const successor = /(?:to use|use instead|replaced by|migrate to)\s+(?:models\/)?([\w.:/-]{2,80}\w)(?=[\s,)]|\.(?:\s|$)|$)/i.exec(detail)?.[1];
+    return make("model-missing", "This model is not available", `${who} does not offer this model any more, or not to your account. ${successor ? `${who} suggests ${successor} instead - choose it in Connect a model.` : "Pick another one in Connect a model."}`, ["models"]);
   }
   if (/^terminated$|fetch failed|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|ECONNRESET|socket hang up|network|timed? ?out|getaddrinfo/i.test(detail)) {
     return make("network", `Could not reach ${who === "The provider" ? "the provider" : who}`, "Check your internet connection (or that a local model server is running), then try again.", ["retry", "models"]);

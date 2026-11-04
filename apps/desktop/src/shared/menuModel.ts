@@ -360,10 +360,7 @@ export function buildMenuBar(context: MenuContext = { recents: [] }): readonly M
           ],
         },
         separator,
-        // The two surfaces that reach outside this window, kept together and kept away
-        // from the panel toggles above: one spends money, one shares your code.
-        { label: "&Live Session…", command: "collab.panel" },
-        { label: "Leave Live Sess&ion", command: "collab.leave" },
+        // Account details stay separate from the panel toggles above.
         { label: "Ea&rnings", command: "view.earnings" },
         separator,
         {

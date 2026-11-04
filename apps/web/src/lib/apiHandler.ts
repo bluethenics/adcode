@@ -25,14 +25,20 @@ import { createFirebaseJwksVerifier } from "@adcode/api/adapters/firebaseJwks.ts
 import { createDodoProvider } from "@adcode/api/adapters/dodoPayments.ts";
 import { createWebsiteAnalyticsStore } from "@adcode/api/adapters/websiteAnalyticsStore.ts";
 import { createFirebaseIdentity } from "@adcode/api/src/accountIdentity.ts";
-import { mailingStore, sendReportReplyEmail, sendStatusConfirmationEmail, statusAlertStore } from "./mailing";
+import { accountEmailProof, mailingStore, sendReportReplyEmail, sendStatusConfirmationEmail, statusAlertStore } from "./mailing";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { accountRequestPriority } from "./priorityQueue";
 
 export const handleApiRequest = createFetchHandler({
   tagflow: {
+    modelMetadata: true,
+    priority: accountRequestPriority,
+    emailProof: accountEmailProof,
     country: () => getCloudflareContext().cf?.country,
     // The project's public web API key - the one every browser that signs in already holds.
-    identity: createFirebaseIdentity(() => (process.env["FIREBASE_WEB_API_KEY"] ?? process.env["NEXT_PUBLIC_FIREBASE_API_KEY"] ?? "").trim()),
+    // This is a public Firebase project identifier, also shipped in the desktop client.
+    // Public Next build variables need not exist in the Worker's runtime environment.
+    identity: createFirebaseIdentity(() => process.env["FIREBASE_WEB_API_KEY"]?.trim() || process.env["NEXT_PUBLIC_FIREBASE_API_KEY"]?.trim() || "AIzaSyATZzX5Fw2HjR34VxB3UQWTmljprA5uXqE"),
   },
   websiteAnalytics: createWebsiteAnalyticsStore(),
   mailing: mailingStore,

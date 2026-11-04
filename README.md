@@ -65,11 +65,42 @@ A source build talks to ADCode's production ad server. To run with no backend:
     npm run mock-server
     ADCODE_AD_SERVER=http://127.0.0.1:8787 npm start
 
+## Terminal app
+
+From a source checkout, install the command once with `npm link`. Then run it from any project:
+
+    adcode                    # open the terminal app
+    adcode app                # open this folder in the desktop editor
+    adcode app "../my project" # open another project
+    adcode chat               # start a conversation
+    adcode chat --continue    # resume your latest conversation
+    adcode models             # choose an AI model
+    adcode sessions           # browse saved conversations
+    adcode help               # commands, options and shortcuts
+
+Without linking, use `npm run cli` or `node scripts/adcode.mjs` from this checkout.
+On the home screen, type a question to begin chatting, press **Tab** to choose a model,
+or type **/** for commands. Model and theme pickers return to the home screen.
+`adcode --continue` resumes your latest chat directly. The older `adcode open` also opens the editor.
+
+The terminal app shares the desktop account and saved provider connections. It supports
+Included AI, your own provider keys, and local Ollama models. Chat streams real replies,
+saves conversations locally, and supports Markdown export through `adcode sessions export`.
+Chat currently answers questions and explains code; use the desktop editor for file editing.
+Sponsored cards use the existing ad service and show real earnings.
+
+Use `--no-motion`, `--no-color`, or `--ascii` for a simpler terminal. Piped output and
+`--snapshot` print a still view; `--json` returns structured reports. `adcode app --dry-run`
+prints its launch plan without opening a window. `adcode help <command>` shows detailed help.
+
+CLI checks: `npm run cli:typecheck` and `npm run cli:test`.
+
 ## What is in the repository
 
 | Path | What it is |
 |---|---|
 | `apps/desktop` | The Electron app: main process, preload, renderer. |
+| `apps/cli` | The terminal app: chat, model picker, sessions, themes and sponsored cards. |
 | `apps/web` | The website, docs, advertiser portal, user dashboard and admin panel. |
 | `packages/*` | The logic, as plain TypeScript with no Electron and no DOM: `ai`, `ads`, `git`, `help`, `settings` and more. |
 | `services/api` | The ad server: serves ads, verifies receipts, keeps an append-only ledger. |

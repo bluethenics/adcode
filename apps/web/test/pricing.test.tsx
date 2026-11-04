@@ -19,31 +19,31 @@ describe("public pricing and existing checkout", () => {
     vi.mocked(readApi).mockRejectedValue(new Error("offline"));
     const html = renderToStaticMarkup(await PricingPage());
     expect(metadata.alternates?.canonical).toBe(url("/pricing"));
-    for (const amount of ["$3", "$9", "$19", "$10", "$25", "$50", "10M", "60M", "150M", "50M", "140M", "300M"]) expect(html).toContain(amount);
-    expect(html).toContain("Monthly billing still comes with a weekly refill");
-    expect(html).toContain("Purchased tokens never expire");
+    for (const amount of ["$3", "$9", "$29", "$10", "$25", "$50", "100 free credits", "225 credits", "900 credits", "5,000", "14,000", "30,000"]) expect(html).toContain(amount);
+    expect(html).toContain("Monthly for everyday tasks, Pro for daily coding, Max for larger projects");
+    expect(html).toContain("Purchased credits never expire");
     expect(html).toContain("The standard catalogue is shown");
     expect(html).not.toContain("Sign in to see");
     for (const plan of PLANS) expect(html).toContain(`href="/ai-tokens?plan=${plan.id}#plans"`);
     expect(html).toContain("first subscription becomes active while your Pro plan is active");
-    expect(html).toContain("4M extra tokens");
+    expect(html).toContain("100 extra credits");
     expect(html).toContain("Each friend can earn the reward once");
   });
 
   it("uses the current bounded sale configuration and explains a sales pause", async () => {
-    vi.mocked(readApi).mockResolvedValue(Response.json({ paid: { enabled: false, providers: ["custom-heabsy"], freeWeeklyTokens: 12_000_000, packs: [{ id: "extra", priceCents: 1250, tokens: 55_000_000 }] } }));
+    vi.mocked(readApi).mockResolvedValue(Response.json({ paid: { enabled: false, providers: ["custom-heabsy"], freeWeeklyTokens: 132_000, accounting: "cost-v1", packs: [{ id: "extra", priceCents: 1250, tokens: 55_000_000 }] } }));
     const offer = await pricingOffer();
     expect(readApi).toHaveBeenCalledWith("/v1/ai/tagflow/config", 60);
     const html = renderToStaticMarkup(<PricingContent offer={offer} />);
-    expect(html).toContain("12M free tokens each week");
-    expect(html).toContain("55M"); expect(html).toContain("$12.50 once");
-    expect(html).not.toContain("300M");
+    expect(html).toContain("12 free credits each day");
+    expect(html).toContain("5,000"); expect(html).toContain("$12.50 once");
+    expect(html).not.toContain("30,000");
     expect(html).toContain("Plan and token sales are temporarily paused");
     expect(html).not.toContain("standard catalogue is shown");
   });
 
   it("falls back safely instead of rendering malformed or unsafe advertised products", async () => {
-    for (const body of [null, { paid: null }, { paid: { enabled: true, providers: ["custom-heabsy"], freeWeeklyTokens: 10_000_000, packs: [{ id: "https://bad.example", priceCents: 1, tokens: -1 }] } }]) {
+    for (const body of [null, { paid: null }, { paid: { enabled: true, providers: ["custom-heabsy"], freeWeeklyTokens: 5_000_000, packs: [{ id: "https://bad.example", priceCents: 1, tokens: -1 }] } }]) {
       vi.mocked(readApi).mockResolvedValue(Response.json(body));
       expect(await pricingOffer()).toBe(STANDARD_PRICING);
     }
@@ -65,14 +65,37 @@ describe("public pricing and existing checkout", () => {
 
   it("keeps homepage and search answers honest about free access and optional paid AI", () => {
     const html = renderToStaticMarkup(<FreePlan />);
-    expect(FREE_WEEKLY_TOKENS).toBe(10_000_000);
-    expect(html).toContain("10M"); expect(html).toContain('href="/pricing"');
+    expect(FREE_WEEKLY_TOKENS).toBe(1_100_000);
+    expect(html).toContain("100"); expect(html).toContain('href="/pricing"');
     expect(html).not.toContain("Start with unlimited included AI");
     const facts = FAQ.map(item => item.a).join("\n");
     expect(facts).toContain("Weekly $3/week");
     expect(facts).toContain("Monthly $9/month");
-    expect(facts).toContain("Pro $19/month");
+    expect(facts).toContain("Pro $29/month");
     expect(facts).not.toContain("no paid tier");
     expect(facts).not.toContain("no subscription, no trial");
+  });
+});
+
+describe("included model rates", () => {
+  it("lists only the models offered now and marks recent ones New", () => {
+    const now = Date.parse("2026-11-03T00:00:00Z");
+    const offer = { ...STANDARD_PRICING, models: [
+      { name: "Qwen3.8 27B Queen", input: 0.1, cached: 0.05, output: 0.61, releaseDate: "2026-11-01" },
+      { name: "GLM 5.3 Flash Uncensored", input: 0.2, cached: 0.0641, output: 0.8001 },
+    ] };
+    const html = renderToStaticMarkup(<PricingContent offer={offer} now={now} />);
+    expect(html).toContain("Qwen3.8 27B Queen<span class=\"pricing-new\">New</span>");
+    expect(html).not.toContain("GLM 5.3 Flash Uncensored<span class=\"pricing-new\">");
+    expect(html).not.toContain("Claude Opus 5.5 (Heabsy partner)");
+  });
+  it("reads rates and dates from the live config, skipping wallet models", async () => {
+    const { offeredModels } = await import("../src/lib/pricingOffer");
+    expect(offeredModels([
+      { name: "Queen", inputCreditsPer1k: 0.1, outputCreditsPer1k: 0.61, cacheCreditsPer1k: 0.05, releaseDate: "2026-11-01" },
+      { name: "Paid", billing: "wallet", inputPrice: 1, outputPrice: 2 },
+      { name: "Sponsored", inputCreditsPer1k: 0, outputCreditsPer1k: 0 },
+    ])).toEqual([{ name: "Queen", input: 0.1, cached: 0.05, output: 0.61, releaseDate: "2026-11-01" }]);
+    expect(offeredModels(undefined)).toBeUndefined();
   });
 });

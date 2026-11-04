@@ -5,6 +5,19 @@ const request: ProviderRequest = {model:"coder",system:"Current task",messages:[
 const collect=async(provider:Provider,signal=new AbortController().signal)=>{const events:ProviderEvent[]=[];for await(const event of provider.stream(request,signal))events.push(event);return events;};
 afterEach(()=>vi.useRealTimers());
 
+it("retries after a queue or thinking event before any answer or tool input", async () => {
+  vi.useFakeTimers(); vi.setSystemTime(0); let calls = 0;
+  const provider: Provider = { id: "tagflow", displayName: "Included AI", models: [], async *stream() {
+    calls++;
+    if (calls === 1) { yield { kind: "thinking", text: "Queued" }; throw { status: 502, code: "stream-interrupted" }; }
+    yield { kind: "text", text: "Recovered" }; yield { kind: "stop", reason: "end-turn" };
+  } };
+  const result = collect(recoverIncludedLimits(provider));
+  await vi.advanceTimersByTimeAsync(2000);
+  expect((await result).filter(event => event.kind === "text")).toEqual([{ kind: "text", text: "Recovered" }]);
+  expect(calls).toBe(2); expect(vi.getTimerCount()).toBe(0);
+});
+
 it("recovers a temporary 503 before output without restarting the agent turn", async () => {
   vi.useFakeTimers(); vi.setSystemTime(0); let calls = 0;
   const provider: Provider = { id: "tagflow", displayName: "Included AI", models: [], async *stream() {
@@ -127,7 +140,7 @@ it("names where to buy tokens on the paid limit, and checks again every two minu
   const status=events.find(event=>event.kind==="status");
   expect(status&&status.kind==="status"&&status.text).toContain("https://adcode.bluethenics.com/ai-tokens");
   expect(status&&status.kind==="status"&&status.text).toContain("Buy tokens or a plan");
-  expect(status&&status.kind==="status"&&status.text).toContain("Tagflow");
+  expect(status&&status.kind==="status"&&status.text).toContain("your own connected model");
   // The chat draws a card from this: when the free week refills, and when it asks again sooner.
   expect(status&&status.kind==="status"&&status.limit).toEqual({reason:"paid",resumeAt:3*86_400_000,recheckAt:120_000,buyUrl:"https://adcode.bluethenics.com/ai-tokens"});
 });

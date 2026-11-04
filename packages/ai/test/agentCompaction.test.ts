@@ -183,3 +183,14 @@ describe("compacting on request", () => {
     expect(flat(summaries[0])).toContain("keep the API decisions");
   });
 });
+
+it("continues the same task when both the request and the summariser hit a context limit", async () => {
+  let calls=0;
+  const {provider,requests}=fakeProvider(()=>++calls===1?new Error("HTTP 413: request too large for remaining credits"):reply("continued"),()=>new Error("HTTP 413: context-length"));
+  const agent=createAgent({...base,provider,compaction:{contextWindow:()=>1_000_000,thresholdPercent:()=>null},initialMessages:longHistory()});
+  const events=await collect(agent.send("finish the original work"));
+  expect(kinds(events)).toContain("compacted"); expect(kinds(events)).not.toContain("error");
+  expect(requests).toHaveLength(2); expect(flat(requests[1])).toContain("Compact transcript extracts");
+  expect(flat(requests[1])).toContain("finish the original work");
+  expect(flat(requests[1]).length).toBeLessThan(flat(requests[0]).length);
+});
