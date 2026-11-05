@@ -234,7 +234,7 @@ export class CommunityHub extends DurableObject<Env> {
 
   plugin(id: string, uid: string | null): PluginDetail {
     const row = this.pluginRow(id);
-    const versions = this.sql.exec<{ version: string; notes: string; at: number; available: number }>("SELECT version, notes, at, manifest IS NOT NULL AS available FROM plugin_versions WHERE pluginId=? ORDER BY at DESC LIMIT 30", id).toArray()
+    const versions = this.sql.exec<{ version: string; notes: string; at: number; available: number }>("SELECT version, notes, at, manifest IS NOT NULL AS available FROM plugin_versions WHERE pluginId=? ORDER BY at DESC, rowid DESC LIMIT 30", id).toArray()
       .map((row) => ({ version: row.version, notes: row.notes, at: row.at, available: row.available === 1 || row.version === JSON.parse(this.pluginRow(id).manifest).version }));
     return {
       ...this.pluginListing(row), manifest: JSON.parse(row.manifest) as PluginManifest, versions, remixes: row.remixes,

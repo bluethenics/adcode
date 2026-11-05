@@ -431,7 +431,10 @@ export function registerCommunityIpc(): void {
   ipcMain.handle(CHANNELS.communityArtifacts, (_event, sorting: unknown, search: unknown, help: unknown) =>
     request(`/community/artifacts${query({ sort: sort(sorting), q: typeof search === "string" ? search.slice(0, 60) : null, help: help === true ? "1" : null })}`));
   ipcMain.handle(CHANNELS.communityArtifact, (_event, id: unknown) => request(`/community/artifacts/${artifactId(id)}`));
-  ipcMain.handle(CHANNELS.communityMe, () => request("/community/me", undefined, "required"));
+  // Polled for the tab badges whether or not anybody is signed in. A rejected handler is logged
+  // by Electron as an error on every poll, so the failure travels back as a value and
+  // communityMe() throws it in the renderer, where "sign in" still selects the signed-out view.
+  ipcMain.handle(CHANNELS.communityMe, () => request("/community/me", undefined, "required").catch((error: unknown) => ({ communityError: error instanceof Error ? error.message : "The community service could not do that." })));
   ipcMain.handle(CHANNELS.communityMarkRead, async () => { await request("/community/activity/read", {}); });
 
   ipcMain.handle(CHANNELS.communityInstalled, async () => (await readInstalled()).map(view));

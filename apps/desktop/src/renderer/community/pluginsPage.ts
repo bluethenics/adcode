@@ -15,6 +15,7 @@ import {
 } from "@adcode/community";
 import type { InstalledPluginView, PluginDetail } from "../../shared/community.ts";
 import { askThemed } from "../dialogs/confirmDialog.ts";
+import { communityMe } from "./communityMe.ts";
 import { button, el, field } from "../dialogs/formDialog.ts";
 import { markFor } from "../motionFlip.ts";
 import { createIcon, ICON } from "../workbench/icons.ts";
@@ -643,7 +644,7 @@ export function createPluginsPage(deps: PluginsPageDeps): PluginsPage {
     const panel = shell.panel("mine");
     shell.loading(panel);
     try {
-      me = await window.adcode.community.me();
+      me = await communityMe();
     } catch (error) {
       panel.replaceChildren(/sign in/i.test(errorText(error, "")) ? signedOutBox("Sign in to publish plugins and see who installed and starred them", deps.signIn) : el("p", "community-empty", "Your profile could not be loaded"));
       return;
@@ -708,7 +709,7 @@ export function createPluginsPage(deps: PluginsPageDeps): PluginsPage {
       requestAnimationFrame(() => shell.element.querySelector<HTMLElement>(".community-monetize")?.scrollIntoView({ block: "center" }));
     },
     async poll() {
-      try { me = await window.adcode.community.me(); applyUnread(me); } catch { /* Signed out or offline: no badge. */ }
+      try { me = await communityMe(); applyUnread(me); } catch { /* Signed out or offline: no badge. */ }
     },
   };
 }

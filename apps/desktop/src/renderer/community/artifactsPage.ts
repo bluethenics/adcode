@@ -13,6 +13,7 @@ import {
 } from "@adcode/community";
 import type { ArtifactDetail, ArtifactPreview, ProjectLinkView } from "../../shared/community.ts";
 import { askThemed } from "../dialogs/confirmDialog.ts";
+import { communityMe } from "./communityMe.ts";
 import { button, el, field } from "../dialogs/formDialog.ts";
 import { ICON } from "../workbench/icons.ts";
 import { formatBytes } from "./communityModel.ts";
@@ -458,7 +459,7 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
   async function loadMe(panel: HTMLElement, signedOutText: string): Promise<CommunityMe | null> {
     shell.loading(panel);
     try {
-      me = await window.adcode.community.me();
+      me = await communityMe();
       applyUnread(me);
       return me;
     } catch (error) {
@@ -521,7 +522,7 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
     showTab: shell.showTab,
     shareProject: () => shareProject(),
     async poll() {
-      try { me = await window.adcode.community.me(); applyUnread(me); } catch { /* Signed out or offline: no badge. */ }
+      try { me = await communityMe(); applyUnread(me); } catch { /* Signed out or offline: no badge. */ }
     },
   };
 }
