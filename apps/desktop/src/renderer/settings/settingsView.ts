@@ -405,6 +405,37 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
   }
   sheet.append(panel);
 
+  /*
+   * Every change says whether it took. A write used to be fire-and-forget: a switch that
+   * flipped but failed to save looked exactly like one that saved. The row now shows
+   * "Saving…", then "Saved" for a moment, or "Not saved" until the next try.
+   */
+  const saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  function markSave(settingId: string, state: "saving" | "saved" | "failed"): void {
+    const row = panel.querySelector<HTMLElement>(`.settings-row[data-setting-id="${CSS.escape(settingId)}"]`);
+    const text = row?.querySelector<HTMLElement>(".settings-row-text");
+    if (!row || !text) return;
+    let badge = text.querySelector<HTMLElement>(".settings-save-state");
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "settings-save-state";
+      badge.setAttribute("role", "status");
+      text.append(badge);
+    }
+    badge.dataset["state"] = state;
+    badge.textContent = state === "saving" ? "Saving…" : state === "saved" ? "Saved" : "Not saved - try again";
+    clearTimeout(saveTimers.get(settingId));
+    if (state === "saved") saveTimers.set(settingId, setTimeout(() => badge?.remove(), 1600));
+  }
+  function save(settingId: string, value: SettingValue, rerender = false): void {
+    markSave(settingId, "saving");
+    deps.write(settingId, value).then((updated) => {
+      values = updated;
+      if (rerender) renderBody();
+      markSave(settingId, "saved");
+    }, () => markSave(settingId, "failed"));
+  }
+
   function rowFor(setting: Setting): HTMLElement {
     const row = document.createElement("div");
     row.className = "settings-row";
@@ -450,9 +481,7 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
     if (setting.kind === "boolean") {
       row.append(
         iosSwitch(current === true, !setting.available, (next) => {
-          void deps.write(setting.id, next).then((updated) => {
-            values = updated;
-          });
+          save(setting.id, next);
         }),
       );
     } else if (setting.kind === "text") {
@@ -476,9 +505,7 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
         if (field.value === String(values[setting.id] ?? setting.default))
           return;
 
-        void deps.write(setting.id, field.value).then((updated) => {
-          values = updated;
-        });
+        save(setting.id, field.value);
       });
 
       row.classList.add("settings-row-stacked");
@@ -499,10 +526,7 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
           String(current),
           !setting.available,
           (next) => {
-            void deps.write(setting.id, next).then((updated) => {
-              values = updated;
-              renderBody();
-            });
+            save(setting.id, next, true);
           },
         ),
       );
@@ -526,10 +550,7 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
       row.classList.add("settings-row-stacked");
       row.append(
         segmented(options, String(current), !setting.available, (next) => {
-          void deps.write(setting.id, next).then((updated) => {
-            values = updated;
-            renderBody();
-          });
+          save(setting.id, next, true);
         }),
       );
     }

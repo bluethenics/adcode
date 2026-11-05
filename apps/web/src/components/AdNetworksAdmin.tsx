@@ -7,7 +7,7 @@ import { adNetworkReadiness, parseAdNetworkConfig, type AdNetworkConfig, type Ad
 import type { ServedCreative } from "@adcode/api/src/contract.ts";
 import "./adNetworksAdmin.css";
 
-/** keyMode: which Imprezia environment the saved key belongs to, read on the server. The key itself never comes back. */
+/** keyMode: which Imprezia or Zeekend environment the saved key belongs to, read on the server. The key itself never comes back. */
 export interface AdNetworkView extends AdNetworkConfig { keyConfigured: boolean; readiness: string; keyMode?: "sandbox" | "beta" | "live" }
 interface NetworksView { networks: AdNetworkView[]; credentialsManageable: boolean }
 interface TestView { sandbox?: boolean; sdk?: { endpoint: string; placementId: string }; zeekend?: { placementId: string; keyMode: "sandbox" | "live"; validKey: boolean }; creative?: ServedCreative | null; advertisements?: { id: string; name: string; headline: string; text: string; description: string }[] }
@@ -100,52 +100,93 @@ export function impreziaStage(network: AdNetworkView | undefined): ImpreziaStage
   if (network.keyMode === "beta") return "beta";
   return network.enabled ? "live" : "off";
 }
-const STAGE_COPY: Record<ImpreziaStage, { label: string; text: string; action: string }> = {
-  "not-set-up": { label: "Not set up", text: "Paste the production publisher key from Imprezia's API Keys page. ADCode creates the connection, encrypts the key and turns delivery on in one step.", action: "Save key and go live" },
-  "no-key": { label: "No key", text: "The Imprezia connection exists but has no key. Paste the production key to start serving.", action: "Save key and go live" },
-  sandbox: { label: "Sandbox: test ads", text: "The saved key is a sandbox key. Its cards are Imprezia's test ads and earn nothing. Paste the production key to replace it and go live.", action: "Replace key and go live" },
-  beta: { label: "Beta key", text: "The saved key is for Imprezia's beta environment. Paste the production key to replace it and go live.", action: "Replace key and go live" },
-  off: { label: "Production key, off", text: "A production key is saved but delivery is off, so nobody sees Imprezia ads. Turn it on, or paste a new key to rotate it and go live.", action: "Replace key and go live" },
-  live: { label: "Live", text: "Imprezia's real ads fill sponsored slots no ADCode advertiser has taken. Paste a new key here only to rotate it.", action: "Rotate key" },
+/** One partner's go-live panel: what it says at each stage, where the key goes, and which keys only test. */
+interface Partner {
+  id: "imprezia" | "zeekend";
+  name: string;
+  endpoint: string;
+  placeholder: string;
+  isTestKey: (key: string) => boolean;
+  testKeyWarning: string;
+  copy: Record<ImpreziaStage, { label: string; text: string; action: string }>;
+  liveNotice: string;
+  reach: readonly { lead: string; rest: string }[];
+}
+const IMPREZIA_PARTNER: Partner = {
+  id: "imprezia", name: "Imprezia", endpoint: "/admin/ad-networks/imprezia-live", placeholder: "api_pub_…",
+  isTestKey: (key) => key.startsWith("api_pub_sandbox_"),
+  testKeyWarning: "That is a sandbox key: it serves test ads that earn nothing. Use the production key.",
+  copy: {
+    "not-set-up": { label: "Not set up", text: "Paste the production publisher key from Imprezia's API Keys page. ADCode creates the connection, encrypts the key and turns delivery on in one step.", action: "Save key and go live" },
+    "no-key": { label: "No key", text: "The Imprezia connection exists but has no key. Paste the production key to start serving.", action: "Save key and go live" },
+    sandbox: { label: "Sandbox: test ads", text: "The saved key is a sandbox key. Its cards are Imprezia's test ads and earn nothing. Paste the production key to replace it and go live.", action: "Replace key and go live" },
+    beta: { label: "Beta key", text: "The saved key is for Imprezia's beta environment. Paste the production key to replace it and go live.", action: "Replace key and go live" },
+    off: { label: "Production key, off", text: "A production key is saved but delivery is off, so nobody sees Imprezia ads. Turn it on, or paste a new key to rotate it and go live.", action: "Replace key and go live" },
+    live: { label: "Live", text: "Imprezia's real ads fill the sponsored slots Zeekend and ADCode advertisers leave empty. Paste a new key here only to rotate it.", action: "Rotate key" },
+  },
+  liveNotice: "Imprezia is live. People who have partner ads on in Settings start seeing its cards with the next ad.",
+  reach: [
+    { lead: "Cards under AI replies", rest: " when Zeekend has none, for people who turned on Sponsored cards under AI replies in Settings." },
+    { lead: "Partner notifications", rest: " for people on desktop 2.5 or later who turned on Sponsored notifications from ADCode's ad partner." },
+    { lead: "Both are off for each person", rest: " until they switch them on. Turning Imprezia off in the table below stops every new card at once." },
+  ],
+};
+const ZEEKEND_PARTNER: Partner = {
+  id: "zeekend", name: "Zeekend", endpoint: "/admin/ad-networks/zeekend-live", placeholder: "pub_live_…",
+  isTestKey: (key) => ["pub_test", "pub_sandbox", "pub_demo"].includes(key),
+  testKeyWarning: "That is a test key: its placements are tests that earn nothing. Use the pub_live_ key Zeekend sent you.",
+  copy: {
+    "not-set-up": { label: "Not set up", text: "Paste the pub_live_ publisher key Zeekend sent you. ADCode creates the connection, encrypts the key and turns delivery on in one step. Zeekend is asked first under every AI reply.", action: "Save key and go live" },
+    "no-key": { label: "No key", text: "The Zeekend connection exists but has no key. Paste the pub_live_ key to start serving.", action: "Save key and go live" },
+    sandbox: { label: "Test key: test placements", text: "The saved key is a test key (pub_test). Its placements are tests and earn nothing. Paste the pub_live_ key to replace it and go live.", action: "Replace key and go live" },
+    beta: { label: "Test key", text: "The saved key is not a live key. Paste the pub_live_ key to replace it and go live.", action: "Replace key and go live" },
+    off: { label: "Live key, off", text: "A pub_live_ key is saved but delivery is off, so nobody sees Zeekend ads. Turn it on, or paste a new key to rotate it and go live.", action: "Replace key and go live" },
+    live: { label: "Live", text: "Zeekend's real placements appear under AI replies, asked before Imprezia. Paste a new key here only to rotate it.", action: "Rotate key" },
+  },
+  liveNotice: "Zeekend is live. People who have sponsored cards under AI replies on start seeing its placements with their next answer.",
+  reach: [
+    { lead: "Cards under AI replies", rest: " for people on desktop 2.5 or later who turned on Sponsored cards under AI replies in Settings: one card per reply, never above the answer." },
+    { lead: "In Zeekend's dashboard", rest: ", allow adcode.bluethenics.com as the key's origin and set pacing (first turn, gap, per-session limit). ADCode does not set pacing in code." },
+    { lead: "Turning Zeekend off", rest: " in the table below hands every reply to Imprezia at once." },
+  ],
 };
 
 /**
- * The one thing this page is opened for once Imprezia sends the production key: paste it, press
- * one button, and ads are live. The server refuses a sandbox key here, so "live" always means real.
+ * The one thing this page is opened for once a partner sends the production key: paste it, press
+ * one button, and ads are live. The server refuses a test key here, so "live" always means real.
  */
-function ImpreziaGoLive({ network, manageable, request, onLive, onToggle, busy }: { network: AdNetworkView | undefined; manageable: boolean; request: Request; onLive: () => Promise<void>; onToggle: (network: AdNetworkView) => void; busy: boolean }) {
+function PartnerGoLive({ partner, network, manageable, request, onLive, onToggle, busy }: { partner: Partner; network: AdNetworkView | undefined; manageable: boolean; request: Request; onLive: () => Promise<void>; onToggle: (network: AdNetworkView) => void; busy: boolean }) {
   const stage = impreziaStage(network);
-  const copy = STAGE_COPY[stage];
+  const copy = partner.copy[stage];
   const [secret, setSecret] = useState("");
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null);
-  const sandboxPasted = secret.trim().startsWith("api_pub_sandbox_");
+  const testPasted = partner.isTestKey(secret.trim());
+  const title = `${partner.id}-go-live-title`, hint = `${partner.id}-key-hint`;
   async function goLive(): Promise<void> {
-    if (saving || secret.trim() === "" || sandboxPasted) return;
+    if (saving || secret.trim() === "" || testPasted) return;
     setSaving(true); setNotice(null);
     try {
-      await request<{ id: string }>("/admin/ad-networks/imprezia-live", "POST", { key: secret.trim() });
+      await request<{ id: string }>(partner.endpoint, "POST", { key: secret.trim() });
       setSecret(""); await onLive();
-      setNotice({ text: stage === "live" ? "New key saved. The next ad uses it." : "Imprezia is live. People who have partner ads on in Settings start seeing its cards with the next ad.", error: false });
+      setNotice({ text: stage === "live" ? "New key saved. The next ad uses it." : partner.liveNotice, error: false });
     } catch (error) { setNotice({ text: error instanceof Error ? error.message : "The key wasn't saved. Try again.", error: true }); }
     finally { setSaving(false); }
   }
-  return <section className="admin-models-provider imprezia-go-live" data-stage={stage} aria-labelledby="imprezia-go-live-title">
-    <header className="admin-card-head"><h3 id="imprezia-go-live-title">Imprezia partner ads</h3><span className="ad-network-state" data-state={stage === "live" ? "ready" : stage === "off" ? "disabled" : "key-required"}>{copy.label}</span></header>
+  return <section className="admin-models-provider imprezia-go-live" data-partner={partner.id} data-stage={stage} aria-labelledby={title} aria-busy={saving}>
+    <header className="admin-card-head"><h3 id={title}>{partner.name} partner ads</h3><span className="ad-network-state" data-state={stage === "live" ? "ready" : stage === "off" ? "disabled" : "key-required"}>{stage === "live" && <i className="go-live-pulse" aria-hidden="true" />}{copy.label}</span></header>
     <p className="row-sub">{copy.text}</p>
     {!manageable && <p className="notice" role="alert">Encrypted key storage isn&apos;t configured on the server. Set AD_NETWORK_ENCRYPTION_KEY before saving the key.</p>}
     <form className="imprezia-go-live-form" onSubmit={(event) => { event.preventDefault(); void goLive(); }}>
-      <label className="tagflow-field"><span>{stage === "live" ? "New production key" : "Production publisher key"}</span><input className="input" type="password" required autoComplete="new-password" spellCheck={false} maxLength={8192} placeholder="api_pub_…" disabled={saving || !manageable} value={secret} onChange={(event) => setSecret(event.target.value)} aria-describedby="imprezia-key-hint" /><small id="imprezia-key-hint" data-warn={sandboxPasted}>{sandboxPasted ? "That is a sandbox key: it serves test ads that earn nothing. Use the production key." : "Encrypted on the server and never shown again."}</small></label>
+      <label className="tagflow-field"><span>{stage === "live" ? "New production key" : "Production publisher key"}</span><input className="input" type="password" required autoComplete="new-password" spellCheck={false} maxLength={8192} placeholder={partner.placeholder} disabled={saving || !manageable} value={secret} onChange={(event) => { setSecret(event.target.value); setNotice(null); }} aria-describedby={hint} aria-invalid={testPasted} /><small id={hint} data-warn={testPasted}>{testPasted ? partner.testKeyWarning : "Encrypted on the server and never shown again."}</small></label>
       <div className="ad-network-actions">
-        <button className="btn btn-primary" disabled={saving || !manageable || secret.trim() === "" || sandboxPasted}>{saving ? "Saving…" : copy.action}</button>
+        <button className="btn btn-primary" data-loading={saving} disabled={saving || !manageable || secret.trim() === "" || testPasted}>{saving && <span className="btn-spinner" aria-hidden="true" />}{saving ? "Saving…" : copy.action}</button>
         {stage === "off" && network && <button type="button" className="btn" disabled={busy} onClick={() => onToggle(network)}>Turn on with the saved key</button>}
       </div>
     </form>
-    {notice && <p className="notice" data-tone={notice.error ? "error" : "success"} role={notice.error ? "alert" : "status"}>{notice.text}</p>}
-    <ul className="imprezia-go-live-reach" aria-label="Who sees Imprezia ads">
-      <li><strong>Cards under AI replies</strong> reach people on desktop 2.4.13 or later who turned on Sponsored cards under AI replies in Settings.</li>
-      <li><strong>Partner notifications</strong> reach people who turned on Sponsored notifications from ADCode&apos;s ad partner, once a desktop release after 2.4.13 ships them.</li>
-      <li>Both are off for each person until they switch them on. Turning Imprezia off in the table below stops every new card at once.</li>
+    {notice && <p className="notice go-live-notice" data-tone={notice.error ? "error" : "success"} role={notice.error ? "alert" : "status"}>{notice.text}</p>}
+    <ul className="imprezia-go-live-reach" aria-label={`Who sees ${partner.name} ads`}>
+      {partner.reach.map((line) => <li key={line.lead}><strong>{line.lead}</strong>{line.rest}</li>)}
     </ul>
   </section>;
 }
@@ -326,10 +367,14 @@ export function AdNetworksAdmin() {
     finally { setTesting(null); }
   }
   const saved = selected === null ? undefined : view?.networks.find((network) => network.id === selected);
-  const imprezia = view?.networks.filter(isChat).sort((a, b) => a.priority - b.priority)[0];
+  const imprezia = view?.networks.filter((network) => isChat(network) && network.provider === "imprezia").sort((a, b) => a.priority - b.priority)[0];
+  const zeekend = view?.networks.filter((network) => network.provider === "zeekend").sort((a, b) => a.priority - b.priority)[0];
   const draft = newNetwork ?? saved;
   return <div className="admin-models ad-networks-admin">
-    {view !== null && <ImpreziaGoLive network={imprezia} manageable={view.credentialsManageable} request={request} busy={toggling !== null} onToggle={(network) => void toggle(network)} onLive={load} />}
+    {view !== null && <div className="partner-go-live-grid">
+      <PartnerGoLive partner={ZEEKEND_PARTNER} network={zeekend} manageable={view.credentialsManageable} request={request} busy={toggling !== null} onToggle={(network) => void toggle(network)} onLive={load} />
+      <PartnerGoLive partner={IMPREZIA_PARTNER} network={imprezia} manageable={view.credentialsManageable} request={request} busy={toggling !== null} onToggle={(network) => void toggle(network)} onLive={load} />
+    </div>}
     <section className="admin-models-provider"><header className="admin-card-head"><h3>Ad network connections</h3><button type="button" className="btn" disabled={loading} onClick={() => void load()}>{loading ? "Loading…" : "Refresh"}</button></header>
       <p className="row-sub">Connect ad providers with encrypted API keys. Generic JSON APIs can pay users per view or click. Zeekend and Imprezia use their own SDKs for sponsored cards under AI replies: Zeekend is asked first, Imprezia fills what it leaves.</p>
       {error && <p className="notice" data-tone="error" role="alert">{error} Use Refresh to retry.</p>}

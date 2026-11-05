@@ -88,6 +88,26 @@ describe("ad network settings", () => {
     expect((await store.adNetworks!.list()).map((network) => network.id)).toEqual(["imprezia"]);
   });
 });
+describe("zeekend go live", () => {
+  it("goes live with Zeekend in one step from a pub_live_ key, and refuses test keys", async () => {
+    const api = createFetchHandler({ ...deps(), verifier, adNetworks: deps() });
+    const call = (token: string, path: string, method = "GET", body?: unknown) => api(new Request(`https://api.example.com/v1/admin/ad-networks${path}`, { method, headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }));
+    expect((await call("user", "/zeekend-live", "POST", { key: "pub_live_abcd1234" })).status).toBe(403);
+    const test = await call("admin", "/zeekend-live", "POST", { key: "pub_test" });
+    expect(test.status).toBe(400); expect(await test.json()).toMatchObject({ error: "sandbox-key" });
+    const wrong = await call("admin", "/zeekend-live", "POST", { key: "api_pub_live_1" });
+    expect(wrong.status).toBe(400); expect(await wrong.json()).toMatchObject({ error: "invalid-key" });
+    expect(await store.adNetworks!.list()).toEqual([]);
+    const live = await call("admin", "/zeekend-live", "POST", { key: "  pub_live_abcd1234  " });
+    expect(live.status).toBe(200); expect(await live.json()).toMatchObject({ id: "zeekend", keyMode: "live", enabled: true });
+    expect(await store.adNetworks!.get("zeekend")).toMatchObject({ provider: "zeekend", enabled: true, priority: 5, zeekend: { placementId: "chat-main" } });
+    expect(decryptAdNetworkKey("zeekend", (await store.adNetworks!.key("zeekend"))!, [encryption])).toBe("pub_live_abcd1234");
+    const listed = await (await call("admin", "")).text();
+    expect(listed).toContain('"keyMode":"live"'); expect(listed).not.toContain("pub_live_abcd1234");
+    expect((await call("admin", "/zeekend-live", "POST", { key: "pub_live_rotated99" })).status).toBe(200);
+    expect((await store.adNetworks!.list()).map((network) => network.id)).toEqual(["zeekend"]);
+  });
+});
 describe("external inventory and earnings", () => {
   it("serves a normalized creative with an owned delivery and pays a provider-confirmed view once", async () => {
     await enable();

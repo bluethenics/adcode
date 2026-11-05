@@ -5367,3 +5367,38 @@ body { background: var(--surface); }
 
 /* Lucide icons (components/Icon.tsx): sit on the text baseline like the glyphs they replaced. */
 .icon { display: inline-block; flex: none; vertical-align: -0.125em; }
+
+/* ── Feedback you can see (2.5) ─────────────────────────────────────────────
+ * The monochrome system above made success, error and info notices the same grey box, so a
+ * save that worked and one that failed looked alike. Each now arrives with motion, a glyph and
+ * a thin state edge; busy buttons spin; pressed buttons give way. Colour is only the edge, so
+ * the pages stay monochrome. */
+.notice { position: relative; padding-left: 40px; animation: notice-in 260ms var(--ease) both; }
+.notice::before { content: "i"; position: absolute; left: 13px; top: 13px; display: grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; border: 1px solid currentColor; font: 700 10.5px/1 var(--font-body), system-ui, sans-serif; opacity: .85; }
+.notice[data-tone="ok"]::before, .notice[data-tone="success"]::before { content: "✓"; }
+.notice[data-tone="error"]::before, .notice[role="alert"]:not([data-tone])::before { content: "!"; }
+.notice[data-tone="ok"], .notice[data-tone="success"] { border-left: 3px solid #4cd97b; animation: notice-in 260ms var(--ease) both, notice-confirm 900ms var(--ease) 1; }
+.notice[data-tone="error"] { border-left: 3px solid #ff6b60; animation: notice-in 260ms var(--ease) both, notice-shake 380ms var(--ease) 1; }
+.notice[data-tone="info"] { border-left: 3px solid rgba(255,255,255,.55); }
+@keyframes notice-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@keyframes notice-confirm { 0% { box-shadow: 0 0 0 0 rgba(76,217,123,.38); } 100% { box-shadow: 0 0 0 10px rgba(76,217,123,0); } }
+@keyframes notice-shake { 20% { transform: translateX(-4px); } 40% { transform: translateX(4px); } 60% { transform: translateX(-2px); } 80% { transform: translateX(2px); } }
+
+.btn:hover:not(:disabled) { transform: translateY(-1px); }
+.btn:active:not(:disabled) { transform: scale(.96); transition-duration: 60ms; }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.btn[data-loading="true"], button[aria-busy="true"] { cursor: progress; }
+.btn-spinner { flex: none; width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: btn-spin 700ms linear infinite; }
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+[aria-busy="true"] > .admin-card-head, section[aria-busy="true"] { transition: opacity 160ms var(--ease); }
+section[aria-busy="true"] { opacity: .82; }
+
+.go-live-pulse { display: inline-block; width: 8px; height: 8px; margin-right: 7px; border-radius: 50%; background: #4cd97b; vertical-align: 1px; animation: go-live-pulse 1.8s ease-out infinite; }
+@keyframes go-live-pulse { 0% { box-shadow: 0 0 0 0 rgba(76,217,123,.55); } 70%, 100% { box-shadow: 0 0 0 7px rgba(76,217,123,0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .notice, .notice[data-tone] { animation: none; }
+  .btn:hover:not(:disabled), .btn:active:not(:disabled) { transform: none; }
+  .btn-spinner { animation-duration: 1.6s; }
+  .go-live-pulse { animation: none; }
+}

@@ -628,3 +628,19 @@
   .settings-layout > .settings-body { padding: 20px 18px 28px; }
   .settings-layout .settings-row { padding: 16px; }
 }
+
+/* Whether a change took: "Saving…", then "Saved" for a moment, or "Not saved". Never the
+   money green (tokens.css keeps --success for earnings), so success reads as quiet text. */
+.settings-save-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  animation: settings-save-in var(--duration-enter) var(--ease-toast) both;
+}
+.settings-save-state[data-state="saved"]::before { content: "✓"; font-weight: 700; color: var(--text-primary); }
+.settings-save-state[data-state="failed"] { color: var(--danger); }
+.settings-save-state[data-state="saving"] { opacity: 0.75; }
+@keyframes settings-save-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }

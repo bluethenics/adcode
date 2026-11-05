@@ -23,6 +23,8 @@ function keyModeOf(deps: AdNetworkRuntime, config: AdNetworkConfig, encrypted: P
 }
 /** The one Imprezia Chat Ads connection "Go live" creates when none exists yet. */
 const IMPREZIA_DEFAULT: AdNetworkConfig = { id: "imprezia", name: "Imprezia", provider: "imprezia", enabled: false, priority: 10, viewPayoutMicros: "0", clickPayoutMicros: "0", imprezia: { kind: "chat", id: "" } };
+/** The Zeekend Chat Ads connection "Go live" creates when none exists yet: asked before Imprezia. */
+const ZEEKEND_DEFAULT: AdNetworkConfig = { id: "zeekend", name: "Zeekend", provider: "zeekend", enabled: false, priority: 5, viewPayoutMicros: "0", clickPayoutMicros: "0", zeekend: { placementId: "chat-main" } };
 const validKey = (key: unknown): key is string => typeof key === "string" && key.trim().length > 0 && key.length <= 8192 && !/[\r\n]/.test(key);
 
 /** External demand fills an otherwise empty slot; direct campaigns and test serves always keep priority. */
@@ -126,6 +128,23 @@ export async function handleAdNetworkAdmin(deps: AdNetworkDeps, adminUid: string
     await deps.store.writeAudit({ adminUid, action: "ad-network-key-save", subjectUid: config.id, at: deps.clock.now() });
     await deps.store.writeAudit({ adminUid, action: "ad-network-save", subjectUid: config.id, at: deps.clock.now() });
     return response(200, { ok: true, id: config.id, keyMode: impreziaKeyMode(key), enabled: true });
+  }
+  // The same one step for Zeekend: only a pub_live_ key goes live, because test placements earn nothing.
+  if (path === "/v1/admin/ad-networks/zeekend-live" && method === "POST") {
+    const body = typeof raw === "object" && raw !== null ? raw as Record<string, unknown> : {};
+    const key = typeof body["key"] === "string" ? body["key"].trim() : body["key"];
+    if (!validKey(key) || !isZeekendKey(key)) return response(400, { error: "invalid-key", message: "That isn't a Zeekend publisher key. Paste the pub_live_… key Zeekend sent you." });
+    if (zeekendKeyMode(key) === "sandbox") return response(400, { error: "sandbox-key", message: "That is a test key (pub_test, pub_sandbox or pub_demo): its placements are tests that earn nothing. Paste the pub_live_… key to go live, or save a test key from the connection's API key box." });
+    const keys = keysFor(deps);
+    if (!keys[0]) return response(503, { error: "encryption-not-configured", message: "Set AD_NETWORK_ENCRYPTION_KEY once before saving provider API keys." });
+    const existing = (await port.list()).filter(config => config.provider === "zeekend").sort((a, b) => a.priority - b.priority);
+    const config = existing[0] ?? ZEEKEND_DEFAULT;
+    if (existing[0] === undefined) await port.put(config, adminUid, deps.clock.now());
+    await port.putKey(config.id, encryptAdNetworkKey(config.id, key, keys[0]));
+    await port.put({ ...config, enabled: true }, adminUid, deps.clock.now());
+    await deps.store.writeAudit({ adminUid, action: "ad-network-key-save", subjectUid: config.id, at: deps.clock.now() });
+    await deps.store.writeAudit({ adminUid, action: "ad-network-save", subjectUid: config.id, at: deps.clock.now() });
+    return response(200, { ok: true, id: config.id, keyMode: "live", enabled: true });
   }
   const match = /^\/v1\/admin\/ad-networks\/([a-z0-9-]+)\/(key|test)$/.exec(path);
   if (!match || !AD_NETWORK_ID.test(match[1]!)) return response(404, { error: "not-found" });
