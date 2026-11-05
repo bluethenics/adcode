@@ -24,7 +24,7 @@ import { createAgentViewCard, createPlanCard, planStepsFrom, type AgentViewCard,
 import { createChatLiveRoom } from "../liveAgents/chatLiveRoom.ts";
 import { createTaskDetailsDialog } from "./taskDetailsDialog.ts";
 import { createTasksPopupDialog } from "./tasksPopupDialog.ts";
-import { SPONSORED_SETTING, sponsoredReplyFrame } from "./sponsoredReply.ts";
+import { SPONSORED_SETTING, followSponsoredCard, sponsoredReplyFrame } from "./sponsoredReply.ts";
 import { isWebSurface } from "../surface.ts";
 import type { PreviewStatus } from "../../shared/api.ts";
 import type {
@@ -294,7 +294,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   let streamingBubble: HTMLElement | null = null;
   const messageSources = new WeakMap<HTMLElement, string>();
   window.adcode.settings.onChanged(() => { if (open) void refreshModelStatus(); });
-  // Sponsored cards under replies are opt in: read now and whenever settings change.
+  // Sponsored cards under replies follow their setting: read now and whenever settings change.
   let sponsoredReplies = false;
   const readSponsored = (): void => {
     void window.adcode.settings.read().then((values) => {
@@ -4902,7 +4902,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           finished.after(messageActions(finished));
           scrollToEnd();
         }
-        // Opt-in sponsored cards (sponsoredReply.ts): a live finished reply only, never a replay.
+        // Sponsored cards (sponsoredReply.ts): a live finished reply only, never a replay.
         if (finished && !replaying && sponsoredReplies) {
           const frame = sponsoredReplyFrame({
             request: lastUserPrompt,
@@ -4911,7 +4911,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
             theme: document.documentElement.dataset["theme"] === "light" ? "light" : "dark",
             // Which question of this conversation the reply answers - Zeekend paces by it.
             turn: transcript.querySelectorAll(".chat-bubble-user").length,
-          });
+          }, undefined, undefined, followSponsoredCard(transcript, () => stickToBottom, updateScrollButton));
           // Below the reply's own actions row, so copy/retry stay attached to the reply.
           if (frame !== null) (finished.nextElementSibling ?? finished).after(frame);
         }

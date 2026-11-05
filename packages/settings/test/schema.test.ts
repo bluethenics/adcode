@@ -263,6 +263,22 @@ describe("migrate", () => {
     expect(result.values["adcode.ai.keepGoing"]).toBe(false);
   });
 
+  it("turns the ad-partner settings on for version 2 files, unless sponsored messages are off", () => {
+    const on = migrate({ version: 2, values: { "adcode.ads.chatSponsored": false, "adcode.ads.partnerNotifications": false, "adcode.editing.minimap": false } });
+    expect(on.values["adcode.ads.chatSponsored"]).toBe(true);
+    expect(on.values["adcode.ads.partnerNotifications"]).toBe(true);
+    expect(on.values["adcode.editing.minimap"]).toBe(false);
+    const adsOff = migrate({ version: 2, values: { "adcode.ads.enabled": false, "adcode.ads.chatSponsored": false, "adcode.ads.partnerNotifications": false } });
+    expect(adsOff.values["adcode.ads.chatSponsored"]).toBe(false);
+    expect(adsOff.values["adcode.ads.partnerNotifications"]).toBe(false);
+  });
+
+  it("keeps the ad-partner settings off once turned off on the current version", () => {
+    const result = migrate({ version: SETTINGS_VERSION, values: { "adcode.ads.chatSponsored": false, "adcode.ads.partnerNotifications": false } });
+    expect(result.values["adcode.ads.chatSponsored"]).toBe(false);
+    expect(result.values["adcode.ads.partnerNotifications"]).toBe(false);
+  });
+
   it("is idempotent", () => {
     const once = migrate({ version: SETTINGS_VERSION, values: defaultSettings() });
     const twice = migrate(once);

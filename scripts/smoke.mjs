@@ -856,6 +856,39 @@ checks.pinPromptAsksToPin = await (async () => {
 })();
 
 /*
+ * The one-time notice that sponsored cards and partner notifications are on.
+ *
+ * 2.5.1 turns both on (settings v3), so a fresh profile is told once, after the pin card has
+ * gone. The disclosure must be on screen before any button, Turn off must be offered, and OK
+ * must close it. Closing it here also keeps the corner clear for every check below.
+ */
+checks.adPartnerNoticeTells = await (async () => {
+  let drawn = null;
+  for (let i = 0; i < 40 && drawn === null; i += 1) {
+    drawn = await evaluate(
+      `(() => {
+         const card = document.querySelector('.ad-partner-card');
+         if (card === null) return null;
+         const body = card.querySelector('.pin-card-body');
+         const actions = card.querySelector('.pin-card-actions');
+         return {
+           title: card.querySelector('.pin-card-title')?.textContent ?? null,
+           namesBothPartners: /Zeekend, then Imprezia/.test(body?.textContent ?? ''),
+           disclosureFirst: body !== null && actions !== null && (body.compareDocumentPosition(actions) & 4) === 4,
+           offersTurnOff: card.querySelector('.pin-card-never')?.textContent === 'Turn off',
+         };
+       })()`,
+    );
+    if (drawn === null) await sleep(500);
+  }
+  if (drawn === null) return "no ad partner notice after the pin card closed";
+  const settings = await evaluate("window.adcode.settings.read().then(v => v['adcode.ads.chatSponsored'] === true && v['adcode.ads.partnerNotifications'] === true)");
+  await evaluate("document.querySelector('.ad-partner-card .pin-card-primary')?.click(); true");
+  await sleep(400);
+  return { ...drawn, bothOnByDefault: settings === true, dismissed: (await evaluate("document.querySelector('.ad-partner-card') === null")) === true };
+})();
+
+/*
  * The activity rail and sidebar are one navigation system.
  *
  * A selected icon closes its own view; choosing another icon opens the shared sidebar on
@@ -7726,6 +7759,7 @@ const requiredEvidence = {
   updateReadyVisible: ["checkedReady", "statusBarSays", "cardShown", "cardOffersRestart", "restartAnswers"],
   packagedUpdateFeed: ["checkedCurrent", "ignoresSimulation"],
   licencesDialog: ["opened", "threeTabs", "showsApache", "closes"],
+  adPartnerNoticeTells: ["namesBothPartners", "disclosureFirst", "offersTurnOff", "bothOnByDefault", "dismissed"],
 };
 const failed = Object.entries(checks).filter(
   ([name, value]) =>

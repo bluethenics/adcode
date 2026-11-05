@@ -211,6 +211,7 @@ import { createOnboardingSheet } from "./onboarding/onboardingSheet.ts";
 import { firstBuildPrompt } from "../shared/firstBuild.ts";
 import { inviteLink } from "../shared/invite.ts";
 import { createPinPromptCard } from "./onboarding/pinPromptCard.ts";
+import { createAdPartnerNotice } from "./ads/adPartnerNotice.ts";
 import {
   createContextMenu,
   attachContextMenuDismissal,
@@ -3407,6 +3408,17 @@ const PIN_PROMPT_DELAY_MS = 1_200;
 
 const pinPromptCard = createPinPromptCard(document.body);
 
+/**
+ * The one-time notice that sponsored cards and partner notifications are on (2.5.1 turns them
+ * on; `ads/adPartnerNotice.ts`). After the pin card, and it waits while any card holds the corner.
+ */
+const AD_PARTNER_NOTICE_DELAY_MS = 6_000;
+const adPartnerNotice = createAdPartnerNotice(document.body, {
+  read: () => window.adcode.settings.read() as Promise<Record<string, unknown>>,
+  write: (id, value) => window.adcode.settings.write(id, value),
+  openSetting: (id) => openSetting(id),
+});
+
 const onboarding = createOnboardingSheet({
   invite: () =>
     window.adcode.referrals.checkClipboard().then(
@@ -3426,6 +3438,7 @@ const onboarding = createOnboardingSheet({
      * fires twice on the Skip path, which is why `offer` is idempotent.
      */
     window.setTimeout(() => pinPromptCard.offer(), PIN_PROMPT_DELAY_MS);
+    window.setTimeout(() => adPartnerNotice.offer(), AD_PARTNER_NOTICE_DELAY_MS);
   },
 });
 
@@ -3463,6 +3476,7 @@ void showFirstOnboarding(accountGate, { completed: () => window.adcode.onboardin
     // Already welcomed, so nothing is about to cover the corner. This is the path the
     // second ask arrives on; main decides whether this launch is one of the two.
     window.setTimeout(() => pinPromptCard.offer(), PIN_PROMPT_DELAY_MS);
+    window.setTimeout(() => adPartnerNotice.offer(), AD_PARTNER_NOTICE_DELAY_MS);
     return;
   }
 

@@ -29,7 +29,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Use Test to check a preview. A preview creates no user delivery or payout. Enable a generic connection after its delivery and event-verification formats are correct. Lower priority numbers are tried first; direct campaigns take priority.",
       "For beehiiv, supply the publication ID and offer ID, save the API key, and test the newsletter content preview. This endpoint supplies newsletter content, not desktop delivery or verified earnings.",
       "When Imprezia sends the production key, paste it into the Imprezia partner ads panel at the top of the page and press Save key and go live. ADCode creates the Imprezia connection if there is none, encrypts the key and turns delivery on at once. The panel then reads Live. A sandbox key (api_pub_sandbox_…) is refused there, because it serves test ads that earn nothing; the table's Status column also says which kind of key is saved.",
-      "For Imprezia, choose Add Imprezia Chat Ads, save the publisher API key, then Test the saved connection. The preview runs Imprezia's SDK with a sample conversation, including while the connection is disabled. Turn on sponsored chat cards after testing. People must also opt in through Settings; their message and reply then go through ADCode's server relay to Imprezia. The SDK handles ad requests, rendering, clicks and view measurement. Imprezia does not fill the native desktop sponsored card. Sandbox ads never pay users, and SDK cards do not automatically credit ADCode user balances. Imprezia's reports record provider revenue.",
+      "For Imprezia, choose Add Imprezia Chat Ads, save the publisher API key, then Test the saved connection. The preview runs Imprezia's SDK with a sample conversation, including while the connection is disabled. Turn on sponsored chat cards after testing. From ADCode 2.5.1 the setting is on for everyone who has not switched sponsored messages off, and each person can turn it off in Settings; their message and reply go through ADCode's server relay to Imprezia. The SDK handles ad requests, rendering, clicks and view measurement. Imprezia does not fill the native desktop sponsored card. Sandbox ads never pay users, and SDK cards do not automatically credit ADCode user balances. Imprezia's reports record provider revenue.",
     ],
     benefits: ["Provider credentials stay on the server and are encrypted in storage.", "Payout amounts are fixed when an ad is served, and duplicate provider events cannot pay twice.", "Existing sponsored-message preferences and direct campaigns still control delivery."],
     betterThan: "A configurable JSON connection lets administrators integrate compatible providers without changing the app for each response format. It still requires the provider's real API contract; an arbitrary API key cannot make incompatible services work.",
@@ -675,8 +675,8 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "ads-partner-notifications": {
     steps: [
-      "It is off when you install ADCode. Nothing on this page happens until you turn it on.",
-      "To turn it on, open Settings, choose Ads, and switch on Sponsored notifications from ADCode's ad partner. Sponsored messages must be on as well.",
+      "From ADCode 2.5.1 it is on, unless you switched sponsored messages off. The app says so once in a card at the bottom right, with a Turn off button.",
+      "To turn it off or back on, open Settings, choose Ads, and switch Sponsored notifications from ADCode's ad partner. Sponsored messages must be on as well.",
       "Keep working. When a sponsored message is due and no ADCode advertiser has one for you, the desktop app asks ADCode's ad partner, Imprezia, telling it only the names of the languages and frameworks you have open.",
       "If Imprezia has a card, it slides in at the top right like any sponsored message. Hover it to pause the countdown; close it with the X. Clicking the card opens your browser.",
       "If Imprezia has nothing, nothing appears, and that moment does not count toward your daily limit.",
@@ -689,13 +689,13 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "The card is a separate, walled-off page from adcode.bluethenics.com, so the ad partner cannot reach your files or the editor.",
     ],
     betterThan:
-      "Editors that show ad-network ads usually load the network's code into the app itself and decide on their own how often to interrupt. Here the partner's code never runs in the editor, it is off until you choose it, and it is held to the limits you already set.",
+      "Editors that show ad-network ads usually load the network's code into the app itself and decide on their own how often to interrupt. Here the partner's code never runs in the editor, one switch turns it off, and it is held to the limits you already set.",
   },
 
   "ads-chat-sponsored": {
     steps: [
-      "It is off when you install ADCode. Nothing on this page happens until you turn it on.",
-      "To turn it on, open Settings, choose Ads, and switch on Sponsored cards under AI replies. Sponsored messages must be on as well.",
+      "From ADCode 2.5.1 it is on, unless you switched sponsored messages off. The app says so once in a card at the bottom right that lists what is sent, with Turn off, Settings and OK.",
+      "To turn it off or back on, open Settings, choose Ads, and switch Sponsored cards under AI replies. Sponsored messages must be on as well.",
       "Ask the assistant something in the desktop app. When it finishes answering, ADCode asks its ad partners for one card: Zeekend first, then Imprezia if Zeekend has nothing. Each receives your message and its reply to pick a sponsored card for that conversation, or none.",
       "If there is a card, it appears under the reply. Clicking it opens your browser; the editor itself never navigates.",
       "To stop, switch it off in the same place. The next reply sends nothing.",
@@ -1727,7 +1727,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "If ADCode stopped tomorrow, the code would still be yours to build and run.",
     ],
     betterThan:
-      "Most ad-supported software is closed: you are told what it collects and have to believe it. ADCode's editor, website and ad server are all in one public repository under a permissive licence, so the claim that it never reads your code to target ads unless you opt in to sponsored cards under AI replies is one you can verify.",
+      "Most ad-supported software is closed: you are told what it collects and have to believe it. ADCode's editor, website and ad server are all in one public repository under a permissive licence, so the claim that it never reads your code to target ads, and sends only your message and the reply while sponsored cards under AI replies are on, is one you can verify.",
   },
 
   "workbench-changes": {

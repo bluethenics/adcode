@@ -1,5 +1,5 @@
 /**
- * Sponsored cards under an AI reply - Imprezia's chat SDK, opt in only.
+ * Sponsored cards under an AI reply - Zeekend, then Imprezia. On by default from 2.5.1; one switch turns it off.
  *
  * The SDK never runs in this window. It needs advertisers' measurement scripts, and this
  * window holds `window.adcode`, which reads files and runs commands: no ad script may share
@@ -38,6 +38,28 @@ export function sponsoredMessage(exchange: SponsoredExchange): { type: "adcode-s
   if (request === "" || response === "" || sessionId === "") return null;
   const turn = exchange.turn !== undefined && Number.isInteger(exchange.turn) && exchange.turn >= 1 && exchange.turn <= 10_000 ? exchange.turn : undefined;
   return { type: "adcode-sponsored", request, response, sessionId, theme: exchange.theme, ...(exchange.layout === "notification" ? { layout: "notification" as const } : {}), ...(turn === undefined ? {} : { turn }) };
+}
+
+/**
+ * Keeps a card in view as it arrives, for the frame's `onSize`.
+ *
+ * The card comes a few seconds after the reply and grows its frame from nothing, and growth
+ * below the fold scrolls nothing: someone reading at the bottom of the chat never saw it.
+ * Both partners count an impression only for a card that is on screen (Imprezia: half of it
+ * for a second), so those cards sent "inserted" and never "viewable". While the chat is
+ * pinned to the bottom it follows the card in, as it follows streamed text; scrolled up, it
+ * stays where the person put it.
+ */
+export function followSponsoredCard(
+  scroller: Pick<HTMLElement, "scrollTop" | "scrollHeight">,
+  pinned: () => boolean,
+  after?: () => void,
+): (size: { height: number }) => void {
+  return (size) => {
+    if (size.height <= 0 || !pinned()) return;
+    scroller.scrollTop = scroller.scrollHeight;
+    after?.();
+  };
 }
 
 /**

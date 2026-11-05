@@ -15,8 +15,11 @@
  * worse than either.
  */
 
-/** 2: AI edits apply automatically and Keep going is on (see `migrate`). */
-export const SETTINGS_VERSION = 2;
+/**
+ * 2: AI edits apply automatically and Keep going is on (see `migrate`).
+ * 3: sponsored cards under AI replies and partner notifications are on (see `migrate`).
+ */
+export const SETTINGS_VERSION = 3;
 
 export type SettingGroupId =
   | "editing"
@@ -167,16 +170,16 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     "adcode.ads.partnerNotifications",
     "ads",
     "Sponsored notifications from ADCode's ad partner",
-    "Off unless you turn it on. When no ADCode advertiser has a card for you, a sponsored notification from Imprezia, ADCode's ad partner, can take the slot instead, on the same schedule and limits as other sponsored messages. Only your project's language and framework names are sent to choose it.",
-    false,
+    "On unless you turn it off. When no ADCode advertiser has a card for you, a sponsored notification from Imprezia, ADCode's ad partner, can take the slot instead, on the same schedule and limits as other sponsored messages. Only your project's language and framework names are sent to choose it.",
+    true,
     true,
   ),
   bool(
     "adcode.ads.chatSponsored",
     "ads",
     "Sponsored cards under AI replies",
-    "Off unless you turn it on. When on, your message and the assistant's reply are sent to ADCode's ad partners - Zeekend first, then Imprezia if Zeekend has nothing - to choose one relevant sponsored card shown under that reply. Nothing else from your project is sent.",
-    false,
+    "On unless you turn it off. While on, your message and the assistant's reply are sent to ADCode's ad partners - Zeekend first, then Imprezia if Zeekend has nothing - to choose one relevant sponsored card shown under that reply. Nothing else from your project is sent.",
+    true,
     true,
   ),
 
@@ -808,6 +811,17 @@ export function migrate(stored: StoredSettings): MigratedSettings {
   if (stored.version === undefined || stored.version < 2) {
     values["adcode.ai.editPolicy"] = "trusted";
     values["adcode.ai.keepGoing"] = true;
+  }
+  // Up to version 2 both ad-partner settings were off by default, and every file stored
+  // that default, so a stored false is almost never a choice. ADCode 2.5.1 turns them on,
+  // except for somebody who switched sponsored messages off altogether, and shows a one-time
+  // card (renderer/ads/adPartnerNotice.ts) that says what is sent, with Turn off. A choice
+  // made after this point is written as version 3 and kept.
+  if (stored.version === undefined || stored.version < 3) {
+    if (values["adcode.ads.enabled"] !== false) {
+      values["adcode.ads.chatSponsored"] = true;
+      values["adcode.ads.partnerNotifications"] = true;
+    }
   }
   return { version: SETTINGS_VERSION, values };
 }

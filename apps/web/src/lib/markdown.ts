@@ -232,7 +232,11 @@ export function renderMarkdown(source: string): string {
     if (heading !== null) {
       flushAll();
       const level = (heading[1] as string).length;
-      out.push(`<h${level}>${inline(escapeHtml(heading[2] as string))}</h${level}>`);
+      // `## Title {#anchor}` gives the heading an id, so the editor can link to a section.
+      const anchored = /^(.*?)\s*\{#([a-z][a-z0-9-]{0,60})\}$/.exec(heading[2] as string);
+      const text = anchored === null ? (heading[2] as string) : (anchored[1] as string);
+      const id = anchored === null ? "" : ` id="${anchored[2] as string}"`;
+      out.push(`<h${level}${id}>${inline(escapeHtml(text))}</h${level}>`);
       continue;
     }
 

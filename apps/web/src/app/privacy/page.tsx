@@ -38,10 +38,10 @@ This explains what ADCode collects, what it does not, and why. It covers the ADC
 - ADCode's **advertising, earnings, and analytics services never receive file contents, file paths, or project names.**
 - AI features may send source text and prompts to the provider you select. ADCode explains and limits that separate path below.
 - Ads are targeted using a fixed list of **45 generic tags** describing the language or framework you have open.
-- **Sponsored cards under AI replies are off unless you turn them on.** If you do, your message and the assistant's reply under which the card appears go to our ad partners, Zeekend and then Imprezia, to choose that card. See below.
-- **Sponsored notifications from our ad partner are off unless you turn them on.** If you do, only the names of the languages and frameworks you have open go to Imprezia, to choose a notification when no ADCode advertiser has one. See below.
+- **Sponsored cards under AI replies are on unless you turn them off** (since ADCode 2.5.1, which tells you once when it turns them on). While on, your message and the assistant's reply under which the card appears go to our ad partners, Zeekend and then Imprezia, to choose that card. See below.
+- **Sponsored notifications from our ad partner are on unless you turn them off** (since ADCode 2.5.1). While on, only the names of the languages and frameworks you have open go to Imprezia, to choose a notification when no ADCode advertiser has one. See below.
 - You are identified by an **anonymous account created automatically**, with no email, name, or password, unless you choose to add one.
-- We do not sell personal data. There are no third-party advertising trackers in the editor or on this site, except inside an opt-in sponsored card under an AI reply or an opt-in partner notification, both described below.
+- We do not sell personal data. There are no third-party advertising trackers in the editor or on this site, except inside a sponsored card under an AI reply or a partner notification, both described below, and both off as soon as you turn them off.
 
 ## What the editor sends
 
@@ -51,9 +51,9 @@ A request contains three things: the tags for what you have open, whether your t
 
 When no direct campaign fills the card, ADCode's server may ask our ad partner Imprezia for one. Imprezia then receives the same generic tags and a daily one-way code that cannot be traced back to you - never your code, prompts, or account.
 
-### Sponsored cards under AI replies (only if you turn them on)
+### Sponsored cards under AI replies (on unless you turn them off) {#sponsored-cards}
 
-**Settings → Ads → Sponsored cards under AI replies** is off by default. Nothing in this section happens unless you turn it on, and turning it off stops it at once.
+**Settings → Ads → Sponsored cards under AI replies** is on by default since ADCode 2.5.1, which shows a one-time notice with a Turn off button when it turns it on. Turning it off stops everything in this section at once. If you switched sponsored messages off altogether, it stays off.
 
 When it is on, after the assistant answers in the desktop app, ADCode shows at most one sponsored card chosen for that exchange under the reply. It asks Zeekend first and, only if Zeekend has no card, Imprezia.
 
@@ -73,9 +73,9 @@ To choose its card, **Imprezia** receives:
 
 Nothing else from your project is sent: no other files, file paths, or project names. The card is a separate page from adcode.bluethenics.com, shown inside the editor but walled off from it, so neither partner nor anyone it works with can reach your files or the rest of the editor. Each partner's own code, and Imprezia's measurement partners, may load inside that card to count views and clicks. ADCode does not store the message or the reply for this.
 
-### Sponsored notifications from our ad partner (only if you turn them on)
+### Sponsored notifications from our ad partner (on unless you turn them off) {#partner-notifications}
 
-**Settings → Ads → Sponsored notifications from ADCode's ad partner** is off by default. Nothing in this section happens unless you turn it on, and turning it off stops it at once.
+**Settings → Ads → Sponsored notifications from ADCode's ad partner** is on by default since ADCode 2.5.1. Turning it off stops everything in this section at once. If you switched sponsored messages off altogether, it stays off.
 
 When it is on and no ADCode advertiser has a sponsored message for you at a moment one may be shown, the desktop app can show a notification chosen by Imprezia instead. It follows the same schedule, daily limit and quiet times as every other sponsored message. To choose it, Imprezia receives:
 
@@ -190,16 +190,16 @@ When ADCode asks you to verify your email before using free AI, ADCode sends a v
 
 ## Sharing
 
-We share personal data for advertising only if you turn on sponsored cards under AI replies or sponsored notifications from our ad partner. Then Zeekend and Imprezia receive what those sections list, to choose and measure those cards. Otherwise we share personal data with nobody for advertising purposes.
+We share personal data for advertising only through sponsored cards under AI replies and sponsored notifications from our ad partner, while those are on. Then Zeekend and Imprezia receive what those sections list, to choose and measure those cards. With both off, we share personal data with nobody for advertising purposes.
 
 Advertisers receive **aggregate** reporting: how many times their campaign was served, viewed, and clicked. They never receive your identifier, your tags, or anything that identifies you individually.
 
-Zeekend and Imprezia are our ad partners. Zeekend receives the exchange described above only if you turn on sponsored cards under AI replies. Imprezia receives generic tags when it fills a sponsored card, the exchange described above only if you turn on sponsored cards under AI replies, and your open languages and frameworks only if you turn on its sponsored notifications. We use Google Cloud and Firebase to run the service, Dodo Payments to take payment from advertisers, and Wise to send withdrawals. Each receives only what it needs to do its part — Wise receives your payout details and the amount, and nothing about how you earned it.
+Zeekend and Imprezia are our ad partners. Zeekend receives the exchange described above only while sponsored cards under AI replies are on. Imprezia receives generic tags when it fills a sponsored card, the exchange described above only while sponsored cards under AI replies are on, and your open languages and frameworks only while its sponsored notifications are on. We use Google Cloud and Firebase to run the service, Dodo Payments to take payment from advertisers, and Wise to send withdrawals. Each receives only what it needs to do its part — Wise receives your payout details and the amount, and nothing about how you earned it.
 
 ## Your choices
 
 - **Turn ads off.** Settings has a cadence control with an off position. The editor is otherwise identical, with no reduced features and no prompts to turn it back on.
-- **Keep your AI conversations out of ads.** Sponsored cards under AI replies are off by default. If you turned them on, turn them off in Settings → Ads at any time.
+- **Keep your AI conversations out of ads.** Turn off Sponsored cards under AI replies in Settings → Ads, or press Turn off on the notice ADCode shows once. It stops at once.
 - **Ask for your data or its deletion.** Write to adcode.support@gmail.com. Deleting your account removes your identifier and your ledger. Records we must keep for accounting are retained where the law requires.
 
 ## Retention

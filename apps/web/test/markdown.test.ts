@@ -139,3 +139,11 @@ describe("quotes and the old contract", () => {
     expect(renderMarkdown("<img src=x onerror=alert(1)>")).not.toContain("<img");
   });
 });
+
+describe("heading anchors", () => {
+  it("gives a heading an id from a trailing {#anchor}, and leaves other headings alone", () => {
+    expect(renderMarkdown("### Sponsored cards {#sponsored-cards}")).toBe('<h3 id="sponsored-cards">Sponsored cards</h3>');
+    expect(renderMarkdown("## Plain")).toBe("<h2>Plain</h2>");
+    expect(renderMarkdown('## Bad {#"><script>}')).not.toContain("<script>");
+  });
+});

@@ -107,3 +107,23 @@ describe("the turn", () => {
     expect(sponsoredMessage(base)).not.toHaveProperty("turn");
   });
 });
+
+describe("a card arriving under the last reply", () => {
+  it("is scrolled into view while the chat is pinned to the bottom, since partners count only cards on screen", async () => {
+    const { followSponsoredCard } = await import("../src/renderer/ai/sponsoredReply.ts");
+    const chat = { scrollTop: 1_200, scrollHeight: 1_352 };
+    let refreshed = 0;
+    followSponsoredCard(chat, () => true, () => { refreshed += 1; })({ height: 152 });
+    expect(chat.scrollTop).toBe(1_352);
+    expect(refreshed).toBe(1);
+  });
+
+  it("leaves the chat where it is when the person has scrolled up, or nothing arrived", async () => {
+    const { followSponsoredCard } = await import("../src/renderer/ai/sponsoredReply.ts");
+    const chat = { scrollTop: 300, scrollHeight: 1_352 };
+    followSponsoredCard(chat, () => false)({ height: 152 });
+    expect(chat.scrollTop).toBe(300);
+    followSponsoredCard(chat, () => true)({ height: 0 });
+    expect(chat.scrollTop).toBe(300);
+  });
+});
