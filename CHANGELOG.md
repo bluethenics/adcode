@@ -3,6 +3,16 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
+## 2.5.0 — 2026-11-05
+
+- **Plugins, add-ons and shared projects.** Plugins in the Vibe sidebar browses eight plugins made by ADCode and a community directory; each lists everything it adds before install, and switching it off restores every setting it changed. Add-ons put small sealed panels (usage meter, quick prompts, Git at a glance, focus timer) in the chat, sidebar or status bar with no internet or file access. The Studio writes, tries and publishes plugins, with the assistant if you like; plugins have their own settings and installable versions. Artifacts shares a project for others to remix and send improvements you review line by line.
+- **Three plans.** Builder $9 (300 credits a day), Pro $29 (975) and Max $59 (2,000 fair-use credits a day on every hosted model, premium included); Free gets 140. A one-time $3 Starter top-up. Max never spends purchased credits, and its checkout no longer fails.
+- **Sponsored cards matched to the conversation**, off unless you turn them on: one card under an AI reply, from Zeekend first and Imprezia if Zeekend has none. **Sponsored notifications from ADCode's ad partner**, also off by default, let Imprezia fill an empty sponsored message within your schedule and daily limit. Partner cards are shown exactly as the partner's SDK draws them.
+- **Feedback you can see.** Settings rows say Saving…, Saved or Not saved, so a failed change no longer looks like one that worked.
+- **CLI.** Typo suggestions, piped input, clean output when redirected, and Tab completion.
+- **Help improve ADCode** (Settings > Privacy) sends daily feature-use counts only: names and numbers, never code, prompts, files or your account. Switching it off deletes anything not yet sent.
+- **Website and servers**, already live for every version: an advertiser page at /advertisers with live network figures, a Model providers page where providers apply, one bill per ad serve and outcome, advertiser and wallet top-ups charged in USD, and an update link for editors too old for paid models. Admin > Ad networks takes Zeekend's and Imprezia's live keys in one step each.
+
 ## 2.4.13 — 2026-11-03
 
 - **Fork chats.** One conversation can split a job into visible fork chats that work at the same time, already know the conversation, and message each other and the main chat. The assistant forks independent multi-step work by itself and says which forks it started; turn this off in Settings > AI > Fork chats on its own. Fork with the Fork button, a conversation's menu, or AI: Fork This Conversation. History shows each family as a tree. A wait for forks returns after ten minutes with their progress, so a stuck fork never holds the main chat.
