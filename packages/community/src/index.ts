@@ -8,4 +8,6 @@
 export * from "./plugin.ts";
 export * from "./artifact.ts";
 export * from "./ranking.ts";
+export * from "./addons.ts";
+export * from "./starters.ts";
 export type * from "./types.ts";

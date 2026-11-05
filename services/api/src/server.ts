@@ -118,6 +118,8 @@ import { createMemoryStore } from "./memoryStore.ts";
 import { isSafeAssetKey } from "./assets.ts";
 import type { Clock, IdGen, Store } from "./store.ts";
 import { isAutomatedAgent, parseWebsiteEvents, summarizeWebsiteEvents, type WebsiteAnalyticsStore } from "./websiteAnalytics.ts";
+import { parseAppUsage, summarizeAppUsage, utcDay, type AppUsageStore } from "./appUsage.ts";
+import { isApplicationStatus, parseProviderApplication, type ProviderApplicationStore } from "./providerApplications.ts";
 import { growthToWire } from "./growth.ts";
 import { parseModelCatalog, readModelCatalog, saveModelCatalog } from "./modelCatalog.ts";
 import { parseModelOutcomes, readModelHealth, recordModelOutcomes } from "./modelOutcomes.ts";
@@ -275,6 +277,10 @@ export interface ApiOptions {
   adNetworks?: AdNetworkRuntime;
   tagflow?: { modelMetadata?: boolean; priority?: import("./requestPriority.ts").RequestPriority; apiKey?: string; fetchImpl?: typeof fetch; country?: (request: Request) => string | undefined; workerSecrets?: WorkerSecrets; rateLimitWaitsMs?: readonly number[]; fallback?: boolean; identity?: AccountIdentity; emailProof?: import("./accountEmailProof.ts").AccountEmailProof; timeouts?: Partial<{ firstMs: number; idleMs: number; maxMs: number }> };
   websiteAnalytics?: WebsiteAnalyticsStore;
+  /** Desktop feature-use totals (appUsage.ts). Absent: the editor's reports are accepted and dropped. */
+  appUsage?: AppUsageStore;
+  /** Model providers applying to be offered in ADCode (providerApplications.ts). */
+  providerApplications?: ProviderApplicationStore;
   mailing?: MailingStore;
   mailingWebhookSecret?: () => string | undefined;
   /** Renders and sends an administrator's reply to a report (Resend, in production). */
@@ -810,6 +816,23 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       return;
     }
 
+    /* ── Model provider applications: public, one form, no account ───── */
+    if (path === "/v1/provider-applications" && req.method === "POST") {
+      if (req.headers.origin !== siteOrigin) { send(res, 403, { error: "origin" }, cors); return; }
+      if (!options.providerApplications) { send(res, 503, { error: "Applications are closed for a moment. Email us instead." }, cors); return; }
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const parsed = parseProviderApplication(raw);
+      // A filled honeypot is answered as accepted, so the script has no reason to try again.
+      if (!parsed.ok && parsed.bot) { send(res, 200, { ok: true }, cors); return; }
+      if (!parsed.ok) { send(res, 400, { error: parsed.error }, cors); return; }
+      const minute = Math.floor(clock.now() / 60000) * 60000;
+      if (await store.bumpRequestCount("provider-applications-global", minute) > 20) { send(res, 429, { error: "Too many applications right now. Try again in a minute." }, { ...cors, "retry-after": "60" }); return; }
+      await options.providerApplications.add({ ...parsed.value, id: crypto.randomUUID(), status: "new", note: "", receivedAt: clock.now() });
+      send(res, 200, { ok: true }, cors);
+      return;
+    }
+
     if (path === "/v1/website-events" && req.method === "POST") {
       // Public collection, but browser submissions must come from the configured site.
       if (req.headers.origin !== siteOrigin) {
@@ -969,6 +992,30 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       if (result.ok) send(res, 200, result.value, cors);
       else send(res, PAYOUT_STATUS[result.error], { error: result.error }, cors);
     };
+
+    if (path === "/v1/admin/provider-applications" && req.method === "GET") {
+      if (!options.providerApplications) { send(res, 503, { error: "applications-unavailable" }, cors); return; }
+      send(res, 200, { applications: await options.providerApplications.list(200) }, { ...cors, "cache-control": "no-store" });
+      return;
+    }
+    if (path === "/v1/admin/provider-applications/status" && req.method === "POST") {
+      if (!options.providerApplications) { send(res, 503, { error: "applications-unavailable" }, cors); return; }
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const body = raw as { id?: unknown; status?: unknown; note?: unknown };
+      if (typeof body.id !== "string" || !/^[0-9a-f-]{36}$/.test(body.id) || !isApplicationStatus(body.status)) { send(res, 400, { error: "malformed" }, cors); return; }
+      const note = typeof body.note === "string" ? body.note.slice(0, 1000) : "";
+      send(res, (await options.providerApplications.setStatus(body.id, body.status, note)) ? 200 : 404, { ok: true }, cors);
+      return;
+    }
+
+    if (path === "/v1/admin/app-usage" && req.method === "GET") {
+      if (!options.appUsage) { send(res, 503, { error: "usage-unavailable" }, cors); return; }
+      const days = Math.min(90, daysFrom(url, 30));
+      const endDay = utcDay(clock.now() + 86_400_000), startDay = utcDay(clock.now() - (days - 1) * 86_400_000);
+      send(res, 200, summarizeAppUsage(await options.appUsage.read(startDay, endDay), startDay, endDay), { ...cors, "cache-control": "no-store" });
+      return;
+    }
 
     if (path === "/v1/admin/website-analytics" && req.method === "GET") {
       if (!options.websiteAnalytics) { send(res, 503, { error: "analytics-unavailable" }, cors); return; }
@@ -1848,6 +1895,19 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
         return;
       }
       await recordModelOutcomes({ store, clock }, items);
+      send(res, 200, { ok: true }, cors);
+      return;
+    }
+
+    /* ── Desktop feature use ("Help improve ADCode") ─────────────────── */
+    if (path === "/v1/app-usage" && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const report = parseAppUsage(raw, clock.now());
+      if (report === null) { send(res, 400, { error: "malformed usage" }, cors); return; }
+      // Authenticated so strangers cannot flood it; the account is never stored with the counts.
+      if (await store.bumpRequestCount(`app-usage:${auth.uid}`, Date.parse(`${report.day}T00:00:00Z`)) > 3) { send(res, 429, { error: "rate-limited" }, cors); return; }
+      if (options.appUsage) await options.appUsage.add(report);
       send(res, 200, { ok: true }, cors);
       return;
     }

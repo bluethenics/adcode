@@ -3,7 +3,7 @@
  * the Studio's templates, and the words sent to the assistant when it builds a plugin.
  */
 import {
-  PLUGIN_CATEGORIES, PLUGIN_FILE, THEME_TOKENS, draftFromFeature, formatManifest, pluginCommandId, pluginMaySet,
+  ADDON_DATA, ADDON_SLOTS, PLUGIN_CATEGORIES, PLUGIN_FILE, THEME_TOKENS, fillOptions, optionDisplay, draftFromFeature, formatManifest, pluginCommandId, pluginMaySet,
   type PluginAction, type PluginManifest, type RemixableFeature,
 } from "@adcode/community";
 import type { FeatureRecord } from "@adcode/help";
@@ -21,8 +21,8 @@ export interface PluginCommandPlan {
 
 /** The palette commands enabled plugins add: one per AI action and one per macro. */
 export function pluginCommands(installed: readonly InstalledPluginView[]): PluginCommandPlan[] {
-  return installed.filter((one) => one.enabled).flatMap(({ manifest }) => [
-    ...manifest.contributes.actions.map((action): PluginCommandPlan => ({ id: pluginCommandId(manifest.id, "action", action.id), title: `${manifest.name}: ${action.title}`, pluginId: manifest.id, kind: "action", action })),
+  return installed.filter((one) => one.enabled).flatMap(({ manifest, options }) => [
+    ...manifest.contributes.actions.map((action): PluginCommandPlan => ({ id: pluginCommandId(manifest.id, "action", action.id), title: `${manifest.name}: ${action.title}`, pluginId: manifest.id, kind: "action", action: { ...action, prompt: fillOptions(action.prompt, optionDisplay(manifest.options, options)) } })),
     ...manifest.contributes.macros.map((macro): PluginCommandPlan => ({ id: pluginCommandId(manifest.id, "macro", macro.id), title: `${manifest.name}: ${macro.title}`, pluginId: manifest.id, kind: "macro", commands: macro.commands })),
   ]);
 }
@@ -45,12 +45,13 @@ export function actionPrompt(action: PluginAction): string {
 
 /** Slash commands of enabled plugins, for the composer's menu, flagged so built-ins can be overridden. */
 export function pluginSlashCommands(installed: readonly InstalledPluginView[]): (SlashCommand & { readonly overrides: boolean })[] {
-  return installed.filter((one) => one.enabled).flatMap((one) => one.manifest.contributes.slashCommands.map((command) => ({ id: command.id, hint: `${command.hint} · ${one.manifest.name}`, kind: command.kind, prompt: command.prompt, overrides: command.overrides })));
+  return installed.filter((one) => one.enabled).flatMap((one) => one.manifest.contributes.slashCommands.map((command) => ({ id: command.id, hint: `${command.hint} · ${one.manifest.name}`, kind: command.kind, prompt: fillOptions(command.prompt, optionDisplay(one.manifest.options, one.options)), overrides: command.overrides })));
 }
 
-export type ContributionKind = "action" | "slash" | "skill" | "macro" | "theme" | "setting";
+export type ContributionKind = "addon" | "action" | "slash" | "skill" | "macro" | "theme" | "setting";
 
 export const CONTRIBUTION_LABELS: Readonly<Record<ContributionKind, string>> = {
+  addon: "Add-on (chat, sidebar or status bar)",
   action: "AI action",
   slash: "Slash command",
   skill: "Skill",
@@ -78,6 +79,17 @@ export function addContribution(text: string, kind: ContributionKind): string | 
     return name;
   };
   switch (kind) {
+    case "addon":
+      contributes["addons"] = [...list("addons"), {
+        id: unique("addons", "panel"),
+        title: "My add-on",
+        slot: "statusbar",
+        data: ["editor"],
+        commands: [],
+        prompt: false,
+        html: "<span id=\"out\">No file open</span>\n<script>\nadcode.on(\"data\", ({ editor }) => {\n  document.getElementById(\"out\").textContent = editor && editor.file ? editor.file + \" · line \" + editor.line : \"No file open\";\n});\n</script>",
+      }];
+      break;
     case "action":
       contributes["actions"] = [...list("actions"), { id: unique("actions", "my-action"), title: "Do something useful", uses: "selection", prompt: "Describe exactly what the assistant should do with the selected code, and what a good result looks like." }];
       break;
@@ -118,6 +130,7 @@ export function aiBuildPrompt(idea: string, builtInSlash: readonly string[]): st
     "  - macros: [{ id, title, commands: [ADCode command ids such as file.saveAll, workspace.changes, view.togglePanel] }].",
     `  - theme: { name, tokens: { ${THEME_TOKENS.slice(0, 6).join(", ")}, ...: "#hex" } }.`,
     "  - settings: { settingId: value } - presets for editor, appearance, formatting, navigation and git switches only.",
+    `  - addons: [{ id, title (3–40), slot: ${ADDON_SLOTS.map((one) => `"${one.id}"`).join(" | ")}, data: [${ADDON_DATA.map((one) => `"${one.id}"`).join(", ")}], commands: [ADCode command ids its buttons may run], prompt: true if it may put text in the chat box, html }] - a small panel of your own HTML, CSS and inline <script>. It runs sealed with no network: use only inline styles and scripts. Its script gets window.adcode: adcode.on("data", fn) receives the declared data (usage {label, percent, remaining, limit, resetsIn, requestsToday}, git {isRepo, branch, changed, ahead, behind}, editor {file, language, line}, problems {errors, warnings}, project {name}, model {provider, model}, earnings {balance}); adcode.on("init", fn) runs once saved state is loaded; adcode.run(commandId); adcode.prompt(text); adcode.store.get(key) / adcode.store.set(key, value). Style it with the app's CSS variables (--text-primary, --text-secondary, --accent, --border-hairline, --bg-hover). A status bar add-on is one 22px-high line.`,
     "Write prompts the way a senior engineer would ask: the outcome, how to verify it, and what not to do.",
   ].join("\n");
 }
@@ -156,6 +169,13 @@ export function installSummary(manifest: PluginManifest): string[] {
   for (const skill of skills) lines.push(`Assistant skill "${skill.name}" - ${skill.description}`);
   for (const macro of macros) lines.push(`Macro "${macro.title}" runs: ${macro.commands.join(" → ")}`);
   if (theme !== null) lines.push(`Recolours ADCode with the "${theme.name}" theme`);
+  for (const addon of manifest.contributes.addons) {
+    const where = ADDON_SLOTS.find((slot) => slot.id === addon.slot)?.label ?? addon.slot;
+    const sees = addon.data.map((key) => ADDON_DATA.find((one) => one.id === key)?.label ?? key);
+    const can = [...addon.commands.map((command) => `run ${command}`), ...(addon.prompt ? ["put a prompt in the chat box"] : [])];
+    lines.push(`Add-on "${addon.title}" in ${where}${sees.length > 0 ? ` · sees ${sees.join(", ")}` : " · sees nothing from the app"}${can.length > 0 ? ` · can ${can.join(", ")}` : ""}`);
+  }
+  if (manifest.options.length > 0) lines.push(`${manifest.options.length === 1 ? "A setting" : `${manifest.options.length} settings`} of its own you can change on the Installed tab: ${manifest.options.map((option) => option.label).join(", ")}`);
   for (const [id, value] of Object.entries(settings)) lines.push(`Sets ${id.replace(/^adcode\./, "")} to ${String(value)} (put back when you uninstall)`);
   return lines;
 }

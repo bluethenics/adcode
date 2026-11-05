@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import PricingPage, { metadata } from "../src/app/pricing/page";
 import { PricingContent } from "../src/app/pricing/PricingContent";
 import { FreePlan } from "../src/components/FreePlan";
-import { selectedPricingPlan } from "../src/app/ai-tokens/AiTokens";
+import { checkoutIntent, selectedPricingPlan } from "../src/app/ai-tokens/AiTokens";
 import { PlanCards } from "../src/app/ai-tokens/Plans";
 import { pricingOffer } from "../src/lib/pricingOffer";
 import { FREE_WEEKLY_TOKENS, PLANS, PLANS_ON_SALE, STANDARD_PRICING } from "../src/lib/pricing";
@@ -27,7 +27,7 @@ describe("public pricing and existing checkout", () => {
     expect(html).toContain("Purchased credits never expire");
     expect(html).toContain("The standard catalogue is shown");
     expect(html).not.toContain("Sign in to see");
-    for (const plan of PLANS_ON_SALE) expect(html).toContain(`href="/ai-tokens?plan=${plan.id}#plans"`);
+    for (const plan of PLANS_ON_SALE) expect(html).toContain(`href="/ai-tokens?plan=${plan.id}&amp;go=1#plans"`);
     expect(html).toContain("first subscription becomes active while your Pro plan is active");
     expect(html).toContain("100 extra credits");
     expect(html).toContain("Each friend can earn the reward once");
@@ -52,6 +52,14 @@ describe("public pricing and existing checkout", () => {
     }
     vi.mocked(readApi).mockResolvedValue(new Response(null, { status: 503 }));
     expect(await pricingOffer()).toBe(STANDARD_PRICING);
+  });
+
+  it("opens checkout straight from a Pricing click, and only then", () => {
+    expect(checkoutIntent("?plan=pro&go=1")).toEqual({ plan: "pro", pack: null });
+    expect(checkoutIntent("?pack=starter&go=1")).toEqual({ plan: null, pack: "starter" });
+    expect(checkoutIntent("?plan=pro")).toBeNull();
+    expect(checkoutIntent("?plan=invalid&go=1")).toBeNull();
+    expect(checkoutIntent("?plan=pro&go=1&order=aip_123")).toBeNull();
   });
 
   it("carries only a recognized plan to review and does not confuse it with a paid checkout return", () => {

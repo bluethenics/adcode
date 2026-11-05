@@ -17,9 +17,10 @@ import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { app, BrowserWindow, ipcMain } from "electron";
 import {
-  ARTIFACT_LIMITS, PLUGIN_FILE, REMIX_BASE, REMIX_RECORD, applyChanges, artifactFileVerdict, artifactFolderAllowed,
-  changeStats, checkSnapshot, diffSnapshots, isSafeArtifactPath, parsePluginManifest, parseRemixRecord,
-  remixFolderName, skillMarkdown, type ArtifactFile, type ArtifactSnapshot, type PluginManifest, type RemixRecord,
+  ARTIFACT_LIMITS, PLUGIN_FILE, REMIX_BASE, REMIX_RECORD, STARTER_PLUGINS, applyChanges, artifactFileVerdict, artifactFolderAllowed,
+  changeStats, checkSnapshot, compareVersions, diffSnapshots, findSecrets, gitignoreMatcher, isSafeArtifactPath, notAProjectReason,
+  fillOptions, optionDisplay, optionValues, parsePluginManifest, parseRemixRecord, remixFolderName, skillMarkdown, type ArtifactFile, type ArtifactSnapshot, type PluginAddon,
+  type PluginManifest, type RemixRecord,
 } from "@adcode/community";
 import { CHANNELS } from "../shared/api.ts";
 import type { ArtifactPreview, InstalledPluginView, ProjectLinkView, PublishArtifactInput } from "../shared/community.ts";
@@ -71,11 +72,15 @@ async function request<T>(path: string, body?: unknown, auth: "optional" | "requ
 
 interface PluginState {
   enabled: boolean;
-  source: "directory" | "local";
+  source: "directory" | "local" | "starter";
   installedAt: number;
   update: string | null;
   /** Setting values this plugin replaced, keyed by setting id. */
   previous: Record<string, boolean | string>;
+  /** The plugin's own options as the person set them; read through optionValues. */
+  options: Record<string, unknown>;
+  /** Kept at this version: no update is offered until the person lets it go. */
+  pinned: boolean;
 }
 
 const pluginsRoot = (): string => process.env["ADCODE_PLUGINS_HOME"] ?? join(homedir(), ".adcode", "plugins");
@@ -88,7 +93,7 @@ async function readInstalled(): Promise<{ manifest: PluginManifest; state: Plugi
     const folder = join(pluginsRoot(), entry.name);
     try {
       const manifest = parsePluginManifest(await readFile(join(folder, PLUGIN_FILE), "utf8"), BUILT_IN_SLASH);
-      let state: PluginState = { enabled: true, source: "directory", installedAt: 0, update: null, previous: {} };
+      let state: PluginState = { enabled: true, source: "directory", installedAt: 0, update: null, previous: {}, options: {}, pinned: false };
       try { state = { ...state, ...JSON.parse(await readFile(join(folder, ".state.json"), "utf8")) as Partial<PluginState> }; } catch { /* A missing state file means on, with nothing to restore. */ }
       found.push({ manifest, state });
     } catch {
@@ -99,7 +104,15 @@ async function readInstalled(): Promise<{ manifest: PluginManifest; state: Plugi
 }
 
 const view = ({ manifest, state }: { manifest: PluginManifest; state: PluginState }): InstalledPluginView =>
-  ({ manifest, enabled: state.enabled, source: state.source, installedAt: state.installedAt, update: state.update });
+  ({ manifest, enabled: state.enabled, source: state.source, installedAt: state.installedAt, update: state.pinned ? null : state.update, options: optionValues(manifest.options, state.options), pinned: state.pinned });
+
+/**
+ * Progress for anything that downloads or writes: an install, a remix, a pull. The window
+ * draws it; `total` 0 means the length is not known yet (an indeterminate bar).
+ */
+function progress(key: string, phase: "download" | "install" | "write" | "done" | "failed", done = 0, total = 0): void {
+  for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send(CHANNELS.communityProgress, { key, phase, done, total });
+}
 
 async function saveState(id: string, state: PluginState): Promise<void> {
   const target = join(folderFor(id), ".state.json");
@@ -125,7 +138,7 @@ async function restoreSettings(manifest: PluginManifest, state: PluginState): Pr
   state.previous = {};
 }
 
-async function writePlugin(manifest: PluginManifest, source: PluginState["source"]): Promise<void> {
+async function writePlugin(manifest: PluginManifest, source: PluginState["source"], pinned = false, key = `install:${manifest.id}`): Promise<void> {
   const folder = folderFor(manifest.id);
   const existing = (await readInstalled()).find((one) => one.manifest.id === manifest.id);
   if (existing?.state.enabled) await restoreSettings(existing.manifest, existing.state);
@@ -133,19 +146,36 @@ async function writePlugin(manifest: PluginManifest, source: PluginState["source
   await rm(folder, { recursive: true, force: true });
   await mkdir(folder, { recursive: true });
   await writeFile(join(folder, PLUGIN_FILE), JSON.stringify(manifest, null, 2));
-  for (const skill of manifest.contributes.skills) {
+  const total = manifest.contributes.skills.length + 2;
+  progress(key, "install", 1, total);
+  for (const [index, skill] of manifest.contributes.skills.entries()) {
     await mkdir(join(folder, "skills", skill.name), { recursive: true });
     await writeFile(join(folder, "skills", skill.name, "SKILL.md"), skillMarkdown(skill, manifest.name));
+    progress(key, "install", index + 2, total);
   }
-  const state: PluginState = { enabled: true, source, installedAt: existing?.state.installedAt || Date.now(), update: null, previous: existing?.state.previous ?? {} };
+  // Options carry over an update or a version change; values a new version no longer has fall away when read.
+  const state: PluginState = { enabled: true, source, installedAt: existing?.state.installedAt || Date.now(), update: null, previous: existing?.state.previous ?? {}, options: existing?.state.options ?? {}, pinned };
   await applySettings(manifest, state);
   await saveState(manifest.id, state);
+  progress(key, "done", total, total);
+}
+
+/** The plugins ADCode ships, by id. Valid by construction: the package's tests parse every one. */
+const STARTERS = new Map(STARTER_PLUGINS.map((starter) => { const manifest = parsePluginManifest(starter, BUILT_IN_SLASH); return [manifest.id, manifest] as const; }));
+
+/** An enabled plugin's add-on, for the add-on protocol. Read fresh: turning a plugin off stops serving it. */
+export async function installedAddon(pluginId: string, addonId: string): Promise<PluginAddon | null> {
+  const found = (await readInstalled()).find((one) => one.manifest.id === pluginId && one.state.enabled);
+  return found?.manifest.contributes.addons.find((addon) => addon.id === addonId) ?? null;
 }
 
 /** Recompute the composer's plugin commands and tell every window what is installed. */
 async function publishInstalled(): Promise<InstalledPluginView[]> {
   const installed = await readInstalled();
-  setPluginSlashCommands(installed.filter((one) => one.state.enabled).flatMap((one) => one.manifest.contributes.slashCommands));
+  setPluginSlashCommands(installed.filter((one) => one.state.enabled).flatMap((one) => {
+    const display = optionDisplay(one.manifest.options, optionValues(one.manifest.options, one.state.options));
+    return one.manifest.contributes.slashCommands.map((command) => ({ ...command, prompt: fillOptions(command.prompt, display) }));
+  }));
   const views = installed.map(view);
   for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send(CHANNELS.communityPluginsChanged, views);
   return views;
@@ -173,25 +203,37 @@ function workspaceRoot(): string {
   return root;
 }
 
-const REASONS: Record<string, string> = { folder: "generated or installed folders", private: "private files like .env and keys", binary: "images, fonts and other binary files", large: "files over 200 KB", lockfile: "lockfiles (a remix reinstalls)", path: "unusual file names", unreadable: "files that are not text" };
+const REASONS: Record<string, string> = { ignored: "files your .gitignore leaves out", hidden: "hidden folders like .local and .config", excluded: "files you chose to leave out", folder: "generated or installed folders", private: "private files like .env and keys", binary: "images, fonts and other binary files", large: "files over 200 KB", lockfile: "lockfiles (a remix reinstalls)", path: "unusual file names", unreadable: "files that are not text" };
 
-/** Every text file of a project that may be shared, plus counts of what was left out and why. */
-async function collectFiles(root: string): Promise<{ files: ArtifactFile[]; skipped: Map<string, number> }> {
+/**
+ * Every text file of a project that may be shared, plus counts of what was left out and why.
+ *
+ * Follows the project's .gitignore, skips hidden folders, and stops one file past the limit:
+ * `truncated` then means "more than the limit", never a made-up exact count.
+ */
+async function collectFiles(root: string, exclude: ReadonlySet<string> = new Set()): Promise<{ files: ArtifactFile[]; skipped: Map<string, number>; truncated: boolean }> {
   const files: ArtifactFile[] = [];
   const skipped = new Map<string, number>();
   const skip = (reason: string): void => { skipped.set(reason, (skipped.get(reason) ?? 0) + 1); };
+  const ignored = gitignoreMatcher(await readFile(join(root, ".gitignore"), "utf8").catch(() => ""));
   let visited = 0;
+  let truncated = false;
   const walk = async (folder: string): Promise<void> => {
     for (const entry of await readdir(folder, { withFileTypes: true }).catch(() => [])) {
-      if (++visited > 20_000 || files.length > ARTIFACT_LIMITS.files) return;
+      if (++visited > 20_000) { truncated = true; return; }
+      if (files.length > ARTIFACT_LIMITS.files) { truncated = true; return; }
       if (entry.isSymbolicLink()) continue;
       const absolute = join(folder, entry.name);
       const path = relative(root, absolute).split(sep).join("/");
       if (entry.isDirectory()) {
-        if (artifactFolderAllowed(entry.name)) await walk(absolute); else skip("folder");
+        if (ignored(path, true)) skip("ignored");
+        else if (!artifactFolderAllowed(entry.name)) skip(entry.name.startsWith(".") ? "hidden" : "folder");
+        else await walk(absolute);
         continue;
       }
       if (!entry.isFile()) continue;
+      if (ignored(path, false)) { skip("ignored"); continue; }
+      if (exclude.has(path)) { skip("excluded"); continue; }
       const size = (await stat(absolute).catch(() => null))?.size ?? Number.POSITIVE_INFINITY;
       const verdict = artifactFileVerdict(path, size);
       if (!verdict.include) { skip(verdict.reason); continue; }
@@ -201,7 +243,21 @@ async function collectFiles(root: string): Promise<{ files: ArtifactFile[]; skip
     }
   };
   await walk(root);
-  return { files, skipped };
+  return { files: files.slice(0, ARTIFACT_LIMITS.files + 1), skipped, truncated };
+}
+
+/** Why the open folder cannot be shared at all, read from its own top-level entries. */
+async function notShareable(root: string): Promise<string | null> {
+  const children = await readdir(root).catch(() => [] as string[]);
+  return notAProjectReason(root, homedir(), children);
+}
+
+/** A snapshot's problems with the file count said honestly when the walk stopped early. */
+function shareProblems(files: readonly ArtifactFile[], truncated: boolean): { check: ReturnType<typeof checkSnapshot>; problems: string[] } {
+  const check = checkSnapshot(files);
+  const problems = check.problems.filter((problem) => !(truncated && /can hold \d+ files/.test(problem)) && !/looks like a/.test(problem));
+  if (truncated) problems.unshift(`This folder has more than ${ARTIFACT_LIMITS.files} files to share. Add the big or generated folders to .gitignore, or open a smaller project.`);
+  return { check, problems };
 }
 
 async function readLink(root: string): Promise<{ link: RemixRecord; base: ArtifactFile[] } | null> {
@@ -222,9 +278,10 @@ async function writeLink(root: string, link: RemixRecord, files: readonly Artifa
 }
 
 /** Write artifact files under `root`, refusing anything that would land outside it. */
-async function writeFiles(root: string, files: readonly ArtifactFile[]): Promise<void> {
+async function writeFiles(root: string, files: readonly ArtifactFile[], onWritten?: (done: number) => void): Promise<void> {
   const base = resolve(root);
-  for (const file of files) {
+  for (const [index, file] of files.entries()) {
+    if (onWritten !== undefined && index % 5 === 0) onWritten(index);
     if (!isSafeArtifactPath(file.path)) throw new Error(`Refused an unsafe path: ${file.path}`);
     const target = resolve(base, ...file.path.split("/"));
     if (!target.startsWith(base + sep)) throw new Error(`Refused an unsafe path: ${file.path}`);
@@ -233,10 +290,13 @@ async function writeFiles(root: string, files: readonly ArtifactFile[]): Promise
   }
 }
 
-async function previewArtifact(): Promise<ArtifactPreview> {
+async function previewArtifact(exclude: readonly string[] = []): Promise<ArtifactPreview> {
   const root = workspaceRoot();
-  const { files, skipped } = await collectFiles(root);
-  const check = checkSnapshot(files);
+  const refusal = await notShareable(root);
+  if (refusal !== null) return { root, name: basename(root), files: 0, bytes: 0, skipped: [], problems: [refusal], blocked: "not-a-project", secrets: [], link: null, readme: null };
+  const { files, skipped, truncated } = await collectFiles(root, new Set(exclude));
+  const { check, problems } = shareProblems(files, truncated);
+  const secrets = findSecrets(check.files);
   const linked = await readLink(root);
   return {
     root,
@@ -244,7 +304,9 @@ async function previewArtifact(): Promise<ArtifactPreview> {
     files: check.files.length,
     bytes: check.bytes,
     skipped: [...skipped].map(([reason, count]) => ({ reason: REASONS[reason] ?? reason, count })),
-    problems: check.problems,
+    problems,
+    blocked: problems.length > 0 ? "too-large" : null,
+    secrets: [...new Map(secrets.map((finding) => [finding.path, { path: finding.path, line: finding.line, kind: finding.kind }])).values()],
     link: linked?.link ?? null,
     readme: check.files.find((file) => /^readme(?:\.md|\.txt)?$/i.test(file.path))?.content.slice(0, 2000) ?? null,
   };
@@ -252,9 +314,13 @@ async function previewArtifact(): Promise<ArtifactPreview> {
 
 async function publishArtifact(input: PublishArtifactInput) {
   const root = workspaceRoot();
-  const { files } = await collectFiles(root);
-  const check = checkSnapshot(files);
-  if (check.problems.length > 0) throw new Error(check.problems.slice(0, 4).join(" "));
+  const refusal = await notShareable(root);
+  if (refusal !== null) throw new Error(refusal);
+  const { files, truncated } = await collectFiles(root, new Set(input.exclude));
+  const { check, problems } = shareProblems(files, truncated);
+  const secrets = findSecrets(check.files);
+  if (secrets.length > 0) throw new Error(`${secrets[0]!.path} looks like it holds a ${secrets[0]!.kind}. Leave it out, or move the value into .env, before sharing.`);
+  if (problems.length > 0) throw new Error(problems.slice(0, 3).join(" "));
   const linked = await readLink(root);
   // A remix becomes its own artifact (crediting the original); an owner's folder publishes a new version.
   const ownVersion = linked?.link.role === "owner" ? linked.link.artifactId : undefined;
@@ -274,7 +340,9 @@ async function publishArtifact(input: PublishArtifactInput) {
 }
 
 async function remix(id: string): Promise<string> {
-  const snapshot = await request<ArtifactSnapshot>(`/community/artifacts/${id}/remix`, {});
+  const key = `remix:${id}`;
+  progress(key, "download");
+  const snapshot = await request<ArtifactSnapshot>(`/community/artifacts/${id}/remix`, {}).catch((error: unknown) => { progress(key, "failed"); throw error; });
   const check = checkSnapshot(snapshot.files);
   if (check.files.length === 0) throw new Error("That artifact has no files to remix.");
   const home = projectsHome();
@@ -285,8 +353,9 @@ async function remix(id: string): Promise<string> {
   for (let n = 2; taken.has(folder); n++) folder = `${wanted} ${n}`;
   const root = join(home, folder);
   await mkdir(root, { recursive: false });
-  await writeFiles(root, check.files);
+  await writeFiles(root, check.files, (done) => progress(key, "write", done, check.files.length));
   await writeLink(root, { artifactId: snapshot.id, title: snapshot.title, version: snapshot.version, remixedAt: Date.now(), role: "remix" }, check.files);
+  progress(key, "done", check.files.length, check.files.length);
   return root;
 }
 
@@ -322,14 +391,17 @@ async function pullLatest() {
   const root = workspaceRoot();
   const linked = await readLink(root);
   if (linked === null) throw new Error("This project is not linked to a community artifact.");
-  const latest = await request<ArtifactSnapshot>(`/community/artifacts/${linked.link.artifactId}/files`, undefined, "required");
+  const key = `pull:${linked.link.artifactId}`;
+  progress(key, "download");
+  const latest = await request<ArtifactSnapshot>(`/community/artifacts/${linked.link.artifactId}/files`, undefined, "required").catch((error: unknown) => { progress(key, "failed"); throw error; });
   if (latest.version <= linked.link.version) return { version: latest.version, applied: 0, conflicts: [] };
   const upstream = diffSnapshots(linked.base, latest.files);
   const { files } = await collectFiles(root);
   const result = applyChanges(files, upstream);
   const local = new Map(files.map((file) => [file.path, file.content]));
   const written = result.files.filter((file) => local.get(file.path) !== file.content);
-  await writeFiles(root, written);
+  await writeFiles(root, written, (done) => progress(key, "write", done, written.length));
+  progress(key, "done", written.length, written.length);
   for (const change of upstream) {
     if (change.kind !== "deleted" || result.conflicts.includes(change.path)) continue;
     await rm(resolve(root, ...change.path.split("/")), { force: true });
@@ -339,6 +411,9 @@ async function pullLatest() {
 }
 
 /* ---------- IPC ---------- */
+
+/** Paths the person chose to leave out of a share, checked as paths inside the project. */
+const paths = (value: unknown): string[] => (Array.isArray(value) ? value.filter((path): path is string => typeof path === "string" && isSafeArtifactPath(path)).slice(0, 500) : []);
 
 export function registerCommunityIpc(): void {
   const query = (params: Record<string, string | null>): string => {
@@ -360,9 +435,30 @@ export function registerCommunityIpc(): void {
   ipcMain.handle(CHANNELS.communityMarkRead, async () => { await request("/community/activity/read", {}); });
 
   ipcMain.handle(CHANNELS.communityInstalled, async () => (await readInstalled()).map(view));
-  ipcMain.handle(CHANNELS.communityInstall, async (_event, id: unknown) => {
-    const { manifest } = await request<{ manifest: unknown }>(`/community/plugins/${pluginId(id)}/install`, {});
-    await writePlugin(parsePluginManifest(manifest, BUILT_IN_SLASH), "directory");
+  ipcMain.handle(CHANNELS.communityInstall, async (_event, id: unknown, version: unknown, keep: unknown) => {
+    const plugin = pluginId(id);
+    const key = `install:${plugin}`;
+    progress(key, "download");
+    const chosen = typeof version === "string" && /^\d{1,5}\.\d{1,5}\.\d{1,5}$/.test(version) ? version : null;
+    try {
+      const { manifest } = await request<{ manifest: unknown }>(`/community/plugins/${plugin}/install`, chosen === null ? {} : { version: chosen });
+      await writePlugin(parsePluginManifest(manifest, BUILT_IN_SLASH), "directory", keep === true);
+    } catch (error) {
+      progress(key, "failed");
+      throw error;
+    }
+    return publishInstalled();
+  });
+  ipcMain.handle(CHANNELS.communitySetOptions, async (_event, id: unknown, values: unknown) => {
+    const found = (await readInstalled()).find((one) => one.manifest.id === pluginId(id));
+    if (found === undefined) throw new Error("That plugin is not installed.");
+    await saveState(found.manifest.id, { ...found.state, options: optionValues(found.manifest.options, values) });
+    return publishInstalled();
+  });
+  ipcMain.handle(CHANNELS.communitySetPinned, async (_event, id: unknown, pinned: unknown) => {
+    const found = (await readInstalled()).find((one) => one.manifest.id === pluginId(id));
+    if (found === undefined) throw new Error("That plugin is not installed.");
+    await saveState(found.manifest.id, { ...found.state, pinned: pinned === true });
     return publishInstalled();
   });
   ipcMain.handle(CHANNELS.communityInstallLocal, async (_event, text: unknown) => {
@@ -387,8 +483,22 @@ export function registerCommunityIpc(): void {
     await saveState(found.manifest.id, { ...found.state, enabled: enabled === true });
     return publishInstalled();
   });
+  ipcMain.handle(CHANNELS.communityInstallStarter, async (_event, id: unknown) => {
+    const starter = STARTERS.get(pluginId(id));
+    if (starter === undefined) throw new Error("That plugin is not one ADCode ships.");
+    progress(`install:${starter.id}`, "download", 1, 1);
+    await writePlugin(starter, "starter");
+    return publishInstalled();
+  });
+  ipcMain.handle(CHANNELS.communityStarters, () => [...STARTERS.values()]);
   ipcMain.handle(CHANNELS.communityCheckUpdates, async () => {
     const installed = await readInstalled();
+    // Plugins ADCode ships update with the app: a newer bundled version is an update.
+    for (const one of installed.filter((plugin) => plugin.state.source === "starter")) {
+      const bundled = STARTERS.get(one.manifest.id);
+      const update = bundled !== undefined && compareVersions(bundled.version, one.manifest.version) > 0 ? bundled.version : null;
+      if (update !== one.state.update) await saveState(one.manifest.id, { ...one.state, update });
+    }
     const versions = Object.fromEntries(installed.filter((one) => one.state.source === "directory").map((one) => [one.manifest.id, one.manifest.version]));
     if (Object.keys(versions).length > 0) {
       const updates = await request<Record<string, string>>("/community/plugins/updates", { installed: versions }).catch(() => null);
@@ -426,12 +536,12 @@ export function registerCommunityIpc(): void {
     await request("/community/report", { kind: which, id: which === "plugin" ? pluginId(id) : artifactId(id), reason: short(reason, "The reason", 500, 5) });
   });
 
-  ipcMain.handle(CHANNELS.communityPreviewArtifact, () => previewArtifact());
+  ipcMain.handle(CHANNELS.communityPreviewArtifact, (_event, exclude: unknown) => previewArtifact(paths(exclude)));
   ipcMain.handle(CHANNELS.communityPublishArtifact, (_event, input: unknown) => {
     const value = input as Partial<PublishArtifactInput> | null;
     if (value === null || typeof value !== "object") throw new Error("Describe the artifact first.");
     const tags = Array.isArray(value.tags) ? value.tags.filter((tag): tag is string => typeof tag === "string").slice(0, 6) : [];
-    return publishArtifact({ title: String(value.title ?? ""), description: String(value.description ?? ""), tags, helpWanted: String(value.helpWanted ?? ""), message: String(value.message ?? "") });
+    return publishArtifact({ title: String(value.title ?? ""), description: String(value.description ?? ""), tags, helpWanted: String(value.helpWanted ?? ""), message: String(value.message ?? ""), exclude: paths(value.exclude) });
   });
   ipcMain.handle(CHANNELS.communityRemoveArtifact, async (_event, id: unknown) => { await request(`/community/artifacts/${artifactId(id)}/delete`, {}); });
   ipcMain.handle(CHANNELS.communityRemix, (_event, id: unknown) => remix(artifactId(id)));

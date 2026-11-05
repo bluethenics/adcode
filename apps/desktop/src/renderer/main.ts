@@ -149,7 +149,11 @@ import { getSetting } from "@adcode/settings";
 import { CHECKS, messageFor, type CheckSpec } from "./checks/checkReport.ts";
 import { createChatWidget } from "./ai/chatWidget.ts";
 import { CHECK_APP_PROMPT } from "./ai/composerMenu.ts";
-import { createCommunityPage, type CommunityTab } from "./community/communityPage.ts";
+import { createPluginsPage, type PluginsTab } from "./community/pluginsPage.ts";
+import { createArtifactsPage, type ArtifactsTab } from "./community/artifactsPage.ts";
+import { createAddonHost } from "./community/addonHost.ts";
+import { aiPlanName, creditWindowSummary } from "../shared/tagflow.ts";
+import type { AddonData, AddonDataView, AddonSlot } from "@adcode/community";
 import { actionPrompt, activeTheme, pluginCommands, pluginSlashCommands, remixableFeatures } from "./community/communityModel.ts";
 import { SLASH_COMMANDS, setPluginSlashCommands } from "../shared/slashCommands.ts";
 import type { InstalledPluginView } from "../shared/community.ts";
@@ -4787,7 +4791,8 @@ function showChatSurface(): void {
   if (!windowIsIde && assistantDock !== undefined) { assistantDock.showPage("chat"); return; }
   if (popupLayerState.primary === "agents") closePrimaryPopup("agents");
   if (popupLayerState.primary === "tools") closePrimaryPopup("tools");
-  if (popupLayerState.primary === "community") closePrimaryPopup("community");
+  if (popupLayerState.primary === "plugins") closePrimaryPopup("plugins");
+  if (popupLayerState.primary === "artifacts") closePrimaryPopup("artifacts");
   chat.open();
 }
 const agentsPage = createAgentsPage({
@@ -4836,40 +4841,164 @@ const toolsShell = windowIsIde
 if (toolsShell !== null) registerPrimaryPopup("tools", toolsShell, toolsPage);
 
 /*
- * The Community page: the public plugin directory, project artifacts, the plugin Studio and
- * your creator profile. Same two homes as Tools: a Vibe page, or a large popup in the IDE.
+ * Plugins and Artifacts: two pages with the same two homes as Tools - a Vibe page, or a large
+ * popup in the IDE window. Plugins is the directory, the Studio and what you installed;
+ * Artifacts is projects people share for others to remix and improve.
  */
-const communityPage = createCommunityPage({
-  notify: (message) => setStatus(message, 6000),
-  openFolder: (root) => openFolderAt(root),
+function markUnread(page: "plugins" | "artifacts", count: number): void {
+  document.querySelectorAll<HTMLElement>(`.vibe-page-${page}`).forEach((item) => {
+    if (count > 0) item.dataset["unread"] = count > 99 ? "99+" : String(count); else delete item.dataset["unread"];
+  });
+}
+const pluginsPage = createPluginsPage({
   askAssistant: (prompt) => { showChatSurface(); chat.ask(prompt); },
   features: () => remixableFeatures(featureRecords(), settingsValues, SLASH_COMMANDS),
   builtInSlash: () => SLASH_COMMANDS.map((command) => command.id),
   signIn: () => accountMenu.open("free-ai"),
-  onUnread: (count) => {
-    document.querySelectorAll<HTMLElement>(".vibe-page-community").forEach((item) => {
-      if (count > 0) item.dataset["unread"] = count > 99 ? "99+" : String(count); else delete item.dataset["unread"];
-    });
-  },
+  onUnread: (count) => markUnread("plugins", count),
+  track: (event) => window.adcode.usageStats.record(`event:${event}`),
 });
-const communityShell = windowIsIde
+const artifactsPage = createArtifactsPage({
+  openFolder: (root) => openFolderAt(root),
+  pickFolder: () => void openFolder(),
+  askAssistant: (prompt) => { showChatSurface(); chat.ask(prompt); },
+  signIn: () => accountMenu.open("free-ai"),
+  onUnread: (count) => markUnread("artifacts", count),
+  track: (event) => window.adcode.usageStats.record(`event:${event}`),
+});
+const pluginsShell = windowIsIde
   ? createPopupShell({
-    id: "community",
-    title: "Community",
+    id: "plugins",
+    title: "Plugins",
     size: "workspace",
     modal: true,
     host: popupPrimaryHost,
-    content: communityPage.element,
-    initialFocus: () => communityPage.element.querySelector<HTMLElement>(".community-search"),
-    onRequestClose: () => closePrimaryPopup("community"),
+    content: pluginsPage.element,
+    initialFocus: () => pluginsPage.element.querySelector<HTMLElement>(".community-search input"),
+    onRequestClose: () => closePrimaryPopup("plugins"),
   })
   : null;
-if (communityShell !== null) registerPrimaryPopup("community", communityShell, communityPage);
-function openCommunity(tab?: CommunityTab): void {
-  if (tab !== undefined) communityPage.showTab(tab);
-  if (!windowIsIde && assistantDock !== undefined) { assistantDock.showPage("community"); return; }
-  if (communityShell !== null) openPrimaryPopup("community", communityShell, document.querySelector<HTMLElement>(".project-tools") ?? chatLauncher, "keyboard");
+if (pluginsShell !== null) registerPrimaryPopup("plugins", pluginsShell, pluginsPage);
+const artifactsShell = windowIsIde
+  ? createPopupShell({
+    id: "artifacts",
+    title: "Artifacts",
+    size: "workspace",
+    modal: true,
+    host: popupPrimaryHost,
+    content: artifactsPage.element,
+    initialFocus: () => artifactsPage.element.querySelector<HTMLElement>(".community-search input"),
+    onRequestClose: () => closePrimaryPopup("artifacts"),
+  })
+  : null;
+if (artifactsShell !== null) registerPrimaryPopup("artifacts", artifactsShell, artifactsPage);
+function openPlugins(tab?: PluginsTab): void {
+  if (tab !== undefined) pluginsPage.showTab(tab);
+  if (!windowIsIde && assistantDock !== undefined) { assistantDock.showPage("plugins"); return; }
+  if (pluginsShell !== null) openPrimaryPopup("plugins", pluginsShell, document.querySelector<HTMLElement>(".project-tools") ?? chatLauncher, "keyboard");
 }
+function openArtifacts(tab?: ArtifactsTab): void {
+  if (tab !== undefined) artifactsPage.showTab(tab);
+  if (!windowIsIde && assistantDock !== undefined) { assistantDock.showPage("artifacts"); return; }
+  if (artifactsShell !== null) openPrimaryPopup("artifacts", artifactsShell, document.querySelector<HTMLElement>(".project-tools") ?? chatLauncher, "keyboard");
+}
+
+/*
+ * Plugin add-ons: where each slot is in this window, and the data they may be told about.
+ * The hosts are created on demand at the top of the chat's message box, above the sidebar's footer
+ * (or under the Explorer in the Code window) and after the status bar's spacer.
+ */
+function addonSlot(slot: AddonSlot): HTMLElement | null {
+  const ensure = (anchor: Element | null, place: "before" | "after" | "inside" | "top"): HTMLElement | null => {
+    if (anchor === null) return null;
+    const scope = place === "inside" || place === "top" ? anchor : anchor.parentElement;
+    const found = scope?.querySelector<HTMLElement>(`:scope > .addon-slot-${slot}`);
+    if (found) return found;
+    const host = document.createElement(slot === "statusbar" ? "span" : "div");
+    host.className = `addon-slot addon-slot-${slot}`;
+    if (place === "before") anchor.before(host); else if (place === "after") anchor.after(host); else if (place === "top") anchor.prepend(host); else anchor.append(host);
+    return host;
+  };
+  // Inside the message box, as its top strip: it then has the box's width in every layout.
+  if (slot === "chat") return ensure(chat.element.querySelector(".chat-composer"), "top");
+  // Vibe covers the window's status bar with its workspace, so there the "status bar" is the
+  // top bar, just before Preview; in the Code window it is the real status bar.
+  if (slot === "statusbar") {
+    // Whichever Preview button is on screen: the tab strip's on a wide window, the compact bar's on a narrow one.
+    const preview = document.body.dataset["workspaceMode"] === "vibe"
+      ? [...document.querySelectorAll<HTMLElement>(".web-tabs .web-tabs-preview, .vibe-topbar .vibe-topbar-preview")].find((button) => button.getClientRects().length > 0) ?? null
+      : null;
+    if (preview !== null) return ensure(preview, "before");
+    return ensure(document.querySelector("#statusbar > .status-spacer"), "after");
+  }
+  const rail = document.querySelector("#vibe-sidebar .vibe-rail-footer");
+  return rail !== null ? ensure(rail, "before") : ensure(document.getElementById("sidebar"), "inside");
+}
+let earningsLabel: string | null = null;
+window.adcode.ads.onEarnings((snapshot) => { earningsLabel = snapshot.hasServerBalance ? snapshot.availableLabel : null; addonHost.refresh(); });
+async function addonData(keys: ReadonlySet<AddonData>): Promise<AddonDataView> {
+  const data: Record<string, unknown> = {};
+  const context = activePath === null || isImagePath(activePath) ? null : editorHost.assistantContext();
+  const allowanceNeeded = keys.has("usage") || keys.has("account");
+  const allowance = allowanceNeeded ? await window.adcode.aiUsage.allowance().catch(() => null) : null;
+  const planName = allowance?.tokens?.plan ? aiPlanName(allowance.tokens.plan, Date.now()) : null;
+  if (keys.has("usage")) {
+    const today = await window.adcode.aiUsage.read("today").catch(() => null);
+    const usage = { label: "Your API key", plan: planName, percent: null as number | null, remaining: null as number | null, limit: null as number | null, unit: "credits" as "credits" | "requests", resetsIn: null as string | null, requestsToday: today?.totals.requests ?? 0, tokensToday: (today?.totals.inputTokens ?? 0) + (today?.totals.outputTokens ?? 0), weekly: null as { percent: number; remaining: number; limit: number; resetsIn: string | null } | null };
+    if (allowance?.unlimited) usage.label = "Unlimited";
+    else if (allowance?.credits) {
+      const now = Date.now();
+      const summary = creditWindowSummary(allowance.credits.session, now);
+      const week = creditWindowSummary(allowance.credits.weekly, now);
+      Object.assign(usage, {
+        label: "Free AI", percent: summary.percent, remaining: summary.remaining, limit: allowance.credits.session.limit, resetsIn: summary.refill?.in ?? null,
+        weekly: { percent: week.percent, remaining: week.remaining, limit: allowance.credits.weekly.limit, resetsIn: week.refill?.in ?? null },
+      });
+    } else if (allowance && allowance.limits.dailyRequests > 0) {
+      const used = allowance.usage.requests, limit = allowance.limits.dailyRequests;
+      Object.assign(usage, { label: "Free AI", unit: "requests", limit, remaining: Math.max(0, limit - used), percent: Math.min(100, Math.round((used / limit) * 100)) });
+    }
+    data["usage"] = usage;
+  }
+  if (keys.has("context")) {
+    const used = await window.adcode.ai.contextUsage().catch(() => null);
+    data["context"] = used === null || used.contextWindow <= 0 ? undefined : { used: used.tokens, limit: used.contextWindow, percent: Math.min(100, Math.round((used.tokens / used.contextWindow) * 100)), compactsAt: used.thresholdPercent };
+  }
+  if (keys.has("account")) {
+    const status = await window.adcode.account.status().catch(() => null);
+    data["account"] = { signedIn: status !== null && status.state !== "anonymous", plan: planName };
+  }
+  if (keys.has("git")) {
+    const status = await window.adcode.git.status().catch(() => null);
+    data["git"] = { isRepo: status?.isRepo === true, branch: status?.branch ?? null, changed: status?.entries.length ?? 0, ahead: status?.ahead ?? 0, behind: status?.behind ?? 0 };
+  }
+  if (keys.has("editor")) data["editor"] = { file: activePath === null ? null : activePath.split(/[\\/]/).pop() ?? null, language: context?.languageId ?? null, line: context?.cursorLine ?? null };
+  if (keys.has("problems")) {
+    const problems = context?.problems ?? [];
+    const errors = problems.filter((problem) => /error/i.test(problem)).length;
+    data["problems"] = { errors, warnings: problems.length - errors };
+  }
+  if (keys.has("project")) data["project"] = { name: workspaceRoot === null ? null : workspaceRoot.split(/[\\/]/).pop() ?? null };
+  if (keys.has("model")) data["model"] = { provider: typeof settingsValues["adcode.ai.provider"] === "string" ? settingsValues["adcode.ai.provider"] : null, model: typeof settingsValues["adcode.ai.model"] === "string" ? settingsValues["adcode.ai.model"] : null };
+  if (keys.has("earnings")) {
+    if (earningsLabel === null) earningsLabel = await window.adcode.ads.refreshEarnings().then((snapshot) => (snapshot.hasServerBalance ? snapshot.availableLabel : null), () => null);
+    data["earnings"] = { balance: earningsLabel };
+  }
+  return data as AddonDataView;
+}
+/** An add-on was used: counted by plugin id, except plugins tried from the Studio, whose ids are private. */
+let installedPlugins: readonly InstalledPluginView[] = [];
+function countAddon(pluginId: string): void {
+  if (installedPlugins.find((plugin) => plugin.manifest.id === pluginId)?.source !== "local") window.adcode.usageStats.record(`addon:${pluginId}`);
+}
+const addonHost = createAddonHost({
+  slot: addonSlot,
+  data: addonData,
+  run: (command, pluginId) => { countAddon(pluginId); commands.run(command); },
+  prompt: (text, pluginId) => { countAddon(pluginId); showChatSurface(); chat.draft(text); },
+  hasCommand: (command) => commands.has(command),
+});
+window.adcode.aiUsage.onChanged(() => addonHost.refresh());
 
 /*
  * Installed plugins, applied to this window: their AI actions and macros become palette
@@ -4914,12 +5043,16 @@ function applyPlugins(installed: readonly InstalledPluginView[]): void {
   const theme = activeTheme(installed);
   pluginThemeTokens = theme === null ? [] : Object.keys(theme.tokens);
   if (theme !== null) for (const [token, value] of Object.entries(theme.tokens)) rootStyle.setProperty(token, value);
+  installedPlugins = installed;
+  addonHost.apply(installed);
 }
 window.adcode.community.onPluginsChanged(applyPlugins);
 void window.adcode.community.installed().then(applyPlugins, () => {});
 // Unread community activity: once shortly after start, then every 15 minutes.
-setTimeout(() => void communityPage.poll(), 20_000);
-setInterval(() => void communityPage.poll(), 15 * 60_000);
+setTimeout(() => { void pluginsPage.poll(); void artifactsPage.poll(); }, 20_000);
+setInterval(() => { void pluginsPage.poll(); void artifactsPage.poll(); }, 15 * 60_000);
+// Plugins ADCode ships update with the app; say so on the Installed tab.
+setTimeout(() => void window.adcode.community.checkUpdates().catch(() => {}), 25_000);
 
 function openTools(tab?: ToolsTab): void {
   if (tab !== undefined) toolsPage.showTab(tab);
@@ -5547,6 +5680,8 @@ let untitledCount = 0;
 const commands = createCommandRegistry({
   runEditorAction: (actionId) => editorHost.runAction(actionId),
   onUnknown: (id) => setStatus(`Nothing is bound to ${id} yet.`, 3000),
+  // Plugin commands carry plugin ids, which may be private Studio drafts: counted under one name.
+  onRun: (id) => window.adcode.usageStats.record(id.startsWith("plugin.") ? "event:plugin_command_run" : `cmd:${id}`),
 });
 
 /** The shell command that runs a file, by extension. */
@@ -6130,22 +6265,20 @@ function registerCommands(): void {
   });
   add("tools.memory", "Tools: Project Memory", () => openTools("memory"));
   add("tools.builtIn", "Tools: The Assistant's Built-in Tools", () => openTools("built-in"));
-  add("community.open", "Community: Open", () => openCommunity("discover"));
-  add("community.plugins", "Community: Browse Plugins", () => openCommunity("plugins"));
-  add("community.studio", "Community: Build a Plugin", () => openCommunity("studio"));
+  add("community.plugins", "Plugins: Browse", () => openPlugins("discover"));
+  add("community.installed", "Plugins: Installed", () => openPlugins("installed"));
+  add("community.addons", "Plugins: Add-ons for the Chat, Sidebar and Status Bar", () => { openPlugins(); pluginsPage.showAddons(); });
+  add("community.studio", "Plugins: Build a Plugin", () => openPlugins("studio"));
   // From a Feature library card: the Studio on a copy of that feature. No id: the Studio's picker.
-  add("community.remixFeature", "Community: Customize a Built-in Feature", (id) => {
-    openCommunity("studio");
-    if (id !== undefined && id.length > 0) { communityPage.remixFeature(id); return; }
-    requestAnimationFrame(() => communityPage.element.querySelector<HTMLSelectElement>(".community-studio-remix")?.focus());
+  add("community.remixFeature", "Plugins: Customize a Built-in Feature", (id) => {
+    openPlugins("studio");
+    if (id !== undefined && id.length > 0) pluginsPage.remixFeature(id); else pluginsPage.focusRemixPicker();
   });
-  add("community.artifacts", "Community: Browse Shared Projects", () => openCommunity("artifacts"));
-  add("community.shareProject", "Community: Share This Project", () => { openCommunity("artifacts"); communityPage.shareProject(); });
-  add("community.you", "Community: My Creator Profile", () => openCommunity("you"));
-  add("community.monetize", "Community: Sell My Plugins (Coming Soon)", () => {
-    openCommunity("studio");
-    requestAnimationFrame(() => communityPage.element.querySelector<HTMLElement>(".community-monetize")?.scrollIntoView({ block: "center" }));
-  });
+  add("community.you", "Plugins: My Creator Profile", () => openPlugins("mine"));
+  add("community.monetize", "Plugins: Sell My Plugins (Coming Soon)", () => { openPlugins(); pluginsPage.showMonetize(); });
+  add("community.artifacts", "Artifacts: Browse Shared Projects", () => openArtifacts("discover"));
+  add("community.shareProject", "Artifacts: Share This Project", () => { openArtifacts("project"); artifactsPage.shareProject(); });
+  add("community.inbox", "Artifacts: Improvements Inbox", () => openArtifacts("inbox"));
   add("workspace.browser", "Open Browser", () => agentBrowserPane.open());
   add("workspace.preview", "Open Project Preview", () => { if (!previewPane.isOpen()) void previewPane.toggle(); });
   add("ai.terminalTeam", "Start an AI Team in the Terminal", () => void openTerminalTeamSetup());
@@ -6866,11 +6999,14 @@ assistantDock = createAssistantDock({
 if (!windowIsIde) {
   assistantDock.pageHost("agents").append(agentsPage.element);
   assistantDock.pageHost("tools").append(toolsPage.element);
-  assistantDock.pageHost("community").append(communityPage.element);
+  assistantDock.pageHost("plugins").append(pluginsPage.element);
+  assistantDock.pageHost("artifacts").append(artifactsPage.element);
   assistantDock.onPageChange((page) => {
+    window.adcode.usageStats.record(`page:${page}`);
     if (page === "agents") agentsPage.shown(); else agentsPage.hidden();
     if (page === "tools") toolsPage.shown(); else toolsPage.hidden();
-    if (page === "community") communityPage.shown(); else communityPage.hidden();
+    if (page === "plugins") pluginsPage.shown(); else pluginsPage.hidden();
+    if (page === "artifacts") artifactsPage.shown(); else artifactsPage.hidden();
   });
 }
 

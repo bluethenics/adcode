@@ -45,7 +45,9 @@ const PATH = {
   agents: "M5.5 7.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM11 7.5a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2zM2 13c0-2 1.6-3.5 3.5-3.5S9 11 9 13M9.8 10.1c.4-.3.8-.4 1.2-.4 1.4 0 2.5 1.1 2.5 2.6",
   tools: "M10.6 2.6a3 3 0 0 0-3.1 3.9l-4.9 4.9 2 2 4.9-4.9a3 3 0 0 0 3.9-3.1l-1.9 1.9-1.8-.2-.2-1.8z",
   // Four blocks, one lifted out: plugins people build and share.
-  community: "M2.5 8.5h5v5h-5zM8.5 8.5h5v5h-5zM2.5 2.5h5v5h-5zM9.5 1.8l3.7 3.7-3.7 3.7-3.7-3.7z",
+  plugins: "M2.5 8.5h5v5h-5zM8.5 8.5h5v5h-5zM2.5 2.5h5v5h-5zM9.5 1.8l3.7 3.7-3.7 3.7-3.7-3.7z",
+  // A fork: a project copied, changed, and merged back.
+  artifacts: "M4.5 2.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM11.5 2.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM8 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM4.5 5.5v1a2 2 0 0 0 2 2h3a2 2 0 0 0 2-2v-1M8 8.5v2",
   bell: "M8 2a3 3 0 0 0-3 3v2c0 1-.5 2-1.5 3h9C11.5 9 11 8 11 7V5a3 3 0 0 0-3-3zM6.5 12a1.5 1.5 0 0 0 3 0",
   // The activity bar's gear, scaled from its 24-unit grid to this 16-unit one.
   gear: "M6.89 3.53L7.11 1.87L8.89 1.87L9.11 3.53A4.6 4.6 0 0 1 10.8 4.35L12.25 3.48L13.35 4.87L12.18 6.08A4.6 4.6 0 0 1 12.6 7.92L14.18 8.5L13.79 10.23L12.11 10.07A4.6 4.6 0 0 1 10.93 11.55L11.46 13.15L9.86 13.91L8.94 12.5A4.6 4.6 0 0 1 7.06 12.5L6.14 13.91L4.54 13.15L5.07 11.55A4.6 4.6 0 0 1 3.89 10.07L2.21 10.23L1.82 8.5L3.4 7.92A4.6 4.6 0 0 1 3.82 6.08L2.65 4.87L3.75 3.48L5.2 4.35A4.6 4.6 0 0 1 6.89 3.53ZM8 5.93a2.07 2.07 0 1 0 0 4.14 2.07 2.07 0 0 0 0-4.14z",
@@ -223,7 +225,8 @@ export function createVibeSidebar(deps: VibeSidebarDeps): VibeSidebar {
     chat: { icon: PATH.chat, title: "The conversation with the assistant" },
     agents: { icon: PATH.agents, title: "Agents working in parallel, and your saved agents" },
     tools: { icon: PATH.tools, title: "Built-in tools, MCP servers, skills and project memory" },
-    community: { icon: PATH.community, title: "Plugins and shared projects from the ADCode community" },
+    plugins: { icon: PATH.plugins, title: "Plugins: add AI actions, chat commands, add-ons and themes, or build your own" },
+    artifacts: { icon: PATH.artifacts, title: "Artifacts: share a project, remix others, send and review improvements" },
   };
   const pageItems = new Map<VibePage, HTMLButtonElement>();
   for (const page of VIBE_PAGES) {

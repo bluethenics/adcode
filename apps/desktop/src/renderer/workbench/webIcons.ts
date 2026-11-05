@@ -1,6 +1,6 @@
 /** Official Lucide icons, imported individually so unused icons are excluded from the bundle. */
 import type { IconNode } from "lucide";
-import { MessageSquarePlus, FileDiff, PanelsTopLeft, CalendarClock, CircleUserRound, Users, PanelTop, Menu, FolderOpen, ChevronDown, ChevronRight, MessageSquare, Bot, Wrench, Bell, Settings, CodeXml, Search, Sparkles, Gift, MonitorDown, BookOpen, LayoutGrid, PanelLeft, Wallet, X, Ellipsis, MessageSquareText, Globe, GitBranch, Plug, GraduationCap, BookMarked, Keyboard, Hammer, Bug, Lightbulb, Gamepad2, ListChecks, UserRound, History, Blocks } from "lucide";
+import { MessageSquarePlus, FileDiff, PanelsTopLeft, CalendarClock, CircleUserRound, Users, PanelTop, Menu, FolderOpen, ChevronDown, ChevronRight, MessageSquare, Bot, Wrench, Bell, Settings, CodeXml, Search, Sparkles, Gift, MonitorDown, BookOpen, LayoutGrid, PanelLeft, Wallet, X, Ellipsis, MessageSquareText, Globe, GitBranch, Plug, GraduationCap, BookMarked, Keyboard, Hammer, Bug, Lightbulb, Gamepad2, ListChecks, UserRound, History, Blocks, GitFork } from "lucide";
 
 /**
  * Discord's own mark (Simple Icons, CC0 1.0). Lucide draws no brand logos, and a speech bubble
@@ -23,7 +23,8 @@ export const WEB_ICON = {
   chat: MessageSquare,
   agents: Bot,
   tools: Wrench,
-  community: Blocks,
+  plugins: Blocks,
+  artifacts: GitFork,
   bell: Bell,
   gear: Settings,
   ide: CodeXml,

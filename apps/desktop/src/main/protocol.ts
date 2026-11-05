@@ -14,6 +14,7 @@ import { stat } from "node:fs/promises";
 import { extname, join, normalize, sep } from "node:path";
 import { Readable } from "node:stream";
 import { protocol } from "electron";
+import { ADDON_CSP, ADDON_SCHEME, addonDocument, parseAddonUrl, type PluginAddon } from "@adcode/community";
 
 export const RENDERER_SCHEME = "app";
 export const RENDERER_ORIGIN = `${RENDERER_SCHEME}://adcode`;
@@ -79,7 +80,10 @@ const CSP = [
   // ADCode's own site is the second and last: the opt-in sponsored cards under AI replies
   // (renderer/ai/sponsoredReply.ts) live there, cross-origin and sandboxed, so the ad SDK and
   // its measurement scripts never run in this window. Only that origin, never `https:`.
-  "frame-src http://127.0.0.1:* http://localhost:* https://adcode.bluethenics.com",
+  //
+  // `adcode-addon:` is the third: plugin add-ons, served by this process from installed
+  // plugins with a policy of their own that allows no network at all (see registerAddonProtocol).
+  "frame-src http://127.0.0.1:* http://localhost:* https://adcode.bluethenics.com adcode-addon:",
   "object-src 'none'",
   "base-uri 'none'",
   "form-action 'none'",
@@ -87,6 +91,8 @@ const CSP = [
 
 export function registerSchemePrivileges(): void {
   protocol.registerSchemesAsPrivileged([
+    // Add-ons: a real, secure origin of their own, so the sandboxed frame is cross-origin to the app.
+    { scheme: ADDON_SCHEME, privileges: { standard: true, secure: true } },
     {
       scheme: RENDERER_SCHEME,
       privileges: {
@@ -98,6 +104,32 @@ export function registerSchemePrivileges(): void {
       },
     },
   ]);
+}
+
+/**
+ * Plugin add-ons, served sealed.
+ *
+ * Only an enabled, installed plugin's declared add-on is served, rebuilt from its manifest on
+ * every request, with a policy that denies the network, frames, forms and navigation. The
+ * renderer frames it with `sandbox="allow-scripts"`, so it also has an opaque origin: no
+ * cookies, no storage, no reaching into the app's page.
+ */
+export function registerAddonProtocol(find: (pluginId: string, addonId: string) => Promise<PluginAddon | null>): void {
+  protocol.handle(ADDON_SCHEME, async (request) => {
+    const target = parseAddonUrl(request.url);
+    const addon = target === null ? null : await find(target.pluginId, target.addonId).catch(() => null);
+    if (addon === null) return new Response("not found", { status: 404, headers: { "content-security-policy": "default-src 'none'" } });
+    return new Response(addonDocument(addon), {
+      status: 200,
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "content-security-policy": ADDON_CSP,
+        "x-content-type-options": "nosniff",
+        "cache-control": "no-store",
+        "referrer-policy": "no-referrer",
+      },
+    });
+  });
 }
 
 export function registerAppProtocol(useDevServer: boolean): void {

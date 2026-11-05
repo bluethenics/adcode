@@ -2336,58 +2336,72 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Call hierarchies and CSS cross-referencing are premium-IDE territory, usually requiring language plugins per framework. ADCode links styles to markup across HTML, JSX, Vue, Angular, and Handlebars templates out of the box, in one popup.",
   },
 
-  /* ── Community ───────────────────────────────────────────────────────── */
-
-  "community-hub": {
-    steps: [
-      "Choose Community in the Vibe sidebar. In the Code window, open the command palette (Ctrl+Shift+P) and run Community: Open.",
-      "Discover shows what is featured this week, trending plugins, projects asking for help, and trending projects.",
-      "Use the three doors at the top: Build a plugin, Share this project, or Help someone.",
-      "Search beside the title looks through every plugin and shared project by name, description, tag and creator.",
-      "Sign in with a verified email to install, publish, star or send improvements. Browsing needs no account.",
-    ],
-    benefits: [
-      "Plugins, shared projects and your own progress live in one place inside the editor.",
-      "A count on the Community entry tells you when someone installed, starred, remixed or improved your work.",
-      "Everything a plugin can do is listed before you install it.",
-    ],
-    betterThan:
-      "Most editors have an extension marketplace, a separate website for sharing projects, and somewhere else for feedback. ADCode puts all three in the editor and links them: a project you share can collect improvements, and a plugin you install can be remixed into your own in two clicks.",
-  },
+  /* ── Plugins and Artifacts ─────────────────────────────────────────── */
 
   "community-plugins": {
     steps: [
-      "Open Community and choose Plugins.",
-      "Sort by Trending, New or Most used, or pick a category such as AI actions, Skills or Themes.",
-      "Click a plugin's name to read what it adds, its read-me and its versions.",
-      "Press Install. The confirmation lists every command, skill, theme and setting it adds.",
-      "Use it: AI actions are in the command palette, chat commands appear when you type / in the chat, skills are used by the assistant automatically, and a theme recolours the app at once.",
-      "Manage it in the Installed list at the top of Plugins: switch it off, uninstall it, or press Check for updates.",
+      "Choose Plugins in the Vibe sidebar. In the Code window, open the command palette (Ctrl+Shift+P) and run Plugins: Browse.",
+      "Start with Made by ADCode: eight plugins that install in one click, without an account - Usage meter, Quick prompts, Git at a glance, Focus timer, Problems at a glance, Earnings ticker, Strict reviewer and Explain simply.",
+      "Below them, browse the community directory by category, or sort by Trending, New or Most used.",
+      "Click a plugin's name to read what it adds - every command, skill, add-on, theme and setting - before you install it.",
+      "Press Install. AI actions appear in the command palette, chat commands behind / in the chat, add-ons where they belong, and a theme recolours the app at once.",
+      "Open the Installed tab to switch a plugin off, update it or uninstall it. Settings changes a plugin's own options; Versions installs any published version and can keep it there.",
     ],
     benefits: [
-      "Plugins are JSON - prompts, skills, colours and setting values - so installing one can never run code on your computer.",
-      "A plugin cannot change your model, API keys, ads, updates or the setting that asks before tools run.",
       "Turning a plugin off or uninstalling it puts back every setting it changed, unless you changed that setting yourself since.",
+      "A plugin cannot change your model, API keys, ads, updates or the setting that asks before tools run.",
       "You are told when a plugin you installed gets a new version.",
     ],
     betterThan:
-      "Extension marketplaces usually install code that runs with your full permissions, and a bad extension can read every file you open. ADCode plugins are declarative by design: they can only use features ADCode already has, in ways you can read on the plugin's page before installing it.",
+      "Extension marketplaces usually install code that runs with your full permissions, so a bad extension can read every file you open. Most of an ADCode plugin is words - prompts, skills, colours and settings - and the one part that is code, an add-on, runs sealed with no internet, no files and no account access.",
+  },
+
+  "privacy-usage-stats": {
+    steps: [
+      "Help improve ADCode is on by default. To check it, open Settings and choose Privacy.",
+      "Switch it off to stop counting at once. Anything counted and not yet sent is deleted.",
+      "Switch it back on at any time; counting starts again from that moment.",
+    ],
+    benefits: [
+      "Only fixed names and daily counts are sent - which commands, pages and add-ons were used - never code, prompts, file names or anything typed.",
+      "The report carries no account: the service stores totals per day, not per person.",
+      "Plugins you tried privately in the Studio are never named.",
+    ],
+    betterThan:
+      "Many editors send detailed telemetry by default and bury the switch. ADCode sends one small report a day, says exactly what is in it, and puts the off switch in its own Privacy section.",
+  },
+
+  "community-addons": {
+    steps: [
+      "Open Plugins › Discover and choose Add-ons.",
+      "Install Usage meter or Quick prompts for the chat, Git at a glance for the sidebar, or Focus timer, Problems at a glance or Earnings ticker for the status bar.",
+      "Read what each add-on can see before installing - for example, the Usage meter sees only your AI usage and the model.",
+      "Use it where it appears. Quick prompts puts a request in the message box; you still press Send.",
+      "To make your own, open the Studio, choose Add… › Add-on, and write HTML with an inline script that calls adcode.on(\"data\", …).",
+      "Switch the plugin off on the Installed tab to remove its add-on.",
+    ],
+    benefits: [
+      "The numbers you check all day - usage, branch, errors, time spent - sit where you already look.",
+      "Each add-on runs in a sealed frame with no internet, no storage and no way into the app.",
+      "An add-on sees only the data it asked for at install, and runs only the commands it declared.",
+    ],
+    betterThan:
+      "Editors that allow custom panels usually let them run with the editor's own permissions, network included. ADCode add-ons are served with a policy that blocks the network outright and framed so they cannot touch the page around them - what they show is all they can do.",
   },
 
   "community-studio": {
     steps: [
-      "Open Community and choose Studio. A starter plugin is already in the editor.",
-      "To let the assistant write it, describe your plugin in the box at the top and press Build with AI. When it finishes, press Load adcode-plugin.json.",
-      "To write it yourself, use Add… to insert an AI action, slash command, skill, macro, theme or setting preset, then edit the text. The panel on the right lists anything to fix.",
-      "To change a built-in feature, choose Remix a built-in feature… or press Customize on any card in All Features. Its switches, commands and chat instructions become yours to edit.",
+      "Open Plugins › Studio. A starter plugin is already in the editor.",
+      "To let the assistant write it, describe your plugin and press Build with AI. When it finishes, press Load adcode-plugin.json.",
+      "To write it yourself, use Add… to insert an add-on, AI action, slash command, skill, macro, theme or setting preset. The panel on the right lists anything to fix.",
+      "To change a built-in feature, choose Customize a built-in feature…, or press Customize on any card in All Features.",
       "Press Try it here to install it on this computer only and check it works.",
-      "Press Publish…, add release notes, and publish. To update it later, open it from the You tab, change it and publish again - the version number goes up for you.",
+      "Press Publish…, add release notes, and publish. Publish again with a higher version to update everyone who installed it.",
     ],
     benefits: [
-      "Any built-in chat command can be rewritten: a stricter /review, a /commit in your team's format, a /test for your framework.",
-      "The assistant can build a working plugin from one sentence.",
-      "Remixing someone else's plugin credits them automatically and counts toward their profile.",
-      "Save to project keeps the plugin file in your repository next to your code.",
+      "Any built-in chat command can be rewritten: a stricter /review, a /commit in your team's format.",
+      "Every plugin made by ADCode opens in the Studio as a working example.",
+      "The assistant can build a working plugin, add-on included, from one sentence.",
     ],
     betterThan:
       "Writing an editor extension normally means learning an API, a build step and a packaging tool. An ADCode plugin is one JSON file that is checked as you type, can be written for you by the assistant, and can start as an exact copy of the feature you want to change.",
@@ -2395,55 +2409,51 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "community-artifacts": {
     steps: [
-      "Open the project you want to share, then choose Community › Artifacts › Share this project.",
-      "Write a title and a short description. Add what you would like help with to be listed under Help wanted.",
-      "Check What stays private: .env files, keys, node_modules, build output, images and lockfiles are never uploaded. A file that looks like it contains a key blocks sharing until you move the key into .env.",
-      "To improve someone else's project, press Remix on its card. ADCode copies it into Documents › ADCode Projects and opens it.",
-      "Change it with your AI. The Artifacts tab then shows how many files changed. Press Send improvement, write what you did (or press Ask AI to describe it), and send.",
-      "As the owner, open the You tab, click the improvement, read each file's changes, optionally press Ask AI to review it, then Accept or Decline with a reply.",
-      "After accepting, press Get version N on the Artifacts tab to bring the accepted changes into your own folder.",
+      "Open the project you want to share, choose Artifacts in the sidebar, then This project › Share this project.",
+      "Read anything flagged at the top first. A file that looks like it holds a key is listed with Leave these files out; a folder that is not a project is refused.",
+      "Write a title and a short description, and what you would like help with to be listed under Help wanted.",
+      "To improve someone else's project, press Remix on its card in Discover. ADCode copies it into Documents › ADCode Projects and opens it.",
+      "After changing it, open This project, check the changed files, and press Send improvement.",
+      "As the owner, open Inbox, read each file's changes, optionally press Ask AI to review it, then Accept or Decline.",
+      "Press Get version N on This project to bring accepted changes into your own folder.",
     ],
     benefits: [
+      "Your .gitignore, hidden folders, .env files, keys, node_modules and build output are never uploaded.",
       "Strangers can improve your project without access to your repository or your computer.",
-      "You see every changed line before anything is accepted.",
-      "If you edited the same file meanwhile, ADCode says so instead of overwriting either version.",
-      "Accepted improvements credit their authors in the project's history.",
+      "You see every changed line before anything is accepted, and accepted work credits its author.",
     ],
     betterThan:
-      "Getting outside help usually means a GitHub account, a fork, a branch and a pull request - a lot to ask of someone who just wants to fix a button. Here, remixing is one click, the improvement is computed for you, and review happens in the editor with the assistant's help.",
+      "Getting outside help usually means a GitHub account, a fork, a branch and a pull request. Here, remixing is one click, the improvement is computed for you, and review happens in the editor with the assistant's help.",
   },
 
   "community-profile": {
     steps: [
-      "Open Community and choose You, or click the level chip beside the search box.",
+      "Open Plugins › Your plugins or Artifacts › Your artifacts, or click the level chip beside the search box.",
       "Read your level and how many points the next one needs.",
-      "Check Improvements for you - anything waiting for your review is listed first.",
-      "Read Activity for installs, stars, remixes, accepted improvements and new badges.",
+      "Check the activity list for installs, stars, remixes, accepted improvements and new badges.",
       "Open one of your plugins to edit it as its next version, or unpublish it.",
     ],
     benefits: [
       "Points reward the work that helps others most: an accepted improvement is worth 20, a remix 5, a star 3, an install 1.",
       "Badges mark firsts and milestones, and the streak counts the days in a row you built something.",
-      "One list shows the status of every improvement you sent and what the owner replied.",
     ],
     betterThan:
-      "Download counts on a marketplace page tell a creator little. Your ADCode profile shows who is using, remixing and improving your work, and turns contributing to other people's projects into visible progress.",
+      "Download counts on a marketplace page tell a creator little. Your ADCode profile shows who is using, remixing and improving your work.",
   },
 
   "community-monetize": {
     steps: [
-      "Open Community › Studio and scroll to Sell your plugins in the right-hand column. The same card is on the You tab.",
-      "Enter the price you would charge, or leave it empty if you are not sure yet.",
+      "Open Plugins › Studio and scroll to Sell your plugins in the right-hand column.",
+      "Enter the price you would charge, or leave it empty.",
       "Press Join the waitlist. The card shows your place in line.",
       "Selling is not available yet. You will be told when it opens.",
     ],
     benefits: [
       "Creators on the waitlist are first when paid plugins open.",
-      "The prices you enter help decide how selling will work.",
       "Free plugins stay free.",
     ],
     betterThan:
-      "Selling plugins is coming soon, so this card does not take payments or sell anything today. When it opens, earnings will be paid alongside the ad earnings you already see in ADCode.",
+      "Selling plugins is coming soon, so this card does not take payments today. When it opens, earnings will be paid alongside the ad earnings you already see in ADCode.",
   },
 };
 
@@ -2480,4 +2490,6 @@ export const SECTION_COMPARISONS: Readonly<Record<string, string>> = {
     "Ad-supported usually means the terms are one-sided and the schedule is whatever pays best. ADCode enforces its ad cadence on your machine, can only ever tighten it from the server, credits half of every payment to an append-only ledger you can audit row by row - and switching the whole thing off removes nothing else.",
   Updates:
     "Updates download in the background and apply when you reopen - never mid-thought, never a modal demanding a restart. Release notes reach you at most once per version, only when worth reading, and security fixes are the sole exception allowed to hurry.",
+  Privacy:
+    "ADCode learns which features are used from one small daily report of names and counts, stored without your account, and says exactly what is in it. One switch in its own Privacy section stops it and deletes what was not sent.",
 };

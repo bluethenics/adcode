@@ -10,7 +10,8 @@ export type PopupId =
   | "help"
   | "agents"
   | "tools"
-  | "community";
+  | "plugins"
+  | "artifacts";
 
 export interface PopupLayerState {
   readonly primary: PopupId | null;

@@ -199,6 +199,7 @@ const GROUP_TITLES = {
   gestures: "Files and gestures",
   ads: "Ads and earnings",
   updates: "Updates",
+  privacy: "Privacy",
 };
 
 const ORDER = Object.keys(GROUP_TITLES);

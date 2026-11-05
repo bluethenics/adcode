@@ -16,7 +16,8 @@ import "./profileBootstrap.ts";
 import { describeDebugContext, registerDebugLogIpc } from "./debugLog.ts";
 import { join } from "node:path";
 import { BrowserWindow, app, ipcMain, shell } from "electron";
-import { registerAppProtocol, registerSchemePrivileges, RENDERER_ORIGIN } from "./protocol.ts";
+import { registerAddonProtocol, registerAppProtocol, registerSchemePrivileges, RENDERER_ORIGIN } from "./protocol.ts";
+import { installedAddon } from "./community.ts";
 import { registerIpc } from "./ipc.ts";
 import { closeAssistantControls } from "./assistantControls.ts";
 import { registerSupportIpc } from "./supportIpc.ts";
@@ -284,6 +285,7 @@ function openWindow(role: WindowRole, file?: string, command?: string): void {
 
 void app.whenReady().then(() => {
   registerAppProtocol(useDevServer);
+  registerAddonProtocol(installedAddon);
   registerIpc(openWindow);
   ipcMain.on(CHANNELS.windowRendererReady, (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);

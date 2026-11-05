@@ -53,7 +53,7 @@ export function PlanFinder({ freeSteps, plans }: { freeSteps: number; plans: rea
             <p className="pricing-eyebrow">Your fit</p>
             <p className="pricing-finder-plan">{fit.name} <span>{fit.price}/month</span></p>
             <p>{over ? `Up to ${fit.steps}+ uncached steps a day. Cached prompts usually stretch that about twice as far.` : `${fit.steps}+ steps a day leaves you room to spare.`}</p>
-            <Link href={`/ai-tokens?plan=${fit.id}#plans`} className="pricing-button" data-primary="true">Get {fit.name} <Icon node={ArrowUpRight} /></Link>
+            <Link href={`/ai-tokens?plan=${fit.id}&go=1#plans`} className="pricing-button" data-primary="true">Get {fit.name} <Icon node={ArrowUpRight} /></Link>
           </>
         )}
       </div>

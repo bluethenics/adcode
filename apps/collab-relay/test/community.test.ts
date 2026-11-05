@@ -166,3 +166,16 @@ describe("HTTP", () => {
     expect(await missing.json()).toEqual({ error: "That plugin is not in the directory." });
   });
 });
+
+describe("plugin versions", () => {
+  it("keeps every version installable and installs the one asked for", () => {
+    ctx.hub.publishPlugin("ana", "Ana", plugin(), "First");
+    ctx.hub.publishPlugin("ana", "Ana", plugin({ version: "1.1.0", description: "The second version of this plugin." }), "Second");
+    const detail = ctx.hub.plugin("explain-simply", "ben");
+    expect(detail.versions.map((one) => [one.version, one.available])).toEqual([["1.1.0", true], ["1.0.0", true]]);
+    expect(ctx.hub.install("ben", "explain-simply", "1.0.0").version).toBe("1.0.0");
+    expect(ctx.hub.install("eve", "explain-simply").description).toBe("The second version of this plugin.");
+    expect(() => ctx.hub.install("eve", "explain-simply", "9.9.9")).toThrow(/\[404\]/);
+    expect(ctx.hub.plugin("explain-simply", null).installs).toBe(2);
+  });
+});

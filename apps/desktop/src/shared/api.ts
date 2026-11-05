@@ -807,6 +807,12 @@ export const CHANNELS = {
   communityUninstall: "community:uninstall",
   communitySetEnabled: "community:set-enabled",
   communityCheckUpdates: "community:check-updates",
+  communityStarters: "community:starters",
+  appUsageRecord: "app-usage:record",
+  communitySetOptions: "community:set-options",
+  communitySetPinned: "community:set-pinned",
+  communityProgress: "community:progress",
+  communityInstallStarter: "community:install-starter",
   communityPublishPlugin: "community:publish-plugin",
   communityRemovePlugin: "community:remove-plugin",
   communityReadProjectManifest: "community:read-project-manifest",
@@ -2544,4 +2550,9 @@ export interface AdcodeApi {
   };
   /** The community hub: the public plugin directory, installed plugins, and project artifacts (main/community.ts). */
   readonly community: CommunityApi;
+  /**
+   * "Help improve ADCode" counts (main/appUsage.ts): `record("cmd:ai.showUsage")`. Only fixed
+   * names of the form cmd:|page:|event:|addon: are counted; anything else is ignored.
+   */
+  readonly usageStats: { record(name: string): void };
 }

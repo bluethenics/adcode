@@ -1,11 +1,12 @@
 import Link from "next/link";
 
-/** The three model catalogues, in the same tab style as every other admin page with sections. */
-export function AdminModelTabs({ active }: { active: "free" | "byok" | "reports" }) {
+/** The model catalogues and provider applications, in the same tab style as every other admin page with sections. */
+export function AdminModelTabs({ active }: { active: "free" | "byok" | "reports" | "applications" }) {
   const tabs = [
     { id: "free", label: "ADCode models", href: "/admin/tagflow" },
     { id: "reports", label: "Provider reports", href: "/admin/tagflow/reports" },
     { id: "byok", label: "Bring your own key models", href: "/admin/models" },
+    { id: "applications", label: "Provider applications", href: "/admin/models/applications" },
   ] as const;
   return <nav className="admin-tabs" aria-label="Model catalogs">
     {tabs.map((tab) => (

@@ -32,6 +32,7 @@ export function Footer() {
           <Link href="/status">Status</Link>
           <a href={SOURCE.repo}>Source code</a>
           <Link href="/advertisers">Advertise</Link>
+          <Link href="/providers">Model providers</Link>
         </nav>
 
         <nav aria-label="Guides">

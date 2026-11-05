@@ -88,7 +88,7 @@ export function PricingContent({ offer, now = Date.now() }: { offer: PricingOffe
                   </li>
                 ))}
               </ul>
-              <Link href={`/ai-tokens?plan=${plan.id}#plans`} className="pricing-button" aria-label={`Get ${plan.name}, ${price(plan.priceCents)} a ${plan.interval}`}>Get {plan.name} <Icon node={ArrowUpRight} /></Link>
+              <Link href={`/ai-tokens?plan=${plan.id}&go=1#plans`} className="pricing-button" aria-label={`Get ${plan.name}, ${price(plan.priceCents)} a ${plan.interval}`}>Get {plan.name} <Icon node={ArrowUpRight} /></Link>
               <p className="pricing-cancel">{creditsPerDollar(plan).toLocaleString("en-US")} credits per dollar · cancel any time</p>
             </li>
           );
@@ -159,7 +159,7 @@ export function PricingContent({ offer, now = Date.now() }: { offer: PricingOffe
       <section className="pricing-section pricing-packs-section" aria-labelledby="pricing-packs-heading">
         <header className="pricing-section-head"><h2 id="pricing-packs-heading">Or top up once</h2><p>One-time credits work after the daily allowance on Free, Builder and Pro. Max waits for its daily refill. Purchased credits never expire.</p></header>
         <ul className="pricing-packs" aria-label="One-time Heabsy token packs">
-          {offer.packs.map(pack => <li key={pack.id}><div><strong>{topUpName(pack.id)}<span>{creditAmount(pack.tokens)} credits</span></strong><p>{price(pack.priceCents)} once</p></div><Link href="/ai-tokens#packs" aria-label={`View ${topUpName(pack.id)} top-up`}>View top-up <Icon node={ArrowUpRight} /></Link></li>)}
+          {offer.packs.map(pack => <li key={pack.id}><div><strong>{topUpName(pack.id)}<span>{creditAmount(pack.tokens)} credits</span></strong><p>{price(pack.priceCents)} once</p></div><Link href={`/ai-tokens?pack=${pack.id}&go=1#packs`} aria-label={`Buy ${topUpName(pack.id)} top-up, ${price(pack.priceCents)}`}>Buy <Icon node={ArrowUpRight} /></Link></li>)}
         </ul>
         <p className="pricing-small">Prices are in USD. Dodo calculates applicable tax and shows the final amount before you pay. {offer.available === null && "The standard catalogue is shown while live availability is unavailable. "}Review the current offer in your account before checkout.</p>
       </section>

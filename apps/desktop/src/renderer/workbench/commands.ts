@@ -37,6 +37,8 @@ export interface CommandRegistry {
 export function createCommandRegistry(deps: {
   readonly runEditorAction: (actionId: string) => void;
   readonly onUnknown: (id: string) => void;
+  /** Told about every command that runs - the "Help improve ADCode" counts. */
+  readonly onRun?: (id: string) => void;
 }): CommandRegistry {
   const commands = new Map<string, Command>();
 
@@ -60,6 +62,7 @@ export function createCommandRegistry(deps: {
         return;
       }
 
+      deps.onRun?.(id);
       // Commands are fire-and-forget from the caller's point of view; a menu click must
       // not leave an unhandled rejection behind if one of them throws.
       void Promise.resolve(command.run(arg)).catch(() => deps.onUnknown(id));

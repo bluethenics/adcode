@@ -12,6 +12,7 @@ import type { HelpEntry } from "../types.ts";
 import { ADS_ENTRIES } from "./ads.ts";
 import { AI_ENTRIES } from "./ai.ts";
 import { COMMUNITY_ENTRIES } from "./community.ts";
+import { PRIVACY_ENTRIES } from "./privacy.ts";
 import { APPEARANCE_ENTRIES } from "./appearance.ts";
 import { EDITING_ENTRIES } from "./editing.ts";
 import { FORMATTING_ENTRIES } from "./formatting.ts";
@@ -37,4 +38,5 @@ export const HELP_ENTRIES: readonly HelpEntry[] = [
   ...AI_ENTRIES,
   ...WORKBENCH_ENTRIES,
   ...COMMUNITY_ENTRIES,
+  ...PRIVACY_ENTRIES,
 ];

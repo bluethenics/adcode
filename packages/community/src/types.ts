@@ -32,6 +32,8 @@ export interface PluginVersionNote {
   readonly version: string;
   readonly notes: string;
   readonly at: number;
+  /** Whether this version can still be installed (every version published from now on can). */
+  readonly available: boolean;
 }
 
 export interface PluginDetail extends PluginListing {

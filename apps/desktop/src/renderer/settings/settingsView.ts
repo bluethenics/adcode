@@ -25,7 +25,7 @@ import {
   type SettingGroupId,
   type SettingValue,
 } from "@adcode/settings";
-import { Braces, CircleArrowDown, Compass, GitBranch, Megaphone, Network, Palette, PenLine, RotateCcw, Sparkles, WandSparkles, type IconNode } from "lucide";
+import { Braces, ChartColumn, CircleArrowDown, Compass, GitBranch, Megaphone, Network, Palette, PenLine, RotateCcw, Sparkles, WandSparkles, type IconNode } from "lucide";
 import { createIcon } from "../workbench/icons.ts";
 import { createHelpButton, createHelpPopover } from "../help/helpPopover.ts";
 import { themePicker } from "./themePicker.ts";
@@ -253,7 +253,7 @@ export function createSettingsTargetLifecycle(deps: {
 /** One icon per section, from the same library as the rest of the app. */
 const GROUP_ICONS: Record<SettingGroupId, IconNode> = {
   ads: Megaphone, appearance: Palette, editing: PenLine, formatting: WandSparkles, git: GitBranch,
-  navigation: Compass, structure: Network, language: Braces, session: RotateCcw, updates: CircleArrowDown, ai: Sparkles,
+  navigation: Compass, structure: Network, language: Braces, session: RotateCcw, updates: CircleArrowDown, ai: Sparkles, privacy: ChartColumn,
 };
 const LAST_GROUP = "adcode.settings.section";
 

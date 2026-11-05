@@ -12,7 +12,7 @@ const BUILT_IN = SLASH_COMMANDS.map((command) => command.id);
 function installed(patch: Record<string, unknown>, enabled = true, installedAt = 1): InstalledPluginView {
   const base = blankManifest("Strict tools");
   const manifest = parsePluginManifest({ ...base, ...patch, contributes: { ...(base["contributes"] as object), ...(patch["contributes"] as object | undefined) } }, BUILT_IN);
-  return { manifest, enabled, source: "directory", installedAt, update: null };
+  return { manifest, enabled, source: "directory", installedAt, update: null, options: {}, pinned: false };
 }
 
 describe("what installed plugins add", () => {
@@ -79,5 +79,30 @@ describe("the Studio", () => {
     expect(features.some((feature) => feature.id.startsWith("community."))).toBe(false);
     expect(features.find((feature) => feature.id === "adcode.editing.minimap")?.settings).toEqual({ "adcode.editing.minimap": true });
     expect(features.find((feature) => feature.id === "ai.composerCommands")?.slash?.map((one) => one.id)).toContain("review");
+  });
+});
+
+describe("plugin options in prompts", () => {
+  it("fills {{option}} in actions and slash commands with the chosen values", () => {
+    const base = blankManifest("Opt test");
+    const manifest = parsePluginManifest({
+      ...base,
+      options: [{ id: "focus", label: "Focus", type: "choice", default: "all", choices: [{ value: "all", label: "Everything" }, { value: "sec", label: "Security" }] }],
+      contributes: { actions: [{ id: "go", title: "Go now", uses: "nothing", prompt: "Look at {{focus}} first, please." }], slashCommands: [{ id: "deep", hint: "Deep look", prompt: "Concentrate on {{focus}}: ", overrides: false }] },
+    }, BUILT_IN);
+    const view: InstalledPluginView = { manifest, enabled: true, source: "starter", installedAt: 1, update: null, options: { focus: "sec" }, pinned: false };
+    expect(pluginCommands([view])[0]!.action!.prompt).toBe("Look at security first, please.");
+    expect(pluginSlashCommands([view])[0]!.prompt).toBe("Concentrate on security:");
+  });
+});
+
+describe("Help improve ADCode names", () => {
+  it("accepts exactly the names the service accepts", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const desktop = readFileSync(join(import.meta.dirname, "../src/main/appUsage.ts"), "utf8").match(/const NAME = (\/.+\/);/)?.[1];
+    const service = readFileSync(join(import.meta.dirname, "../../../services/api/src/appUsage.ts"), "utf8").match(/export const APP_USAGE_NAME = (\/.+\/);/)?.[1];
+    expect(desktop).toBeDefined();
+    expect(desktop).toBe(service);
   });
 });

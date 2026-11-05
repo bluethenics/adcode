@@ -29,7 +29,8 @@ export type SettingGroupId =
   | "ai"
   | "appearance"
   | "updates"
-  | "ads";
+  | "ads"
+  | "privacy";
 
 export interface SettingGroup {
   readonly id: SettingGroupId;
@@ -55,6 +56,7 @@ export const GROUPS: readonly SettingGroup[] = [
   { id: "session", title: "Session", caption: "What survives a restart." },
   { id: "updates", title: "Updates", caption: "New versions install quietly and apply when you next restart." },
   { id: "ai", title: "AI", caption: "One memory, shared by every AI you work with." },
+  { id: "privacy", title: "Privacy", caption: "What ADCode learns about how it is used, and the switch that stops it." },
 ];
 
 interface BaseSetting {
@@ -705,6 +707,7 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
   ),
   bool("adcode.ai.memoryCapture", "ai", "Memory capture", "Record decisions and conventions to the shared project memory.", true, true),
   bool("adcode.ai.mcpServer", "ai", "MCP server", "Let external agents read and write the same memory.", true, true),
+  bool("adcode.privacy.usageStats", "privacy", "Help improve ADCode", "Send daily counts of which features you use - feature names and numbers only, never code, prompts, files or your account. Off deletes anything not sent yet.", true, true),
   bool("adcode.ai.liveAgentView", "ai", "Live agent view", "Show every agent at work in the chat: code typing in as it is written, commands running, and the messages agents send each other.", true, true),
 ];
 

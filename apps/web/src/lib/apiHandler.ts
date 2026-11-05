@@ -24,6 +24,8 @@ import { createSupabaseStore } from "@adcode/api/adapters/supabaseStore.ts";
 import { createFirebaseJwksVerifier } from "@adcode/api/adapters/firebaseJwks.ts";
 import { createDodoProvider } from "@adcode/api/adapters/dodoPayments.ts";
 import { createWebsiteAnalyticsStore } from "@adcode/api/adapters/websiteAnalyticsStore.ts";
+import { createAppUsageStore } from "@adcode/api/adapters/appUsageStore.ts";
+import { createProviderApplicationStore } from "@adcode/api/adapters/providerApplicationStore.ts";
 import { createFirebaseIdentity } from "@adcode/api/src/accountIdentity.ts";
 import { accountEmailProof, mailingStore, sendReportReplyEmail, sendStatusConfirmationEmail, statusAlertStore } from "./mailing";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
@@ -41,6 +43,8 @@ export const handleApiRequest = createFetchHandler({
     identity: createFirebaseIdentity(() => process.env["FIREBASE_WEB_API_KEY"]?.trim() || process.env["NEXT_PUBLIC_FIREBASE_API_KEY"]?.trim() || "AIzaSyATZzX5Fw2HjR34VxB3UQWTmljprA5uXqE"),
   },
   websiteAnalytics: createWebsiteAnalyticsStore(),
+  appUsage: createAppUsageStore(),
+  providerApplications: createProviderApplicationStore(),
   mailing: mailingStore,
   mailingWebhookSecret: () => process.env["RESEND_WEBHOOK_SECRET"],
   reportReplyMailer: sendReportReplyEmail,

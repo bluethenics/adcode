@@ -1,0 +1,44 @@
+/* Model providers page: the advertisers page's frame (advertisers.css), plus these pieces. */
+.providers-picker { margin: 0; }
+.providers-picker-card { padding: 10px; border: 1px solid var(--hairline); border-radius: 16px; background: var(--card); box-shadow: 0 24px 60px light-dark(#25231c1f, #0008); }
+.providers-picker-head { margin: 4px 8px 8px; color: var(--muted); font: 500 12px/1.6 var(--font-mono), monospace; }
+.providers-picker-card ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.providers-picker-card li { display: grid; grid-template-columns: 10px 1fr auto; grid-template-rows: auto auto; column-gap: 10px; align-items: center; padding: 10px 12px; border-radius: 10px; font-size: 14px; }
+.providers-picker-card li small { grid-column: 2; color: var(--muted); font-size: 12px; }
+.providers-picker-card li em { grid-column: 3; grid-row: 1 / span 2; color: var(--muted); font: 500 11px var(--font-mono), monospace; font-style: normal; }
+.providers-picker-card li[data-yours="true"] { background: light-dark(#f2efe6, #ffffff12); outline: 1px solid var(--border-strong); }
+.providers-dot { grid-row: 1 / span 2; width: 8px; height: 8px; border-radius: 50%; background: var(--hairline); }
+.providers-picker-card li[data-yours="true"] .providers-dot { background: var(--brand-solid); }
+.providers-picker figcaption { margin-top: 14px; color: var(--faint); font-size: 12px; }
+
+.providers-offers, .providers-how, .providers-apply { padding-top: clamp(56px, 8vw, 104px); }
+.providers-offers h2, .providers-how h2, .providers-apply h2 { font-family: var(--font-display), sans-serif; font-size: clamp(28px, 3.4vw, 40px); font-weight: 500; letter-spacing: -.04em; }
+.providers-offer-grid { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 16px; margin-top: 28px; }
+.providers-offer { padding: 24px; border: 1px solid var(--hairline); border-radius: 16px; background: var(--card); }
+.providers-offer:first-child { background: light-dark(#f7f4ec, #ffffff0a); }
+.providers-offer h3 { font-size: 18px; font-weight: 500; }
+.providers-offer p { margin-top: 10px; color: var(--muted); line-height: 1.6; }
+
+.providers-how { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: clamp(32px, 6vw, 80px); align-items: start; }
+.providers-steps { display: grid; gap: 22px; margin: 28px 0 0; padding: 0; list-style: none; }
+.providers-steps li { display: grid; grid-template-columns: 32px 1fr; gap: 14px; }
+.providers-step-number { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--hairline); border-radius: 8px; font: 500 13px var(--font-mono), monospace; }
+.providers-steps p { margin-top: 4px; color: var(--muted); line-height: 1.6; }
+.providers-requirements { padding: 24px; border: 1px solid var(--hairline); border-radius: 16px; }
+.providers-requirements h3 { font-size: 16px; font-weight: 500; }
+.providers-requirements .adv-facts { margin-top: 16px; }
+
+.providers-apply { display: grid; grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr); gap: clamp(32px, 6vw, 80px); align-items: start; }
+.providers-apply-intro p { margin-top: 12px; max-width: 34ch; color: var(--muted); line-height: 1.6; }
+.providers-form, .providers-sent { display: grid; gap: 18px; padding: clamp(20px, 3vw, 32px); }
+.providers-sent h3 { font-size: 20px; font-weight: 500; }
+.providers-sent p { color: var(--muted); line-height: 1.6; }
+.providers-offers-field { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; }
+.providers-offers-field legend { margin-bottom: 8px; }
+.providers-check { display: flex; align-items: center; gap: 10px; font-size: 14px; cursor: pointer; }
+.providers-check input { width: 16px; height: 16px; accent-color: var(--brand-solid); }
+.providers-trap { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+@media (max-width: 860px) {
+  .providers-offer-grid, .providers-how, .providers-apply { grid-template-columns: 1fr; }
+}

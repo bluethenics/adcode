@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AdminShell, AdminTabs } from "@/components/AdminShell";
 import { GrowthPanel } from "@/components/GrowthPanel";
+import { FeatureUsePanel } from "@/components/FeatureUsePanel";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { TimeChart } from "@/components/charts/TimeChart";
@@ -22,17 +23,19 @@ import "@/components/websiteAnalytics.css";
 const TABS = [
   { id: "people", label: "People and ads" },
   { id: "website", label: "Website" },
+  { id: "features", label: "Desktop features" },
 ];
 
 function AnalyticsBody() {
-  const tab = useSearchParams().get("tab") === "website" ? "website" : "people";
+  const requested = useSearchParams().get("tab");
+  const tab = requested === "website" || requested === "features" ? requested : "people";
   return (
     <AdminShell
       title="Analytics"
-      subtitle={tab === "website" ? "How the website converts: traffic, install intent, top pages and page speed." : "Who uses ADCode and how many ads it showed, with a post to share the numbers."}
+      subtitle={tab === "website" ? "How the website converts: traffic, install intent, top pages and page speed." : tab === "features" ? "Which parts of the desktop app people use, from the editor's Help improve ADCode counts." : "Who uses ADCode and how many ads it showed, with a post to share the numbers."}
     >
       <AdminTabs base="/admin/analytics" active={tab} tabs={TABS} />
-      {tab === "website" ? <Reports /> : <><GrowthPanel /><SourcesMoved /></>}
+      {tab === "website" ? <Reports /> : tab === "features" ? <FeatureUsePanel /> : <><GrowthPanel /><SourcesMoved /></>}
     </AdminShell>
   );
 }

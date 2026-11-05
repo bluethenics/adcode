@@ -91,6 +91,10 @@ export class CommunityHub extends DurableObject<Env> {
     sql.exec(`CREATE TABLE IF NOT EXISTS plugins(id TEXT PRIMARY KEY, ownerId TEXT NOT NULL, ownerName TEXT NOT NULL, name TEXT NOT NULL, description TEXT NOT NULL, icon TEXT NOT NULL, category TEXT NOT NULL, tags TEXT NOT NULL, version TEXT NOT NULL, manifest TEXT NOT NULL, contributes TEXT NOT NULL, remixOf TEXT, createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL, installs INTEGER NOT NULL DEFAULT 0, stars INTEGER NOT NULL DEFAULT 0, remixes INTEGER NOT NULL DEFAULT 0, hidden INTEGER NOT NULL DEFAULT 0)`);
     sql.exec("CREATE INDEX IF NOT EXISTS plugins_owner ON plugins(ownerId)");
     sql.exec("CREATE TABLE IF NOT EXISTS plugin_versions(pluginId TEXT NOT NULL, version TEXT NOT NULL, notes TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY(pluginId, version))");
+    // Every version keeps its own manifest, so people can install an older one. Added after
+    // the first release: an existing database gains the column here, and rows published
+    // before it have no manifest (their version is listed but cannot be installed).
+    try { sql.exec("ALTER TABLE plugin_versions ADD COLUMN manifest TEXT"); } catch { /* Already there. */ }
     sql.exec("CREATE TABLE IF NOT EXISTS installs(pluginId TEXT NOT NULL, uid TEXT NOT NULL, at INTEGER NOT NULL, active INTEGER NOT NULL DEFAULT 1, PRIMARY KEY(pluginId, uid))");
     sql.exec("CREATE INDEX IF NOT EXISTS installs_recent ON installs(pluginId, at)");
     sql.exec(`CREATE TABLE IF NOT EXISTS artifacts(id TEXT PRIMARY KEY, ownerId TEXT NOT NULL, ownerName TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL, tags TEXT NOT NULL, helpWanted TEXT NOT NULL, version INTEGER NOT NULL, fileCount INTEGER NOT NULL, bytes INTEGER NOT NULL, remixes INTEGER NOT NULL DEFAULT 0, stars INTEGER NOT NULL DEFAULT 0, readme TEXT NOT NULL, paths TEXT NOT NULL, remixOf TEXT, createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL, hidden INTEGER NOT NULL DEFAULT 0)`);
@@ -230,7 +234,8 @@ export class CommunityHub extends DurableObject<Env> {
 
   plugin(id: string, uid: string | null): PluginDetail {
     const row = this.pluginRow(id);
-    const versions = this.sql.exec<{ version: string; notes: string; at: number }>("SELECT version, notes, at FROM plugin_versions WHERE pluginId=? ORDER BY at DESC LIMIT 30", id).toArray();
+    const versions = this.sql.exec<{ version: string; notes: string; at: number; available: number }>("SELECT version, notes, at, manifest IS NOT NULL AS available FROM plugin_versions WHERE pluginId=? ORDER BY at DESC LIMIT 30", id).toArray()
+      .map((row) => ({ version: row.version, notes: row.notes, at: row.at, available: row.available === 1 || row.version === JSON.parse(this.pluginRow(id).manifest).version }));
     return {
       ...this.pluginListing(row), manifest: JSON.parse(row.manifest) as PluginManifest, versions, remixes: row.remixes,
       starred: uid !== null && this.sql.exec("SELECT 1 FROM stars WHERE kind='plugin' AND targetId=? AND uid=?", id, uid).toArray().length > 0,
@@ -293,15 +298,26 @@ export class CommunityHub extends DurableObject<Env> {
           this.notify(original.ownerId, "plugin.remixed", `${display} remixed ${original.name} into ${manifest.name}.`, "plugin", manifest.id);
         }
       }
-      this.sql.exec("INSERT OR REPLACE INTO plugin_versions VALUES(?,?,?,?)", manifest.id, manifest.version, notes, now);
+      this.sql.exec("INSERT OR REPLACE INTO plugin_versions(pluginId, version, notes, at, manifest) VALUES(?,?,?,?,?)", manifest.id, manifest.version, notes, now, JSON.stringify(manifest));
       this.remember(uid, display);
       this.active(uid);
       return this.plugin(manifest.id, uid);
     });
   }
 
-  install(uid: string, id: string): PluginManifest {
+  /** One published version's manifest; the latest when `version` is null. */
+  versionManifest(id: string, version: string | null): PluginManifest {
     const row = this.pluginRow(id);
+    if (version === null || version === row.version) return JSON.parse(row.manifest) as PluginManifest;
+    const stored = this.sql.exec<{ manifest: string | null }>("SELECT manifest FROM plugin_versions WHERE pluginId=? AND version=?", id, version).toArray()[0];
+    if (stored === undefined) return deny(404, `${row.name} has no version ${version}.`);
+    if (stored.manifest === null) return deny(410, `Version ${version} was published before older versions were kept. Install the latest instead.`);
+    return JSON.parse(stored.manifest) as PluginManifest;
+  }
+
+  install(uid: string, id: string, version: string | null = null): PluginManifest {
+    const row = this.pluginRow(id);
+    const manifest = this.versionManifest(id, version);
     const previous = this.sql.exec<{ active: number }>("SELECT active FROM installs WHERE pluginId=? AND uid=?", id, uid).toArray()[0];
     if (previous === undefined) {
       this.spend(uid, "install");
@@ -314,7 +330,7 @@ export class CommunityHub extends DurableObject<Env> {
         this.notify(row.ownerId, "plugin.installed", total <= 3 ? `Somebody installed ${row.name}.` : `${row.name} reached ${total} installs.`, "plugin", id);
       }
     } else if (!previous.active) this.sql.exec("UPDATE installs SET active=1 WHERE pluginId=? AND uid=?", id, uid);
-    return JSON.parse(row.manifest) as PluginManifest;
+    return manifest;
   }
 
   uninstall(uid: string, id: string): void { this.sql.exec("UPDATE installs SET active=0 WHERE pluginId=? AND uid=?", id, uid); }
@@ -613,7 +629,10 @@ export async function communityRoute(request: Request, env: Env, who: { uid: str
     if (path === "/community/monetize/waitlist") return respond(await hub.joinWaitlist(account, body["join"] !== false, body["price"], body["note"]));
     let match = /^\/community\/plugins\/([a-z0-9-]{3,48})\/(install|uninstall|delete)$/.exec(path);
     if (match && PLUGIN_ROUTE_ID.test(match[1]!)) {
-      if (match[2] === "install") return respond({ manifest: await hub.install(account, match[1]!) });
+      if (match[2] === "install") {
+        const version = typeof body["version"] === "string" && /^d{1,5}.d{1,5}.d{1,5}$/.test(body["version"]) ? body["version"] : null;
+        return respond({ manifest: await hub.install(account, match[1]!, version) });
+      }
       if (match[2] === "uninstall") { await hub.uninstall(account, match[1]!); return respond({ ok: true }); }
       await hub.removePlugin(account, match[1]!);
       return respond({ ok: true });

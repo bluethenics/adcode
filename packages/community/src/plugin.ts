@@ -1,13 +1,13 @@
 /**
  * What an ADCode plugin is, and the one function that decides whether a file is one.
  *
- * A plugin is a JSON document, not a program. That is the whole safety model: someone
- * installing a plugin from the public directory is installing words - prompts, skills,
- * colours, setting values and lists of commands ADCode already has - never code that runs
- * with their account or their files. Every contribution below is something the app already
+ * A plugin is a JSON document. Almost everything in it is words - prompts, skills, colours,
+ * setting values and lists of commands ADCode already has - so installing one never gives
+ * code access to the person's account or files. The single exception, add-ons, is code that
+ * runs sealed away from both (see below). Every contribution is something the app already
  * knows how to do safely; the plugin only chooses which and with what text.
  *
- * Six kinds of contribution, and each is a way to change a feature, not only to add one:
+ * Seven kinds of contribution, and each is a way to change a feature, not only to add one:
  *
  * - `slashCommands` add `/words` to the chat composer, or replace the instruction behind a
  *   built-in one (`/review`, `/commit`) when the plugin says `overrides: true`.
@@ -18,6 +18,12 @@
  * - `theme` recolours the workbench through its design tokens.
  * - `settings` are a preset of switch and choice values, applied on install and put back
  *   on uninstall.
+ *
+ * - `addons` put a small panel of the plugin's own HTML in the chat, the sidebar or the
+ *   status bar. This is the one contribution with code in it, so it runs sealed: in a
+ *   sandboxed frame of its own origin with no network, no storage and no access to the app,
+ *   seeing only the data it declared and able only to run the commands it declared or to put
+ *   a prompt in the composer for the person to send.
  *
  * Pure: no fs, no network, no DOM. The desktop app, the server and the website all run this
  * same parser, so a manifest the directory accepts is one every install will accept.
@@ -32,6 +38,7 @@ export const MAX_MANIFEST_BYTES = 256_000;
 
 export const PLUGIN_CATEGORIES = [
   { id: "ai-actions", label: "AI actions" },
+  { id: "add-ons", label: "Add-ons" },
   { id: "workflow", label: "Workflow" },
   { id: "skills", label: "Skills" },
   { id: "themes", label: "Themes" },
@@ -109,6 +116,57 @@ export interface PluginTheme {
   readonly tokens: Readonly<Partial<Record<ThemeToken, string>>>;
 }
 
+/** Where an add-on can live. */
+export const ADDON_SLOTS = [
+  { id: "chat", label: "the chat, above the message box" },
+  { id: "sidebar", label: "the sidebar" },
+  { id: "statusbar", label: "the status bar" },
+] as const;
+export type AddonSlot = (typeof ADDON_SLOTS)[number]["id"];
+
+/** What an add-on may be told about. Each is a permission, listed when it is installed. */
+export const ADDON_DATA = [
+  { id: "usage", label: "your AI usage, plan and limits" },
+  { id: "context", label: "how full the open conversation is" },
+  { id: "account", label: "whether you are signed in, and your plan" },
+  { id: "git", label: "the branch and how many files changed" },
+  { id: "editor", label: "the open file's name, language and cursor line" },
+  { id: "problems", label: "the open file's error and warning counts" },
+  { id: "project", label: "the open project's folder name" },
+  { id: "model", label: "which AI model is selected" },
+  { id: "earnings", label: "your ad earnings balance" },
+] as const;
+export type AddonData = (typeof ADDON_DATA)[number]["id"];
+
+export const MAX_ADDON_HTML = 64_000;
+
+export interface PluginAddon {
+  readonly id: string;
+  readonly title: string;
+  readonly slot: AddonSlot;
+  /** The add-on's markup, styles and script. Rendered sealed, never in the app's own page. */
+  readonly html: string;
+  readonly data: readonly AddonData[];
+  /** ADCode commands its buttons may run. */
+  readonly commands: readonly string[];
+  /** Whether it may put a prompt in the chat's message box (never send it). */
+  readonly prompt: boolean;
+}
+
+/**
+ * A setting the plugin defines for itself: a focus timer's length, a reviewer's strictness.
+ *
+ * The person changes it on the Installed tab. Add-ons read the values through
+ * `adcode.options`; prompts and instructions use `{{option-id}}`, filled in when they run.
+ */
+export type PluginOption =
+  | { readonly id: string; readonly label: string; readonly help: string; readonly type: "toggle"; readonly default: boolean }
+  | { readonly id: string; readonly label: string; readonly help: string; readonly type: "number"; readonly default: number; readonly min: number; readonly max: number; readonly step: number }
+  | { readonly id: string; readonly label: string; readonly help: string; readonly type: "text"; readonly default: string; readonly maxLength: number }
+  | { readonly id: string; readonly label: string; readonly help: string; readonly type: "choice"; readonly default: string; readonly choices: readonly { readonly value: string; readonly label: string }[] };
+
+export type OptionValues = Readonly<Record<string, boolean | number | string>>;
+
 export interface PluginContributions {
   readonly slashCommands: readonly PluginSlashCommand[];
   readonly actions: readonly PluginAction[];
@@ -116,6 +174,7 @@ export interface PluginContributions {
   readonly skills: readonly PluginSkill[];
   readonly theme: PluginTheme | null;
   readonly settings: Readonly<Record<string, boolean | string>>;
+  readonly addons: readonly PluginAddon[];
 }
 
 export interface PluginManifest {
@@ -130,6 +189,8 @@ export interface PluginManifest {
   readonly readme: string;
   /** Set when this plugin started as a remix of another plugin or of a built-in feature. */
   readonly remixOf: string | null;
+  /** The plugin's own settings, changed by the person on the Installed tab. */
+  readonly options: readonly PluginOption[];
   readonly contributes: PluginContributions;
 }
 
@@ -296,10 +357,76 @@ export function parsePluginManifest(input: string | unknown, builtInSlash: reado
     }
   }
 
-  const contributions: PluginContributions = { slashCommands, actions, macros, skills, theme, settings };
-  if (problems.length === 0 && contributionCount(contributions) === 0) problems.push("A plugin must contribute something: a slash command, an action, a macro, a skill, a theme or a settings preset.");
+  const addons = list(c["addons"], "addons", 6).flatMap((entry, index): PluginAddon[] => {
+    const one = record(entry);
+    const label = `Add-on ${index + 1}`;
+    if (one === null) { problems.push(`${label} must be an object.`); return []; }
+    const addonId = typeof one["id"] === "string" ? one["id"] : "";
+    if (!COMMAND_WORD.test(addonId)) { problems.push(`${label}: the id must be a lowercase word of up to 32 characters.`); return []; }
+    const slot = ADDON_SLOTS.find((candidate) => candidate.id === one["slot"])?.id;
+    if (slot === undefined) problems.push(`${label}: slot must be one of ${ADDON_SLOTS.map((candidate) => candidate.id).join(", ")}.`);
+    const html = typeof one["html"] === "string" && one["html"].trim().length > 0 && one["html"].length <= MAX_ADDON_HTML ? one["html"] : (problems.push(`${label}: html must be 1–${MAX_ADDON_HTML / 1000}k characters of markup.`), "");
+    const data = [...new Set(list(one["data"], `${label}'s data`, ADDON_DATA.length).flatMap((key) => {
+      if (ADDON_DATA.some((candidate) => candidate.id === key)) return [key as AddonData];
+      problems.push(`${label}: ${JSON.stringify(key)} is not something an add-on can see. It can see: ${ADDON_DATA.map((candidate) => candidate.id).join(", ")}.`);
+      return [];
+    }))];
+    const commands = [...new Set(list(one["commands"], `${label}'s commands`, 12).flatMap((command) => {
+      if (typeof command !== "string" || !APP_COMMAND.test(command) || command.startsWith("plugin.") || command.startsWith("community.")) { problems.push(`${label}: ${JSON.stringify(command)} is not an ADCode command it may run.`); return []; }
+      return [command];
+    }))];
+    if (one["prompt"] !== undefined && typeof one["prompt"] !== "boolean") problems.push(`${label}: prompt must be true or false.`);
+    if (!unique("add-ons", addonId)) return [];
+    return [{ id: addonId, title: text(one["title"], `${label}'s title`, 3, 40), slot: slot ?? "chat", html, data, commands, prompt: one["prompt"] === true }];
+  });
+
+  const contributions: PluginContributions = { slashCommands, actions, macros, skills, theme, settings, addons };
+
+  const optionIds = new Set<string>();
+  const options = list(root["options"], "options", 12).flatMap((entry, index): PluginOption[] => {
+    const one = record(entry);
+    const label = `Option ${index + 1}`;
+    if (one === null) { problems.push(`${label} must be an object.`); return []; }
+    const optionId = typeof one["id"] === "string" ? one["id"] : "";
+    if (!/^[a-z][a-zA-Z0-9]{0,31}$/.test(optionId)) { problems.push(`${label}: the id must be a word like "minutes" or "focusMinutes".`); return []; }
+    if (optionIds.has(optionId)) { problems.push(`Two options are both called ${optionId}.`); return []; }
+    optionIds.add(optionId);
+    const base = { id: optionId, label: text(one["label"], `${optionId}'s label`, 2, 60), help: one["help"] === undefined ? "" : text(one["help"], `${optionId}'s help`, 0, 200) };
+    switch (one["type"]) {
+      case "toggle":
+        if (typeof one["default"] !== "boolean") problems.push(`${optionId}: a toggle's default must be true or false.`);
+        return [{ ...base, type: "toggle", default: one["default"] === true }];
+      case "number": {
+        const min = typeof one["min"] === "number" ? one["min"] : 0, max = typeof one["max"] === "number" ? one["max"] : 100;
+        const step = typeof one["step"] === "number" && one["step"] > 0 ? one["step"] : 1;
+        const fallback = typeof one["default"] === "number" ? one["default"] : Number.NaN;
+        if (!(min < max) || !Number.isFinite(min) || !Number.isFinite(max)) problems.push(`${optionId}: min must be below max.`);
+        if (!(fallback >= min && fallback <= max)) problems.push(`${optionId}: the default must be between ${min} and ${max}.`);
+        return [{ ...base, type: "number", default: fallback, min, max, step }];
+      }
+      case "text": {
+        const maxLength = typeof one["maxLength"] === "number" && one["maxLength"] >= 1 && one["maxLength"] <= 500 ? Math.floor(one["maxLength"]) : 120;
+        if (typeof one["default"] !== "string" || one["default"].length > maxLength) problems.push(`${optionId}: the default must be text of at most ${maxLength} characters.`);
+        return [{ ...base, type: "text", default: typeof one["default"] === "string" ? one["default"] : "", maxLength }];
+      }
+      case "choice": {
+        const choices = list(one["choices"], `${optionId}'s choices`, 12).flatMap((choice) => {
+          const c = record(choice);
+          if (c === null || typeof c["value"] !== "string" || !/^[a-z0-9-]{1,32}$/.test(c["value"])) { problems.push(`${optionId}: each choice needs a value of lowercase letters, digits or hyphens.`); return []; }
+          return [{ value: c["value"], label: text(c["label"], `${optionId}'s choice label`, 1, 40) }];
+        });
+        if (choices.length < 2) problems.push(`${optionId}: a choice needs at least two choices.`);
+        if (!choices.some((choice) => choice.value === one["default"])) problems.push(`${optionId}: the default must be one of its choices.`);
+        return [{ ...base, type: "choice", default: typeof one["default"] === "string" ? one["default"] : choices[0]?.value ?? "", choices }];
+      }
+      default:
+        problems.push(`${optionId}: type must be toggle, number, text or choice.`);
+        return [];
+    }
+  });
+  if (problems.length === 0 && contributionCount(contributions) === 0) problems.push("A plugin must contribute something: an add-on, a slash command, an action, a macro, a skill, a theme or a settings preset.");
   if (problems.length > 0) throw new PluginManifestError(problems);
-  return { format: PLUGIN_FORMAT, id, name, version, description, icon, category, tags, readme, remixOf, contributes: contributions };
+  return { format: PLUGIN_FORMAT, id, name, version, description, icon, category, tags, readme, remixOf, options, contributes: contributions };
 }
 
 /** The non-throwing form, for live validation as somebody types in the Studio. */
@@ -315,7 +442,7 @@ export function checkPluginManifest(input: string | unknown, builtInSlash: reado
 
 export function contributionCount(contributes: PluginContributions): number {
   return contributes.slashCommands.length + contributes.actions.length + contributes.macros.length +
-    contributes.skills.length + (contributes.theme === null ? 0 : 1) + Object.keys(contributes.settings).length;
+    contributes.skills.length + (contributes.theme === null ? 0 : 1) + Object.keys(contributes.settings).length + contributes.addons.length;
 }
 
 /** "3 slash commands · 1 skill · theme", for a card, in the order a reader cares about. */
@@ -325,6 +452,7 @@ export function describeContributions(contributes: PluginContributions): string 
   add(contributes.actions.length, "AI action", "AI actions");
   add(contributes.slashCommands.length, "slash command", "slash commands");
   add(contributes.skills.length, "skill", "skills");
+  add(contributes.addons.length, "add-on", "add-ons");
   add(contributes.macros.length, "macro", "macros");
   if (contributes.theme !== null) parts.push("theme");
   add(Object.keys(contributes.settings).length, "setting", "settings");
@@ -355,6 +483,41 @@ export function pluginIdFrom(name: string): string {
 }
 
 /** A palette command id for one of a plugin's actions or macros. */
+/**
+ * The values a plugin's options hold: what the person chose where it is still valid, the
+ * default everywhere else. Run on every read, so a plugin update that drops or retypes an
+ * option never hands an add-on a stale value.
+ */
+export function optionValues(options: readonly PluginOption[], chosen: unknown): Record<string, boolean | number | string> {
+  const raw = typeof chosen === "object" && chosen !== null && !Array.isArray(chosen) ? chosen as Record<string, unknown> : {};
+  const values: Record<string, boolean | number | string> = {};
+  for (const option of options) {
+    const value = raw[option.id];
+    switch (option.type) {
+      case "toggle": values[option.id] = typeof value === "boolean" ? value : option.default; break;
+      case "number": values[option.id] = typeof value === "number" && Number.isFinite(value) ? Math.min(option.max, Math.max(option.min, value)) : option.default; break;
+      case "text": values[option.id] = typeof value === "string" ? value.slice(0, option.maxLength) : option.default; break;
+      case "choice": values[option.id] = typeof value === "string" && option.choices.some((choice) => choice.value === value) ? value : option.default; break;
+    }
+  }
+  return values;
+}
+
+/** What each option says in a prompt: a choice by its label, everything else as its value. */
+export function optionDisplay(options: readonly PluginOption[], values: OptionValues): Record<string, string> {
+  const display: Record<string, string> = {};
+  for (const option of options) {
+    const value = values[option.id] ?? option.default;
+    display[option.id] = option.type === "choice" ? option.choices.find((choice) => choice.value === value)?.label.toLowerCase() ?? String(value) : String(value);
+  }
+  return display;
+}
+
+/** `{{option-id}}` in a prompt, filled with the option's current value; unknown names are left as written. */
+export function fillOptions(text: string, values: OptionValues): string {
+  return text.replace(/\{\{\s*([a-z][a-zA-Z0-9]{0,31})\s*\}\}/g, (whole, key: string) => (key in values ? String(values[key]) : whole));
+}
+
 export const pluginCommandId = (pluginId: string, kind: "action" | "macro", id: string): string => `plugin.${kind}.${pluginId}.${id}`;
 
 /** A blank, valid-once-filled manifest: what "New plugin" starts from. */
@@ -431,7 +594,7 @@ export function draftFromPlugin(source: PluginManifest, newName: string): Record
 
 /** Pretty JSON with the fields a person edits most at the top. */
 export function formatManifest(manifest: Record<string, unknown> | PluginManifest): string {
-  const order = ["format", "id", "name", "version", "description", "icon", "category", "tags", "remixOf", "contributes", "readme"];
+  const order = ["format", "id", "name", "version", "description", "icon", "category", "tags", "remixOf", "options", "contributes", "readme"];
   const source = manifest as Record<string, unknown>;
   const sorted: Record<string, unknown> = {};
   for (const key of order) if (source[key] !== undefined) sorted[key] = source[key];

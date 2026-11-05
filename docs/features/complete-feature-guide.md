@@ -1165,6 +1165,17 @@ How to use it: Sign in with Google, GitHub or email. Start chatting with include
 
 Access: `All Features → ADCode on the web`; `Open ADCode on the web`.
 
+<!-- feature:community.addons -->
+### Add-ons
+
+Small panels a plugin adds to the chat, the sidebar or the status bar - a usage meter, a focus timer, one-click prompts.
+
+Why use it: The thing you check twenty times a day should sit where you are already looking, not one menu away.
+
+How to use it: Open Plugins › Discover and choose Add-ons, or install one from Made by ADCode: Usage meter and Quick prompts sit above the chat's message box, Git at a glance in the sidebar, and Focus timer, Problems at a glance and Earnings ticker in the status bar. Each runs sealed in a frame of its own: it has no internet, cannot read your files or account, and sees only the data listed when you install it - your AI usage as a percentage of this session's and this week's allowance with your plan, how full the open conversation is, whether you are signed in, the branch and changed-file count, the open file's name and line, its error count, the project name, the model or your earnings. Its buttons can run only the ADCode commands it declared, and it can put a prompt in the message box but never send one. To build one, choose Add… › Add-on in the Studio: write HTML and an inline script that uses adcode.on("data", …), adcode.run(…), adcode.prompt(…), adcode.store and adcode.options. Turn a plugin off on the Installed tab to remove its add-on.
+
+Access: `All Features → Add-ons`; `Browse add-ons`.
+
 <!-- feature:workbench.agentsBoard -->
 ### Agents board
 
@@ -1186,6 +1197,17 @@ Why use it: You should not need to know a command's name, shortcut, or menu befo
 How to use it: Choose All features at the bottom of the Vibe sidebar, or open the menus - the button beside ADCode - and choose View, All Features. Search by a feature name or describe what you want to do. Choose Open to use it and ? to understand it. Preferences opens Settings, where sections sit in a sidebar - Ads & Earnings, Appearance, Editing and the rest - and one shows at a time; the search box looks through every section and counts the matches in each.
 
 Access: `All Features → All Features`; `Open`; `Preferences`; `Full screen`; `Toggle side bar`; `Toggle panel`; `Problems`; `Output`; `Ports`; `Feature guide`; `About ADCode`.
+
+<!-- feature:community.artifacts -->
+### Artifacts
+
+Share a project so anyone on ADCode can copy it, improve it with their own AI, and send the improvement back for you to accept.
+
+Why use it: Getting help usually means giving someone access to your repository. An artifact lets strangers improve your project without any access at all: you see every changed line and decide.
+
+How to use it: Choose Artifacts in the Vibe sidebar (or Artifacts: Share This Project in the palette), open This project and press Share this project. ADCode shares only the project's own text files: anything your .gitignore leaves out, hidden folders like .local and .config, .env files, keys, node_modules, build output, images and lockfiles stay on your machine, and opening your home folder or a whole drive is refused outright. A file that looks like it holds a key or password is listed at the top of the dialog with Leave these files out. Anyone can Remix a shared project from Discover: ADCode copies it into Documents › ADCode Projects and opens it. After changing things, This project lists the changed files and offers Send improvement, with Ask AI to describe it for the message. Inbox shows what people sent you; open one to read each file's changes, Ask AI to review it, then Accept or Decline with a reply. An accepted improvement becomes the next version and credits its author; Get version N on This project brings it into your folder, leaving any file you edited meanwhile alone.
+
+Access: `All Features → Artifacts`; `Browse shared projects`; `Share this project`; `Improvements inbox`.
 
 <!-- feature:workbench.aiContext -->
 ### Ask AI about your code
@@ -1231,17 +1253,6 @@ How to use it: Press Ctrl+Shift+P and start typing. The shortcut for each comman
 
 Access: `All Features → Command palette`; `Open`; `Keyboard → Ctrl/Cmd+Shift+P`.
 
-<!-- feature:community.hub -->
-### Community
-
-One place for plugins other ADCode users made, projects they shared for you to remix, and your own creator profile.
-
-Why use it: The fastest way to get better at building is to borrow what already works and give back what you improved. This is where that happens without leaving the editor.
-
-How to use it: Choose Community in the Vibe sidebar (in the Code window, run Community: Open from the command palette). Discover shows featured and trending plugins, projects asking for help, and three doors: Build a plugin, Share this project, Help someone. Search at the top looks through plugins and artifacts. The You tab shows your level, badges, streak and activity, with a count on the sidebar entry when something new happened. Reading the directory needs no account; installing, publishing, starring and sending improvements need a signed-in ADCode account with a verified email.
-
-Access: `All Features → Community`; `Open Community`.
-
 <!-- feature:community.profile -->
 ### Creator profile
 
@@ -1249,7 +1260,7 @@ Your level, points, badges and streak, plus everything that happened to what you
 
 Why use it: Seeing that forty people installed your plugin, or that your fix was accepted into someone's project, is the reason to build the next one.
 
-How to use it: Open Community and choose You (or click the level chip beside the search box). Points come from installs (1), stars (3), remixes (5), each plugin or artifact you publish (10), and each improvement of yours someone accepts (20). Levels run from Newcomer to Legend; the bar shows how far the next one is. Badges mark firsts and milestones, and the streak counts days in a row you published, remixed or improved something. Improvements for you lists what people sent to your artifacts, waiting ones first; Improvements you sent shows each one's status and the owner's reply. Open one of your plugins to edit it in the Studio as the next version, or unpublish it - people who installed it keep their copy.
+How to use it: Open Plugins › Your plugins or Artifacts › Your artifacts, or click the level chip beside the search box. Points come from installs (1), stars (3), remixes (5), each plugin or artifact you publish (10), and each improvement of yours someone accepts (20). Levels run from Newcomer to Legend; the bar shows how far the next one is. Badges mark firsts and milestones, and the streak counts days in a row you published, remixed or improved something. Each page lists its own activity, and the sidebar entries show a count when something new happened. Open one of your plugins to edit it as the next version, or unpublish it - people who installed it keep their copy.
 
 Access: `All Features → Creator profile`; `Open my profile`.
 
@@ -1341,38 +1352,27 @@ How to use it: Choose Help > Open Source Licences. The first tab is ADCode's own
 
 Access: `All Features → Open source licences`; `Show licences`.
 
-<!-- feature:community.plugins -->
-### Plugin directory
-
-A public list of add-ons other people built for ADCode - AI actions, chat commands, skills, themes - that you install with one click.
-
-Why use it: Someone has probably already written the prompt, review checklist or colour scheme you were about to make. Installing theirs takes seconds, and you can turn it off or remove it just as fast.
-
-How to use it: Open Community and choose Plugins. Sort by Trending, New or Most used, or pick a category. Open a plugin to see exactly what it adds before you install it. Install asks once and lists every change. Its AI actions appear in the command palette (Ctrl+Shift+P), its chat commands behind / in the chat, its skills are used by the assistant when a task matches, and its theme recolours the app. The Installed list at the top turns each plugin on or off and uninstalls it; turning one off puts back any setting it changed. Check for updates finds newer versions, and people who installed a plugin are told when its creator publishes one. Plugins are JSON - prompts, skills, colours and setting values - never programs, so a plugin cannot run code, read your files on its own, or change your model, keys, ads or tool approvals. Report sends a listing for review; five reports hide it.
-
-Access: `All Features → Plugin directory`; `Browse plugins`.
-
 <!-- feature:community.studio -->
 ### Plugin Studio
 
 Make your own plugin, or your own version of any built-in feature, and share it with everyone.
 
-Why use it: When ADCode does something almost the way you want - a /review that is not strict enough, an editor set up the wrong way for your team - you can change it yourself instead of waiting, and everyone with the same wish can use your version.
+Why use it: When ADCode does something almost the way you want - a /review that is not strict enough, a panel you wish was always visible - you can change it yourself, and everyone with the same wish can use your version.
 
-How to use it: Open Community and choose Studio. Describe a plugin and press Build with AI: the assistant writes adcode-plugin.json in the open project, then Load adcode-plugin.json brings it into the editor. Or use Add… to insert an AI action, slash command, skill, macro, theme or setting preset, and edit the JSON directly; the panel beside it lists anything to fix and previews what the plugin adds. To change a built-in feature, choose Remix a built-in feature… here, or Customize on any card in All Features: its switches become a preset, its commands a macro, and its chat commands (/review, /commit and the rest) overrides whose instructions you can rewrite. Try it here installs it on this computer only. Publish puts it in the directory under your name; publish again with a higher version to update everyone who installed it. Remix in Studio on another person's plugin starts a copy that credits theirs. Save to project keeps the file with your code.
+How to use it: Open Plugins › Studio. Describe a plugin and press Build with AI: the assistant writes adcode-plugin.json in the open project, then Load adcode-plugin.json brings it in. Or use Add… to insert an add-on, AI action, slash command, skill, macro, theme or setting preset, and edit the JSON; the panel beside it lists anything to fix and previews what the plugin adds. Give your plugin its own settings with an "options" list - toggles, numbers, text or choices - and people change them on the Installed tab; add-ons read them as adcode.options, and prompts use them as {{option-id}}. To change a built-in feature, choose Customize a built-in feature…, or Customize on any card in All Features: its switches become a preset, its commands a macro, and its chat commands (/review, /commit and the rest) overrides whose instructions you can rewrite. Open any plugin made by ADCode in the Studio to see how it is built. Try it here installs it on this computer only. Publish puts it in the directory under your name; publish again with a higher version to update everyone who installed it. Save to project keeps the file with your code.
 
 Access: `All Features → Plugin Studio`; `Build a plugin`; `Customize a built-in feature`.
 
-<!-- feature:community.artifacts -->
-### Project artifacts
+<!-- feature:community.plugins -->
+### Plugins
 
-Share a project so anyone on ADCode can copy it, improve it with their own AI, and send the improvement back for you to accept.
+Add-ons for ADCode that you install with one click: AI actions, chat commands, skills, themes, and small panels for the chat, sidebar and status bar.
 
-Why use it: Getting help usually means giving someone access to your repository. An artifact lets strangers improve your project without any access at all: you see every changed line and decide.
+Why use it: Someone has probably already written the prompt, checklist or panel you were about to make. Installing theirs takes seconds, and turning it off is just as fast.
 
-How to use it: Open a project, then Community › Artifacts › Share this project (or Community: Share This Project in the palette). Give it a title, a description and, if you like, what you would like help with - those projects are listed under Help wanted. Private files (.env, keys), generated folders (node_modules, dist), images and lockfiles stay on your machine, and a file that looks like it contains a key or password blocks sharing until you move it into .env. Anyone can Remix it: ADCode copies the latest version into Documents › ADCode Projects and opens it. After changing things, the Artifacts tab shows how many files changed and offers Send improvement, with Ask AI to describe it for the message. As the owner you review it file by file on the You tab, Ask AI to review it, then Accept or Decline with a reply. An accepted improvement becomes the next version and credits its author; Get version N brings it into your own folder, leaving any file you edited meanwhile alone. Get latest does the same for a remix when the original moves on.
+How to use it: Choose Plugins in the Vibe sidebar (in the Code window, run Plugins: Browse from the command palette). Discover starts with eight plugins made by ADCode - Usage meter, Quick prompts, Git at a glance, Focus timer, Problems at a glance, Earnings ticker, Strict reviewer and Explain simply - which install without an account, then the community directory by category. Open any plugin to see exactly what it adds before installing. AI actions appear in the command palette (Ctrl+Shift+P), chat commands behind / in the chat, skills are used by the assistant when a task matches, add-ons appear where they belong, and a theme recolours the app. Installing shows its progress on the button - Downloading, then Installing - and ends with a check. The Installed tab turns each plugin on or off, updates it and uninstalls it; turning one off puts back any setting it changed. Settings, on a plugin's row, changes the options its creator gave it, such as a timer's length; changes apply at once. Versions lists every published version with its notes: install an older one and ADCode keeps it there, offering no updates until you switch Keep this version off. Plugins cannot change your model, keys, ads, updates or tool approvals. Report sends a community listing for review; five reports hide it.
 
-Access: `All Features → Project artifacts`; `Browse shared projects`; `Share this project`.
+Access: `All Features → Plugins`; `Browse plugins`; `Installed plugins`.
 
 <!-- feature:workbench.debugLog -->
 ### Report a problem with a debug log
@@ -1403,7 +1403,7 @@ Soon you will be able to put a price on a plugin and get paid for it. You can jo
 
 Why use it: If you build something people rely on every day, you should be able to earn from it. Joining now tells us what price creators want and puts you first in line.
 
-How to use it: Open Community › Studio and find Sell your plugins at the bottom of the right-hand column, or the same card on the You tab. Enter the price you would charge, or leave it empty, and press Join the waitlist. The card shows your place in line and how many creators are waiting. Selling is not available yet: every plugin in the directory is free, and plugins that are free today will stay free.
+How to use it: Open Plugins › Studio and find Sell your plugins at the bottom of the right-hand column, or the same card on Your plugins. Enter the price you would charge, or leave it empty, and press Join the waitlist. The card shows your place in line and how many creators are waiting. Selling is not available yet: every plugin in the directory is free, and plugins that are free today will stay free.
 
 Access: `All Features → Sell your plugins (coming soon)`; `Join the waitlist`.
 
@@ -1691,3 +1691,16 @@ Why use it: A feature nobody is told about may as well not exist. This is the on
 How to use it: Four rules keep it quiet: you see a given version's note once on this machine and never again, it waits for a moment when you are not typing, not running a command, and not debugging, it only appears for releases worth reading - small fixes install silently - and it never appears on a brand new install. Dismiss it and it is gone for good. Turn this off and nothing ever pops up; Help > What's New still has every note. A security fix is the one thing that will not wait for a quiet moment, though even that respects the switch being off.
 
 Access: `All Features → Tell me what changed`; `Read it`; `Turn on or off`; `Settings`.
+
+## Privacy
+
+<!-- feature:adcode.privacy.usageStats -->
+### Help improve ADCode
+
+Lets ADCode count which features you use each day, so the team can fix what is hard to find. Only names and numbers are sent.
+
+Why use it: A feature nobody uses is either not needed or not findable, and counts are the only way to tell which. Leave it on to have your use shape what gets improved; turn it off and nothing is counted.
+
+How to use it: It is on by default. To turn it off, open Settings › Privacy and switch off Help improve ADCode, or search for it in All Features. What is counted: which commands run, which pages open (Chat, Plugins, Artifacts and the rest), product moments such as installing a plugin, and which directory add-ons are used - as fixed names with a count per day. What is never sent: your code, prompts, file or folder names, project names, the plugins you tried privately in the Studio, or anything you typed. Counts are kept on your computer and sent once a day as one report, which the service stores without your account. Switching it off deletes anything not sent yet.
+
+Access: `All Features → Help improve ADCode`; `Turn on or off`; `Settings`.

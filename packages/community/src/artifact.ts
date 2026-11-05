@@ -77,8 +77,78 @@ export function artifactFileVerdict(path: string, bytes: number): FileVerdict {
   return { include: true };
 }
 
+/**
+ * Hidden folders that are part of a project rather than of somebody's machine.
+ *
+ * Every other dot-folder is skipped: `.local`, `.config`, `.ssh`, `.aws` and the rest are
+ * where tools keep tokens, and a person who opened their home folder by mistake must not
+ * be one click from publishing them.
+ */
+const PROJECT_DOT_FOLDERS = new Set([".github", ".gitlab", ".devcontainer", ".husky", ".storybook", ".changeset", ".circleci", ".well-known"]);
+
 /** Whether a folder is worth descending into while collecting files. */
-export const artifactFolderAllowed = (name: string): boolean => !SKIPPED_FOLDERS.has(name);
+export const artifactFolderAllowed = (name: string): boolean =>
+  !SKIPPED_FOLDERS.has(name) && (!name.startsWith(".") || PROJECT_DOT_FOLDERS.has(name));
+
+/** Folders that only a home folder or a whole drive has, never a project. */
+const PERSONAL_FOLDERS = ["AppData", "Desktop", "Documents", "Downloads", "Pictures", "Music", "Videos", "Library", "OneDrive", ".ssh", ".config"];
+
+/**
+ * Why a folder is not a project that can be shared, or null when it looks like one.
+ *
+ * `children` is the folder's own entries. A home folder, a drive root or the folder that
+ * holds everybody's projects is refused before a single file is read: the answer to
+ * "share my home folder" is never a list of 400 files with keys in them.
+ */
+export function notAProjectReason(root: string, home: string, children: readonly string[]): string | null {
+  const norm = (path: string): string => path.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+  const folder = norm(root), user = norm(home);
+  if (/^[a-z]:$/.test(folder) || folder === "" || folder === "/") return "This is a whole drive, not a project. Open the project's own folder to share it.";
+  if (folder === user || (user.startsWith(`${folder}/`))) return "This is your home folder, not a project. Open the project's own folder to share it - your home folder holds private files like sign-in tokens.";
+  const personal = PERSONAL_FOLDERS.filter((name) => children.includes(name)).length;
+  if (personal >= 3) return "This looks like a personal folder (it has Desktop, Documents or AppData in it), not a project. Open the project's own folder to share it.";
+  return null;
+}
+
+/**
+ * A `.gitignore` as a function: does it ignore this path?
+ *
+ * Covers what real projects write - comments, blank lines, `!` negation, a trailing `/`
+ * for folders only, a leading `/` to anchor at the root, and `*`, `?` and `**` - which is
+ * enough that whatever Git would not commit, an artifact does not share either.
+ */
+export function gitignoreMatcher(text: string): (path: string, isDirectory: boolean) => boolean {
+  const rules = text.split(/\r?\n/).flatMap((raw) => {
+    let line = raw.replace(/(?<!\\)\s+$/, "");
+    if (line === "" || line.startsWith("#")) return [];
+    const negate = line.startsWith("!");
+    if (negate) line = line.slice(1);
+    const directoryOnly = line.endsWith("/");
+    if (directoryOnly) line = line.slice(0, -1);
+    const anchored = line.startsWith("/") || line.slice(0, -1).includes("/");
+    line = line.replace(/^\//, "").replace(/^\*\*\//, "");
+    if (line === "") return [];
+    let source = "";
+    for (let index = 0; index < line.length; index++) {
+      const char = line[index]!;
+      if (char === "*" && line[index + 1] === "*") { source += ".*"; index++; if (line[index + 1] === "/") index++; }
+      else if (char === "*") source += "[^/]*";
+      else if (char === "?") source += "[^/]";
+      else if (char === "\\" && index + 1 < line.length) { source += line[index + 1]!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); index++; }
+      else source += char.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+    const pattern = new RegExp(anchored ? `^${source}(?:/.*)?$` : `(?:^|/)${source}(?:/.*)?$`);
+    return [{ negate, directoryOnly, pattern }];
+  });
+  return (path, isDirectory) => {
+    let ignored = false;
+    for (const rule of rules) {
+      if (rule.directoryOnly && !isDirectory && !rule.pattern.test(path.split("/").slice(0, -1).join("/"))) continue;
+      if (rule.pattern.test(path)) ignored = !rule.negate;
+    }
+    return ignored;
+  };
+}
 
 /**
  * A relative path that cannot escape the folder it is written into.

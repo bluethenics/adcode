@@ -93,6 +93,7 @@ import { installApplicationMenu } from "./menu.ts";
 import { clearRecents, forgetRecent, recentFolders, rememberRecent } from "./recents.ts";
 import { collabFileChanged, disposeCollab, registerCollabIpc } from "./collabIpc.ts";
 import { registerCommunityIpc } from "./community.ts";
+import { registerAppUsage } from "./appUsage.ts";
 import { gitAt, invalidateFileCache } from "./sourceControl.ts";
 import {
   aiAnswerAnyway,
@@ -297,6 +298,7 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
   registerGitIpc();
   registerCollabIpc({ workspaceRoot: () => currentWorkspace()?.root ?? null });
   registerCommunityIpc();
+  registerAppUsage();
 
   /*
    * A session shares one folder, so changing the folder ends the session.

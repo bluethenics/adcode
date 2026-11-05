@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const CSS = readFileSync(join(import.meta.dirname, "../src/renderer/styles/community.css"), "utf8");
-const PAGE = readFileSync(join(import.meta.dirname, "../src/renderer/community/communityPage.ts"), "utf8");
+const PAGE = ["communityShell.ts", "pluginsPage.ts", "artifactsPage.ts"].map((file) => readFileSync(join(import.meta.dirname, "../src/renderer/community", file), "utf8")).join("\n");
 
 describe("Community page motion", () => {
   const gated = CSS.slice(CSS.indexOf("@media (prefers-reduced-motion: no-preference)"));

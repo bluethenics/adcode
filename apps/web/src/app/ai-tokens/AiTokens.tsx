@@ -33,7 +33,24 @@ interface CheckoutReturn { order: string; plan: PlanId | null }
 const POLL_MS = 3_000;
 const POLL_FOR_MS = 120_000;
 
-/** A pricing link highlights a plan for review; it never starts checkout by itself. */
+/**
+ * What a click on Pricing asked for: `go=1` with a plan or a pack means the person pressed
+ * "Get Pro" or "Buy", so checkout opens as soon as the account is known - after sign-in if
+ * needed - instead of asking them to find the same plan and press again. Dodo's page shows the
+ * final amount before anything is charged, so this skips a step, never a confirmation. A link
+ * without `go=1` (an email, the low-balance notice) still only highlights the plan.
+ */
+export function checkoutIntent(search: string): { readonly plan: PlanId | null; readonly pack: string | null } | null {
+  const query = new URLSearchParams(search);
+  if (query.get("go") !== "1" || query.has("order")) return null;
+  const plan = query.get("plan");
+  const pack = query.get("pack");
+  if (plan !== null && isPlanId(plan)) return { plan, pack: null };
+  if (pack !== null && /^[a-z0-9-]{1,40}$/.test(pack)) return { plan: null, pack };
+  return null;
+}
+
+/** A pricing link highlights a plan for review; only `go=1` (see checkoutIntent) also opens checkout. */
 export function selectedPricingPlan(search: string): PlanId | null {
   const query = new URLSearchParams(search);
   if (query.has("order")) return null;
@@ -138,12 +155,13 @@ export default function AiTokens() {
   const [checkoutReturn, setCheckoutReturn] = useState<CheckoutReturn | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [selectedPlan, setSelectedPlan] = useState<PlanId | null>(null);
+  const [intent, setIntent] = useState<ReturnType<typeof checkoutIntent>>(null);
   const account = user?.uid ?? null;
   const accountRef = useRef(account);
   accountRef.current = account;
 
   useEffect(() => { setCountry(guessCountry()); }, []);
-  useEffect(() => { setSelectedPlan(selectedPricingPlan(window.location.search)); }, []);
+  useEffect(() => { setSelectedPlan(selectedPricingPlan(window.location.search)); setIntent(checkoutIntent(window.location.search)); }, []);
 
   const loadOffer = useCallback(async (): Promise<void> => {
     setOfferError(null);
@@ -261,6 +279,33 @@ export default function AiTokens() {
 
   const checkoutBusy = authLoading || (user !== null && activity === null) ? "loading-account" : busy;
 
+  // Signed out after a Pricing click: go straight to sign-in rather than leave it below the fold.
+  useEffect(() => {
+    if (intent === null || authLoading || user !== null) return;
+    const signIn = document.getElementById("ai-sign-in");
+    signIn?.scrollIntoView({ behavior: "instant", block: "start" });
+    signIn?.focus({ preventScroll: true });
+  }, [intent, authLoading, user]);
+
+  // Carry out a Pricing click once the account, the offer and any subscription are known.
+  useEffect(() => {
+    if (intent === null || user === null || offer === null || activity === null || busy !== null) return;
+    setIntent(null);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("go");
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    if (intent.plan !== null) {
+      const plan = offer.plans?.find((one) => one.id === intent.plan);
+      if (plan === undefined || subscribed || activity.tokens.plan?.id === plan.id) return;
+      void choosePlan(plan);
+    } else if (intent.pack !== null) {
+      const pack = offer.packs.find((one) => one.id === intent.pack);
+      if (pack !== undefined) void buy(pack);
+    }
+  // choosePlan and buy read the latest state when called; the intent runs exactly once.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [intent, user, offer, activity, busy, subscribed]);
+
   return (
     <>
       {/* Signed in and free to buy, the chosen card is outlined and badged; a sentence on top would only repeat it. */}
@@ -298,7 +343,7 @@ export default function AiTokens() {
           )}
 
           <ModelWallet country={country} />
-          {!authLoading && user === null && <section id="ai-sign-in" className="ai-sign-in" tabIndex={-1} aria-label="Sign in to upgrade"><SignInCard headingTag="h2" heading={selectedPlan === null ? "Sign in to upgrade" : `Continue with ${planName(selectedPlan)}`} /></section>}
+          {!authLoading && user === null && <section id="ai-sign-in" className="ai-sign-in" tabIndex={-1} aria-label="Sign in to upgrade"><SignInCard headingTag="h2" heading={selectedPlan !== null ? `Continue with ${planName(selectedPlan)}` : intent?.pack ? "Sign in to buy your top-up" : "Sign in to upgrade"} /></section>}
           {user !== null && <CodeRedeemer key={`code:${account}`} token={token} onRedeem={() => void refresh()} />}
           {subscription?.plan === "pro" && subscriptionAccess && <InviteCard key={`invite:${account}`} token={token} />}
 

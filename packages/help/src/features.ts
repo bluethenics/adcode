@@ -51,30 +51,30 @@ const command = (commandId: string, label: string): FeatureCommandAction => ({
  * looking for the feature actually wants: Commit, not Fetch.
  */
 const METADATA: Readonly<Record<string, FeatureMetadata>> = {
-  "community.hub": {
-    added: "2026-11-04",
-    actions: [command("community.open", "Open Community")],
-    keywords: ["community", "marketplace", "store", "extensions", "add-ons", "share", "discover", "trending", "what others built"],
-  },
   "community.plugins": {
     added: "2026-11-04",
-    actions: [command("community.plugins", "Browse plugins")],
-    keywords: ["plugins", "extensions", "add-ons", "marketplace", "install plugin", "plugin store", "themes", "prompts", "skills", "uninstall plugin", "plugin updates"],
+    actions: [command("community.plugins", "Browse plugins"), command("community.installed", "Installed plugins")],
+    keywords: ["plugins", "extensions", "add-ons", "marketplace", "install plugin", "plugin store", "themes", "prompts", "skills", "uninstall plugin", "plugin updates", "made by adcode"],
+  },
+  "community.addons": {
+    added: "2026-11-05",
+    actions: [command("community.addons", "Browse add-ons")],
+    keywords: ["add-on", "addon", "widget", "panel", "status bar", "sidebar widget", "chat widget", "usage meter", "focus timer", "pomodoro", "quick prompts", "custom ui"],
   },
   "community.studio": {
     added: "2026-11-04",
     actions: [command("community.studio", "Build a plugin"), command("community.remixFeature", "Customize a built-in feature")],
-    keywords: ["make a plugin", "create plugin", "plugin builder", "extension api", "custom command", "custom slash command", "override review", "edit a feature", "customize feature", "remix", "theme maker", "adcode-plugin.json", "publish plugin"],
+    keywords: ["make a plugin", "create plugin", "plugin builder", "extension api", "custom command", "custom slash command", "override review", "edit a feature", "customize feature", "remix", "theme maker", "adcode-plugin.json", "publish plugin", "build an add-on"],
   },
   "community.artifacts": {
     added: "2026-11-04",
-    actions: [command("community.artifacts", "Browse shared projects"), command("community.shareProject", "Share this project")],
-    keywords: ["artifact", "share project", "publish project", "remix", "fork", "improve someone else's project", "pull request", "contribute", "help wanted", "open source", "send improvement", "accept changes"],
+    actions: [command("community.artifacts", "Browse shared projects"), command("community.shareProject", "Share this project"), command("community.inbox", "Improvements inbox")],
+    keywords: ["artifact", "share project", "publish project", "remix", "fork", "improve someone else's project", "pull request", "contribute", "help wanted", "open source", "send improvement", "accept changes", "inbox"],
   },
   "community.profile": {
     added: "2026-11-04",
     actions: [command("community.you", "Open my profile")],
-    keywords: ["creator profile", "points", "level", "badges", "streak", "notifications", "who installed", "improvements inbox", "my plugins", "my artifacts"],
+    keywords: ["creator profile", "points", "level", "badges", "streak", "notifications", "who installed", "my plugins", "my artifacts"],
   },
   "community.monetize": {
     added: "2026-11-04",
@@ -668,7 +668,8 @@ const DESKTOP_GROUPS: ReadonlySet<string> = new Set(["editing", "formatting", "n
 
 const DESKTOP_ONLY: ReadonlySet<string> = new Set([
   // The community hub installs plugins into ~/.adcode and remixes into Documents: desktop only for now.
-  "community.hub", "community.plugins", "community.studio", "community.artifacts", "community.profile", "community.monetize",
+  "community.plugins", "community.addons", "community.studio", "community.artifacts", "community.profile", "community.monetize",
+  "adcode.privacy.usageStats",
   "adcode.git.gutterDiff", "adcode.git.blame", "adcode.git.fileTimeline", "adcode.git.mergeConflict",
   "adcode.session.autoSave", "adcode.session.localFileHistory", "adcode.session.crashRecovery",
   "adcode.updates.auto", "adcode.appearance.zoom", "adcode.ads.chatSponsored", "adcode.ads.partnerNotifications",

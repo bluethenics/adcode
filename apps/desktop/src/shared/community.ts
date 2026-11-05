@@ -15,11 +15,23 @@ export type {
 export interface InstalledPluginView {
   readonly manifest: PluginManifest;
   readonly enabled: boolean;
-  /** "directory" when installed from the public directory; "local" when tried from the Studio. */
-  readonly source: "directory" | "local";
+  /** "directory" from the public directory, "starter" made by ADCode, "local" tried from the Studio. */
+  readonly source: "directory" | "local" | "starter";
   readonly installedAt: number;
-  /** A newer version in the directory, once an update check has seen one. */
+  /** A newer version in the directory, once an update check has seen one (never while kept at a version). */
   readonly update: string | null;
+  /** The plugin's own settings, as the person set them. */
+  readonly options: Readonly<Record<string, boolean | number | string>>;
+  /** Kept at this version on purpose: no updates are offered. */
+  readonly pinned: boolean;
+}
+
+/** Progress of a download or install, for the animated bars. `total` 0: length not known yet. */
+export interface CommunityProgressView {
+  readonly key: string;
+  readonly phase: "download" | "install" | "write" | "done" | "failed";
+  readonly done: number;
+  readonly total: number;
 }
 
 export interface ArtifactPreview {
@@ -29,8 +41,12 @@ export interface ArtifactPreview {
   readonly bytes: number;
   /** Why files were left out, with counts, so "where is my logo.png" has an answer. */
   readonly skipped: readonly { readonly reason: string; readonly count: number }[];
-  /** Anything that blocks publishing (a key in a file, too many files). */
+  /** Anything that blocks publishing apart from keys: not a project, too many files, too large. */
   readonly problems: readonly string[];
+  /** "not-a-project": nothing here can be shared; "too-large": trim it first; null: it can go. */
+  readonly blocked: "not-a-project" | "too-large" | null;
+  /** Files that look like they hold a key or password - one entry per file. */
+  readonly secrets: readonly { readonly path: string; readonly line: number; readonly kind: string }[];
   readonly link: RemixRecord | null;
   readonly readme: string | null;
 }
@@ -63,6 +79,8 @@ export interface PublishArtifactInput {
   readonly tags: readonly string[];
   readonly helpWanted: string;
   readonly message: string;
+  /** Files to leave out of this share, such as the ones flagged as holding a key. */
+  readonly exclude: readonly string[];
 }
 
 export interface CommunityApi {
@@ -75,12 +93,19 @@ export interface CommunityApi {
   markRead(): Promise<void>;
 
   installed(): Promise<readonly InstalledPluginView[]>;
-  install(id: string): Promise<readonly InstalledPluginView[]>;
+  /** Install the latest version, or `version`; `keep` holds it there (no updates offered). */
+  install(id: string, version?: string | null, keep?: boolean): Promise<readonly InstalledPluginView[]>;
+  setOptions(id: string, values: Readonly<Record<string, unknown>>): Promise<readonly InstalledPluginView[]>;
+  setPinned(id: string, pinned: boolean): Promise<readonly InstalledPluginView[]>;
+  onProgress(listener: (progress: CommunityProgressView) => void): () => void;
   /** Try a Studio draft without publishing it. */
   installLocal(manifest: string): Promise<readonly InstalledPluginView[]>;
   uninstall(id: string): Promise<readonly InstalledPluginView[]>;
   setEnabled(id: string, enabled: boolean): Promise<readonly InstalledPluginView[]>;
   checkUpdates(): Promise<readonly InstalledPluginView[]>;
+  /** The plugins ADCode ships, ready to install without an account. */
+  starters(): Promise<readonly PluginManifest[]>;
+  installStarter(id: string): Promise<readonly InstalledPluginView[]>;
   publishPlugin(manifest: string, notes: string): Promise<PluginDetail>;
   removePlugin(id: string): Promise<void>;
   /** The open project's `adcode-plugin.json`, or null. Lets the assistant write a plugin you then load. */
@@ -90,7 +115,7 @@ export interface CommunityApi {
   star(kind: "plugin" | "artifact", id: string, on: boolean): Promise<{ readonly stars: number; readonly starred: boolean }>;
   report(kind: "plugin" | "artifact", id: string, reason: string): Promise<void>;
 
-  previewArtifact(): Promise<ArtifactPreview>;
+  previewArtifact(exclude?: readonly string[]): Promise<ArtifactPreview>;
   publishArtifact(input: PublishArtifactInput): Promise<ArtifactDetail>;
   removeArtifact(id: string): Promise<void>;
   /** Download the latest version into a new folder; resolves to that folder. */
