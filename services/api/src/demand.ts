@@ -1,5 +1,5 @@
 import { advertiserCostMicros, formatMicros } from "./money.ts";
-import type { Store } from "./store.ts";
+import type { ServingConfig, Store } from "./store.ts";
 
 export interface DemandView {
   clearingCpmMicros: string;
@@ -10,11 +10,12 @@ export interface DemandView {
   history: Array<{ at: number; clearingCpmMicros: string }>;
 }
 
-export async function readDemand(store: Store, now: number): Promise<DemandView> {
-  const [config, history] = await Promise.all([
-    store.getConfig(),
-    store.marketPriceHistory(now - 24 * 60 * 60 * 1000),
-  ]);
+/**
+ * The maximum bid of every campaign that could win the next slot: an active, funded
+ * advertiser, budget left for one more view, and an approved card. A campaign still
+ * marked active after its budget is spent serves nothing, so it is not counted.
+ */
+export async function servableBids(store: Store, config: ServingConfig): Promise<bigint[]> {
   const bids: bigint[] = [];
 
   for (const advertiser of await store.listAdvertisers()) {
@@ -33,6 +34,15 @@ export async function readDemand(store: Store, now: number): Promise<DemandView>
       bids.push(campaign.cpmMicros);
     }
   }
+  return bids;
+}
+
+export async function readDemand(store: Store, now: number): Promise<DemandView> {
+  const [config, history] = await Promise.all([
+    store.getConfig(),
+    store.marketPriceHistory(now - 24 * 60 * 60 * 1000),
+  ]);
+  const bids = await servableBids(store, config);
 
   bids.sort((a, b) => (a === b ? 0 : a > b ? -1 : 1));
   const top = bids[0];

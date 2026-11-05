@@ -113,7 +113,7 @@ import {
 import { handleFundingWebhook } from "./funding.ts";
 import type { PaymentProvider } from "./payments.ts";
 import { createCreditCheckout } from "./creditOrders.ts";
-import { readDemand } from "./demand.ts";
+import { readDemand, servableBids } from "./demand.ts";
 import { PAYOUT_FIELD_KINDS } from "./payoutCorridors.ts";
 import { createMemoryStore } from "./memoryStore.ts";
 import { isSafeAssetKey } from "./assets.ts";
@@ -475,8 +475,14 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
     }
 
     if (path === "/v1/stats" && req.method === "GET") {
-      const stats = await store.publicStats(clock.now());
-      send(res, 200, { ...stats, asOf: clock.now() }, {
+      // "Active campaigns" is quoted to advertisers as competition for the next slot, so it
+      // counts what `/v1/demand` counts: campaigns that could serve, not every row marked
+      // active. Three spent campaigns once read as three competitors while none could serve.
+      const [stats, bids] = await Promise.all([
+        store.publicStats(clock.now()),
+        store.getConfig().then((config) => servableBids(store, config)),
+      ]);
+      send(res, 200, { ...stats, activeCampaigns: bids.length, asOf: clock.now() }, {
         ...cors,
         "cache-control": "public, max-age=60, stale-while-revalidate=30",
       });

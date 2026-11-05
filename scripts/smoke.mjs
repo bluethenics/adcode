@@ -126,6 +126,9 @@ const childEnv = {
   ELECTRON_ENABLE_LOGGING: "1",
   ADCODE_PIN_PROMPT: "1",
   ADCODE_UPDATE_SIMULATE: "1",
+  // The mock backend has no verified account, so the required sign-in would cover every
+  // check below. The gate has its own UI test (accountJourneyUi); installed builds ignore this.
+  ADCODE_ACCOUNT_GATE: "off",
 };
 delete childEnv.ELECTRON_RUN_AS_NODE;
 

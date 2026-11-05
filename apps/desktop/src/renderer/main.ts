@@ -3402,7 +3402,7 @@ const accountMenu = createAccountMenu(
  * animation, and short enough that it is still obviously about the app that just opened -
  * the same reasoning behind the 900ms the sheet itself waits for.
  */
-const accountGate = createAccountGate(accountMenu, () => {});
+const accountGate = createAccountGate(accountMenu, () => {}, window.adcode.platform.info().then((info) => info.accountGate !== false));
 const PIN_PROMPT_DELAY_MS = 1_200;
 
 const pinPromptCard = createPinPromptCard(document.body);
@@ -6169,6 +6169,7 @@ function registerCommands(): void {
     editorHost.triggerInlineCompletion(),
   );
   add("ai.newConversation", "New Conversation", () => chat.newConversation());
+  add("ai.forkConversation", "AI: Fork This Conversation", () => chat.forkConversation());
   add("ai.showConversations", "AI: Show Working Chats", () => chat.showConversations());
   add("ai.team", "Set Up AI Team", () => chat.openTeamSetup());
   add("ai.schedule", "Schedule an AI Message", () => chat.openScheduleComposer());

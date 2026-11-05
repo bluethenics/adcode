@@ -318,6 +318,11 @@ body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-row {
 body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-row:hover { background: var(--bg-hover); }
 body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-row[data-active="true"] { background: var(--bg-selected); }
 body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-row[data-active="true"] .chat-history-open { color: var(--text-primary); }
+/* The sidebar's rows sit closer together; the fork spine runs to their exact centres. */
+body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-forks {
+  --fork-spine-top: -1px;
+  --fork-spine-end: 17px;
+}
 /* Only "working" and "finished, not seen yet" mean anything to a Vibe user; a dot per row or a
    branch glyph for a renamed chat is noise in a list this narrow. */
 body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-status:not([data-status="working"], [data-status="finished"], [data-status="attention"]) { display: none; }

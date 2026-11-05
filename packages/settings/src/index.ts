@@ -511,6 +511,14 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     maxLength: 400,
   },
   bool(
+    "adcode.ai.autoFork",
+    "ai",
+    "Fork chats on its own",
+    "When a request has independent parts that each take several steps, the assistant splits them into fork chats you can watch and steer, instead of doing them one after another. Off, it forks only when you ask.",
+    true,
+    true,
+  ),
+  bool(
     "adcode.ai.isolatedWorkspaces",
     "ai",
     "AI file tools",

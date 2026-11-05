@@ -38,6 +38,16 @@ export interface ChatSession {
    * conversations saved before compaction existed.
    */
   readonly summary?: ChatSummary | null;
+  /**
+   * The main chat this conversation was forked from. Forks of forks point at the same
+   * root, so one family keeps one parent and every sibling can be found by this field.
+   * Absent for a normal conversation.
+   */
+  readonly parentId?: string;
+  /** When the fork was made; the copied history is everything before this. */
+  readonly forkedAt?: number;
+  /** The part the parent gave this fork, carried into its briefing. */
+  readonly forkTask?: string;
 }
 
 export interface ChatSummary {
@@ -154,6 +164,9 @@ export function validateSession(raw: unknown): ChatSession | null {
   const createdAt = record["createdAt"];
   const updatedAt = record["updatedAt"];
   const title = record["title"];
+  const parentId = record["parentId"];
+  const forkedAt = record["forkedAt"];
+  const forkTask = record["forkTask"];
 
   return {
     id,
@@ -163,6 +176,9 @@ export function validateSession(raw: unknown): ChatSession | null {
     updatedAt: typeof updatedAt === "number" ? updatedAt : 0,
     messages,
     summary: validateSummary(record["summary"], messages.length),
+    ...(typeof parentId === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(parentId) ? { parentId } : {}),
+    ...(typeof forkedAt === "number" && Number.isFinite(forkedAt) && forkedAt >= 0 ? { forkedAt } : {}),
+    ...(typeof forkTask === "string" && forkTask.trim().length > 0 ? { forkTask: forkTask.slice(0, 2_000) } : {}),
   };
 }
 

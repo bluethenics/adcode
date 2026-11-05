@@ -176,6 +176,10 @@ describe("AI Chat workspace", () => {
     expect(source).toContain("chat-conversation-title");
     expect(source).toContain("Chats and tasks");
     expect(source).toContain("chat-history-group");
+    expect(source).toContain("chat-history-tree");
+    expect(source).toContain("chat-history-toggle");
+    expect(styles).toContain(".chat-history-forks");
+    expect(styles).toContain("--fork-spine-end");
     expect(source).toContain("chat-disclaimer");
     expect(connectSource).toContain("connect-steps");
     expect(styles).toContain(".chat-codeblock");

@@ -21,8 +21,17 @@ describe("the advertiser landing page", () => {
     expect(html).toContain("7,027");
     expect(html).toContain("62% of the network joined this week");
     expect(html).toContain("20,116");
+    expect(html).toContain("Competing for the next card");
     // The composite activity score is not ad inventory, so it never reaches this page.
     expect(readApi).not.toHaveBeenCalledWith("/v1/impressions", expect.anything());
+  });
+
+  it("tells an advertiser when no campaign is running that the next one has the slots to itself", async () => {
+    vi.mocked(readApi).mockResolvedValue(Response.json({ ...LIVE, activeCampaigns: 0 }));
+    const html = text(renderToStaticMarkup(await AdvertisersPage()));
+
+    expect(html).toContain("None right now. The next one takes every slot it targets, at the floor price");
+    expect(html).not.toContain("Competing for the next card");
   });
 
   it("states no audience size at all when the figures are unavailable", async () => {
@@ -53,6 +62,19 @@ describe("the advertiser landing page", () => {
     expect(markup).toMatch(/<form\b[\s\S]*?<button\b[^>]*type="submit"/);
     for (const item of ADVERTISER_FAQ) expect(markup).toContain(item.q.replace("'", "&#x27;"));
     expect(markup).toContain('href="/portal"');
+  });
+
+  it("shows both placements, labels the sample workspace as a sample, and repeats the way in", async () => {
+    vi.mocked(readApi).mockRejectedValue(new Error("offline"));
+    const html = text(renderToStaticMarkup(await AdvertisersPage()));
+
+    expect(html).toContain("Desktop app");
+    expect(html).toContain("Browser editor");
+    // Illustrative numbers must say so, and must obey the real price: 12,480 views at the floor.
+    expect(html).toContain("Sample campaign with illustrative figures");
+    expect(html).toContain(`12,480`);
+    expect(html).toContain(`$${((12_480 / 1000) * 2).toFixed(2)}`);
+    expect(html.match(/Start a campaign/g)?.length).toBeGreaterThanOrEqual(3);
   });
 
   it("is the canonical advertiser address, and the old one moves here", async () => {

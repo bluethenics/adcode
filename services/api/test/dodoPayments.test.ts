@@ -65,6 +65,16 @@ describe("Dodo token packs", () => {
     const body = JSON.parse(String((mock.mock.calls as unknown as Array<[string, RequestInit]>)[0]![1].body));
     expect(body).toMatchObject({ billing_currency: "USD", feature_flags: { allow_currency_selection: false } });
   });
+
+  it.each([[undefined, "ord-1"], ["ai-wallet", "aiw_1"]] as const)("charges a %s top-up in USD, the only currency its webhook credits", async (product, orderId) => {
+    vi.stubEnv("DODO_API_KEY", "test-key"); vi.stubEnv("DODO_PRODUCT_ID", "pdt_credits"); vi.stubEnv("DODO_WALLET_PRODUCT_ID", "pdt_wallet");
+    const mock = vi.fn(async () => Response.json({ session_id: "chk", checkout_url: "https://checkout.dodo/t" }));
+    vi.stubGlobal("fetch", mock);
+    await createDodoProvider().createCheckout({ orderId, advertiserId: "a", advertiserName: "A", advertiserEmail: "a@example.test", billingCountry: "DE", amountMicros: 25_000_000n, returnUrl: "https://a.test/r", cancelUrl: "https://a.test/c", ...(product ? { product } : {}) });
+    const body = JSON.parse(String((mock.mock.calls as unknown as Array<[string, RequestInit]>)[0]![1].body));
+    expect(body).toMatchObject({ billing_currency: "USD", feature_flags: { allow_currency_selection: false } });
+    if (product === "ai-wallet") expect(body.feature_flags.allow_discount_code).toBe(false);
+  });
 });
 
 describe("Dodo subscriptions adapter", () => {

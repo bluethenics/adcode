@@ -99,6 +99,12 @@ const STEP_LABELS: Readonly<Record<string, string>> = {
   update_plan: "Update plan",
   ask_user: "Ask the user",
   delegate_task: "Helpers",
+  fork_chats: "Start fork chats",
+  send_chat_message: "Message chat",
+  read_chat_messages: "Read chat messages",
+  wait_for_chat_forks: "Wait for forks",
+  list_chat_forks: "List fork chats",
+  stop_chat: "Stop chat",
   project_context: "Read project notes",
   inspect_project: "Inspect project",
   run_project_checks: "Check project",
@@ -129,7 +135,9 @@ export type ToolStepIcon = "search" | "globe" | "file" | "edit" | "terminal" | "
 /** The row's icon, by what the tool does rather than by its exact name. */
 export function toolStepIcon(name: string): ToolStepIcon {
   const clean = name.trim();
-  if (clean === "update_plan" || clean === "delegate_task") return "checklist";
+  if (clean === "update_plan" || clean === "delegate_task" || clean === "fork_chats" || clean === "wait_for_chat_forks") return "checklist";
+  if (clean === "send_chat_message" || clean === "stop_chat") return "tool";
+  if (clean === "read_chat_messages" || clean === "list_chat_forks") return "file";
   if (clean === "call_mcp" || clean === "discover_capabilities" || clean === "adcode_connectors") return "plug";
   if (clean === "adcode_features" || clean === "adcode_action") return "tool";
   if (clean === "view_page" || clean === "audit_page" || clean === "open_preview") return "eye";

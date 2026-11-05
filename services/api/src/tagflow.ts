@@ -18,7 +18,7 @@ import { includedProvider, isCustomProviderUrl, modelProvider, providerConnectio
 import { DEFAULT_CREDIT_PLAN, creditCharge, creditsView, millicreditsFor, modelCreditRate, parseCreditPlan, untilText, type CreditPlan } from "./credits.ts";
 import { BUY_PACKS_URL, BUY_TOKENS_URL, DEFAULT_PAID_CONFIG, TOKEN_ORDER_PREFIX, isSponsoredTagflow, isPaidModel, tokensView } from "./paidTokens.ts";
 import { CREDIT_UNITS, includedCharge, subscriptionCharge } from "./aiEconomics.ts";
-import { WALLET_MARKUP_PERCENT, WALLET_ORDER_PREFIX, WALLET_TOPUPS_CENTS, WALLET_URL, walletCharge, walletRates } from "./modelWallet.ts";
+import { DOWNLOAD_URL, WALLET_MARKUP_PERCENT, WALLET_ORDER_PREFIX, WALLET_TOPUPS_CENTS, WALLET_URL, walletCharge, walletRates } from "./modelWallet.ts";
 import type { PaymentProvider } from "./payments.ts";
 import { PLANS, LEGACY_PLANS, effectiveWeeklyAllowance, hasActivePlan, hasUnlimitedPlan, hasAllModelAccess, hasLegacyAllowance, LEGACY_MODEL_IDS, requiresSubscription, parsePromo, planById } from "./aiPlans.ts";
 import { activeCampaign, startCampaign } from "./usageCampaign.ts";
@@ -875,7 +875,9 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
       const walletModel = parsed.model.billing === "wallet" && !allModelAccess;
       if (walletModel && request.headers.get("x-adcode-paid-credits") !== "1" && !(auth.isAdmin && request.headers.get("x-adcode-ai-source") === "admin-test")) {
         await finishMetric("rejected","wallet-client-update");
-        return fail(402,"wallet-client-update",`This model uses purchased USD credits at provider cost plus 35%. Update ADCode to use paid models, and manage credits at ${WALLET_URL}.`,{},{retryable:false,buyUrl:WALLET_URL});
+        // Only releases before 2.4.12 land here, and they show this text as it is: without a link,
+        // 61 people who chose a paid model in one evening had no way to the update.
+        return fail(402,"wallet-client-update",`This model uses purchased USD credits at provider cost plus 35%, and this version of ADCode cannot use them. Download the latest version at ${DOWNLOAD_URL}, then try again. Manage credits at ${WALLET_URL}.`,{},{retryable:false,buyUrl:DOWNLOAD_URL});
       }
       const paidModel = !walletModel && isPaidModel(parsed.model, config.paid) && !hasUnlimitedPlan(accountPlan, deps.clock.now(), costCredits) && activeCampaign(config.campaign, deps.clock.now()) === null;
       // The week's free allowance: the account's plan or boost when better than everyone's. Cached per isolate.

@@ -70,7 +70,7 @@ export function PricingContent({ offer, now = Date.now() }: { offer: PricingOffe
             <li key={plan.id} className="pricing-plan" data-featured={featured} data-plan={plan.id} style={{ "--i": index } as CSSProperties}>
               <div className="pricing-card-title">
                 <h3>{plan.name}</h3>
-                {featured ? <span className="pricing-flag">Best value</span> : plan.id === "pro" ? <span className="pricing-flag pricing-flag-quiet">4× Builder</span> : null}
+                {featured ? <span className="pricing-flag">Best value</span> : plan.id === "pro" ? <span className="pricing-flag pricing-flag-quiet">3× Builder</span> : null}
               </div>
               <p className="pricing-audience">{PLAN_BENEFITS[plan.id].audience}</p>
               <p className="pricing-plan-price"><strong>{price(plan.priceCents)}</strong><span>/{plan.interval}</span></p>

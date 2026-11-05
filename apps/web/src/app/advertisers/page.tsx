@@ -9,7 +9,7 @@ import { ClearingPrice } from "@/components/advertisers/ClearingPrice";
 import { ADVERTISER_FAQ, FLOOR, TARGETING, budgetExamples, readNetworkStats } from "@/lib/advertisers";
 import { breadcrumbs, faqPage } from "@/lib/schema";
 import { pageMetadata } from "@/lib/seo";
-import { ECONOMICS, TEAM } from "@/lib/site";
+import { ECONOMICS, TEAM, WEB_VERSION_URL } from "@/lib/site";
 import { showcase } from "@/lib/showcase";
 import "./advertisers.css";
 
@@ -39,6 +39,43 @@ const REASONS: readonly { title: string; body: string }[] = [
   { title: "Developers are paid to see you", body: `Half of every verified view is credited to the developer who saw it, ${ECONOMICS.revSharePercent}% on the ledger. Your card is the reason their editor is free.` },
   { title: "Nothing about them to leak", body: "Targeting uses 45 generic tags picked on the device. No source code, file names or personal data reach the ad server." },
 ];
+
+const PLACEMENTS: readonly { name: string; detail: string; kind: "desktop" | "browser"; bar: string }[] = [
+  { name: "Desktop app", detail: "Windows, macOS and Linux", kind: "desktop", bar: "ADCode" },
+  { name: "Browser editor", detail: "No install, same card", kind: "browser", bar: new URL(WEB_VERSION_URL).host },
+];
+
+/** A few lines of ordinary code behind the card, so the mock reads as an editor at work. */
+const EDITOR_LINES = `export async function deploy(env: Env) {
+  const build = await bundle("./src");
+  await upload(build, env.bucket);
+  return verify(env.url);
+}`;
+
+/*
+ * The sample workspace mirrors the real portal's overview (Views, Clicks, Spent), with
+ * made-up figures that obey the real price: 12,480 verified views at the $2 floor CPM is
+ * $24.96. Labelled as a sample on the page, because a number that looks measured is a claim.
+ */
+const SAMPLE = {
+  views: 12_480,
+  clicks: 187,
+  spent: "$24.96",
+  budget: "$50",
+  daily: [1210, 1480, 1630, 1890, 1720, 2160, 2390],
+} as const;
+
+function sparkline(values: readonly number[], width = 320, height = 88): string {
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  return values
+    .map((value, index) => {
+      const x = (index / (values.length - 1)) * width;
+      const y = height - 6 - ((value - min) / (max - min || 1)) * (height - 12);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+}
 
 const LAUNCH: readonly { title: string; body: string }[] = [
   { title: "Write your card", body: "Your logo, one line of up to 60 characters, and an https link." },
@@ -95,9 +132,25 @@ export default async function AdvertisersPage() {
             <li><strong>Paced, never spammy</strong><span>At most {ECONOMICS.adsPerHourStandard} cards an hour at the default setting, so each one is noticed.</span></li>
           </ul>
         </div>
-        <div className="adv-format-stage" aria-hidden="true">
-          <SponsoredToastPreview brand={EXAMPLE.brand} headline={EXAMPLE.headline} body={EXAMPLE.body} logo={null} />
-          <SponsoredToastPreview brand="Your brand" headline="Your message, in one line" body="An optional second line with the detail that makes them click." logo={null} />
+        {/* Both places the card serves, shown rather than described. The card is the real markup. */}
+        <div className="adv-placements">
+          {PLACEMENTS.map((placement) => (
+            <figure className="adv-placement" key={placement.name}>
+              <div className="adv-window" data-kind={placement.kind} aria-hidden="true">
+                <div className="adv-window-bar">
+                  <i /><i /><i />
+                  <span>{placement.bar}</span>
+                </div>
+                <div className="adv-window-body">
+                  <pre>{EDITOR_LINES}</pre>
+                  <div className="adv-window-card">
+                    <SponsoredToastPreview brand={EXAMPLE.brand} headline={EXAMPLE.headline} body={EXAMPLE.body} logo={null} />
+                  </div>
+                </div>
+              </div>
+              <figcaption><strong>{placement.name}</strong><span>{placement.detail}</span></figcaption>
+            </figure>
+          ))}
         </div>
       </section>
 
@@ -114,12 +167,47 @@ export default async function AdvertisersPage() {
         </div>
       </section>
 
+      <section className="adv-console adv-wrap" aria-labelledby="adv-console-title">
+        <div className="adv-console-copy">
+          <h2 id="adv-console-title">Run it from one workspace.</h2>
+          <p>Views, clicks and spend for every campaign, day by day. Pause, raise the budget or swap the card whenever you like.</p>
+        </div>
+        <figure className="adv-console-frame">
+          <div className="adv-console-app" aria-hidden="true">
+            <nav className="adv-console-nav">
+              <strong>Advertiser</strong>
+              <span data-active="true">Overview</span>
+              <span>Campaigns</span>
+              <span>Credits</span>
+            </nav>
+            <div className="adv-console-main">
+              <dl className="adv-console-kpis">
+                <div><dt>Views</dt><dd>{SAMPLE.views.toLocaleString("en-US")}</dd></div>
+                <div><dt>Clicks</dt><dd>{SAMPLE.clicks.toLocaleString("en-US")}</dd></div>
+                <div><dt>Spent</dt><dd className="money">{SAMPLE.spent}</dd></div>
+              </dl>
+              <div className="adv-console-chart">
+                <span>Views, 7 days</span>
+                <svg viewBox="0 0 320 88" preserveAspectRatio="none"><polyline points={sparkline(SAMPLE.daily)} /></svg>
+              </div>
+              <div className="adv-console-row">
+                <span className="adv-console-name">{EXAMPLE.brand} · launch week</span>
+                <span className="adv-console-pill">Active</span>
+                <span>{SAMPLE.spent} of {SAMPLE.budget}</span>
+              </div>
+            </div>
+          </div>
+          <figcaption>Sample campaign with illustrative figures, priced at the {FLOOR.cpm} floor CPM.</figcaption>
+        </figure>
+      </section>
+
       <section className="adv-pricing adv-wrap" id="pricing" aria-labelledby="adv-pricing-title">
         <div className="adv-pricing-lead">
           <h2 id="adv-pricing-title">Priced so you can try it today.</h2>
           <p className="adv-price"><strong className="money">{FLOOR.block}</strong> per {FLOOR.views} verified views</p>
           <p>That is a {FLOOR.cpm} CPM, with no minimum spend, no contract and no setup fee. Credits you do not use stay in your balance.</p>
           <ClearingPrice />
+          <a className="adv-primary adv-pricing-cta" href="#start">Start a campaign <Icon node={ArrowRight} /></a>
         </div>
         <table className="adv-budget">
           <caption>What a budget buys at the floor bid</caption>
@@ -167,7 +255,10 @@ export default async function AdvertisersPage() {
       <section className="adv-closing adv-wrap" aria-labelledby="adv-closing-title">
         <h2 id="adv-closing-title">Planning a larger launch?</h2>
         <p>Talk through budgets, targeting and timing with the founder. Thirty minutes, no pitch deck required.</p>
-        <a className="adv-secondary" href={TEAM.bookingUrl} target="_blank" rel="noopener noreferrer">Book a call <Icon node={ArrowUpRight} /></a>
+        <div className="adv-actions">
+          <a className="adv-primary" href="#start">Start a campaign <Icon node={ArrowRight} /></a>
+          <a className="adv-secondary" href={TEAM.bookingUrl} target="_blank" rel="noopener noreferrer">Book a call <Icon node={ArrowUpRight} /></a>
+        </div>
         <p className="adv-returning">Already advertising? <a href="/portal">Open your advertiser workspace</a></p>
       </section>
     </div>

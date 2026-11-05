@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   escapeHtml,
+  groupChatForks,
   groupChatSessions,
   renderChatMessageHtml,
   splitChatContent,
@@ -124,5 +125,39 @@ describe("chatMarkdown", () => {
       "Older",
     ]);
     expect(groups[0]?.sessions[0]?.id).toBe("today");
+  });
+
+  it("nests forks under their root in creation order and keeps orphans visible", () => {
+    const sessions = [
+      { id: "parent", title: "Parent", createdAt: 1, updatedAt: 10 },
+      { id: "b", title: "Fork B", parentId: "parent", createdAt: 3, updatedAt: 8 },
+      { id: "a", title: "Fork A", parentId: "parent", createdAt: 2, updatedAt: 9 },
+      { id: "orphan", title: "Orphan", parentId: "gone", createdAt: 4, updatedAt: 7 },
+    ];
+    const { roots, children } = groupChatForks(sessions);
+    expect(roots.map((root) => root.id)).toEqual(["parent", "orphan"]);
+    expect(children.get("parent")?.map((fork) => fork.id)).toEqual(["a", "b"]);
+  });
+
+  it("buckets a family by its newest fork, not just the parent's last turn", () => {
+    const sessions = [
+      { id: "parent", title: "Parent", createdAt: 1, updatedAt: 5 },
+      { id: "fork", title: "Fork", parentId: "parent", createdAt: 2, updatedAt: 20 },
+      { id: "plain", title: "Plain", createdAt: 3, updatedAt: 10 },
+    ];
+    const { activity } = groupChatForks(sessions);
+    expect(activity.get("parent")).toBe(20);
+    expect(activity.get("plain")).toBe(10);
+  });
+
+  it("does not nest a fork under another fork", () => {
+    const sessions = [
+      { id: "parent", title: "Parent", createdAt: 1, updatedAt: 10 },
+      { id: "fork", title: "Fork", parentId: "parent", createdAt: 2, updatedAt: 9 },
+      { id: "nested", title: "Nested", parentId: "fork", createdAt: 3, updatedAt: 8 },
+    ];
+    const { roots, children } = groupChatForks(sessions);
+    expect(roots.map((root) => root.id)).toEqual(["parent", "nested"]);
+    expect(children.get("parent")?.map((fork) => fork.id)).toEqual(["fork"]);
   });
 });

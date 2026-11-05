@@ -71,6 +71,7 @@ import { markFor } from "../motionFlip.ts";
 import { button as dialogButton, el as dialogEl, openFormModal } from "../dialogs/formDialog.ts";
 import type { CodeReference } from "../editor/codeReferences.ts";
 import {
+  groupChatForks,
   groupChatSessions,
   renderChatMessageHtml,
 } from "./chatMarkdown.ts";
@@ -133,6 +134,8 @@ export interface ChatWidget {
   open(): void;
   /** Start a fresh conversation - the current one stays in History - and focus the composer. */
   newConversation(): void;
+  /** Copy the conversation on screen into a new visible chat and open it. */
+  forkConversation(): void;
   /** Bring chat forward and open the existing, confirmed Team setup flow. */
   openTeamSetup(): void;
   /** Bring chat forward and open the existing local schedule composer. */
@@ -413,6 +416,17 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   conversationTitle.textContent = "New conversation";
   conversationTitle.title = "Current conversation";
 
+  // A fork says where it came from, and the chip opens that conversation again.
+  const lineage = document.createElement("button");
+  lineage.type = "button";
+  lineage.className = "chat-lineage";
+  lineage.hidden = true;
+  lineage.title = "Open the chat this was forked from";
+  let lineageParentId: string | null = null;
+  lineage.addEventListener("click", () => {
+    if (lineageParentId !== null) void resume(lineageParentId);
+  });
+
   const modelLabel = document.createElement("button");
   modelLabel.type = "button";
   modelLabel.className = "chat-model";
@@ -623,10 +637,29 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     streamingBubble = null;
     activeSessionId = null;
     conversationTitle.textContent = "New conversation";
+    renderLineage(null);
     renderMemory(null);
     currentSummary = null;
     void refreshHistory();
     queueMicrotask(() => refreshContextMeter());
+  });
+
+  const forkButton = document.createElement("button");
+  forkButton.className = "ghost-button";
+  forkButton.dataset["chatAction"] = "fork";
+  forkButton.textContent = "Fork";
+  forkButton.title = "Copy this conversation into a new chat you can send in a different direction";
+  forkButton.setAttribute("aria-label", "Fork this conversation");
+  forkButton.addEventListener("click", () => {
+    if (lineageParentId !== null) {
+      complain("This is already a fork. Open its parent conversation to fork that.");
+      return;
+    }
+    if (activeSessionId === null) {
+      complain("Send a message first, then fork the conversation.");
+      return;
+    }
+    void forkChat(activeSessionId);
   });
 
   const shareButton = document.createElement("button");
@@ -674,7 +707,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   const identity = document.createElement("div");
   identity.className = "chat-identity";
-  identity.append(title, conversationTitle);
+  identity.append(title, conversationTitle, lineage);
   const headerActions = document.createElement("div");
   const controlsButton = document.createElement("button");
   controlsButton.className = "ghost-button";
@@ -703,6 +736,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     appearanceButton,
     usageButton,
     resetButton,
+    forkButton,
     shareButton,
     closeButton,
   );
@@ -721,7 +755,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   moreMenu.className = "chat-more-menu";
   moreActions.append(moreSummary, moreMenu);
   headerActions.insertBefore(moreActions, closeButton);
-  const secondaryActions = [historyButton, connectButton, controlsButton, inspectorButton, appearanceButton, usageButton, shareButton];
+  const secondaryActions = [historyButton, connectButton, controlsButton, inspectorButton, appearanceButton, usageButton, forkButton, shareButton];
   for (const action of secondaryActions) action.addEventListener("click", () => { moreActions.open = false; });
   header.append(identity, queueLabel, headerActions);
 
@@ -995,6 +1029,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   let saved: readonly ChatSessionView[] = [];
   let activeSessionId: string | null = null;
+  /** Parent chats whose fork list is folded away in History. */
+  const collapsedForks = new Set<string>();
 
   /*
    * Chats working at once. A turn belongs to its conversation, not to this window: it goes on
@@ -1098,6 +1134,18 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   let historyMenuTrigger: HTMLButtonElement | null = null;
   attachContextMenuDismissal(historyMenu, () => historyMenuTrigger?.focus());
 
+  function renderLineage(session: ChatSessionView | null): void {
+    lineageParentId = session?.parentId ?? null;
+    if (lineageParentId === null) {
+      lineage.hidden = true;
+      lineage.textContent = "";
+      return;
+    }
+    const parent = saved.find((one) => one.id === lineageParentId);
+    lineage.textContent = `Fork of ${parent?.title ?? "another chat"}`;
+    lineage.hidden = false;
+  }
+
   async function refreshHistory(): Promise<void> {
     saved = await window.adcode.chat.sessions();
     const current = await window.adcode.chat.current().catch(() => null);
@@ -1105,8 +1153,24 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     conversationTitle.textContent = current === null || current.messages.length === 0
       ? "New conversation"
       : current.title;
+    renderLineage(current);
     renderHistory();
     void paintFolderBanner();
+  }
+
+  /** Copy the conversation into a new visible chat and open it, leaving the original here. */
+  async function forkChat(id: string): Promise<void> {
+    const child = await window.adcode.chat.fork(id).catch(() => null);
+    if (child === null) {
+      complain("This conversation cannot be forked. A fork cannot start another fork, and a chat keeps up to six.");
+      return;
+    }
+    saved = await window.adcode.chat.sessions();
+    // A new fork should not arrive inside a branch the person had folded away.
+    collapsedForks.delete(id);
+    renderHistory();
+    await resume(child.id);
+    complain("Forked into a new conversation. Both stay in History.");
   }
 
   function toggleHistory(): void {
@@ -1116,24 +1180,33 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     if (historyOpen) void refreshHistory();
   }
 
-  function renderHistoryRow(session: ChatSessionView): HTMLElement {
+  interface HistoryRowTree {
+    /** How many forks hang under this row; zero means no disclosure control. */
+    readonly forkCount?: number;
+    readonly forksId?: string;
+    readonly forksOpen?: boolean;
+    readonly onToggleForks?: (open: boolean) => void;
+  }
+
+  function renderHistoryRow(session: ChatSessionView, tree: HistoryRowTree = {}): HTMLElement {
     const row = document.createElement("div");
     row.className = "chat-history-row";
     if (session.id === activeSessionId) row.dataset["active"] = "true";
     row.dataset["sessionId"] = session.id;
+    const isFork = session.parentId !== undefined;
+    if (isFork) row.dataset["fork"] = "true";
 
-    // Status icon: spinner while this chat works, branch for a renamed
-    // (user-owned) conversation, dot for idle. Purely presentational — the
-    // backend has no fork flag, so a custom title is the closest signal that
-    // the user took ownership of an auto-titled thread.
+    // Status icon: spinner while this chat works, branch for a fork, dot for idle. A
+    // renamed conversation is not a fork - the title belongs to the person, but the
+    // conversation still started here.
     const status = document.createElement("span");
     status.className = "chat-history-status";
     status.setAttribute("aria-hidden", "true");
     const isWorking = runningChats.has(session.id) || (session.id === activeSessionId && card.dataset["working"] === "true");
     const ending = isWorking ? undefined : finishedUnseen.get(session.id);
-    const kind = isWorking ? "working" : ending === "finished" ? "finished" : ending !== undefined ? "attention" : session.renamed ? "forked" : "idle";
+    const kind = isWorking ? "working" : ending === "finished" ? "finished" : ending !== undefined ? "attention" : isFork ? "forked" : "idle";
     status.dataset["status"] = kind;
-    status.title = isWorking ? "Working" : ending === "finished" ? "Finished - not opened yet" : ending !== undefined ? "Stopped before finishing - open it to see why" : session.renamed ? "Renamed" : "Idle";
+    status.title = isWorking ? "Working" : ending === "finished" ? "Finished - not opened yet" : ending !== undefined ? "Stopped before finishing - open it to see why" : isFork ? "Fork chat" : "Idle";
     row.append(status);
 
     const openIt = document.createElement("button");
@@ -1160,6 +1233,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       const rect = options.getBoundingClientRect();
       historyMenu.open(rect.left, rect.bottom + 4, [
         { label: "Open", run: () => void resume(session.id) },
+        ...(session.parentId === undefined
+          ? [{ label: "Fork this conversation", run: () => void forkChat(session.id) }]
+          : [{ label: "Open parent conversation", run: () => void resume(session.parentId as string) }]),
         { label: "Rename conversation…", run: async () => {
           const name = await deps.askForName(session.title);
           if (name === null) return;
@@ -1187,6 +1263,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           if (session.id === activeSessionId) {
             activeSessionId = null;
             conversationTitle.textContent = "New conversation";
+            renderLineage(null);
           }
           renderHistory();
         } },
@@ -1216,7 +1293,64 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     row.addEventListener("focusout", hidePreview); row.addEventListener("click", hidePreview);
     row.addEventListener("keydown", event => { if (event.key === "Escape") hidePreview(); });
     row.append(openIt, options);
+
+    if ((tree.forkCount ?? 0) > 0) {
+      const count = tree.forkCount ?? 0;
+      const label = count === 1 ? "1 fork chat" : `${String(count)} fork chats`;
+      const open = tree.forksOpen !== false;
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "chat-history-toggle";
+      toggle.append(createIcon(ICON.chevronDown));
+      toggle.dataset["collapsed"] = open ? "false" : "true";
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      toggle.setAttribute("aria-label", `${open ? "Hide" : "Show"} ${label}`);
+      toggle.title = `${open ? "Hide" : "Show"} ${label}`;
+      if (tree.forksId !== undefined) toggle.setAttribute("aria-controls", tree.forksId);
+      toggle.addEventListener("click", () => {
+        const next = toggle.getAttribute("aria-expanded") !== "true";
+        tree.onToggleForks?.(next);
+        toggle.setAttribute("aria-expanded", next ? "true" : "false");
+        toggle.dataset["collapsed"] = next ? "false" : "true";
+        const nextLabel = `${next ? "Hide" : "Show"} ${label}`;
+        toggle.setAttribute("aria-label", nextLabel);
+        toggle.title = nextLabel;
+      });
+      row.append(toggle);
+    }
     return row;
+  }
+
+  /** A root chat and its forks, drawn as one branch of the History tree. */
+  function renderHistoryTree(root: ChatSessionView, forks: readonly ChatSessionView[]): HTMLElement {
+    const tree = document.createElement("div");
+    tree.className = "chat-history-tree";
+    const open = !collapsedForks.has(root.id);
+    let group: HTMLElement | null = null;
+    if (forks.length > 0) {
+      group = document.createElement("div");
+      group.className = "chat-history-forks";
+      group.id = `chat-history-forks-${root.id}`;
+      group.hidden = !open;
+      tree.dataset["forks"] = "true";
+    }
+    const row = renderHistoryRow(root, {
+      forkCount: forks.length,
+      ...(group === null ? {} : { forksId: group.id }),
+      forksOpen: open,
+      onToggleForks: (next) => {
+        if (group === null) return;
+        group.hidden = !next;
+        if (next) collapsedForks.delete(root.id);
+        else collapsedForks.add(root.id);
+      },
+    });
+    tree.append(row);
+    if (group !== null) {
+      for (const fork of forks) group.append(renderHistoryRow(fork));
+      tree.append(group);
+    }
+    return tree;
   }
 
   function renderHistory(): void {
@@ -1243,21 +1377,25 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       return;
     }
 
+    const { roots, children, activity } = groupChatForks(shown);
+    const recency = (session: ChatSessionView): number => activity.get(session.id) ?? session.updatedAt;
     if (needle.length > 0) {
-      for (const session of [...shown].sort((a, b) => b.updatedAt - a.updatedAt)) {
-        historyList.append(renderHistoryRow(session));
+      for (const root of [...roots].sort((a, b) => recency(b) - recency(a))) {
+        historyList.append(renderHistoryTree(root, children.get(root.id) ?? []));
       }
       return;
     }
 
-    for (const group of groupChatSessions(shown)) {
+    const rootsById = new Map(roots.map((root) => [root.id, root] as const));
+    const dated = roots.map((root) => ({ id: root.id, title: root.title, updatedAt: recency(root) }));
+    for (const group of groupChatSessions(dated)) {
       const heading = document.createElement("h3");
       heading.className = "chat-history-group";
       heading.textContent = group.label;
       historyList.append(heading);
       for (const entry of group.sessions) {
-        const full = shown.find((session) => session.id === entry.id);
-        if (full) historyList.append(renderHistoryRow(full));
+        const root = rootsById.get(entry.id);
+        if (root) historyList.append(renderHistoryTree(root, children.get(root.id) ?? []));
       }
     }
   }
@@ -1291,6 +1429,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     live.chatWindow.reset();
     activeSessionId = session.id;
     conversationTitle.textContent = session.title;
+    renderLineage(session);
 
     restoring = true;
     const messageNodes: HTMLElement[] = [];
@@ -5286,6 +5425,15 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       api.open();
       resetButton.click();
       requestAnimationFrame(() => requestAnimationFrame(() => input.focus()));
+    },
+
+    forkConversation(): void {
+      api.open();
+      if (activeSessionId === null) {
+        complain("Send a message first, then fork the conversation.");
+        return;
+      }
+      void forkChat(activeSessionId);
     },
 
     showConversations(): void {

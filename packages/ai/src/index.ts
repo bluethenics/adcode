@@ -17,6 +17,7 @@ export * from "./automation.ts";
 export * from "./continuation.ts";
 export * from "./terminalTeam.ts";
 export * from "./teamMailbox.ts";
+export * from "./chatForks.ts";
 export * from "./subagents.ts";
 export * from "./toolRules.ts";
 export * from "./toolDraft.ts";

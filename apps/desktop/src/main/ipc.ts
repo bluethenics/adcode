@@ -118,6 +118,7 @@ import {
   aiDeleteSession,
   aiRenameSession,
   aiResumeSession,
+  aiForkSession,
   aiRuns,
   aiLiveTurn,
   aiSessions,
@@ -644,6 +645,10 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
     isString(id) ? aiResumeSession(id) : null,
   );
 
+  ipcMain.handle(CHANNELS.aiForkSession, (_event, id: unknown) =>
+    isString(id) ? aiForkSession(id) : null,
+  );
+
   ipcMain.handle(CHANNELS.aiRenameSession, (_event, id: unknown, title: unknown) =>
     isString(id) && isString(title) ? aiRenameSession(id, title) : aiSessions(),
   );
@@ -791,6 +796,7 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
   ipcMain.handle(CHANNELS.platformInfo, () => ({
     platform: process.platform,
     isPackaged: app.isPackaged,
+    accountGate: app.isPackaged || process.env["ADCODE_ACCOUNT_GATE"] !== "off",
   }));
 
   /* ── Live preview ─────────────────────────────────────────────────────── */

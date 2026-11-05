@@ -3,6 +3,162 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
+## 2.4.13 — 2026-11-03
+
+- **Fork chats.** One conversation can split a job into visible fork chats that work at the same time, already know the conversation, and message each other and the main chat. The assistant forks independent multi-step work by itself and says which forks it started; turn this off in Settings > AI > Fork chats on its own. Fork with the Fork button, a conversation's menu, or AI: Fork This Conversation. History shows each family as a tree. A wait for forks returns after ten minutes with their progress, so a stuck fork never holds the main chat.
+- **Credits that say what is happening.** Running out of today's credits pauses a task until the refill instead of failing, and the card says when, with Upgrade plan and Buy credits to keep going now. The composer meter shows credits spent, not credits held for a reply in progress, so it no longer plunges and recovers. A credit shortfall is no longer called a conversation that is too big.
+- **Ways out of dead ends.** Unsaved files that stop the assistant mid-task offer Save all and continue. Custom providers that fail their connection check explain the likely cause: the address and a missing /v1, the model name, or the key. A retired model's card names the provider's replacement, and Ollama's context-size error names the setting to raise. An older paid plan is no longer told it is out of credit. A sign-in that shared no email address can add one and verify it.
+- **Sign-in and first run.** ADCode asks you to sign in with Google, GitHub or email and confirm your email when it first opens, then offers a short first-run tour. A returning, verified account goes straight in.
+- **More room on smaller screens.** AI usage scrolls as one, with the range tabs pinned at the top. Under 900 pixels tall, the sidebar's links fold into one row of icons, so chat history keeps its space.
+- **New tags.** Models and features added in the last 45 days are marked New in the model menu, Connect a model and the Feature library.
+- **Smaller changes.** Join Discord shows Discord's icon. "1 chats are already working" now names the busy chat. Buy actions say credits, not tokens. Starting or joining a live session is paused; a session already running can still be managed and left.
+
+## 2.4.12 — 2026-11-03 (build withheld)
+
+- Tagged but never built: the release check found a high-severity advisory in the re2js regular expression library. 2.4.13 ships the same changes with re2js updated to 2.9.1.
+
+## 2.4.11 — 2026-11-01
+
+- Wait for the previous AI turn to finish before retrying or continuing; Stop also cancels a pending retry.
+- Support secure browser-based Google sign-in when a build has no embedded desktop credential.
+- Show daily cost credits, Max and Unlimited allowances, and saved purchased balances consistently with the new plans.
+- Reserve space for selected debug logs in problem reports and keep overlong text available to edit.
+
+## 2.4.10 — 2026-10-30
+
+- Share online projects that remain available after the owner closes ADCode. Each member has separate chats and AI usage.
+- Include 3 owned online projects on Free; active paid plans allow more. Joining a friend's project does not use an owned slot.
+- Recover through multiple busy models, with additional provider backups for paid plans at the original credit rate.
+- Show a clear sign-in prompt in the project sharing panel.
+- Keep website sign-in configured when building from a fresh checkout.
+
+## 2.4.9 — 2026-10-30
+
+- Share online projects that remain available after the owner closes ADCode. Each member has separate chats and AI usage.
+- Include 3 owned online projects on Free; active paid plans allow more. Joining a friend's project does not use an owned slot.
+- Recover through multiple busy models, with additional provider backups for paid plans at the original credit rate.
+
+## 2.4.8 — 2026-10-30
+
+- Share GitHub projects live and improve included AI recovery.
+
+## 2.4.7 — 2026-10-30
+
+- Use paid models with prepaid ADCode dollar credits, with clear model prices and an available-balance display.
+- Open paid-credit top-ups when the dollar balance is too low; show included allowances separately.
+- Refresh shared-allowance help and update a vulnerable dependency.
+
+## 2.4.6 — 2026-10-30
+
+- Refresh help for shared included allowances.
+- Link paid balance errors to dollar credits.
+- Support prepaid model credits and shared allowances.
+
+## 2.4.5 — 2026-10-30
+
+- Support prepaid model credits and shared allowances.
+
+## 2.4.4 — 2026-10-28
+
+- Check the installed update in the profile ADCode actually uses.
+- A full-window admin with an Ads group, and an advertiser sign-up that says the price.
+- Run enabled tools without asking, and sign in to OAuth MCP servers.
+- Show what is left of an allowance as a percentage.
+- Tools menu rows, Tagflow/Heabsy usage split, plan in the account panel.
+- Give Settings room - bigger window, grouped rows, no hover on rows.
+- Settings in sections, and an admin panel that opens instantly.
+- Type the restarted stream's read without the DOM lib; record the 27 October report triage.
+- Limit card, one-click update in the title bar, Lucide icons, and report fixes.
+- Ask the provider again when a stream fails before its first token.
+- Deliver Imprezia Chat Ads, and let the admin choose pay per view or per click.
+- Purchase receipts, advertiser welcomes, live status candles and day-over-day analytics.
+- Add a custom connector by name and URL, and publish the October feature docs.
+- Publish clear AI pricing and plan discovery.
+- Separate command results from Windows initialization diagnostics.
+- Use the supported Next 16.4 Cloudflare adapter.
+- Keep unpublished improvements in the next release notes.
+- Reuse the assisted launch function without duplicate macro state.
+- Provision Electron once before parallel GUI verification.
+- Check the Changes badge correctly in clean release checkouts.
+- Update release dependencies to audited patched versions.
+- Prepare repeatable daily releases and verify installed upgrades.
+- Show installation progress and reopen after explicit updates.
+- Include reviewed account and recovery report fixes.
+- Finish cancelled requests and preserve valid AI stream endings.
+- Announce new updates and protect every window before installing.
+- Finish interrupted AI streams without breaking the response bridge.
+- Recover settings saves in virtualized Windows folders.
+- Complete AI plans, provider connections and report recovery fixes.
+- Subscribers get their plan's weekly allowance; views publish plans.
+- AI plans - subscriptions, gifts, boosts, promo codes, invites.
+- Store contract for AI plans, promos and invites, with the memory store.
+- AI plan rules - weekly, monthly, pro and the effective weekly allowance.
+- /ai-tokens has its heading and share card in the server-rendered page.
+- The paid tokens migration gives up after 5 s rather than queue live AI requests.
+- A task paused on the paid-token limit names the buy page and resumes soon after a purchase.
+- The AI tokens page says a payment arrived only once its order is paid.
+- Lock order, free-model fallback, webhook checks, disputes, quiet usage reads.
+- Buy AI tokens in the desktop and the docs - limit card, command, meter, help, guide.
+- Buy AI tokens page; admin paid-token switch, grants and sales.
+- Buy AI tokens through Dodo; the webhook credits them once; admin grants and sales.
+- Charge Heabsy models from the free week, then purchased tokens.
+- Paid AI tokens - balances, orders, ledger, reserve/settle in one transaction.
+- Store contract for paid tokens, with the memory store.
+- Included-AI config carries paid tokens; the public config marks paid models.
+- Paid AI token rules - free weekly allowance, then purchased tokens.
+- Fewer database trips per request; public reads from the edge cache.
+- A busy included model hands off on its first 429.
+
+## 2.4.3 — 2026-10-27
+
+- A full-window admin with an Ads group, and an advertiser sign-up that says the price.
+- Run enabled tools without asking, and sign in to OAuth MCP servers.
+- Show what is left of an allowance as a percentage.
+- Tools menu rows, Tagflow/Heabsy usage split, plan in the account panel.
+- Give Settings room - bigger window, grouped rows, no hover on rows.
+- Settings in sections, and an admin panel that opens instantly.
+- Type the restarted stream's read without the DOM lib; record the 27 October report triage.
+- Limit card, one-click update in the title bar, Lucide icons, and report fixes.
+- Ask the provider again when a stream fails before its first token.
+- Deliver Imprezia Chat Ads, and let the admin choose pay per view or per click.
+- Purchase receipts, advertiser welcomes, live status candles and day-over-day analytics.
+- Add a custom connector by name and URL, and publish the October feature docs.
+- Publish clear AI pricing and plan discovery.
+- Separate command results from Windows initialization diagnostics.
+- Use the supported Next 16.4 Cloudflare adapter.
+- Keep unpublished improvements in the next release notes.
+- Reuse the assisted launch function without duplicate macro state.
+- Provision Electron once before parallel GUI verification.
+- Check the Changes badge correctly in clean release checkouts.
+- Update release dependencies to audited patched versions.
+- Prepare repeatable daily releases and verify installed upgrades.
+- Show installation progress and reopen after explicit updates.
+- Include reviewed account and recovery report fixes.
+- Finish cancelled requests and preserve valid AI stream endings.
+- Announce new updates and protect every window before installing.
+- Finish interrupted AI streams without breaking the response bridge.
+- Recover settings saves in virtualized Windows folders.
+- Complete AI plans, provider connections and report recovery fixes.
+- Subscribers get their plan's weekly allowance; views publish plans.
+- AI plans - subscriptions, gifts, boosts, promo codes, invites.
+- Store contract for AI plans, promos and invites, with the memory store.
+- AI plan rules - weekly, monthly, pro and the effective weekly allowance.
+- /ai-tokens has its heading and share card in the server-rendered page.
+- The paid tokens migration gives up after 5 s rather than queue live AI requests.
+- A task paused on the paid-token limit names the buy page and resumes soon after a purchase.
+- The AI tokens page says a payment arrived only once its order is paid.
+- Lock order, free-model fallback, webhook checks, disputes, quiet usage reads.
+- Buy AI tokens in the desktop and the docs - limit card, command, meter, help, guide.
+- Buy AI tokens page; admin paid-token switch, grants and sales.
+- Buy AI tokens through Dodo; the webhook credits them once; admin grants and sales.
+- Charge Heabsy models from the free week, then purchased tokens.
+- Paid AI tokens - balances, orders, ledger, reserve/settle in one transaction.
+- Store contract for paid tokens, with the memory store.
+- Included-AI config carries paid tokens; the public config marks paid models.
+- Paid AI token rules - free weekly allowance, then purchased tokens.
+- Fewer database trips per request; public reads from the edge cache.
+- A busy included model hands off on its first 429.
+
 ## 2.4.2 — 2026-10-27
 
 - **Update now.** A new-version notice offers Update now or Later, with background download progress. On Windows, an explicit update protects unsaved work in every window, closes ADCode, shows installation progress and opens the updated app automatically. Store and portable users get the appropriate update destination.
