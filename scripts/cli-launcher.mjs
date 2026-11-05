@@ -29,6 +29,11 @@ function npmEntry(env) {
 export function createLaunchPlan(argv, options = {}) {
   const caller = options.cwd ?? process.cwd();
   const env = options.env ?? process.env;
+  // Shell completion runs on every Tab press: a small entry point, no flag parsing.
+  if (argv[0] === "__complete") {
+    return { command: "__complete", kind: "terminal", executable: process.execPath, cwd: caller, preview: false,
+      args: [join(ROOT, "apps/cli/src/complete.ts"), ...argv.slice(1)] };
+  }
   let commandIndex = -1;
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];

@@ -11,10 +11,9 @@ import { slashMatches, slashHint } from "../chat/commands.ts";
 import { formatMicros as formatAdMicros } from "../../../../packages/ads/src/index.ts";
 import {
   createSession,
-  isSessionId,
+  findSession,
   latestSession,
   listSessions,
-  readSession,
   saveSession,
   withMessage,
   type ChatMessageRecord,
@@ -25,6 +24,7 @@ import { balanceLabel } from "../ads/runtime.ts";
 import { cliPaths } from "../util/paths.ts";
 import { formatDuration, formatMicros, plural, relativeTime } from "../util/format.ts";
 import { isThemeName, themeNames } from "../tui/theme.ts";
+import { combinePrompt, readPipedInput } from "../util/stdin.ts";
 import type { Effort } from "../../../../packages/ai/src/types.ts";
 
 export interface ChatOptions {
@@ -68,28 +68,21 @@ function resolveSession(ctx: AppContext, options: ChatOptions): ResolvedSession 
     };
   }
   if (requested !== undefined && requested !== null) {
-    if (!isSessionId(requested)) {
-      return {
-        session: null,
-        resumed: false,
-        error: {
-          message: `"${requested}" is not a session id.`,
-          hint: "Run `adcode sessions` to see the saved ids.",
-        },
-      };
-    }
-    const session = readSession(requested);
-    if (session === null) {
-      return {
-        session: null,
-        resumed: false,
-        error: {
-          message: `No saved session named "${requested}".`,
-          hint: "Run `adcode sessions`, or start fresh with `adcode chat`.",
-        },
-      };
-    }
-    return { session, resumed: true };
+    const found = findSession(requested);
+    if ("session" in found) return { session: found.session, resumed: true };
+    return {
+      session: null,
+      resumed: false,
+      error: found.error === "ambiguous"
+        ? {
+            message: `"${requested}" is the start of ${found.matches.length} saved ids.`,
+            hint: `Add a few more letters: ${found.matches.slice(0, 3).map((one) => one.id).join(", ")}.`,
+          }
+        : {
+            message: `No saved conversation matches "${requested}".`,
+            hint: "Run `adcode sessions` for the list; a number, `latest` or the start of an id all work.",
+          },
+    };
   }
   if (ctx.flags.continueSession) {
     const session = latestSession();
@@ -338,7 +331,10 @@ class LiveWriter {
   }
 }
 
-async function oneShot(ctx: AppContext, prompt: string, session: ChatSession, resumed: boolean): Promise<number> {
+async function oneShot(ctx: AppContext, prompt: string, session: ChatSession, resumed: boolean, shown = prompt): Promise<number> {
+  // Redirected to a file or another program: write the reply exactly as the model sent it,
+  // with no header, margin or footer, so `adcode chat "..." > notes.md` is a clean file.
+  const plain = !ctx.flags.json && ctx.stdout.isTTY !== true;
   if (!ctx.selection.ready || ctx.flags.provider !== null || ctx.flags.model !== null) {
     if (!ctx.selection.ready) {
       const hint = ctx.selection.reason ?? "Run `adcode models` to choose a model that is ready.";
@@ -353,7 +349,7 @@ async function oneShot(ctx: AppContext, prompt: string, session: ChatSession, re
   ];
   session = withMessage(session, { role: "user", text: prompt, at: startedAt });
 
-  if (!ctx.flags.json) {
+  if (!ctx.flags.json && !plain) {
     const ui = ctx.ui;
     printLines(
       [
@@ -368,7 +364,7 @@ async function oneShot(ctx: AppContext, prompt: string, session: ChatSession, re
         )}`,
         "",
         `  ${ui.paint("YOU", "faint", { bold: true })}`,
-        ...ui.wrap(prompt, Math.max(20, Math.min(ui.width - 6, 100))).map((line) => `  ${ui.paint(line, "ink")}`),
+        ...shown.split("\n").flatMap((part) => ui.wrap(part, Math.max(20, Math.min(ui.width - 6, 100)))).map((line) => `  ${ui.paint(line, "ink")}`),
         "",
         `  ${ui.gradient(ui.glyphs.mark)}  ${ui.paint("ADCODE", "ink", { bold: true })}  ${ui.paint(ctx.selection.modelName, "faint")}`,
       ],
@@ -378,7 +374,7 @@ async function oneShot(ctx: AppContext, prompt: string, session: ChatSession, re
 
   let spinner: Spinner | null = null;
   let writer: LiveWriter | null = null;
-  if (!ctx.flags.json) {
+  if (!ctx.flags.json && !plain) {
     writer = new LiveWriter(ctx.ui, ctx.stdout, Math.min(ctx.ui.width - 4, 104));
     if (ctx.motion.enabled) spinner = new Spinner(ctx.ui, ctx.motion, { out: ctx.stdout }).start("thinking");
   }
@@ -397,6 +393,10 @@ async function oneShot(ctx: AppContext, prompt: string, session: ChatSession, re
     );
   }
 
+  // ctrl+c stops the reply cleanly instead of killing the process mid-line.
+  const interrupt = (): void => controller.abort();
+  let wrotePlain = false;
+  process.once("SIGINT", interrupt);
   try {
     const result = await streamChat({
       built,
@@ -410,18 +410,34 @@ async function oneShot(ctx: AppContext, prompt: string, session: ChatSession, re
             spinner.stop();
             spinner = null;
           }
-          writer?.push(delta);
+          if (plain) {
+            // Models often open with blank lines; a saved file should start with the answer.
+            const text = wrotePlain ? delta : delta.replace(/^\s+/, "");
+            if (text.length > 0) {
+              wrotePlain = true;
+              ctx.stdout.write(text);
+            }
+          } else {
+            writer?.push(delta);
+          }
         },
         onThinking: () => {
           spinner?.update("thinking");
         },
       },
     });
+    process.off("SIGINT", interrupt);
     spinner?.stop();
     spinner = null;
     writer?.finish();
+    if (plain && result.text.length > 0 && !result.text.endsWith("\n")) ctx.stdout.write("\n");
 
+    const cancelled = result.stopReason === "cancelled" || controller.signal.aborted;
     if (result.text.trim().length === 0) {
+      if (cancelled) {
+        if (!ctx.flags.json) ctx.stderr.write(`${plain ? "" : "\n"}  ${ctx.ui.paint("Stopped before the reply began. Nothing was saved.", "faint")}\n`);
+        return 130;
+      }
       return oneShotError(ctx, prompt, "The model returned an empty reply.", "Try again, or switch models with `adcode models`.");
     }
 
@@ -477,14 +493,21 @@ async function oneShot(ctx: AppContext, prompt: string, session: ChatSession, re
           })),
         },
       });
-      return result.refused ? 1 : 0;
+      return cancelled ? 130 : result.refused ? 1 : 0;
     }
 
-    const notice = result.cutOff
-      ? `  ${ctx.ui.paint("The reply hit the output limit; ask for the rest.", "warning")}`
-      : result.refused
-        ? `  ${ctx.ui.paint("The provider declined that request.", "warning")}`
-        : null;
+    const notice = cancelled
+      ? `  ${ctx.ui.paint("Stopped. The reply so far is saved; adcode chat --continue picks it up.", "warning")}`
+      : result.cutOff
+        ? `  ${ctx.ui.paint("The reply hit the output limit; ask for the rest.", "warning")}`
+        : result.refused
+          ? `  ${ctx.ui.paint("The provider declined that request.", "warning")}`
+          : null;
+    if (plain) {
+      // The reply went to stdout untouched; anything worth saying about it goes to stderr.
+      if (notice !== null) ctx.stderr.write(`${notice.trim()}\n`);
+      return cancelled ? 130 : result.refused ? 1 : 0;
+    }
     const summary = [
       "",
       ...(notice === null ? [] : [notice]),
@@ -498,10 +521,15 @@ async function oneShot(ctx: AppContext, prompt: string, session: ChatSession, re
       "",
     ];
     printLines(summary, ctx.stdout);
-    return result.refused ? 1 : 0;
+    return cancelled ? 130 : result.refused ? 1 : 0;
   } catch (error) {
+    process.off("SIGINT", interrupt);
     spinner?.stop();
     writer?.finish();
+    if (controller.signal.aborted) {
+      if (!ctx.flags.json) ctx.stderr.write(`\n  ${ctx.ui.paint("Stopped.", "faint")}\n`);
+      return 130;
+    }
     return oneShotError(
       ctx,
       prompt,
@@ -1609,7 +1637,12 @@ async function interactive(ctx: AppContext, session: ChatSession, resumed: boole
 }
 
 export async function runChat(ctx: AppContext, args: readonly string[], options: ChatOptions = {}): Promise<number> {
-  const prompt = args.join(" ").trim();
+  const typed = args.join(" ").trim();
+  const piped = options.initialPrompt === undefined ? await readPipedInput(ctx.stdin) : null;
+  const prompt = combinePrompt(typed, piped);
+  const shown = piped === null
+    ? prompt
+    : `${typed.length > 0 ? `${typed}\n` : ""}[${piped.text.split("\n").length.toLocaleString("en-US")} piped ${plural(piped.text.split("\n").length, "line")}${piped.truncated ? ", cut to fit" : ""}]`;
   const selected = resolveSession(ctx, options);
   if (selected.error !== undefined) {
     if (ctx.flags.json) {
@@ -1653,7 +1686,7 @@ export async function runChat(ctx: AppContext, args: readonly string[], options:
   }
 
   if (prompt.length > 0) {
-    return await oneShot(ctx, prompt, session, selected.resumed);
+    return await oneShot(ctx, prompt, session, selected.resumed, shown);
   }
   if (!ctx.isTTY || ctx.flags.json || ctx.flags.snapshot) {
     return staticChat(ctx, session, selected.resumed);

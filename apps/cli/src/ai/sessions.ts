@@ -117,6 +117,37 @@ export function latestSession(): ChatSession | null {
   return listSessions()[0] ?? null;
 }
 
+export type SessionLookup =
+  | { readonly session: ChatSession }
+  | { readonly error: "missing" | "ambiguous"; readonly matches: readonly ChatSession[] };
+
+/**
+ * Find a saved conversation the way a person refers to one: its full id, `latest`
+ * (or `last`), its number in `adcode sessions` (1 is the newest), or the start of its id.
+ * Ids are long; nobody should have to paste `s-mvtjvgy6-1-fim1v` to reopen yesterday.
+ */
+export function findSession(reference: string): SessionLookup {
+  const ref = reference.trim().toLowerCase();
+  if (isSessionId(ref)) {
+    const exact = readSession(ref);
+    if (exact !== null) return { session: exact };
+  }
+  const all = listSessions();
+  if (ref === "latest" || ref === "last" || ref === "newest") {
+    const newest = all[0];
+    return newest === undefined ? { error: "missing", matches: [] } : { session: newest };
+  }
+  if (/^\d{1,4}$/.test(ref)) {
+    const picked = all[Number(ref) - 1];
+    return picked === undefined ? { error: "missing", matches: [] } : { session: picked };
+  }
+  if (ref.length < 3) return { error: "missing", matches: [] };
+  const prefix = ref.startsWith("s-") ? ref : `s-${ref}`;
+  const matches = all.filter((session) => session.id.startsWith(prefix));
+  if (matches.length === 1) return { session: matches[0]! };
+  return { error: matches.length === 0 ? "missing" : "ambiguous", matches };
+}
+
 let counter = 0;
 
 export function newSessionId(): string {

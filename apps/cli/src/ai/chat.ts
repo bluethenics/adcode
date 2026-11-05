@@ -118,12 +118,18 @@ export async function streamChat(options: {
 /** A provider failure as a sentence somebody can act on. */
 export function describeChatError(error: unknown, selection?: { providerId: string; ready: boolean; reason: string | null }): string {
   const message = error instanceof Error ? error.message : String(error);
+  // Included AI explains a spent daily allowance itself: how much is left, when it refills,
+  // and which model is free. That beats any generic sentence, so pass it through.
+  if (/daily-limit|credits left|out of credits|not enough credits/i.test(message)) {
+    const server = message.replace(/^.*?returned HTTP \d{3}:\s*/s, "").replace(/\s*\(code [\w-]+\)\s*$/, "").trim();
+    if (server.length > 0) return server;
+  }
   if (/verify|verified|verification/i.test(message)) {
     return "Included AI needs a verified account. Open ADCode Desktop and verify the email on the signed-in account, then send the message again.";
   }
   if (/401|unauthor|invalid.*key/i.test(message)) return "The provider rejected the credential. Check the key or sign in again.";
   if (/403|forbidden/i.test(message)) return "The provider refused this account. Included AI may need a verified email.";
-  if (/429|rate|quota/i.test(message)) return "The provider is rate-limiting this account. Wait a moment and try again.";
+  if (/\b429\b|rate[ -]?limit|too many requests|quota/i.test(message)) return "The provider is rate-limiting this account. Wait a moment and try again.";
   if (/fetch failed|ECONN|ENOTFOUND|network|timed out|timeout/i.test(message)) {
     return "The model could not be reached. Check the connection and try again.";
   }

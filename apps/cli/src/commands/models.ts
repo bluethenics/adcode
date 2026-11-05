@@ -5,6 +5,7 @@ import { easeOutCubic, sleep } from "../tui/motion.ts";
 import type { AppContext } from "../context.ts";
 import type { CliModel, CliProvider } from "../ai/catalogue.ts";
 import { visibleWidth } from "../tui/ansi.ts";
+import { didYouMean } from "../util/suggest.ts";
 
 interface Entry {
   readonly provider: CliProvider;
@@ -440,10 +441,13 @@ async function picker(ctx: AppContext): Promise<number> {
 }
 
 function usage(ctx: AppContext, action: string): number {
+  const near = action === "search" ? null : didYouMean(action, ["list", "use", "search", "refresh"], (name) => `adcode models ${name}`);
   const lines = errorPanel(ctx.ui, {
-    title: "Not this time",
-    message: `"${action}" is not a models action.`,
-    hint: "Use adcode models, adcode models list, adcode models use <id>, or adcode models refresh.",
+    title: action === "search" ? "Search for what?" : "Not a models action",
+    message: action === "search" ? "models search needs some text to look for." : `"${action}" is not a models action.`,
+    hint: action === "search"
+      ? "Try adcode models search qwen."
+      : `${near === null ? "" : `${near} `}Use adcode models, list, use <id>, search <text>, or refresh.`,
   });
   ctx.stderr.write(`${lines.join("\n")}\n`);
   return 2;
@@ -486,10 +490,12 @@ export async function runModels(ctx: AppContext, args: readonly string[]): Promi
     }
     const entry = resolveEntry(ctx, query);
     if (entry === null) {
+      const ids = ctx.catalogue.providers.flatMap((provider) => provider.models.map((model) => model.id));
+      const near = didYouMean(query.slice(query.indexOf("/") + 1), ids, (id) => `adcode models use ${id}`);
       const lines = errorPanel(ctx.ui, {
         title: "Unknown model",
         message: `"${query}" is not in the catalogue.`,
-        hint: "Run adcode models --all to see every id.",
+        hint: `${near === null ? "" : `${near} `}Run adcode models search <text> or adcode models --all to see every id.`,
       });
       ctx.stderr.write(`${lines.join("\n")}\n`);
       return 2;

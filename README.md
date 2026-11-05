@@ -76,6 +76,10 @@ From a source checkout, install the command once with `npm link`. Then run it fr
     adcode chat --continue    # resume your latest conversation
     adcode models             # choose an AI model
     adcode sessions           # browse saved conversations
+    adcode sessions open 1    # resume the newest (a number, latest or an id prefix all work)
+    git diff | adcode chat "review this"   # ask about anything you pipe in
+    adcode chat "write a haiku" > haiku.md # redirected output is the reply alone
+    adcode completion install # Tab completion for bash, zsh, fish or PowerShell
     adcode help               # commands, options and shortcuts
 
 Without linking, use `npm run cli` or `node scripts/adcode.mjs` from this checkout.

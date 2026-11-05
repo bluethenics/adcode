@@ -53,15 +53,18 @@ export function commandHints(ui: UI, hints: readonly CommandHint[], width = ui.w
 }
 
 export function sectionHeader(ui: UI, index: string, title: string, width = ui.width - 4, note?: string): string[] {
-  const number = index.length === 0 ? "  " : /^\d+$/.test(index) ? index.padStart(2, "0") : index.padEnd(2);
-  const base = 2 + number.length + 2;
+  // An unnumbered section starts at the margin rather than behind an empty number column.
+  const number = index.length === 0 ? "" : /^\d+$/.test(index) ? index.padStart(2, "0") : index.padEnd(2);
+  const base = number.length === 0 ? 2 : 2 + number.length + 2;
   const headingText = title.toUpperCase();
   const headingRoom = Math.max(1, width - base);
   const heading = ui.truncate(headingText, headingRoom);
   const used = base + visibleWidth(heading);
   const ruleWidth = width - used - 2;
   const withRule = ruleWidth >= 4;
-  const left = `  ${ui.paint(number, "faint")}  ${ui.paint(heading, "ink", { bold: true })}`;
+  const left = number.length === 0
+    ? `  ${ui.paint(heading, "ink", { bold: true })}`
+    : `  ${ui.paint(number, "faint")}  ${ui.paint(heading, "ink", { bold: true })}`;
   const line = withRule ? `${left}  ${ui.paint(ui.glyphs.horizontal.repeat(ruleWidth), "borderSoft")}` : ui.truncate(left, width);
   const noteLines = note === undefined ? [] : wrapPlain(note, Math.max(4, width - 5)).map((part) => `     ${ui.paint(part, "faint")}`);
   return note === undefined ? [line, ""] : [line, ...noteLines, ""];

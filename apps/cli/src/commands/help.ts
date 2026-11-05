@@ -2,6 +2,7 @@ import type { AppContext } from "../context.ts";
 import { commandHeader, errorPanel, printLines, sectionHeader } from "../tui/components.ts";
 import { visibleWidth, wrapPlain } from "../tui/ansi.ts";
 import { cliPaths, desktopPaths } from "../util/paths.ts";
+import { didYouMean } from "../util/suggest.ts";
 
 /**
  * The reference.
@@ -64,13 +65,14 @@ export const HELP_COMMANDS: readonly HelpCommand[] = [
     paragraphs: [
       "In a terminal, chat opens a full conversation: streamed replies, a saved transcript, Tab for the model catalogue, and a slash palette for /model, /new, /earn and /status. Type / or press ctrl+p to open it.",
       "With a message it is one-shot: the answer streams to the terminal and the exchange is saved, so adcode chat --continue can pick it up. --json returns the reply, usage and session as one object.",
+      "Anything piped in is attached to the message, so git diff | adcode chat \"review this\" asks about the diff, and a piped question alone works too. When the output is redirected to a file or another program, only the reply is written, with no header or footer.",
       "Chat sends the conversation and the working directory to the selected model provider. It does not read project files. Provider credentials stay on this machine.",
     ],
     options: [
       ["--model <id>", "Use a specific model for this conversation"],
       ["--provider <id>", "Choose a provider, then its recommended model"],
       ["--continue, -c", "Resume the newest saved conversation"],
-      ["--session <id>", "Resume one saved conversation"],
+      ["--session <id>", "Resume one saved conversation: an id, its list number, or latest"],
       ["--effort <level>", "low, medium, high or max, when the model supports it"],
       ["--refresh", "Refresh the live model catalogue before answering"],
       ["--no-ads", "Do not schedule sponsored cards for this run"],
@@ -81,6 +83,8 @@ export const HELP_COMMANDS: readonly HelpCommand[] = [
       ["adcode chat \"explain this repository\"", "One answer, then back to the shell"],
       ["adcode chat --continue", "Resume where you stopped"],
       ["adcode chat --json \"summarise README.md\"", "Pipe a structured answer into another tool"],
+      ["git diff | adcode chat \"review this\"", "Ask about whatever you pipe in"],
+      ["adcode chat \"write a haiku\" > haiku.md", "Save only the reply"],
     ],
   },
   {
@@ -115,6 +119,7 @@ export const HELP_COMMANDS: readonly HelpCommand[] = [
     paragraphs: [
       "Every exchange is written as one JSON file under the CLI data folder. There is no database and no second index: a saved session is a file, and deleting one deletes the file.",
       "In a terminal, adcode sessions opens a picker. Enter resumes, n starts a new chat, d deletes after a second press, and esc leaves without changing anything.",
+      "Wherever an id is asked for, you can also give the conversation's number in adcode sessions list (1 is the newest), the word latest, or the first few letters of its id.",
     ],
     options: [
       ["list", "List the saved conversations"],
@@ -127,7 +132,8 @@ export const HELP_COMMANDS: readonly HelpCommand[] = [
     ],
     examples: [
       ["adcode sessions", "Browse and resume"],
-      ["adcode sessions show s-abc123", "Read one transcript"],
+      ["adcode sessions show latest", "Read the newest transcript"],
+      ["adcode sessions open 2", "Resume the second newest"],
       ["adcode sessions export s-abc123 > notes.md", "Keep a copy outside the CLI"],
     ],
   },
@@ -234,12 +240,33 @@ export const HELP_COMMANDS: readonly HelpCommand[] = [
       "With a command name it prints only that command's usage, options and examples. With --json it returns the whole reference for a documentation site or a shell completion generator.",
     ],
     options: [
-      ["<command>", "deck, chat, models, sessions, earn, status, doctor, theme, tour, help, version, or a developer command"],
+      ["<command>", "deck, chat, models, sessions, earn, status, doctor, theme, tour, completion, help, version, or a developer command"],
       ["--json", "Machine-readable command reference"],
     ],
     examples: [
       ["adcode help chat", "One command, in full"],
       ["adcode help --json", "Every command as JSON"],
+    ],
+  },
+  {
+    name: "completion",
+    usage: "adcode completion [bash|zsh|fish|powershell] [--install]",
+    blurb: "Tab-complete commands, flags, models and sessions in your shell",
+    group: "app",
+    paragraphs: [
+      "Prints a completion script for your shell. Once loaded, Tab completes adcode's commands, each command's actions, every flag, theme names, model ids from your catalogue and the ids of your saved conversations.",
+      "With no shell named it guesses from the environment: PowerShell on Windows, otherwise the shell in $SHELL. With --install it appends one line to your shell's startup file, so new terminals have completion without you editing anything. Running it twice does not add the line twice.",
+      "Model and session ids are read when you press Tab, so they stay current without reinstalling.",
+    ],
+    options: [
+      ["bash, zsh, fish, powershell", "Print the script for that shell"],
+      ["--install", "Add it to your shell's startup file"],
+      ["--json", "The detected shell, the startup file and the script"],
+    ],
+    examples: [
+      ["adcode completion --install", "Set up Tab completion for this shell"],
+      ["adcode completion bash > ~/.adcode.bash", "Keep the script somewhere yourself"],
+      ["adcode completion powershell | Out-String | Invoke-Expression", "Try it in this PowerShell window only"],
     ],
   },
   {
@@ -357,7 +384,7 @@ const GLOBAL_FLAGS: ReadonlyArray<readonly [string, string]> = [
   ["--provider <id>", "Choose a provider for this run"],
   ["--model <id>", "Choose a model for this run"],
   ["--effort <level>", "low, medium, high or max"],
-  ["--session <id>", "Resume a specific conversation"],
+  ["--session <id>", "Resume a conversation by id, list number or latest"],
   ["--continue, -c", "Resume the newest conversation"],
   ["--refresh", "Refresh the live catalogue where it applies"],
   ["--live", "Spend one real request in doctor"],
@@ -405,19 +432,29 @@ function rowLines(
 ): string[] {
   const lines: string[] = [];
   const pad = options.pad ?? 24;
+  const tone = options.tone ?? "ink";
+  const bold = options.bold ?? true;
+  const rightTone = options.rightTone ?? "muted";
+  const indent = " ".repeat(2 + pad);
+  // Two columns while the description column keeps a readable width; below that the
+  // label sits on its own line and the description wraps underneath it.
+  const room = width - 2 - pad;
+  const columns = room >= 24;
   for (const [left, right] of rows) {
     const label = String(left);
     const detail = String(right);
-    const room = Math.max(4, width - 2 - pad);
-    if (2 + pad + 2 + visibleWidth(detail) <= width) {
-      lines.push(`  ${ui.paint(label.padEnd(pad), options.tone ?? "ink", { bold: options.bold ?? true })}${ui.paint(detail, options.rightTone ?? "muted")}`);
+    if (columns && visibleWidth(label) <= pad - 2) {
+      const parts = wrapPlain(detail, room);
+      lines.push(`  ${ui.paint(label.padEnd(pad), tone, { bold })}${ui.paint(parts[0] ?? "", rightTone)}`);
+      for (const part of parts.slice(1)) lines.push(`${indent}${ui.paint(part, rightTone)}`);
       continue;
     }
     for (const line of wrapPlain(label, Math.max(4, width - 2))) {
-      lines.push(`  ${ui.paint(ui.truncate(line, Math.max(4, width - 2)), options.tone ?? "ink", { bold: options.bold ?? true })}`);
+      lines.push(`  ${ui.paint(ui.truncate(line, Math.max(4, width - 2)), tone, { bold })}`);
     }
-    for (const line of wrapPlain(detail, Math.max(4, room))) {
-      lines.push(`    ${ui.paint(line, options.rightTone ?? "muted")}`);
+    const under = columns ? indent : "    ";
+    for (const part of wrapPlain(detail, Math.max(4, width - under.length))) {
+      lines.push(`${under}${ui.paint(part, rightTone)}`);
     }
   }
   return lines;
@@ -460,7 +497,10 @@ function overview(ctx: AppContext): string[] {
     ["adcode models --all", "See every provider and what it needs"],
     ["adcode earn", "Read the real balance"],
     ["adcode doctor --live", "Prove the account, model and network"],
+    ["git diff | adcode chat \"review\"", "Ask about anything you pipe in"],
+    ["adcode sessions show latest", "Read the newest conversation"],
     ["adcode theme set paper", "Set a palette directly"],
+    ["adcode completion --install", "Tab completion for your shell"],
     ["adcode app .", "Open the editor in this folder"],
   ], width, { pad: 34 }));
   lines.push("");
@@ -568,10 +608,11 @@ export function runHelp(ctx: AppContext, args: readonly string[]): number {
   if (requested.length > 0) {
     const command = HELP_COMMANDS.find((entry) => entry.name === requested);
     if (command === undefined) {
+      const near = didYouMean(requested, HELP_COMMANDS.map((entry) => entry.name), (name) => `adcode help ${name}`);
       ctx.stderr.write(`${errorPanel(ctx.ui, {
         title: "No such command",
         message: `"${requested}" is not a command in this build.`,
-        hint: `Try one of: ${HELP_COMMANDS.map((entry) => entry.name).join(", ")}.`,
+        hint: near ?? `Try one of: ${HELP_COMMANDS.map((entry) => entry.name).join(", ")}.`,
       }).join("\n")}\n`);
       return 2;
     }

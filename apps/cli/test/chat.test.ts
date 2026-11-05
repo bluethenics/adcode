@@ -183,6 +183,12 @@ describe("describeChatError - a sentence somebody can act on", () => {
     expect(describeChatError(new Error("fetch failed"))).toContain("could not be reached");
   });
 
+  it("passes through Included AI's own daily-limit explanation instead of 'wait a moment'", () => {
+    const raw = "Included AI returned HTTP 429: You have 1.36 credits left today. Tagflow Code 27B uses no credits. (code daily-limit)";
+    expect(describeChatError(new Error(raw))).toBe("You have 1.36 credits left today. Tagflow Code 27B uses no credits.");
+    expect(describeChatError(new Error("could not generate a reply"))).not.toContain("rate-limiting");
+  });
+
   it("prefers the selection's own reason when the model is not ready", () => {
     expect(describeChatError(new Error("boom"), { providerId: "openrouter", ready: false, reason: "Set OPENROUTER_API_KEY" }))
       .toBe("Set OPENROUTER_API_KEY");

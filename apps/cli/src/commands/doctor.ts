@@ -346,11 +346,15 @@ export async function runDoctor(ctx: AppContext): Promise<number> {
 
   const lines: string[] = [];
   lines.push(`  ${ui.paint("RESULT", "faint")}  ${ui.paint(
-    `${checks.filter((entry) => entry.status === "pass").length} passed  ${ui.glyphs.dot}  ${warned.length} warnings  ${ui.glyphs.dot}  ${failed.length} failed`,
+    `${checks.filter((entry) => entry.status === "pass").length} passed  ${ui.glyphs.dot}  ${warned.length} ${warned.length === 1 ? "warning" : "warnings"}  ${ui.glyphs.dot}  ${failed.length} failed`,
     failed.length > 0 ? "danger" : warned.length > 0 ? "warning" : "money",
     { bold: true },
   )}`);
   lines.push("");
+  // The label column fits the longest label, so every detail starts in one straight line.
+  const labelWidth = Math.min(28, Math.max(...checks.map((entry) => entry.label.length)) + 1);
+  const detailIndent = " ".repeat(2 + 2 + labelWidth + 1);
+  const detailRoom = Math.max(16, Math.min(ui.width, 112) - detailIndent.length - 2);
   for (const entry of checks) {
     const icon = entry.status === "pass"
       ? ui.statusIcon("pass")
@@ -359,10 +363,12 @@ export async function runDoctor(ctx: AppContext): Promise<number> {
         : entry.status === "fail"
           ? ui.statusIcon("fail")
           : ui.paint(ui.glyphs.circle, "faint");
-    lines.push(`  ${icon} ${ui.paint(entry.label.padEnd(20), "ink")} ${ui.paint(entry.detail, "muted")}`);
+    const details = ui.wrap(entry.detail, detailRoom);
+    lines.push(`  ${icon} ${ui.paint(ui.truncate(entry.label, labelWidth).padEnd(labelWidth), "ink")} ${ui.paint(details[0] ?? "", "muted")}`);
+    for (const line of details.slice(1)) lines.push(`${detailIndent}${ui.paint(line, "muted")}`);
     if (entry.hint !== null && (entry.status === "fail" || entry.status === "warn" || ctx.flags.verbose)) {
-      for (const line of ui.wrap(entry.hint, Math.max(20, Math.min(ui.width - 26, 86)))) {
-        lines.push(`    ${ui.paint(line, "faint")}`);
+      for (const line of ui.wrap(entry.hint, detailRoom)) {
+        lines.push(`${detailIndent}${ui.paint(line, "faint")}`);
       }
     }
   }

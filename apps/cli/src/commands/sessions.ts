@@ -7,14 +7,14 @@ import type { AppContext } from "../context.ts";
 import {
   deleteSession,
   exportSession,
-  isSessionId,
+  findSession,
   listSessions,
-  readSession,
   renameSession,
   type ChatSession,
 } from "../ai/sessions.ts";
 import { plural, relativeTime, shortDate } from "../util/format.ts";
 import { cliPaths } from "../util/paths.ts";
+import { didYouMean } from "../util/suggest.ts";
 import { runChat } from "./chat.ts";
 
 function payload(ctx: AppContext): Record<string, unknown> {
@@ -34,20 +34,31 @@ function payload(ctx: AppContext): Record<string, unknown> {
   };
 }
 
-function sessionLines(ctx: AppContext, session: ChatSession, width: number): string[] {
+function sessionLines(ctx: AppContext, session: ChatSession, width: number, number: number, numberWidth: number): string[] {
   const ui = ctx.ui;
   const meta = `${session.messages.length} ${plural(session.messages.length, "message")} ${ui.glyphs.dot} ${relativeTime(session.updatedAt)}`;
   const model = session.model === null ? "" : ` ${ui.glyphs.dot} ${session.model}`;
+  const label = ui.paint(String(number).padStart(numberWidth), "faint");
+  const indent = 2 + numberWidth + 2;
+  const pad = " ".repeat(indent);
+  const title = session.title.replace(/\s+/g, " ");
   if (width >= 66) {
-    const left = `  ${ui.paint(session.title, "ink", { bold: true })}`;
-    const right = ui.paint(`${meta}${model}`, "faint");
-    const gap = Math.max(2, width - ui.visibleWidth(left) - ui.visibleWidth(right) - 2);
-    return [`${left}${" ".repeat(gap)}${right}`, `    ${ui.paint(session.id, "faint")}  ${ui.paint(shortDate(session.updatedAt), "borderSoft")}`];
+    // A fixed right column: a long title is shortened instead of pushing the metadata out of line.
+    const cap = Math.max(16, Math.floor(width * 0.45));
+    const rightText = ui.visibleWidth(`${meta}${model}`) <= cap ? `${meta}${model}` : ui.truncate(meta, cap);
+    const titleRoom = Math.max(8, width - indent - ui.visibleWidth(rightText) - 2);
+    const shown = ui.truncate(title, titleRoom);
+    const gap = Math.max(2, width - indent - ui.visibleWidth(shown) - ui.visibleWidth(rightText));
+    return [
+      `  ${label}  ${ui.paint(shown, "ink", { bold: true })}${" ".repeat(gap)}${ui.paint(rightText, "faint")}`,
+      `${pad}${ui.paint(session.id, "faint")}  ${ui.paint(shortDate(session.updatedAt), "borderSoft")}`,
+    ];
   }
+  const room = Math.max(8, width - indent);
   return [
-    `  ${ui.paint(session.title, "ink", { bold: true })}`,
-    `    ${ui.paint(meta, "faint")}`,
-    `    ${ui.paint(session.id, "borderSoft")}`,
+    `  ${label}  ${ui.paint(ui.truncate(title, room), "ink", { bold: true })}`,
+    `${pad}${ui.paint(ui.truncate(meta, room), "faint")}`,
+    `${pad}${ui.paint(ui.truncate(session.id, room), "borderSoft")}`,
   ];
 }
 
@@ -57,7 +68,7 @@ function listOutput(ctx: AppContext, width: number): string[] {
   const lines: string[] = [
     "",
     `  ${ui.gradient(ui.glyphs.mark)}  ${ui.paint("SESSIONS", "ink", { bold: true })}  ${ui.paint(
-      `${sessions.length} saved ${ui.glyphs.dot} ${cliPaths.sessions()}`,
+      ui.truncateMiddle(`${sessions.length} saved ${ui.glyphs.dot} ${cliPaths.sessions()}`, Math.max(8, width - 16)),
       "faint",
     )}`,
     "",
@@ -68,49 +79,57 @@ function listOutput(ctx: AppContext, width: number): string[] {
     lines.push("");
     return lines;
   }
+  const numberWidth = String(sessions.length).length;
   for (const [index, session] of sessions.entries()) {
-    lines.push(...sessionLines(ctx, session, width));
+    lines.push(...sessionLines(ctx, session, width - 2, index + 1, numberWidth));
     if (index < sessions.length - 1) lines.push("");
   }
   lines.push("");
-  lines.push(`  ${ui.paint("open", "faint")}  ${ui.paint("adcode chat --session <id>", "accent")}  ${ui.paint(ui.glyphs.dot, "borderSoft")}  ${ui.paint("browse", "faint")}  ${ui.paint("adcode sessions", "accent")}`);
+  const hints: Array<readonly [string, string]> = [["resume", "adcode sessions open 1"], ["read", "adcode sessions show latest"]];
+  const hintLine = hints.map(([label, command]) => `${ui.paint(label, "faint")}  ${ui.paint(command, "accent")}`).join(`  ${ui.paint(ui.glyphs.dot, "borderSoft")}  `);
+  lines.push(ui.visibleWidth(`  ${hintLine}`) <= width ? `  ${hintLine}` : `  ${ui.paint("adcode sessions open 1", "accent")}`);
+  for (const line of ui.wrap("A list number, latest, or the first few letters of an id all work.", Math.max(8, width - 4))) {
+    lines.push(`  ${ui.paint(line, "faint")}`);
+  }
   lines.push("");
   return lines;
 }
 
 function resolveId(ctx: AppContext, raw: string | undefined): ChatSession | number {
-  if (raw === undefined || raw.length === 0) {
+  if (raw === undefined || raw.trim().length === 0) {
     ctx.stderr.write(
       `${errorPanel(ctx.ui, {
-        title: "A session id is needed",
-        message: "This action needs the id of a saved conversation.",
-        hint: "Run adcode sessions to see the ids, then copy one.",
+        title: "Which conversation?",
+        message: "This action needs a saved conversation: its list number, latest, or its id.",
+        hint: "Run adcode sessions to see them, then try adcode sessions show 1.",
       }).join("\n")}\n`,
     );
     return 2;
   }
-  if (!isSessionId(raw)) {
+  const found = findSession(raw);
+  if ("session" in found) return found.session;
+  if (found.error === "ambiguous") {
+    const shown = found.matches.slice(0, 4).map((session) => session.id);
     ctx.stderr.write(
       `${errorPanel(ctx.ui, {
-        title: "That is not a session id",
-        message: `"${raw}" cannot be a saved session id.`,
-        hint: "Run adcode sessions; ids start with s-.",
+        title: "More than one match",
+        message: `"${raw}" is the start of ${found.matches.length} saved ids.`,
+        hint: `Add a few more letters: ${shown.join(", ")}${found.matches.length > 4 ? ", ..." : ""}`,
       }).join("\n")}\n`,
     );
     return 2;
   }
-  const session = readSession(raw);
-  if (session === null) {
-    ctx.stderr.write(
-      `${errorPanel(ctx.ui, {
-        title: "That session is gone",
-        message: `No saved session named "${raw}".`,
-        hint: "Run adcode sessions to see what is still on disk.",
-      }).join("\n")}\n`,
-    );
-    return 2;
-  }
-  return session;
+  const count = listSessions().length;
+  ctx.stderr.write(
+    `${errorPanel(ctx.ui, {
+      title: "No such conversation",
+      message: count === 0 ? "There are no saved conversations yet." : `Nothing saved matches "${raw}".`,
+      hint: count === 0
+        ? "Run adcode chat; every conversation is saved as you go."
+        : `Run adcode sessions to see all ${count}, then use a number from 1 to ${count}, or latest.`,
+    }).join("\n")}\n`,
+  );
+  return 2;
 }
 
 function showTranscript(ctx: AppContext, session: ChatSession): number {
@@ -365,12 +384,14 @@ async function picker(ctx: AppContext): Promise<number> {
 
 export async function runSessions(ctx: AppContext, args: readonly string[]): Promise<number> {
   const action = args[0] ?? null;
-  if (action !== null && !["list", "open", "show", "delete", "rename", "export"].includes(action)) {
+  const actions = ["list", "open", "show", "delete", "rename", "export"];
+  if (action !== null && !actions.includes(action)) {
+    const near = didYouMean(action, actions, (name) => `adcode sessions ${name}`);
     ctx.stderr.write(
       `${errorPanel(ctx.ui, {
-        title: "Not this time",
+        title: "Not a sessions action",
         message: `"${action}" is not a sessions action.`,
-        hint: "Use adcode sessions, open, show, delete, rename, or export.",
+        hint: `${near === null ? "" : `${near} `}Actions: list, open, show, delete, rename, export.`,
       }).join("\n")}\n`,
     );
     return 2;

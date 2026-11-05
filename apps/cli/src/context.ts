@@ -26,6 +26,9 @@ import {
 import { buildProvider, type BuiltProvider } from "./ai/provider.ts";
 import { isThemeName } from "./tui/theme.ts";
 import { buildSource } from "./util/paths.ts";
+import { didYouMean } from "./util/suggest.ts";
+import { KNOWN_FLAGS, VALUE_FLAGS } from "./completion/words.ts";
+import { writeCompletionCache } from "./completion/complete.ts";
 
 export interface Flags {
   readonly json: boolean;
@@ -138,6 +141,7 @@ export class AppContext {
       ollama: { running: false, models: [], detail: "not probed yet" },
     });
     this.selection = resolveSelection(this.catalogue, this.config.model, this.desktop);
+    writeCompletionCache(this.catalogue.providers);
   }
 
   async refreshCatalogue(options: { live?: boolean } = {}): Promise<void> {
@@ -151,6 +155,7 @@ export class AppContext {
       probeLocal: true,
     });
     this.selection = resolveSelection(this.catalogue, this.config.model, this.desktop);
+    writeCompletionCache(this.catalogue.providers);
   }
 
   async buildSelection(): Promise<BuiltProvider> {
@@ -278,6 +283,8 @@ export async function createContext(options: ContextOptions): Promise<AppContext
   return context;
 }
 
+export { KNOWN_FLAGS };
+
 export function parseFlags(argv: readonly string[]): { flags: Flags; command: string | null; rest: string[] } {
   let json = false;
   let snapshot = false;
@@ -321,8 +328,7 @@ export function parseFlags(argv: readonly string[]): { flags: Flags; command: st
       continue;
     }
     const [name, inline] = argument.includes("=") ? argument.split(/=(.*)/s, 2) : [argument, undefined];
-    const valueFlags = ["--width", "--height", "--provider", "--model", "--theme", "--session", "--effort"];
-    if (inline !== undefined && !valueFlags.includes(name ?? "")) invalid(`${name} does not accept a value.`);
+    if (inline !== undefined && !VALUE_FLAGS.includes(name ?? "")) invalid(`${name} does not accept a value.`);
     const value = (): string => {
       const next = inline ?? argv[++index];
       if (next === undefined || next.trim().length === 0 || next.startsWith("--")) invalid(`${name} needs a value. Run adcode help.`);
@@ -402,9 +408,15 @@ export function parseFlags(argv: readonly string[]): { flags: Flags; command: st
       case "-v":
         version = true;
         break;
-      default:
-        invalid(`Unknown option "${argument}". Run adcode help. Use -- before a message that starts with a dash.`);
+      default: {
+        const near = didYouMean(name ?? argument, KNOWN_FLAGS);
+        invalid(
+          near !== null
+            ? `Unknown option "${argument}". ${near}`
+            : `Unknown option "${argument}". Run adcode help for the flags; put -- before a message that starts with a dash.`,
+        );
         break;
+      }
     }
   }
 

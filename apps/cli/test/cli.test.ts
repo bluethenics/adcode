@@ -215,7 +215,7 @@ describe("the adcode dispatcher routes both faces of the product", () => {
     const result = runDispatcher(["opne"]);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('there is no "opne" command');
-    expect(result.stderr).toContain("Did you mean: open");
+    expect(result.stderr).toContain("Did you mean adcode open?");
   });
 
   it("opens the desktop from the caller's folder, with an inspectable plan", () => {

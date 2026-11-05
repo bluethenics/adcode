@@ -16,6 +16,8 @@ import { runHelp, HELP_COMMANDS } from "./commands/help.ts";
 import { errorPanel, printLines } from "./tui/components.ts";
 import { createUI } from "./tui/ui.ts";
 import { holdScreen, restoreScreen } from "./tui/screen.ts";
+import { didYouMean } from "./util/suggest.ts";
+import { runCompletion } from "./commands/completion.ts";
 
 const APP_COMMANDS = new Set([
   "app",
@@ -31,6 +33,7 @@ const APP_COMMANDS = new Set([
   "tour",
   "help",
   "version",
+  "completion",
 ]);
 
 function errorJson(command: string, message: string): string {
@@ -39,7 +42,7 @@ function errorJson(command: string, message: string): string {
 
 function unknownCommand(ctx: AppContext, name: string): number {
   const names = [...APP_COMMANDS, ...HELP_COMMANDS.filter((entry) => entry.group === "developer").map((entry) => entry.name)];
-  const near = names.filter((entry) => entry.startsWith(name[0] ?? "")).slice(0, 5);
+  const near = didYouMean(name, names, (entry) => `adcode ${entry}`);
   const message = `adcode: there is no "${name}" command.`;
   if (ctx.flags.json) {
     ctx.stdout.write(errorJson(name, message));
@@ -51,7 +54,11 @@ function unknownCommand(ctx: AppContext, name: string): number {
       ...errorPanel(ctx.ui, {
         title: "No such command",
         message,
-        hint: near.length > 0 ? `Did you mean: ${near.join(", ")}? Or run adcode help.` : "Run adcode help for the list.",
+        hint: near !== null
+          ? `${near} Or run adcode help for every command.`
+          : /\s/.test(name)
+            ? `To ask a question, use adcode chat "${name}".`
+            : 'Run adcode help for the list, or adcode chat "..." to ask a question.',
       }),
       "",
     ],
@@ -106,6 +113,8 @@ async function dispatch(ctx: AppContext, command: string | null, args: readonly 
       return runTour(ctx, args);
     case "help":
       return runHelp(ctx, args);
+    case "completion":
+      return runCompletion(ctx, args);
     case "version":
       if (ctx.flags.json) {
         ctx.stdout.write(`${JSON.stringify({ name: "adcode", version: ctx.version, root: ctx.root }, null, 2)}\n`);
@@ -128,7 +137,8 @@ async function main(argv: readonly string[]): Promise<number> {
   // Included AI and Ollama without fetching models.dev unless the person asked for it.
   const home = command === null || command === "deck";
   const known = command === null || APP_COMMANDS.has(command);
-  if (known && command !== "help" && command !== "version" && !home && !ctx.flags.snapshot) {
+  const offline = command === "help" || command === "version" || command === "completion";
+  if (known && !offline && !home && !ctx.flags.snapshot) {
     const live = parsed.flags.live || parsed.flags.refresh;
     if (ctx.catalogue.tagflow === null || !ctx.selection.ready || live) {
       try {
@@ -176,7 +186,11 @@ try {
       width: process.stderr.columns ?? 80,
       height: process.stderr.rows ?? 30,
     });
-    process.stderr.write(`\n${errorPanel(ui, { title: "ADCODE STOPPED", message }).join("\n")}\n\n`);
+    const usageError = error instanceof Error && error.name === "CliUsageError";
+    const panel = usageError
+      ? { title: "Not quite", message, hint: "adcode help lists every command and flag; adcode help <command> shows one in full." }
+      : { title: "ADCODE STOPPED", message, hint: "If this keeps happening, adcode doctor checks the machine, account and network." };
+    process.stderr.write(`\n${errorPanel(ui, panel).join("\n")}\n\n`);
   }
   process.exitCode = error instanceof Error && error.name === "CliUsageError" ? 2 : 1;
 }
