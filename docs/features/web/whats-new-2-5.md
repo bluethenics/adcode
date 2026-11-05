@@ -16,7 +16,7 @@ Some of these changes are on ADCode's servers and already apply to every version
 
 ## Plugins, add-ons and shared projects
 
-*This app version.*
+This app version.
 
 - **Plugins.** Choose Plugins in the Vibe sidebar to browse eight made by ADCode and the community directory. A plugin can add AI actions, chat commands, skills, a theme or setting presets. Each one shows everything it adds before you install it, and switching it off puts back every setting it changed.
 - **Add-ons.** Small live panels for the chat, the sidebar or the status bar: a usage meter, quick prompts, Git at a glance, a focus timer. Each runs sealed, with no internet, no files and no account access.
@@ -27,7 +27,7 @@ Read the full guide: [Plugins](/docs/community-plugins).
 
 ## Three plans, and a Max that is practically unlimited
 
-*Live on the servers.*
+Live on the servers.
 
 - **Builder** is $9 a month for 300 credits a day, **Pro** $29 for 975, and **Max** $59 for 2,000 fair-use credits a day on every hosted model, premium ones included. Every plan refills daily.
 - Free accounts now get 140 credits a day.
@@ -38,7 +38,7 @@ This app version names the plans correctly and treats Max as fair use. See the [
 
 ## Sponsored cards that fit the conversation
 
-*This app version. Off unless you turn it on.*
+This app version. Off unless you turn it on.
 
 With **Settings > Ads > Sponsored cards under AI replies** on, one sponsored card chosen for the conversation can appear under the assistant's answer. ADCode asks Zeekend first, then Imprezia if Zeekend has nothing. Never more than one card per reply, and never above the answer.
 
@@ -48,12 +48,12 @@ Both send your message and the reply to the ad partner to choose the card, so bo
 
 ## Feedback you can see
 
-- **Settings say whether a change took.** Each row shows Saving…, then Saved, or Not saved if something went wrong. Before, a failed save looked exactly like one that worked. *(This app version.)*
-- **The website's messages are easier to read at a glance.** Success, error and information notices each have their own mark and edge, and busy buttons show a spinner. *(Live on the website.)*
+- **Settings say whether a change took.** Each row shows Saving…, then Saved, or Not saved if something went wrong. Before, a failed save looked exactly like one that worked. (This app version.)
+- **The website's messages are easier to read at a glance.** Success, error and information notices each have their own mark and edge, and busy buttons show a spinner. (Live on the website.)
 
 ## The command line
 
-*This app version.*
+This app version.
 
 The `adcode` CLI suggests the command you probably meant after a typo, reads piped input, writes clean output when redirected to a file, and completes commands with Tab.
 
@@ -61,9 +61,9 @@ The `adcode` CLI suggests the command you probably meant after a typo, reads pip
 
 - **Help improve ADCode** (Settings > Privacy) sends a daily count of which features are used: feature names and numbers only, never code, prompts, files or your account. It is on by default and switching it off deletes anything not yet sent.
 - Model providers can apply to have their models offered in ADCode from the new [Model providers](https://adcode.bluethenics.com/providers) page.
-- Advertisers have a page of their own at [/advertisers](https://adcode.bluethenics.com/advertisers), with live network figures. *(Live on the website.)*
-- Max checkouts no longer fail with "temporarily unavailable". *(Live on the servers.)*
-- Editors too old for paid models now link straight to the update. *(Live on the servers.)*
+- Advertisers have a page of their own at [/advertisers](https://adcode.bluethenics.com/advertisers), with live network figures. (Live on the website.)
+- Max checkouts no longer fail with "temporarily unavailable". (Live on the servers.)
+- Editors too old for paid models now link straight to the update. (Live on the servers.)
 
 ## Getting it
 

@@ -4,7 +4,7 @@ title: "What's new in ADCode 2.4.13"
 description: "Fork chats that split a job into parallel conversations, clearer credits that pause instead of failing, purchases in any currency, and more room on smaller screens."
 section: Start here
 published: 2026-11-03
-order: 1
+order: 2
 related: ai-chat-forks, free-ai-without-the-meter, whats-new-october-2026, helpers
 ---
 
@@ -30,28 +30,28 @@ Read the full guide: [Fork chats](/docs/ai-chat-forks).
 
 ## Credits that say what is happening
 
-*Live on the servers for every version since 2 and 3 November.*
+Live on the servers for every version since 2 and 3 November.
 
 - **No more false "conversation too big".** ADCode estimated each step's cost about three times too high, and refused requests you could afford, sometimes on a brand-new chat. It now prices a step on its real size.
 - **Running out pauses instead of failing.** When today's credits can't cover another step, the task waits and carries on by itself when your credits refill. The card says when that is, and how to keep going now: upgrade, add a credit pack, or switch to a model that uses no credits.
-- **The meter shows what you spent.** A long reply sets aside its largest possible cost while it runs and returns the rest when it ends. The meter used to count that as spent, so it seemed to plunge and recover. It now shows only what you used, and the tooltip names what is set aside. *(This app version.)*
+- **The meter shows what you spent.** A long reply sets aside its largest possible cost while it runs and returns the rest when it ends. The meter used to count that as spent, so it seemed to plunge and recover. It now shows only what you used, and the tooltip names what is set aside. (This app version.)
 
 ## Buying credits from anywhere
 
-*Live on the servers since 2 November.*
+Live on the servers since 2 November.
 
 Credit packs paid in a local currency, such as reais, euros or pounds, were charged but not credited. Packs are now charged in US dollars, so the amount always matches, and every affected purchase has been credited. Purchased credits show under **Purchased** on the [AI credits page](https://adcode.bluethenics.com/ai-tokens) and in the app's credit meter.
 
 ## More room on smaller screens
 
-*This app version.*
+This app version.
 
 - **AI usage scrolls as one.** Your balance, the range tabs and the activity grid now share one scrolling area, and the range tabs stay pinned at the top.
 - **Chats get the sidebar.** On windows under 900 pixels tall, the sidebar's links fold into one row of icons, and the desktop card keeps only its button. That gives your chat history about 200 pixels back.
 
 ## Ways out of the errors that used to stop you
 
-*This app version.*
+This app version.
 
 - **Unsaved files:** if your unsaved edits stop the assistant mid-task, the card names the files and offers **Save all and continue**.
 - **Custom providers:** a failed connection check now says what usually causes it: the address (often a missing `/v1`), the model name, or the key.
@@ -63,7 +63,7 @@ Credit packs paid in a local currency, such as reais, euros or pounds, were char
 
 - **New** tags mark models and features added in the last 45 days, in the model menu, Connect a model, the Feature library and the [pricing page](https://adcode.bluethenics.com/pricing).
 - The pricing page's credit table lists only the models you can use today.
-- Free accounts can run four AI requests at once, up from two. Extra requests wait their turn instead of failing. *(Live on the servers.)*
+- Free accounts can run four AI requests at once, up from two. Extra requests wait their turn instead of failing. (Live on the servers.)
 - Join Discord now shows Discord's own icon.
 
 ## Getting it
