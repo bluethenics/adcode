@@ -85,7 +85,23 @@ export default function SponsoredChat() {
   useEffect(() => {
     const element = box.current;
     if (element === null || result === null) return;
-    const report = (): void => tell({ type: "adcode-sponsored-size", height: element.getBoundingClientRect().height });
+    // Also where the SDK's card sits in this page - measured, never changed - so a notification
+    // can fit itself to the card instead of drawing a box around it.
+    const report = (): void => {
+      const page = element.getBoundingClientRect();
+      let left = Number.POSITIVE_INFINITY;
+      let right = 0;
+      let top = Number.POSITIVE_INFINITY;
+      for (const node of element.querySelectorAll("*")) {
+        const rect = node.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) continue;
+        left = Math.min(left, rect.left - page.left);
+        right = Math.max(right, rect.right - page.left);
+        top = Math.min(top, rect.top - page.top);
+      }
+      const edge = (value: number): number => (Number.isFinite(value) ? Math.round(value) : 0);
+      tell({ type: "adcode-sponsored-size", height: page.height, left: edge(left), right: edge(right), top: edge(top) });
+    };
     const observer = new ResizeObserver(report);
     observer.observe(element);
     report();

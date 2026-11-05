@@ -452,24 +452,16 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
       if (live !== null) { answer("empty"); return; }
 
       const card = document.createElement("article");
-      card.className = "toast toast-sponsored toast-partner";
+      card.className = "toast toast-partner";
       card.dataset["state"] = "entering";
       card.style.willChange = "transform, opacity";
       card.setAttribute("role", "complementary");
       card.setAttribute("aria-label", "Sponsored message from ADCode's ad partner");
 
-      const label = document.createElement("span");
-      label.className = "toast-sponsored-label";
-      label.textContent = "Sponsored";
-      // No earnings line: partner cards are not credited to anyone's balance yet, and the
-      // line on our own cards is a promise this one cannot make.
-      const note = document.createElement("span");
-      note.className = "toast-partner-note";
-      note.textContent = "From ADCode's ad partner";
-      const meta = document.createElement("div");
-      meta.className = "toast-sponsored-meta";
-      meta.append(label, note);
-
+      // No box, no header, no drawn countdown: the card arrives on its own, as it does under a
+      // chat reply, and its own "Ad" label is the disclosure. No earnings line either: partner
+      // cards are not credited to anyone's balance yet. The close button sits outside the
+      // card's edge, so nothing of ours ever covers Imprezia's card.
       const close = iconButton("Dismiss", ICON.close, "toast-close");
       close.addEventListener("click", (event) => {
         event.stopPropagation();
@@ -478,10 +470,6 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
 
       const content = document.createElement("div");
       content.className = "toast-content";
-      const timer = document.createElement("div");
-      timer.className = "toast-sponsored-timer";
-      timer.setAttribute("aria-hidden", "true");
-      card.style.setProperty("--toast-duration", `${String(toast.autoDismissMs)}ms`);
 
       const { arm, clearTimer } = dismissTimer(card, toast.id, toast.autoDismissMs);
       let settled = false;
@@ -509,12 +497,21 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
         { request: toast.request, response: toast.response, sessionId: toast.sessionId, theme: toast.theme, layout: "notification" },
         undefined,
         settle,
+        (size) => {
+          // The frame keeps its width - the SDK lays its card out for it, and narrowing the
+          // frame would make the card narrower too. The see-through space to the card's right
+          // goes past the window's edge instead, so the card itself ends at the edge.
+          const gap = size.right === null ? 0 : Math.max(0, (frame?.clientWidth ?? 0) - size.right);
+          card.style.marginRight = `${String(-gap)}px`;
+          if (size.left !== null) close.style.left = `${String(size.left - 32)}px`;
+          if (size.top !== null) close.style.top = `${String(size.top)}px`;
+        },
       );
       if (frame === null) { window.clearTimeout(giveUp); answer("empty"); return; }
       frame.classList.add("toast-partner-frame");
       frame.loading = "eager";
       content.append(frame);
-      card.append(meta, close, content, timer);
+      card.append(close, content);
 
       live = { element: card, creativeId: toast.id, clearTimer: () => { clearTimer(); window.clearTimeout(giveUp); }, partner: true };
       // In the layer but still off-screen (`entering`), so the frame loads before it shows.

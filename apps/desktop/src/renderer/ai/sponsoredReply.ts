@@ -41,8 +41,15 @@ export function sponsoredMessage(exchange: SponsoredExchange): { type: "adcode-s
  * The frame for one reply, or null when there is nothing to send. It starts at no height and
  * takes the height the page reports; a page that finds no ad says so and the frame goes.
  * `onOutcome` hears, once, whether a card arrived - the partner notification waits on it.
+ * `onSize` hears every size report, with where the card sits when the page says (its left and
+ * right edges and its top, measured inside the page), so a notification can line up with it.
  */
-export function sponsoredReplyFrame(exchange: SponsoredExchange, origin = SPONSORED_ORIGIN, onOutcome?: (outcome: "shown" | "empty") => void): HTMLIFrameElement | null {
+export function sponsoredReplyFrame(
+  exchange: SponsoredExchange,
+  origin = SPONSORED_ORIGIN,
+  onOutcome?: (outcome: "shown" | "empty") => void,
+  onSize?: (size: { height: number; left: number | null; right: number | null; top: number | null }) => void,
+): HTMLIFrameElement | null {
   const message = sponsoredMessage(exchange);
   if (message === null) return null;
   const frame = document.createElement("iframe");
@@ -67,6 +74,9 @@ export function sponsoredReplyFrame(exchange: SponsoredExchange, origin = SPONSO
     if (data?.type === "adcode-sponsored-ready") frame.contentWindow?.postMessage(message, origin);
     else if (data?.type === "adcode-sponsored-size" && typeof data.height === "number" && Number.isFinite(data.height)) {
       frame.style.height = `${Math.max(0, Math.min(MAX_HEIGHT, Math.ceil(data.height)))}px`;
+      const measured = data as { left?: unknown; right?: unknown; top?: unknown };
+      const whole = (value: unknown): number | null => typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
+      onSize?.({ height: data.height, left: whole(measured.left), right: whole(measured.right), top: whole(measured.top) });
       if (data.height > 0) tell("shown");
     } else if (data?.type === "adcode-sponsored-empty") {
       window.removeEventListener("message", onMessage);
