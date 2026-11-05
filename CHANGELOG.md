@@ -3,6 +3,11 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
+## 2.5.1 — 2026-11-06
+
+- **Sponsored cards are now on by default.** Sponsored cards under AI replies and sponsored notifications from ADCode's ad partner are switched on for everyone who has not turned sponsored messages off. A one-time card at the bottom right says exactly what each partner receives (your message and the reply for cards, only open language names for notifications), with **Turn off**, **Settings** and **OK**. Both switches stay in Settings > Ads.
+- **Sponsored cards come into view.** A card that arrives under the last reply now scrolls into view while you are at the bottom of the chat, instead of waiting below the edge. Partners only count a card you can see.
+
 ## 2.5.0 — 2026-11-05
 
 - **Plugins, add-ons and shared projects.** Plugins in the Vibe sidebar browses eight plugins made by ADCode and a community directory; each lists everything it adds before install, and switching it off restores every setting it changed. Add-ons put small sealed panels (usage meter, quick prompts, Git at a glance, focus timer) in the chat, sidebar or status bar with no internet or file access. The Studio writes, tries and publishes plugins, with the assistant if you like; plugins have their own settings and installable versions. Artifacts shares a project for others to remix and send improvements you review line by line.
