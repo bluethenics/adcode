@@ -26,15 +26,18 @@ export interface SponsoredExchange {
   readonly theme: "light" | "dark";
   /** `notification`: the page asks the SDK for one card. The card is always drawn as the SDK draws it. */
   readonly layout?: "reply" | "notification";
+  /** Which user message of the conversation this reply answers, for the partner's pacing. A number only. */
+  readonly turn?: number;
 }
 
 /** The message the frame waits for. Clipped here so an enormous reply never crosses whole. */
-export function sponsoredMessage(exchange: SponsoredExchange): { type: "adcode-sponsored"; request: string; response: string; sessionId: string; theme: "light" | "dark"; layout?: "notification" } | null {
+export function sponsoredMessage(exchange: SponsoredExchange): { type: "adcode-sponsored"; request: string; response: string; sessionId: string; theme: "light" | "dark"; layout?: "notification"; turn?: number } | null {
   const request = exchange.request.trim().slice(0, MAX_CHARS);
   const response = exchange.response.trim().slice(0, MAX_CHARS);
   const sessionId = exchange.sessionId.slice(0, 100);
   if (request === "" || response === "" || sessionId === "") return null;
-  return { type: "adcode-sponsored", request, response, sessionId, theme: exchange.theme, ...(exchange.layout === "notification" ? { layout: "notification" as const } : {}) };
+  const turn = exchange.turn !== undefined && Number.isInteger(exchange.turn) && exchange.turn >= 1 && exchange.turn <= 10_000 ? exchange.turn : undefined;
+  return { type: "adcode-sponsored", request, response, sessionId, theme: exchange.theme, ...(exchange.layout === "notification" ? { layout: "notification" as const } : {}), ...(turn === undefined ? {} : { turn }) };
 }
 
 /**

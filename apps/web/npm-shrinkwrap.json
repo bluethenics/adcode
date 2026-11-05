@@ -10,6 +10,7 @@
       "license": "Apache-2.0",
       "dependencies": {
         "@adimpress/imprezia-sdk": "^0.5.24",
+        "@zeekend/sdk": "0.8.3",
         "lucide": "1.59.0",
         "next": "~16.4.3"
       },
@@ -3493,6 +3494,26 @@
       "integrity": "sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==",
       "license": "MIT",
       "optional": true
+    },
+    "node_modules/@zeekend/sdk": {
+      "version": "0.8.3",
+      "resolved": "https://registry.npmjs.org/@zeekend/sdk/-/sdk-0.8.3.tgz",
+      "integrity": "sha512-ejXxvBrS/sq10DBe6ChyHynOwYWUSgmq0dVJgKGgWT0CTLQwnIWC1SR0WHRSvgkhMsYlJ33i7XoMpohjA+AlbA==",
+      "license": "MIT",
+      "bin": {
+        "zeekend": "bin/init.cjs"
+      },
+      "engines": {
+        "node": ">=18"
+      },
+      "peerDependencies": {
+        "react": ">=17"
+      },
+      "peerDependenciesMeta": {
+        "react": {
+          "optional": true
+        }
+      }
     },
     "node_modules/abort-controller": {
       "version": "3.0.0",

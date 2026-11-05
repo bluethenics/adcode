@@ -696,15 +696,16 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     steps: [
       "It is off when you install ADCode. Nothing on this page happens until you turn it on.",
       "To turn it on, open Settings, choose Ads, and switch on Sponsored cards under AI replies. Sponsored messages must be on as well.",
-      "Ask the assistant something in the desktop app. When it finishes answering, your message and its reply go to ADCode's ad partner, Imprezia, which picks a sponsored card for that conversation or none.",
+      "Ask the assistant something in the desktop app. When it finishes answering, ADCode asks its ad partners for one card: Zeekend first, then Imprezia if Zeekend has nothing. Each receives your message and its reply to pick a sponsored card for that conversation, or none.",
       "If there is a card, it appears under the reply. Clicking it opens your browser; the editor itself never navigates.",
       "To stop, switch it off in the same place. The next reply sends nothing.",
     ],
     benefits: [
       "A card about what you are actually asking, rather than one picked from the language you have open.",
-      "Nothing else from your project is sent: no other files, file paths or project names, and only the first 4,000 characters of your message and of the reply.",
+      "Nothing else from your project is sent: no other files, file paths or project names, and only the start of your message and of the reply (Zeekend takes 2,000 and 4,000 characters, Imprezia 4,000 of each).",
+      "One card per reply at most, from whichever partner has one: never two ads stacked under an answer.",
       "The card is a separate, walled-off page from adcode.bluethenics.com, so the ad partner and its measurement partners cannot reach your files or the editor.",
-      "No API key ships in the app: ADCode's own server adds it, and the administrator can switch the whole thing off.",
+      "No API key ships in the app: the administrator saves each partner's key on ADCode's server and can switch either partner off.",
     ],
     betterThan:
       "Ads in AI chat products usually arrive on by default, with the conversation already shared. Here it is off until you choose it, the privacy policy names exactly what is sent and to whom, and the ad code runs outside the editor, so turning it on never trades away access to your files.",

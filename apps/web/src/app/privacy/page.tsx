@@ -38,7 +38,7 @@ This explains what ADCode collects, what it does not, and why. It covers the ADC
 - ADCode's **advertising, earnings, and analytics services never receive file contents, file paths, or project names.**
 - AI features may send source text and prompts to the provider you select. ADCode explains and limits that separate path below.
 - Ads are targeted using a fixed list of **45 generic tags** describing the language or framework you have open.
-- **Sponsored cards under AI replies are off unless you turn them on.** If you do, your message and the assistant's reply under which the card appears go to our ad partner, Imprezia, to choose that card. See below.
+- **Sponsored cards under AI replies are off unless you turn them on.** If you do, your message and the assistant's reply under which the card appears go to our ad partners, Zeekend and then Imprezia, to choose that card. See below.
 - **Sponsored notifications from our ad partner are off unless you turn them on.** If you do, only the names of the languages and frameworks you have open go to Imprezia, to choose a notification when no ADCode advertiser has one. See below.
 - You are identified by an **anonymous account created automatically**, with no email, name, or password, unless you choose to add one.
 - We do not sell personal data. There are no third-party advertising trackers in the editor or on this site, except inside an opt-in sponsored card under an AI reply or an opt-in partner notification, both described below.
@@ -55,13 +55,23 @@ When no direct campaign fills the card, ADCode's server may ask our ad partner I
 
 **Settings → Ads → Sponsored cards under AI replies** is off by default. Nothing in this section happens unless you turn it on, and turning it off stops it at once.
 
-When it is on, after the assistant answers in the desktop app, ADCode shows a sponsored card chosen for that exchange under the reply. To choose it, Imprezia receives:
+When it is on, after the assistant answers in the desktop app, ADCode shows at most one sponsored card chosen for that exchange under the reply. It asks Zeekend first and, only if Zeekend has no card, Imprezia.
 
-- **your message and the assistant's reply** under which the card appears, cut to the first 4,000 characters of each. A reply can contain code, and that code is included;
+To choose its card, **Zeekend** receives:
+
+- **your message and the assistant's reply** under which the card appears, cut to the first 2,000 and 4,000 characters. A reply can contain code, and that code is included;
+- **which question of the conversation it is** (a number), and **an identifier for the conversation** that is a one-way code of ADCode's, not your account and not the conversation's own id;
+- **your language setting, your IP address and your browser's user-agent string.**
+
+Zeekend matches products to the conversation with a language model from Anthropic, so your message and the reply are processed by Anthropic as Zeekend's sub-processor.
+
+To choose its card, **Imprezia** receives:
+
+- **your message and the assistant's reply** under which the card appears, cut to the first 4,000 characters of each;
 - **an identifier for that conversation**, so the cards in one conversation are chosen together. It is not your account, and a new conversation has a new one;
 - **your IP address and your browser's user-agent string**, which Imprezia uses for location targeting and to detect fraud.
 
-Nothing else from your project is sent: no other files, file paths, or project names. The card is a separate page from adcode.bluethenics.com, shown inside the editor but walled off from it, so neither Imprezia nor anyone it works with can reach your files or the rest of the editor. Imprezia's own measurement partners may load inside that card to count views and clicks. ADCode does not store the message or the reply for this.
+Nothing else from your project is sent: no other files, file paths, or project names. The card is a separate page from adcode.bluethenics.com, shown inside the editor but walled off from it, so neither partner nor anyone it works with can reach your files or the rest of the editor. Each partner's own code, and Imprezia's measurement partners, may load inside that card to count views and clicks. ADCode does not store the message or the reply for this.
 
 ### Sponsored notifications from our ad partner (only if you turn them on)
 
@@ -180,11 +190,11 @@ When ADCode asks you to verify your email before using free AI, ADCode sends a v
 
 ## Sharing
 
-We share personal data for advertising only if you turn on sponsored cards under AI replies or sponsored notifications from our ad partner. Then Imprezia receives what those sections list, to choose and measure those cards. Otherwise we share personal data with nobody for advertising purposes.
+We share personal data for advertising only if you turn on sponsored cards under AI replies or sponsored notifications from our ad partner. Then Zeekend and Imprezia receive what those sections list, to choose and measure those cards. Otherwise we share personal data with nobody for advertising purposes.
 
 Advertisers receive **aggregate** reporting: how many times their campaign was served, viewed, and clicked. They never receive your identifier, your tags, or anything that identifies you individually.
 
-Imprezia is our ad partner: it receives generic tags when it fills a sponsored card, the exchange described above only if you turn on sponsored cards under AI replies, and your open languages and frameworks only if you turn on its sponsored notifications. We use Google Cloud and Firebase to run the service, Dodo Payments to take payment from advertisers, and Wise to send withdrawals. Each receives only what it needs to do its part — Wise receives your payout details and the amount, and nothing about how you earned it.
+Zeekend and Imprezia are our ad partners. Zeekend receives the exchange described above only if you turn on sponsored cards under AI replies. Imprezia receives generic tags when it fills a sponsored card, the exchange described above only if you turn on sponsored cards under AI replies, and your open languages and frameworks only if you turn on its sponsored notifications. We use Google Cloud and Firebase to run the service, Dodo Payments to take payment from advertisers, and Wise to send withdrawals. Each receives only what it needs to do its part — Wise receives your payout details and the amount, and nothing about how you earned it.
 
 ## Your choices
 

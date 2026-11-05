@@ -19,6 +19,7 @@ import { authenticate, type TokenVerifier } from "./auth.ts";
 import { handleAdNetworkAdmin, type AdNetworkRuntime } from "./adNetworks.ts";
 import { readAdNetworkArtwork } from "./adNetworkArtwork.ts";
 import { relayImprezia } from "./impreziaProxy.ts";
+import { sponsoredNetworks } from "./sponsoredNetworks.ts";
 import { handleServe } from "./serve.ts";
 import { handleReceipts } from "./receipts.ts";
 import { handleBalance, handleLedger } from "./balance.ts";
@@ -613,6 +614,17 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
      * scanners open every link in an email, and would otherwise confirm or unsubscribe people.
      * The one exception is the RFC 8058 one-click POST that mail apps send for List-Unsubscribe.
      */
+    // Which ad partners the sponsored-card page asks, in order (sponsoredNetworks.ts). Public:
+    // the page has no sign-in, and Zeekend's publisher key is public by design.
+    if (path === "/v1/sponsored/networks" && req.method === "GET") {
+      const networks = await sponsoredNetworks({
+        adNetworks: store.adNetworks,
+        ...(options.adNetworks?.encryptionKeys === undefined ? {} : { encryptionKeys: options.adNetworks.encryptionKeys }),
+      });
+      send(res, 200, { networks }, { ...cors, "cache-control": "public, max-age=60" });
+      return;
+    }
+
     // Imprezia's SDK on the sponsored-card page, relayed with the admin's key (impreziaProxy.ts).
     if (path.startsWith("/v1/imprezia/")) {
       let body = "";

@@ -1,5 +1,5 @@
 /** Server-side ad network settings. Secrets never form part of this JSON. */
-export type AdNetworkProvider = "http-json" | "imprezia" | "beehiiv";
+export type AdNetworkProvider = "http-json" | "imprezia" | "beehiiv" | "zeekend";
 export interface HttpAdNetworkConfig {
   serveUrl: string;
   method: "GET" | "POST";
@@ -29,6 +29,11 @@ export interface AdNetworkConfig {
    * `app` and `site` are its OpenRTB Exchange, preview only.
    */
   imprezia?: { kind: "app" | "site" | "chat"; id: string };
+  /**
+   * Zeekend's chat placements, through its browser SDK on the sponsored page: its publisher key
+   * (public by design) and placement id. Like Imprezia's SDK cards, it does not pay user balances.
+   */
+  zeekend?: { placementId: string };
 }
 export interface EncryptedAdNetworkKey { version: 1; nonce: string; ciphertext: string; tag: string }
 export interface AdNetworkDelivery {
@@ -75,11 +80,17 @@ const micros = (raw: unknown): raw is string => typeof raw === "string" && /^(?:
 export function parseAdNetworkConfig(raw: unknown): AdNetworkConfig | null {
   if (!record(raw) || typeof raw["id"] !== "string" || !AD_NETWORK_ID.test(raw["id"]) || typeof raw["name"] !== "string" || raw["name"].trim().length < 1 || raw["name"].length > 80 || typeof raw["enabled"] !== "boolean" || !Number.isInteger(raw["priority"]) || Number(raw["priority"]) < 0 || Number(raw["priority"]) > 100 || !micros(raw["viewPayoutMicros"]) || !micros(raw["clickPayoutMicros"])) return null;
   const provider = raw["provider"];
-  if (provider !== "http-json" && provider !== "imprezia" && provider !== "beehiiv") return null;
+  if (provider !== "http-json" && provider !== "imprezia" && provider !== "beehiiv" && provider !== "zeekend") return null;
   const base: AdNetworkConfig = { id: raw["id"], name: raw["name"].trim(), provider, enabled: raw["enabled"], priority: Number(raw["priority"]), viewPayoutMicros: raw["viewPayoutMicros"], clickPayoutMicros: raw["clickPayoutMicros"] };
   // Named providers support non-billable previews only, except Imprezia Chat Ads.
-  const chat = provider === "imprezia" && record(raw["imprezia"]) && raw["imprezia"]["kind"] === "chat";
+  const chat = provider === "zeekend" || provider === "imprezia" && record(raw["imprezia"]) && raw["imprezia"]["kind"] === "chat";
   if (provider !== "http-json" && !chat && base.enabled) return null;
+  if (provider === "zeekend") {
+    const placement = record(raw["zeekend"]) ? raw["zeekend"]["placementId"] : undefined;
+    const placementId = placement === undefined || placement === "" ? "chat-main" : placement;
+    if (typeof placementId !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(placementId)) return null;
+    return { ...base, zeekend: { placementId } };
+  }
   if (provider === "beehiiv") {
     const bee = raw["beehiiv"];
     if (!record(bee) || typeof bee["publicationId"] !== "string" || !/^pub_[0-9a-fA-F-]{1,60}$/.test(bee["publicationId"]) || typeof bee["offerId"] !== "string" || !/^[A-Za-z0-9_-]{1,100}$/.test(bee["offerId"])) return null;
@@ -110,7 +121,7 @@ export function parseAdNetworkConfig(raw: unknown): AdNetworkConfig | null {
   return { ...base, http: { serveUrl: http["serveUrl"], verifyUrl: http["verifyUrl"], method: http["method"] as "GET" | "POST", authHeader: http["authHeader"], authPrefix: http["authPrefix"], requestTemplate, verifyTemplate, creativePath: http["creativePath"], verifiedPath: http["verifiedPath"], eventIdPath: http["eventIdPath"], fields: fields as unknown as HttpAdNetworkConfig["fields"] } };
 }
 export function adNetworkReadiness(config: AdNetworkConfig, keyConfigured: boolean): string {
-  if (config.provider === "imprezia" && config.imprezia?.kind === "chat") return !keyConfigured ? "key-required" : config.enabled ? "ready" : "disabled";
+  if (config.provider === "zeekend" || config.provider === "imprezia" && config.imprezia?.kind === "chat") return !keyConfigured ? "key-required" : config.enabled ? "ready" : "disabled";
   if (config.provider === "imprezia" && !config.imprezia) return "inventory-required";
   if (config.provider === "imprezia") return keyConfigured ? "exchange-test-only" : "key-required";
   if (config.provider === "beehiiv") return "newsletter-preview-only";

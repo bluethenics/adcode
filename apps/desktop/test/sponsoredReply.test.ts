@@ -98,3 +98,12 @@ describe("where the card sits", () => {
     ]);
   });
 });
+
+describe("the turn", () => {
+  it("hands the page which question of the conversation this is, and only a sensible number", () => {
+    const base = { request: "q", response: "a", sessionId: "s", theme: "dark" as const };
+    expect(sponsoredMessage({ ...base, turn: 3 })).toMatchObject({ turn: 3 });
+    for (const turn of [0, -1, 2.5, 20_000]) expect(sponsoredMessage({ ...base, turn })).not.toHaveProperty("turn");
+    expect(sponsoredMessage(base)).not.toHaveProperty("turn");
+  });
+});

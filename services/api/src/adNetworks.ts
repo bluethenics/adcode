@@ -6,16 +6,20 @@ import { checkReceipt, CLOCK_SKEW_MS } from "./plausibility.ts";
 import { previewImprezia } from "./impreziaPreview.ts";
 import { impreziaKeyMode, isImpreziaSandboxKey, unpackImpression, type ImpreziaKeyMode } from "./impreziaChatAds.ts";
 import { impreziaSdkPreviewEndpoint } from "./impreziaSdkPreview.ts";
+import { isZeekendKey, zeekendKeyMode, type ZeekendKeyMode } from "./sponsoredNetworks.ts";
 import type { AdNetworkConfig } from "./adNetworkConfig.ts";
 import type { Clock, IdGen, Store } from "./store.ts";
 const isImpreziaChat = (config: AdNetworkConfig): boolean => config.provider === "imprezia" && config.imprezia?.kind === "chat";
 export interface AdNetworkRuntime { fetchImpl?: typeof fetch; encryptionKeys?: () => readonly string[]; assetOrigin?: string }
 export interface AdNetworkDeps extends AdNetworkRuntime { store: Store; clock: Clock; ids: IdGen }
 const keysFor = (deps: AdNetworkRuntime): readonly string[] => (deps.encryptionKeys ?? adNetworkEncryptionKeys)();
-/** The saved Imprezia key's environment, read on the server; undefined when there is none or it cannot be read. */
-function keyModeOf(deps: AdNetworkRuntime, config: AdNetworkConfig, encrypted: Parameters<typeof decryptAdNetworkKey>[1] | null): ImpreziaKeyMode | undefined {
-  if (!isImpreziaChat(config) || encrypted === null) return undefined;
-  try { return impreziaKeyMode(decryptAdNetworkKey(config.id, encrypted, keysFor(deps))); } catch { return undefined; }
+/** The saved Imprezia or Zeekend key's environment, read on the server; undefined when there is none or it cannot be read. */
+function keyModeOf(deps: AdNetworkRuntime, config: AdNetworkConfig, encrypted: Parameters<typeof decryptAdNetworkKey>[1] | null): ImpreziaKeyMode | ZeekendKeyMode | undefined {
+  if ((!isImpreziaChat(config) && config.provider !== "zeekend") || encrypted === null) return undefined;
+  try {
+    const key = decryptAdNetworkKey(config.id, encrypted, keysFor(deps));
+    return config.provider === "zeekend" ? zeekendKeyMode(key) : impreziaKeyMode(key);
+  } catch { return undefined; }
 }
 /** The one Imprezia Chat Ads connection "Go live" creates when none exists yet. */
 const IMPREZIA_DEFAULT: AdNetworkConfig = { id: "imprezia", name: "Imprezia", provider: "imprezia", enabled: false, priority: 10, viewPayoutMicros: "0", clickPayoutMicros: "0", imprezia: { kind: "chat", id: "" } };
@@ -131,11 +135,12 @@ export async function handleAdNetworkAdmin(deps: AdNetworkDeps, adminUid: string
   if (match[2] === "key" && method === "PUT") {
     const key = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>)["key"] : undefined;
     if (key !== null && !validKey(key)) return response(400, { error: "invalid-key" });
+    if (key !== null && config.provider === "zeekend" && !isZeekendKey((key as string).trim())) return response(400, { error: "invalid-key", message: "That isn't a Zeekend publisher key. Paste the pub_live_… key Zeekend sent you, or pub_test to try test placements." });
     const keys = keysFor(deps);
     if (key !== null && !keys[0]) return response(503, { error: "encryption-not-configured", message: "Set AD_NETWORK_ENCRYPTION_KEY once before saving provider API keys." });
-    await port.putKey(id, key === null ? null : encryptAdNetworkKey(id, key as string, keys[0]!));
+    await port.putKey(id, key === null ? null : encryptAdNetworkKey(id, config.provider === "zeekend" ? (key as string).trim() : key as string, keys[0]!));
     await deps.store.writeAudit({ adminUid, action: key === null ? "ad-network-key-remove" : "ad-network-key-save", subjectUid: id, at: deps.clock.now() });
-    return response(200, { ok: true, keyConfigured: key !== null, ...(key !== null && isImpreziaChat(config) ? { keyMode: impreziaKeyMode((key as string).trim()) } : {}) });
+    return response(200, { ok: true, keyConfigured: key !== null, ...(key !== null && isImpreziaChat(config) ? { keyMode: impreziaKeyMode((key as string).trim()) } : {}), ...(key !== null && config.provider === "zeekend" ? { keyMode: zeekendKeyMode((key as string).trim()) } : {}) });
   }
   if (match[2] === "test" && method === "POST") {
     if (config.provider === "imprezia" && !config.imprezia) return response(409, { error: "inventory-required", message: "Enter the app bundle or site domain provisioned by Imprezia Exchange before testing." });
@@ -149,6 +154,9 @@ export async function handleAdNetworkAdmin(deps: AdNetworkDeps, adminUid: string
         endpoint: impreziaSdkPreviewEndpoint(id, key, keysFor(deps)[0]!, deps.clock.now()),
         placementId: config.imprezia!.id,
       } });
+      // Zeekend's SDK runs only on the sponsored page, so the test confirms what the server can:
+      // a well-formed key, which environment it is, and the placement the page will ask for.
+      if (config.provider === "zeekend") return response(200, { ok: true, sandbox: zeekendKeyMode(key) === "sandbox", zeekend: { placementId: config.zeekend?.placementId ?? "chat-main", keyMode: zeekendKeyMode(key), validKey: isZeekendKey(key) } });
       if (config.provider === "imprezia") return response(200, { ok: true, creative: await previewImprezia(config, key, deps.ids.next("test"), deps.fetchImpl), readiness: "exchange-test-only" });
       if (config.provider === "beehiiv") return response(200, { ok: true, advertisements: await previewBeehiiv(config, key, deps.fetchImpl), readiness: "newsletter-preview-only" });
       const creative = await requestNetworkCreative(config, key, { tags: [], themeKind: "light", count: 1 }, deps.ids.next("test"), 60_000, deps.fetchImpl);

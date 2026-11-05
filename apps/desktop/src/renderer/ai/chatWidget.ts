@@ -4770,6 +4770,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
             response: messageSources.get(finished) ?? "",
             sessionId: eventSession ?? activeSessionId ?? "",
             theme: document.documentElement.dataset["theme"] === "light" ? "light" : "dark",
+            // Which question of this conversation the reply answers - Zeekend paces by it.
+            turn: transcript.querySelectorAll(".chat-bubble-user").length,
           });
           // Below the reply's own actions row, so copy/retry stay attached to the reply.
           if (frame !== null) (finished.nextElementSibling ?? finished).after(frame);
