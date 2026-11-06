@@ -43,7 +43,7 @@
   .providers-offer-grid, .providers-how, .providers-apply { grid-template-columns: 1fr; }
 }
 
-/* /providers/models: the model submission form. */
+/* /ai-models: the model submission form. */
 .provider-models-intro { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: clamp(32px, 6vw, 80px); align-items: end; padding-block: clamp(48px, 7vw, 96px) clamp(28px, 4vw, 48px); }
 .provider-models-intro .adv-eyebrow a { color: inherit; text-decoration: none; }
 .provider-models-intro .adv-eyebrow a:hover { text-decoration: underline; }

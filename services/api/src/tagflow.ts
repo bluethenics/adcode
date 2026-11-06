@@ -16,11 +16,11 @@ import { HEABSY_RELEASE_DATES } from "./heabsyCatalog.ts";
 import { createWorkerSecrets, type WorkerSecrets } from "./workerSecrets.ts";
 import { includedProvider, isCustomProviderUrl, modelProvider, providerConnections, type IncludedProviderId } from "./includedProviders.ts";
 import { DEFAULT_CREDIT_PLAN, creditCharge, creditsView, millicreditsFor, modelCreditRate, parseCreditPlan, untilText, type CreditPlan } from "./credits.ts";
-import { BUY_PACKS_URL, BUY_TOKENS_URL, DEFAULT_PAID_CONFIG, TOKEN_ORDER_PREFIX, isSponsoredTagflow, isPaidModel, tokensView } from "./paidTokens.ts";
+import { BUY_PACKS_URL, BUY_TOKENS_URL, DEFAULT_PAID_CONFIG, PACKS_ON_SALE, TOKEN_ORDER_PREFIX, isSponsoredTagflow, isPaidModel, tokensView } from "./paidTokens.ts";
 import { CREDIT_UNITS, includedCharge, subscriptionCharge } from "./aiEconomics.ts";
 import { DOWNLOAD_URL, WALLET_MARKUP_PERCENT, WALLET_ORDER_PREFIX, WALLET_TOPUPS_CENTS, WALLET_URL, walletCharge, walletRates } from "./modelWallet.ts";
 import type { PaymentProvider } from "./payments.ts";
-import { PLANS, LEGACY_PLANS, effectiveWeeklyAllowance, hasActivePlan, hasUnlimitedPlan, hasAllModelAccess, hasLegacyAllowance, LEGACY_MODEL_IDS, requiresSubscription, parsePromo, planById } from "./aiPlans.ts";
+import { PLAN_SALES_OPEN, PLANS, LEGACY_PLANS, effectiveWeeklyAllowance, hasActivePlan, hasUnlimitedPlan, hasAllModelAccess, hasLegacyAllowance, LEGACY_MODEL_IDS, requiresSubscription, parsePromo, planById } from "./aiPlans.ts";
 import { activeCampaign, startCampaign } from "./usageCampaign.ts";
 import { MODEL_FEEDBACK_CATEGORIES, type ModelRequestOutcome, type ModelRequestRecord, type ModelRequestSource } from "./tagflowReportTypes.ts";
 import { completeModelReport, parseReportRange } from "./tagflowReports.ts";
@@ -54,6 +54,8 @@ export interface TagflowOptions {
   emailProof?: AccountEmailProof;
   /** Models providers submitted on /providers/models, approved here (providerModels.ts). */
   providerModels?: ProviderModelStore;
+  /** Sell plans and credit packs. Defaults to PLAN_SALES_OPEN / PACKS_ON_SALE (both closed); tests open them. */
+  salesOpen?: boolean;
   /** Keys that decrypt a submission's API key; defaults to the ad network keys. */
   encryptionKeys?: () => readonly string[];
 }
@@ -493,6 +495,7 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
         const raw = await readJson(request);
         if (config.paid?.enabled !== true) return json(409, { error: "paid-off" });
         const selected = isRecord(raw) && typeof raw["plan"] === "string" ? planById(raw["plan"]) : null;
+        if (!(deps.salesOpen ?? PLAN_SALES_OPEN)) return fail(410, "plans-retired", `Plans are no longer sold. Every model is paid from USD credits now: add them at ${WALLET_URL}.`);
         if (selected === null || !selected.onSale) return json(400, { error: "bad-plan" });
         if ((selected.id === "max" || selected.id === "unlimited") && config.paid.accounting !== "cost-v1") return json(409, { error: "not-configured" });
         const country = isRecord(raw) ? raw["billingCountry"] : undefined;
@@ -635,6 +638,9 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
           await deps.store.giftPlan(uid, selected.id, days, auth.uid, note.trim(), deps.clock.now());
         }
         return json(200, { ok: true });
+      }
+      if (url.pathname === "/v1/ai/tokens/checkout" && request.method === "POST" && !(deps.salesOpen ?? PACKS_ON_SALE)) {
+        return fail(410, "packs-retired", `Credit packs are no longer sold. Every model is paid from USD credits now: add them at ${WALLET_URL}.`);
       }
       if (url.pathname === "/v1/ai/tokens/checkout" && request.method === "POST") {
         const raw = await readJson(request);

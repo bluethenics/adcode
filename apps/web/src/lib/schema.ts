@@ -17,7 +17,8 @@ import {
   formatMicros,
   ECONOMICS,
 } from "./site";
-import { FREE_WEEKLY_TOKENS, PACK_SUMMARY, PLANS_ON_SALE, PLAN_SUMMARY, creditAmount } from "./pricing";
+import { PAYG_SUMMARY } from "./pricing";
+import { WALLET_TOPUPS_CENTS } from "@adcode/api/src/modelWallet.ts";
 import type { PaidPack } from "@adcode/api/src/paidTokens.ts";
 
 type Node = Record<string, unknown>;
@@ -179,16 +180,10 @@ export function pricingOffers(packs: readonly PaidPack[]): Node {
     operatingSystem: "Windows, Linux",
     offers: [
       { "@type": "Offer", name: "Free editor", price: "0", priceCurrency: "USD", url: url("/versions"),
-        description: `The free editor and ${creditAmount(FREE_WEEKLY_TOKENS)} daily credits shared by Tagflow AI and all other included models.` },
-      ...PLANS_ON_SALE.map((plan) => ({
-        "@type": "Offer", name: `${plan.name} AI plan`, price: dollars(plan.priceCents), priceCurrency: "USD", url: url(`/ai-tokens?plan=${plan.id}`),
-        description: `${creditAmount(plan.weeklyTokens)} included AI credits each day${plan.allModels === true ? " on every hosted model, premium included, under fair use" : ""}, billed every ${plan.interval}.`,
-        priceSpecification: { "@type": "UnitPriceSpecification", price: dollars(plan.priceCents), priceCurrency: "USD",
-          referenceQuantity: { "@type": "QuantitativeValue", value: 1, unitCode: plan.interval === "week" ? "WEE" : "MON" } },
-      })),
-      ...packs.map((pack) => ({
-        "@type": "Offer", name: `${creditAmount(pack.tokens)} credit pack`, price: dollars(pack.priceCents), priceCurrency: "USD", url: url("/ai-tokens#packs"),
-        description: "One-time included AI credits that never expire.",
+        description: "The free editor and Tagflow AI, free for every signed-in account." },
+      ...WALLET_TOPUPS_CENTS.map((cents) => ({
+        "@type": "Offer", name: `$${cents / 100} of AI credits`, price: dollars(cents), priceCurrency: "USD", url: url("/ai-tokens#wallet"),
+        description: "USD credits for any paid model in ADCode at its provider's price plus 35%. One-time; never expire.",
       })),
     ],
   };
@@ -320,15 +315,15 @@ export function changelog(
 export const FAQ: readonly { q: string; a: string }[] = [
   {
     q: "What is ADCode?",
-    a: "ADCode is a free, ad-supported code editor with Monaco editing, integrated terminals, git, workspace search and AI agents. Sponsored cards help fund the editor, and a share of eligible advertising revenue goes to the developer. Optional plans and credit packs add more Heabsy AI usage.",
+    a: "ADCode is a free, ad-supported code editor with Monaco editing, integrated terminals, git, workspace search and AI agents. Sponsored cards help fund the editor, and a share of eligible advertising revenue goes to the developer. Paid AI models, Heabsy's included, are pay as you go from USD credits.",
   },
   {
     q: "How much does ADCode cost?",
-    a: `The editor is free with no subscription required. Optional included AI plans are ${PLAN_SUMMARY}. One-time credit packs are ${PACK_SUMMARY}; purchased credits never expire. Prices are in USD before applicable tax. Compare the options on the Pricing page.`,
+    a: `The editor is free with no subscription required. AI is pay as you go: ${PAYG_SUMMARY}. Prices are in USD before applicable tax. Every model's price is on the Pricing page.`,
   },
   {
     q: "Is the AI in ADCode free?",
-    a: `Tagflow AI and all other included models share ${creditAmount(FREE_WEEKLY_TOKENS)} free credits each day per account; plans raise the allowance, and purchased credits are used afterward. Sign in with a verified account without setting up an API key. Provider availability and context limits still apply. You can also connect your own provider or local model.`,
+    a: `Tagflow AI is free for every signed-in account, with no API key. Every other model is paid from USD credits at its provider's price plus 35%, with no subscription. Provider availability and context limits still apply. You can also connect your own provider or local model.`,
   },
   {
     q: "How much can you earn using ADCode?",

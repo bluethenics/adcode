@@ -197,12 +197,12 @@ describe("included Tagflow AI", () => {
       now += 86400000;
       const resumed = await chat(); expect(resumed.status).toBe(200); await resumed.text();
     });
-    it("grants premium wallet access to Max, the all-models plan, but not to Pro", async () => {
+    it("covers paid-credit models for any live plan until it ends, then asks for credits", async () => {
       const saved = (await store.getTagflowConfig())!.config;
       await save({ ...saved, models: [{ ...saved.models[0]!, billing: "wallet" }] });
-      await store.giftPlan("user", "pro", 1, "admin-1", "gift", now);
       const refused = await chat(); expect(refused.status).toBe(402); expect(upstream).not.toHaveBeenCalled();
-      await store.giftPlan("user", "max", 1, "admin-1", "gift", now);
+      // Since 6 November 2026 every plan paid for before then covers every model until it ends.
+      await store.giftPlan("user", "pro", 1, "admin-1", "gift", now);
       const response = await chat(); expect(response.status).toBe(200); await response.text();
     });
     it("protects an existing paid period on the original models and ends protection on time", async () => {
@@ -366,7 +366,7 @@ describe("included Tagflow AI", () => {
       const refused = await ask("glm");
       expect(refused.status).toBe(429);
       const { error } = await refused.json() as { error: { code: string; limit: string; retryable: boolean; resetsAt: number; buyUrl: string; message: string } };
-      expect(error).toMatchObject({ code: "daily-limit", limit: "paid", retryable: true, buyUrl: "https://adcode.bluethenics.com/ai-tokens#packs" });
+      expect(error).toMatchObject({ code: "daily-limit", limit: "paid", retryable: true, buyUrl: "https://adcode.bluethenics.com/ai-tokens#wallet" });
       expect(error.resetsAt).toBeGreaterThan(now);
       expect(error.message).toContain("https://adcode.bluethenics.com/ai-tokens");
       expect(error.message).toContain("included AI");

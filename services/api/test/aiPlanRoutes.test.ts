@@ -40,7 +40,7 @@ describe("AI plan routes", () => {
     store = createMemoryStore(); checkouts = []; portals = [];
     await store.addAdmin({ email: "admin@adcode.test", addedBy: "setup", addedAt: 0 });
     await selling(true);
-    handle = createFetchHandler({ store, verifier, clock: { now: () => NOW }, payments: payments(), siteOrigin: "https://adcode.test", tagflow: { apiKey: "k" } });
+    handle = createFetchHandler({ store, verifier, clock: { now: () => NOW }, payments: payments(), siteOrigin: "https://adcode.test", tagflow: { apiKey: "k", salesOpen: true } });
   });
 
   it("reports the same subscribed plan and allowance in usage and token orders", async () => {
@@ -65,7 +65,7 @@ describe("AI plan routes", () => {
     await selling(false);
     expect((await call("/ai/plans/checkout", "user", { plan: "pro", billingCountry: "DE" })).status).toBe(409);
     await selling(true);
-    handle = createFetchHandler({ store, verifier, clock: { now: () => NOW }, payments: { canCreateCheckout: () => false, async createCheckout() { return null; } }, siteOrigin: "https://adcode.test", tagflow: { apiKey: "k" } });
+    handle = createFetchHandler({ store, verifier, clock: { now: () => NOW }, payments: { canCreateCheckout: () => false, async createCheckout() { return null; } }, siteOrigin: "https://adcode.test", tagflow: { apiKey: "k", salesOpen: true } });
     expect((await call("/ai/plans/checkout", "user", { plan: "pro", billingCountry: "DE" })).status).toBe(503);
   });
 
@@ -74,7 +74,7 @@ describe("AI plan routes", () => {
     expect((await call("/ai/plans/checkout", "user", { plan: "pro", billingCountry: "DE" })).status).toBe(409);
     const first = await (await call("/ai/plans/checkout", "friend", { plan: "monthly", billingCountry: "US" })).json();
     // A second handler has no isolate-local state, but sees the same account's database claim.
-    handle = createFetchHandler({ store, verifier, clock: { now: () => NOW }, payments: payments(), siteOrigin: "https://adcode.test", tagflow: { apiKey: "k" } });
+    handle = createFetchHandler({ store, verifier, clock: { now: () => NOW }, payments: payments(), siteOrigin: "https://adcode.test", tagflow: { apiKey: "k", salesOpen: true } });
     for (let i = 0; i < 5; i++) expect(await (await call("/ai/plans/checkout", "friend", { plan: "monthly", billingCountry: "US" })).json()).toEqual(first);
     const other = await call("/ai/plans/checkout", "friend", { plan: "pro", billingCountry: "US" });
     expect(other.status).toBe(409); expect(await other.json()).toMatchObject({ error: { code: "checkout-exists" } });
@@ -84,7 +84,7 @@ describe("AI plan routes", () => {
   it("allows only one concurrent provider call and keeps an uncertain failure guarded", async () => {
     let resolve: (value: null) => void = () => undefined;
     const provider = vi.fn<PaymentProvider["createCheckout"]>(() => new Promise(done => { resolve = done; }));
-    handle = createFetchHandler({ store, verifier, clock: { now: () => NOW }, payments: { createCheckout: provider }, siteOrigin: "https://adcode.test", tagflow: { apiKey: "k" } });
+    handle = createFetchHandler({ store, verifier, clock: { now: () => NOW }, payments: { createCheckout: provider }, siteOrigin: "https://adcode.test", tagflow: { apiKey: "k", salesOpen: true } });
     const first = call("/ai/plans/checkout", "friend", { plan: "monthly", billingCountry: "US" });
     await vi.waitFor(() => expect(provider).toHaveBeenCalledTimes(1));
     const concurrent = await call("/ai/plans/checkout", "friend", { plan: "pro", billingCountry: "US" });
@@ -98,7 +98,7 @@ describe("AI plan routes", () => {
     handle = createFetchHandler({ store, verifier, clock: { now: () => NOW }, payments: { async createCheckout() {
       await store.applySubscriptionEvent(active("user", "monthly"));
       return { sessionId: "cs_p", checkoutUrl: "https://checkout.test/cs_p" };
-    } }, siteOrigin: "https://adcode.test", tagflow: { apiKey: "k" } });
+    } }, siteOrigin: "https://adcode.test", tagflow: { apiKey: "k", salesOpen: true } });
     const response = await call("/ai/plans/checkout", "user", { plan: "monthly", billingCountry: "US" });
     expect(response.status).toBe(409); expect(await response.json()).toEqual({ error: "already-subscribed" });
   });
@@ -176,7 +176,7 @@ describe("AI plan routes", () => {
 
   it("limits verification tests to the authenticated administrator and throttles delivery", async () => {
     const testVerification = vi.fn().mockResolvedValue({ sent: true, reason: null });
-    handle = createFetchHandler({ store, verifier, clock: { now: () => NOW }, tagflow: { apiKey: "k", identity: {
+    handle = createFetchHandler({ store, verifier, clock: { now: () => NOW }, tagflow: { apiKey: "k", salesOpen: true, identity: {
       lookup: async () => null, sendVerification: async () => true, testVerification,
     } } });
     expect((await call("/admin/ai-plans/verification-test", "user", { email: "other@adcode.test" })).status).toBe(403);

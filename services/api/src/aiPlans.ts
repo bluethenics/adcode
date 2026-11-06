@@ -25,17 +25,27 @@ export interface PlanSpec {
  * model, premium included, so fair use follows each model's price - cheap models stretch it to
  * hundreds of agent steps, premium ones to fewer. Weekly (420) and Unlimited (10,050) are no longer
  * sold but keep renewing for the people already on them.
+ *
+ * On 6 November 2026 subscriptions ended: every model is paid from USD credits (provider price
+ * plus 35%), Tagflow's sponsored models stay free. No plan is sold. A plan already paid for keeps
+ * working until its period ends and covers every model, as Max does; renewals were cancelled.
  */
 export const PLANS: readonly PlanSpec[] = [
-  { id: "weekly", name: "Weekly", priceCents: 300, interval: "week", weeklyTokens: 4_620_000, invites: 0, onSale: false },
-  { id: "monthly", name: "Builder", priceCents: 900, interval: "month", weeklyTokens: 3_300_000, invites: 0, onSale: true },
-  { id: "pro", name: "Pro", priceCents: 2900, interval: "month", weeklyTokens: 10_725_000, invites: 2, onSale: true },
+  { id: "weekly", name: "Weekly", priceCents: 300, interval: "week", weeklyTokens: 4_620_000, invites: 0, onSale: false, allModels: true },
+  { id: "monthly", name: "Builder", priceCents: 900, interval: "month", weeklyTokens: 3_300_000, invites: 0, onSale: true, allModels: true },
+  { id: "pro", name: "Pro", priceCents: 2900, interval: "month", weeklyTokens: 10_725_000, invites: 2, onSale: true, allModels: true },
   { id: "max", name: "Max", priceCents: 5900, interval: "month", weeklyTokens: 22_000_000, invites: 0, onSale: true, allModels: true },
   { id: "unlimited", name: "Unlimited", priceCents: 29900, interval: "month", weeklyTokens: 110_550_000, invites: 0, onSale: false, allModels: true },
 ];
 
-/** What checkout offers, cheapest first. */
-export const PLANS_ON_SALE: readonly PlanSpec[] = PLANS.filter((plan) => plan.onSale);
+/**
+ * Whether any plan is sold. Off since 6 November 2026: every model is paid from USD credits.
+ * `onSale` above still says which plans would be offered if sales reopened.
+ */
+export const PLAN_SALES_OPEN = false;
+
+/** What checkout offers, cheapest first: nothing while sales are closed. */
+export const PLANS_ON_SALE: readonly PlanSpec[] = PLAN_SALES_OPEN ? PLANS.filter((plan) => plan.onSale) : [];
 
 /**
  * A paid period bought before the allowances changed keeps what it was sold until it renews.
@@ -81,7 +91,9 @@ export const requiresSubscription = (_model: { provider?: string }): boolean => 
 
 /** The daily allowance on paid models: the best of plan, boost and everyone's allowance. */
 export function effectiveWeeklyAllowance(state: AiPlanState, freeWeekly: number, now: number, costCredits = true): number {
-  if (costCredits && hasAllModelAccess(state, now)) return planAllowance(planById(state.plan!.id)!, state.plan!.endsAt);
+  const boost = state.validUntil !== undefined && state.validUntil !== null && state.validUntil <= now ? 0 : state.boostTokens;
+  // Every plan covers every model since 6 November 2026; an administrator's boost still raises it.
+  if (costCredits && hasAllModelAccess(state, now)) return Math.max(planAllowance(planById(state.plan!.id)!, state.plan!.endsAt), boost);
   const spec = state.plan !== null && state.plan.endsAt > now ? (costCredits ? PLANS : LEGACY_PLANS).find(p => p.id === state.plan!.id) : undefined;
   const plan = spec === undefined ? 0 : costCredits ? planAllowance(spec, state.plan!.endsAt) : spec.weeklyTokens;
   return Math.max(plan, state.validUntil !== undefined && state.validUntil !== null && state.validUntil <= now ? 0 : state.boostTokens, freeWeekly);

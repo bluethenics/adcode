@@ -1,38 +1,38 @@
 import { Icon } from "@/components/Icon";
 import { ArrowUpRight } from "lucide";
 import Link from "next/link";
-import { FREE_WEEKLY_TOKENS, PLANS_ON_SALE, price, creditAmount, planCredits } from "@/lib/pricing";
+import { WALLET_MARKUP_PERCENT, WALLET_TOPUPS_CENTS } from "@adcode/api/src/modelWallet.ts";
 
 export function FreePlan() {
   return (
     <section className="free-plan marketplace-wrap" id="free-plan" aria-labelledby="free-plan-heading">
       <header className="free-plan-head">
         <p className="marketplace-eyebrow">FREE TO START</p>
-        <h2 id="free-plan-heading">Free editor. More AI when you need it.</h2>
-        <p className="free-plan-intro">Start without a subscription or credit card. Tagflow AI is included free every day. Heabsy and other partner models use paid credits: a USD wallet charged at the provider's price plus 35%, or included in Max.</p>
+        <h2 id="free-plan-heading">Free editor. Pay only for the models you use.</h2>
+        <p className="free-plan-intro">Start without a subscription or credit card. Tagflow AI is free for every signed-in account. Every other model is paid from USD credits at its provider&apos;s price plus {WALLET_MARKUP_PERCENT}%.</p>
       </header>
       <dl className="free-plan-grid">
         <div>
-          <dt>Free included credits</dt>
-          <dd><strong>{creditAmount(FREE_WEEKLY_TOKENS)}</strong> free credits each day</dd>
-        </div>
-        <div>
-          <dt>AI plans</dt>
-          <dd><strong>From {price(PLANS_ON_SALE[0]!.priceCents)}</strong> a month for more included AI usage</dd>
-        </div>
-        <div>
           <dt>Tagflow AI</dt>
-          <dd><strong>Included</strong> in the shared daily credit allowance</dd>
+          <dd><strong>Free</strong> for every signed-in account</dd>
+        </div>
+        <div>
+          <dt>Every other model</dt>
+          <dd><strong>Provider price + {WALLET_MARKUP_PERCENT}%</strong>, per million tokens</dd>
+        </div>
+        <div>
+          <dt>Credits</dt>
+          <dd><strong>From ${WALLET_TOPUPS_CENTS[0] / 100}</strong> once, never expire</dd>
         </div>
       </dl>
-      <p className="free-plan-limit">Plans raise the daily included AI allowance: Builder {planCredits("monthly")} credits a day, Pro {planCredits("pro")}, and Max {planCredits("max")} fair-use credits on every hosted model, premium included. Builder and Pro can use purchased credits after the daily allowance; Max waits for its refill and never charges them. Purchased credits never expire. Provider availability, model context limits and shared capacity still apply.</p>
-      <p className="free-plan-foot"><Link href="/pricing" className="home-text-link">Compare plans and credit packs <Icon node={ArrowUpRight} /></Link></p>
+      <p className="free-plan-limit">No plans and nothing renews: add credits when you want them, and each request is charged only for what it used. Your own provider key, a coding CLI you already pay for, or a local model also work, billed by their own provider. Provider availability and model context limits still apply.</p>
+      <p className="free-plan-foot"><Link href="/pricing" className="home-text-link">See every model&apos;s price <Icon node={ArrowUpRight} /></Link></p>
       <details className="free-plan-details">
-        <summary>How the free plan works</summary>
+        <summary>How free use works</summary>
         <div>
-          <p>Your shared included AI allowance refills daily across all signed-in devices.</p>
+          <p>Sign in with a verified email and choose Tagflow AI in the model picker. No key and no card.</p>
           <p>Idle cloud workspaces sleep automatically and resume with your work saved. Your own provider key follows that provider’s billing.</p>
-          <Link href="/docs/ai-credits">Read about included AI <Icon node={ArrowUpRight} /></Link>
+          <Link href="/docs/ai-credits">Read about AI credits <Icon node={ArrowUpRight} /></Link>
         </div>
       </details>
     </section>

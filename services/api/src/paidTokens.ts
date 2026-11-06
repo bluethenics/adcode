@@ -27,7 +27,9 @@ export const DEFAULT_PAID_CONFIG: PaidConfig = {
 export const COST_PAID_CONFIG: PaidConfig = { ...DEFAULT_PAID_CONFIG, accounting: "cost-v1", freeWeeklyTokens: 1_540_000 };
 export const BUY_TOKENS_URL = "https://adcode.bluethenics.com/ai-tokens";
 /** Where "Buy credits" lands when credits run out: the packs, smallest first. */
-export const BUY_PACKS_URL = `${BUY_TOKENS_URL}#packs`;
+export const BUY_PACKS_URL = `${BUY_TOKENS_URL}#wallet`;
+/** One-time credit packs ended with the plans (6 November 2026); USD credits replace both. */
+export const PACKS_ON_SALE = false;
 export const TOKEN_ORDER_PREFIX = "ait_";
 const MAX_TOKENS = 10_000_000_000;
 

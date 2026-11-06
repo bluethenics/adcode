@@ -124,6 +124,9 @@
 .pricing-free-details dd { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
 
 .pricing-packs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; list-style: none; margin: 0 0 20px; padding: 0; }
+/* Four top-ups since packs ended: one row of four, never three and an orphan. */
+.pricing-packs[aria-label="Credit top-ups"] { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; }
+.pricing-model-list .model-prices { margin: 0; }
 .pricing-packs li { display: flex; justify-content: space-between; align-items: end; gap: 20px; border-block: 1px solid var(--hairline); padding-block: 24px; }
 .pricing-packs strong { font-size: 27px; font-weight: 500; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .pricing-packs strong > span { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; }
@@ -162,7 +165,7 @@
   .pricing-finder, .pricing-fairuse { grid-template-columns: minmax(0, 1fr); gap: 32px; padding: 28px; }
   .pricing-finder-answer { padding: 28px 0 0; border-left: 0; border-top: 1px solid var(--hairline); }
   .pricing-free { grid-template-columns: minmax(0, 1fr); gap: 32px; padding: 28px; }
-  .pricing-packs { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .pricing-packs, .pricing-packs[aria-label="Credit top-ups"] { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .pricing-packs li { align-items: center; border-top: 0; padding-block: 20px; }
   .pricing-packs li:first-child { border-top: 1px solid var(--hairline); }
   .pricing-invites { grid-template-columns: minmax(0, 1fr); gap: 24px; }

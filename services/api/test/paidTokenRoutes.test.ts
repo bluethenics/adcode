@@ -21,7 +21,7 @@ describe("buying AI tokens", () => {
   let store: ReturnType<typeof createMemoryStore>;
   let checkouts: CheckoutRequest[];
   let handle: ReturnType<typeof createFetchHandler>;
-  const make = (payments: PaymentProvider) => createFetchHandler({ store, verifier, clock: { now: () => 1000 }, payments, siteOrigin: "https://adcode.test", tagflow: { apiKey: "k" } });
+  const make = (payments: PaymentProvider) => createFetchHandler({ store, verifier, clock: { now: () => 1000 }, payments, siteOrigin: "https://adcode.test", tagflow: { apiKey: "k", salesOpen: true } });
   const call = (path: string, token?: string, data?: unknown) => handle(new Request(`https://adcode.test/v1${path}`, {
     method: data === undefined ? "GET" : "POST",
     headers: { "content-type": "application/json", ...(token === undefined ? {} : { authorization: `Bearer ${token}` }) },

@@ -84,6 +84,7 @@ export function Nav() {
     <>
       <Link href="/#product" className="glass-nav-link">Product</Link>
       <Link href="/pricing" className="glass-nav-link" aria-current={pathname === "/pricing" ? "page" : undefined}>Pricing</Link>
+      <Link href="/ai-models" className="glass-nav-link" aria-current={pathname === "/ai-models" ? "page" : undefined}>AI models</Link>
       <Link
         href="/compare"
         className="glass-nav-link"
@@ -107,6 +108,7 @@ export function Nav() {
     <>
       <Link href="/#product" className="glass-nav-link">Product</Link>
       <Link href="/pricing" className="glass-nav-link" aria-current={pathname === "/pricing" ? "page" : undefined}>Pricing</Link>
+      <Link href="/ai-models" className="glass-nav-link" aria-current={pathname === "/ai-models" ? "page" : undefined}>AI models</Link>
       <a href="/#about" className="glass-nav-link">About us</a>
       <Link href="/advertisers" className="glass-nav-link" aria-current={pathname === "/advertisers" ? "page" : undefined}>Advertise</Link>
       <Link

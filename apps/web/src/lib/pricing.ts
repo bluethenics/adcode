@@ -23,10 +23,14 @@ export const CREDITS_PER_AGENT_STEP = 6.8;
 export const agentStepsPerDay = (units: number): number => Math.floor(units / 11_000 / CREDITS_PER_AGENT_STEP);
 /** A plan's price spread over its days, so a monthly figure reads at the scale it is used. */
 export const pricePerDay = (cents: number, interval: "week" | "month"): string => `$${(cents / (interval === "week" ? 7 : 30) / 100).toFixed(2)}`;
-export const PLAN_SUMMARY = PLANS_ON_SALE.map(plan => `${plan.name} ${price(plan.priceCents)}/${plan.interval}`).join(", ");
+/**
+ * How AI is paid for, in one clause, for every page that says it. Plans and packs ended on
+ * 6 November 2026; every model but Tagflow's sponsored ones is paid from USD credits.
+ */
+export const PAYG_SUMMARY = "Tagflow AI is free; every other model is paid from USD credits at its provider's price plus 35%, added once from $10, never expiring, with no subscription";
 export const topUpName = (id: string): string => ({ starter: "Starter", "50m": "Boost", "140m": "Plus", "300m": "Power" } as Record<string, string>)[id] ?? "AI top-up";
 export const topUpDescription = (id: string): string => ({ starter: "A small first top-up to finish what you started.", "50m": "A little extra for your next task.", "140m": "More flexibility for a busy stretch.", "300m": "More room for your biggest projects." } as Record<string, string>)[id] ?? "Extra AI usage, whenever you need it.";
-export const PACK_SUMMARY = COST_PAID_CONFIG.packs.map(pack => `${topUpName(pack.id)} ${price(pack.priceCents)} once`).join(", ");
+
 /** A plan's daily credits, from the plan table, so the copy cannot drift from what is enforced. */
 export const planCredits = (id: PlanSpec["id"]): string => creditAmount(PLANS.find(plan => plan.id === id)?.weeklyTokens ?? 0);
 export const PLAN_BENEFITS = {
@@ -58,7 +62,21 @@ export interface IncludedModelRate {
   readonly releaseDate?: string;
 }
 
+/** A paid-credit model's price, USD per million tokens, with ADCode's markup already in it. */
+export interface PaidModelRate {
+  readonly id: string;
+  readonly name: string;
+  readonly provider: string;
+  readonly input: number;
+  readonly cached: number;
+  readonly output: number;
+}
+
 export interface PricingOffer {
+  /** Every model paid from USD credits, offered right now; missing when the live list could not be read. */
+  readonly paidModels?: readonly PaidModelRate[];
+  /** Sponsored models anyone signed in can use free. */
+  readonly freeModels?: readonly string[];
   readonly freeWeeklyTokens: number;
   readonly packs: readonly PaidPack[];
   /** Null means the current sale configuration could not be checked. */

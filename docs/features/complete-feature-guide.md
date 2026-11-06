@@ -532,6 +532,17 @@ Access: `All Features → Tree-sitter highlighting`; `Turn on or off`; `Settings
 
 ## The assistant
 
+<!-- feature:ai.buyTokens -->
+### Adding AI credits
+
+Add USD credits once and use any paid model in ADCode. They never expire and nothing renews.
+
+Why use it: Use popular models without a subscription, an API key or an account with each model company.
+
+How to use it: Run AI: Buy AI Credits or open adcode.bluethenics.com/ai-tokens with the same account as the editor. Choose $10, $20, $50 or $100, enter your billing country, and pay through Dodo, which shows tax before you pay. Credits arrive within seconds of payment and show on the same page with every charge since. Every model's price is listed there and on adcode.bluethenics.com/pricing. Credit packs from before 6 November 2026 were converted into USD credits at the price paid. For a refund of unused credits, contact support.
+
+Access: `All Features → Adding AI credits`; `Buy credits`.
+
 <!-- feature:ai.agentMascots -->
 ### Agent mascots
 
@@ -576,6 +587,17 @@ How to use it: Open Assistant from the workbench or command palette. Write in th
 
 Access: `All Features → AI chat workspace`; `Turn on or off`; `Settings`.
 
+<!-- feature:ai.credits -->
+### AI credits and free models
+
+Tagflow AI is free for every signed-in account. Every other model is paid from USD credits at its provider's price plus 35%.
+
+Why use it: Start free on Tagflow AI, and pay only for the other models you actually use: no subscription, nothing renews, and each request is charged only for what it used.
+
+How to use it: Sign in with a verified account. Tagflow AI's models are free and need no credits. Every other ADCode-hosted model, Heabsy's included, shows its price in the model picker and charges your USD credits: input, cached input and output at the provider's rate plus 35%. A request holds its maximum possible charge while it runs and releases what it did not use. When credits run out, paid models pause with a message and Tagflow AI keeps working. Plans ended on 6 November 2026: a plan already paid for covers every model until its period ends and does not renew. Your own provider keys, coding CLIs and local models are billed by their own provider.
+
+Access: `All Features → AI credits and free models`; `Show credits`.
+
 <!-- feature:adcode.ai.editPolicy -->
 ### AI edit approval
 
@@ -597,17 +619,6 @@ Why use it: Isolation kept edits safe but made simple work feel missing: proposa
 How to use it: On by default. Ask it to build, fix, create or change files and the result is in your project, with the Explorer refreshing to show it. Reads never change anything. Writes are still guarded: unsaved files pause file edits until you save, so nothing you have not saved gets overwritten, and destructive shell commands stay blocked — run those yourself in the terminal. Chats belong to the open folder only: the chat banner names the folder with its task and chat counts, and Switch opens the folder popup. Turning this off keeps chat available but disables the built-in file tools. Beyond reading, listing, and searching files, the assistant can find files by pattern (for example every image), outline a file's symbols before reading it, delete and move files with Undo, run tests, typechecks and dev servers in the project, look at the running app in its own browser, and fetch documentation pages.
 
 Access: `All Features → AI file tools`; `Turn on or off`; `Settings`.
-
-<!-- feature:ai.plans -->
-### AI plans, promo codes and invites
-
-Choose Builder, Pro or Max for more daily AI credits, with no provider key to set up. Max covers every hosted model, premium ones included, under fair use.
-
-Why use it: A plan gives regular work a larger daily allowance, shared across included models and devices. Expensive models use more credits.
-
-How to use it: Run AI: Upgrade Plan or open adcode.bluethenics.com/ai-tokens using the same account as the editor. Three plans are on sale: Builder $9/month for 300 daily credits, Pro $29/month for 975, and Max $59/month for 2,000 daily fair-use credits on every hosted model, including premium models that otherwise use the separate USD wallet. Max is practically unlimited, not literally: credits follow each model's price, so cheap models stretch them to hundreds of agent steps a day and premium models use them faster. Usage pauses when the daily allowance cannot cover a request, never charges saved balances or an overage bill, and refills 24 hours after first use. The pricing page has a slider that suggests a plan from how many agent steps you run a day. Manage or cancel renewal in your Dodo portal; access lasts through the paid period. Existing Weekly and Unlimited subscriptions keep renewing on their original terms. Pro includes two friend invites: each eligible friend's first subscription can award both accounts 100 extra credits while your Pro plan is active. Promo code expiry and redemption limits apply. Heabsy models use paid USD credits (provider price plus 35%) on every plan except Max, which includes them.
-
-Access: `All Features → AI plans, promo codes and invites`; `Upgrade plan`.
 
 <!-- feature:ai.team -->
 ### AI Team
@@ -652,17 +663,6 @@ Why use it: A connector is only useful if the assistant can use it while it work
 How to use it: Off by default: a tool you enabled on a connector runs as soon as the assistant calls it, and the chat's timeline shows the call and its result. Turn it on in Settings, under AI, to see each call's exact arguments in a dialog first, with Allow once or Cancel. Either way, nothing runs until you have enabled that tool in Tools; enabling the assistant's own request to use a connector's tools follows this switch too. Starting a local program for a stdio connector always asks, and a project's ask rules still ask when this is off.
 
 Access: `All Features → Ask before connector tools`; `Turn on or off`; `Settings`.
-
-<!-- feature:ai.buyTokens -->
-### Buying AI tokens
-
-Buy one-time AI credits for extra included-model usage after the daily allowance, or connect your own model.
-
-Why use it: Keep working on the fastest included models during a heavy week without setting up your own provider key or a card with a model company.
-
-How to use it: Run AI: Buy AI Credits or open adcode.bluethenics.com/ai-tokens. Boost gives 5,000 credits for $10, Plus 14,000 for $25, and Power 30,000 for $50, paid once through Dodo. Purchased credits never expire. They are used after daily credits on Free, Builder and Pro. Max does not spend saved purchased credits automatically; it waits for the daily fair-use refill. Separate USD-wallet routes have a separate balance. Your balance appears in AI usage and on the composer meter. Contact the team from the account page about unused-credit refunds.
-
-Access: `All Features → Buying AI tokens`; `Buy credits`.
 
 <!-- feature:ai.sessions -->
 ### Chat history and memory
@@ -740,17 +740,6 @@ Why use it: Some jobs split naturally into independent parts - research two APIs
 How to use it: Ask for a task with independent parts and the assistant forks it by itself, saying which forks it started; turn off Fork chats on its own in Settings > AI to have it fork only when you ask. You can also fork the conversation yourself: press Fork in the chat header, choose Fork this conversation from a conversation's menu, or run AI: Fork This Conversation. A manual fork copies the conversation, appears in History with a branch mark, and waits for you to send in it. The assistant can also start up to three forks in one go with up to six per chat; only the main chat can start or stop a fork. Each fork has its own tab, model turn and history, and starts from a copy of the parent's conversation so it does not need the same explanation again. Forks can send each other short messages - a decision, a warning about a shared file, a question - which arrive between tool calls, and the main chat can wait for its forks and collect their reports. Fork chats cannot start more forks. All chats share the same project files, so assign separate files where possible. The family can exchange up to forty messages before it is asked to finish.
 
 Access: `All Features → Fork chats`; `Fork this conversation`; `Turn on or off`; `Settings`.
-
-<!-- feature:ai.credits -->
-### Free AI credits
-
-Included models share 10 free AI credits a day per account. Model prices determine how many credits each request uses.
-
-Why use it: Build with included models with a shared daily allowance across Tagflow AI and all other included models. Provider availability and model context limits still apply.
-
-How to use it: Sign in with a verified account and choose an included model. The Free plan includes 10 credits, refilling 24 hours after first use, shared across devices. Input, cached input and output use their model's displayed rates: expensive models use more credits. Daily credits do not roll over. On Free, Builder and Pro, purchased credits are used after the daily allowance; Max waits for its daily fair-use refill and keeps purchased credits saved. Provider availability and context limits still apply. The Conversation menu lets you compact a long conversation to use less input. The composer meter and AI usage show your balance. Existing paid periods may retain their previous allowance until their fixed period end.
-
-Access: `All Features → Free AI credits`; `Show credits`.
 
 <!-- feature:ai.freeKey -->
 ### Free AI in a minute
@@ -894,6 +883,17 @@ Why use it: Memory you cannot see is memory you cannot trust. When a note is wro
 How to use it: Open Tools and choose Memory, or Tools: Project Memory in the command palette. Notes are grouped into Decisions, Conventions, Preferences and Session notes, each showing who wrote it and when. Edit changes a note, Delete forgets it, and Add memory writes one yourself - give it a short name, a one-line summary and the detail. Changes are searchable by the assistant straight away. Share with your other AI tools gives the command that lets Claude Code, Cursor and others use this same memory.
 
 Access: `All Features → Project memory`; `Open project memory`.
+
+<!-- feature:ai.plans -->
+### Promo codes, and plans that have ended
+
+Plans are no longer sold. A plan you already paid for covers every model until its period ends; promo codes still work.
+
+Why use it: Paying per model replaced daily allowances, so nobody pays for credits they do not use.
+
+How to use it: Plans ended on 6 November 2026 and renewals were cancelled, so nobody is charged again. A Builder, Pro, Weekly or Max plan already paid for keeps working until its paid period ends and covers every hosted model until then. Afterwards, Tagflow AI stays free and other models use USD credits. Invoices stay in your Dodo billing portal, reached from adcode.bluethenics.com/ai-tokens. To redeem a promo code, open the same page and use the promo-code box: a code grants what it promises, once per account, while it is unexpired and has uses left.
+
+Access: `All Features → Promo codes, and plans that have ended`; `Upgrade plan`.
 
 <!-- feature:ai.promptCaching -->
 ### Prompt caching

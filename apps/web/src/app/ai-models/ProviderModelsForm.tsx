@@ -7,10 +7,7 @@ interface Row { upstreamModel: string; name: string; contextWindow: string; maxO
 const EMPTY: Row = { upstreamModel: "", name: "", contextWindow: "131072", maxOutput: "8192", inputPrice: "", outputPrice: "", cacheInputPrice: "" };
 const MAX_MODELS = 20;
 
-const BILLING = [
-  { id: "wallet", title: "Paid credits", body: "Developers top up dollar credits and pay your price plus ADCode's 35%. Best for most providers." },
-  { id: "included", title: "Included in ADCode plans", body: "Builder, Pro and Max subscribers use your models from their daily AI credits, priced from your rates." },
-] as const;
+
 
 /**
  * The provider fills in what the catalogue needs, exactly once: endpoint, key, and each model's
@@ -18,7 +15,6 @@ const BILLING = [
  */
 export function ProviderModelsForm() {
   const [rows, setRows] = useState<Row[]>([{ ...EMPTY }]);
-  const [billing, setBilling] = useState<(typeof BILLING)[number]["id"]>("wallet");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
@@ -38,7 +34,7 @@ export function ProviderModelsForm() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           company: text("company"), contactName: text("contactName"), email: text("email"), website: text("website"),
-          apiBase: text("apiBase"), apiKey: text("apiKey"), authentication: text("authentication") || "bearer", billing, message: text("message"), url2: text("url2"),
+          apiBase: text("apiBase"), apiKey: text("apiKey"), authentication: text("authentication") || "bearer", billing: "wallet", message: text("message"), url2: text("url2"),
           models: rows.map((row) => ({
             upstreamModel: row.upstreamModel.trim(), name: row.name.trim(), contextWindow: number(row.contextWindow), maxOutput: number(row.maxOutput),
             inputPrice: number(row.inputPrice), outputPrice: number(row.outputPrice), ...(row.cacheInputPrice.trim() === "" ? {} : { cacheInputPrice: number(row.cacheInputPrice) }),
@@ -116,17 +112,7 @@ export function ProviderModelsForm() {
         <button type="button" className="btn btn-outline provider-models-add" disabled={rows.length >= MAX_MODELS} onClick={() => setRows((current) => [...current, { ...EMPTY }])}>Add another model</button>
       </fieldset>
 
-      <fieldset className="provider-models-group">
-        <legend>How developers pay</legend>
-        <div className="provider-models-billing">
-          {BILLING.map((option) => (
-            <label key={option.id} className="provider-models-choice" data-selected={billing === option.id}>
-              <input type="radio" name="billing" value={option.id} checked={billing === option.id} onChange={() => setBilling(option.id)} />
-              <span><strong>{option.title}</strong>{option.body}</span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
+      <p className="provider-models-billing-note">Developers pay from USD credits: your price per million tokens, plus ADCode&apos;s 35%. ADCode pays you your price for the tokens they use.</p>
 
       <label className="glass-field"><span>Anything we should know <small>optional</small></span>
         <textarea name="message" rows={3} maxLength={2000} placeholder="Rate limits, regions, which models support tool calls" /></label>

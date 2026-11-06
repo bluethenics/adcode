@@ -64,8 +64,8 @@ export function ModelWallet({ country }: { country: string }) {
     } catch(e) {if(account.current===uid) setError(e instanceof Error?e.message:"Checkout could not be opened.");} finally {if(account.current===uid)setBusy(false);}
   };
   return <section id="wallet" className="ai-wallet-section" aria-labelledby="wallet-title">
-    <div className="ai-section-heading"><div><p className="ai-eyebrow">Paid models</p><h2 id="wallet-title">Pay only for what you use</h2><p className="ai-section-lead">Use popular models with your ADCode balance. Prices include a 35% markup on provider inference rates. No personal API key or subscription is required.</p></div></div>
-    <p className="field-hint ai-wallet-fineprint">These USD credits are separate from your daily credits and plans. A maximum charge is held during a request; unused credit is released when it finishes. Provider token counts are used when available; an estimated charge is marked in your history.</p>
+    <div className="ai-section-heading"><div><p className="ai-eyebrow">Paid models</p><h2 id="wallet-title">Pay only for what you use</h2><p className="ai-section-lead">Every model other than Tagflow AI is paid from this balance, at its provider's price plus 35%. No API key and no subscription.</p></div></div>
+    <p className="field-hint ai-wallet-fineprint">Tagflow AI never uses them. A maximum charge is held during a request; unused credit is released when it finishes. Provider token counts are used when available; an estimated charge is marked in your history.</p>
     {!user && <p className="field-hint">Sign in below to see your balance and the models you can use.</p>}
     {error && <p className="notice" role="alert">{error}</p>}{notice && <p className="notice" role="status">{notice}</p>}
     {user && <button type="button" className="btn btn-outline" onClick={()=>void load()}>Refresh paid credits</button>}

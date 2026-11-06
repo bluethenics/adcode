@@ -278,7 +278,7 @@ function firstHeader(value: string | string[] | undefined): string | undefined {
 
 export interface ApiOptions {
   adNetworks?: AdNetworkRuntime;
-  tagflow?: { modelMetadata?: boolean; priority?: import("./requestPriority.ts").RequestPriority; apiKey?: string; fetchImpl?: typeof fetch; country?: (request: Request) => string | undefined; workerSecrets?: WorkerSecrets; rateLimitWaitsMs?: readonly number[]; fallback?: boolean; identity?: AccountIdentity; emailProof?: import("./accountEmailProof.ts").AccountEmailProof; timeouts?: Partial<{ firstMs: number; idleMs: number; maxMs: number }>; encryptionKeys?: () => readonly string[] };
+  tagflow?: { modelMetadata?: boolean; priority?: import("./requestPriority.ts").RequestPriority; apiKey?: string; fetchImpl?: typeof fetch; country?: (request: Request) => string | undefined; workerSecrets?: WorkerSecrets; rateLimitWaitsMs?: readonly number[]; fallback?: boolean; identity?: AccountIdentity; emailProof?: import("./accountEmailProof.ts").AccountEmailProof; timeouts?: Partial<{ firstMs: number; idleMs: number; maxMs: number }>; encryptionKeys?: () => readonly string[]; salesOpen?: boolean };
   websiteAnalytics?: WebsiteAnalyticsStore;
   /** Desktop feature-use totals (appUsage.ts). Absent: the editor's reports are accepted and dropped. */
   appUsage?: AppUsageStore;

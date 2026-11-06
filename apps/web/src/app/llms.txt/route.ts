@@ -4,7 +4,7 @@ import { docsBySection } from "@/lib/docs";
 import { landingIndex } from "@/lib/landings";
 import { allReleases } from "@/lib/releases";
 import { PARENT, SITE, SOURCE, WEB_VERSION_URL, url } from "@/lib/site";
-import { FREE_WEEKLY_TOKENS, PACK_SUMMARY, PLAN_SUMMARY, creditAmount } from "@/lib/pricing";
+import { FREE_WEEKLY_TOKENS, PAYG_SUMMARY, creditAmount } from "@/lib/pricing";
 
 /**
  * `/llms.txt` - a plain-text summary for answer engines and assistants.
@@ -72,8 +72,7 @@ revenue to the developer using it.
 
 ## Key facts
 
-- Pricing: the editor is free with no subscription required. Optional included AI plans: ${PLAN_SUMMARY}.
-- One-time included AI credit packs: ${PACK_SUMMARY}. Purchased tokens never expire and are used after the daily allowance. Prices are USD before applicable tax.
+- Pricing: the editor is free with no subscription. AI is pay as you go: ${PAYG_SUMMARY}. Every model's price is listed at https://adcode.bluethenics.com/pricing. Prices are USD before applicable tax.
 - Compare plans, packs and free access: ${url("/pricing")}.
 - Editor: Monaco editing surface, integrated terminals, git, workspace search, plain-English
   compiler errors, live collaboration.

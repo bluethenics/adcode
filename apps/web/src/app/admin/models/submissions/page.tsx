@@ -12,7 +12,7 @@ interface TestResult { ok: boolean; status: number; model: string; reply: string
 const price = (value: number): string => `$${Number(value.toFixed(6))}`;
 const tokens = (value: number): string => value >= 1_000_000 ? `${Number((value / 1_048_576).toFixed(2))}M` : `${Math.round(value / 1024)}k`;
 
-/** Models providers submitted on /providers/models. Approve puts them live; nothing is retyped. */
+/** Models providers submitted on /ai-models. Approve puts them live; nothing is retyped. */
 export default function ProviderModelSubmissionsPage() {
   return (
     <AdminShell title="Model submissions" subtitle="Models providers submitted from the website with their own endpoint and key. Test one, then approve to put it in the model picker, or decline.">
@@ -52,7 +52,7 @@ function Submissions() {
     <>
       {error !== null && <div className="notice" data-tone="error" role="alert">{error}</div>}
       {!keysManageable && <div className="notice" data-tone="warning" role="status">Key saving is not set up on this server (CLOUDFLARE_SECRETS_TOKEN), so approving a new provider will fail. Approving more models for a provider that already has a key still works.</div>}
-      <p className="row-sub">Providers submit at <a href="/providers/models" target="_blank" rel="noopener">/providers/models</a>. Approved models appear under <Link href="/admin/tagflow">ADCode models</Link>, where you can edit or hide them like any other.</p>
+      <p className="row-sub">Providers submit at <a href="/ai-models" target="_blank" rel="noopener">/ai-models</a>. Approved models appear under <Link href="/admin/tagflow">ADCode models</Link>, where you can edit or hide them like any other.</p>
       <nav className="admin-tabs" aria-label="Status">
         {(["pending", "approved", "declined", "all"] as const).map((one) => (
           <button key={one} type="button" className="admin-tab" aria-current={filter === one ? "page" : undefined} onClick={() => setFilter(one)}>

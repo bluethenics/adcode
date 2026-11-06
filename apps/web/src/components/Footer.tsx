@@ -33,6 +33,7 @@ export function Footer() {
           <a href={SOURCE.repo}>Source code</a>
           <Link href="/advertisers">Advertise</Link>
           <Link href="/providers">Model providers</Link>
+          <Link href="/ai-models">AI models</Link>
         </nav>
 
         <nav aria-label="Guides">

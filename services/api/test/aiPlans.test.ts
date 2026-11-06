@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import { effectiveWeeklyAllowance, hasActivePlan, hasAllModelAccess, PLANS_ON_SALE, hasUnlimitedPlan, requiresSubscription, parsePromo, planById, PLANS, ALLOWANCE_CHANGED_AT, planAllowance } from "../src/aiPlans.ts";
 
 describe("AI plans", () => {
-  it("prices and sizes the five plans, three of them on sale", () => {
+  it("prices and sizes the five plans, none of them on sale since 6 November 2026", () => {
     expect(PLANS.map((p) => [p.id, p.priceCents, p.interval, p.weeklyTokens, p.invites])).toEqual([
       ["weekly", 300, "week", 4_620_000, 0], ["monthly", 900, "month", 3_300_000, 0], ["pro", 2900, "month", 10_725_000, 2], ["max", 5900, "month", 22_000_000, 0], ["unlimited", 29900, "month", 110_550_000, 0]]);
-    expect(PLANS_ON_SALE.map((p) => [p.name, p.priceCents])).toEqual([["Builder", 900], ["Pro", 2900], ["Max", 5900]]);
+    expect(PLANS_ON_SALE).toEqual([]);
+    // Which plans would be offered if sales reopened, and that every plan covers every model.
+    expect(PLANS.filter((p) => p.onSale).map((p) => p.name)).toEqual(["Builder", "Pro", "Max"]);
+    expect(PLANS.every((p) => p.allModels === true)).toBe(true);
     expect(planById("pro")?.name).toBe("Pro");
     expect(planById("free")).toBeNull();
   });
@@ -21,14 +24,15 @@ describe("AI plans", () => {
     expect(effectiveWeeklyAllowance({ plan: { id: "pro", endsAt: ALLOWANCE_CHANGED_AT + 20 * day, source: "subscription" }, boostTokens: 0 }, 1_100_000, ALLOWANCE_CHANGED_AT)).toBe(10_725_000);
   });
 
-  it("gives Max every hosted model inside its own fair-use allowance", () => {
+  it("gives every paid plan every hosted model inside its own fair-use allowance", () => {
     const now = ALLOWANCE_CHANGED_AT + 2 * 86_400_000;
     const max = { plan: { id: "max" as const, endsAt: now + 30 * 86_400_000, source: "subscription" as const }, boostTokens: 0 };
     expect(hasAllModelAccess(max, now)).toBe(true);
     expect(effectiveWeeklyAllowance(max, 1_100_000, now)).toBe(22_000_000);
     // A Max period ending soon after the 3 November change gets no old $99 allowance either.
     expect(planAllowance(planById("max")!, ALLOWANCE_CHANGED_AT + 86_400_000)).toBe(22_000_000);
-    expect(hasAllModelAccess({ ...max, plan: { ...max.plan, id: "pro" } }, now)).toBe(false);
+    expect(hasAllModelAccess({ ...max, plan: { ...max.plan, id: "pro" } }, now)).toBe(true);
+    expect(hasAllModelAccess({ ...max, plan: { ...max.plan, endsAt: now } }, now)).toBe(false);
   });
 
   it("takes the best of plan, boost and the free allowance", () => {

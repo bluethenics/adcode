@@ -4,7 +4,7 @@ import { docsBySection } from "@/lib/docs";
 import { LANDINGS, landingPath, landingPlainText } from "@/lib/landings";
 import { allReleases } from "@/lib/releases";
 import { PARENT, SITE, SOURCE, WEB_VERSION_URL, url, ECONOMICS, formatMicros } from "@/lib/site";
-import { FREE_WEEKLY_TOKENS, PACK_SUMMARY, PLAN_SUMMARY, creditAmount } from "@/lib/pricing";
+import { FREE_WEEKLY_TOKENS, PAYG_SUMMARY, creditAmount } from "@/lib/pricing";
 
 /**
  * `/llms-full.txt` - the whole site as plain text, in one request.
@@ -102,8 +102,7 @@ Facts, stated once:
   with no personal cloud time limit.
 - Tagflow AI and other free included models share ${creditAmount(FREE_WEEKLY_TOKENS)} free credits each day; All Heabsy models are available on the free plan. No API key is needed for included models. Provider availability and context limits apply.
   Your own provider key follows that provider's billing; local models run in the desktop app.
-- The editor is free with no subscription required. Optional included AI plans: ${PLAN_SUMMARY}.
-- One-time included AI credit packs: ${PACK_SUMMARY}. Purchased tokens never expire and are used after the daily allowance. Prices are USD before applicable tax.
+- The editor is free with no subscription. AI is pay as you go: ${PAYG_SUMMARY}. Every model's price is listed at https://adcode.bluethenics.com/pricing. Prices are USD before applicable tax.
 - Compare plans, packs and free access: ${url("/pricing")}.
 - Advertisers bid in a second-price auction from ${formatMicros(ECONOMICS.floorBlockMicros, 2)}
   per 500 impressions. The developer receives ${ECONOMICS.revSharePercent}% of the clearing price.

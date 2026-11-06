@@ -1,15 +1,14 @@
 import type { Metadata } from "next";
 import { pageMetadata } from "@/lib/seo";
-import { planCredits } from "@/lib/pricing";
 import AiTokens from "./AiTokens";
 import "./ai-tokens.css";
 import { AiTokensHeading } from "./AiTokensHeading";
 
 export const metadata: Metadata = pageMetadata({
   path: "/ai-tokens",
-  title: "AI plans and credits",
-  socialTitle: "AI plans and credits for ADCode",
-  description: `Get more included AI credits each day: Builder $9, Pro $29, or Max $59 with every hosted model and ${planCredits("max")} daily fair-use credits. One-time credit packs never expire. Includes Tagflow AI and all other included models.`,
+  title: "AI credits: pay only for the models you use",
+  socialTitle: "AI credits for ADCode",
+  description: "Add USD credits once and use any paid model in ADCode at its provider's price plus 35%. No subscription; credits never expire. Tagflow AI stays free.",
 });
 
 export default function Page() {

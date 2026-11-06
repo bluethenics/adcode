@@ -65,7 +65,7 @@ button, input, select, textarea { font-family: inherit; }
 .marketplace-nav { height: 76px; background: color-mix(in srgb, var(--surface) 86%, transparent); border-bottom: 1px solid var(--hairline); box-shadow: none; }
 .marketplace-brand { gap: 8px; font-size: 21px; letter-spacing: -.055em; }
 .marketplace-brand > svg { width: 34px; height: 34px; }
-.glass-nav-link, .glass-auth-control { color: var(--muted); font-size: 12px; font-weight: 500; padding-inline: 10px; }
+.glass-nav-link, .glass-auth-control { color: var(--muted); font-size: 12px; font-weight: 500; padding-inline: 10px; white-space: nowrap; }
 .glass-nav-link:hover, .glass-nav-link[aria-current="page"], .glass-auth-control:hover { color: var(--text); background: var(--control); }
 .glass-auth-control { color: var(--text); box-shadow: none; }
 .glass-nav-link.nav-team { color: var(--text); border: 1px solid var(--hairline); white-space: nowrap; }

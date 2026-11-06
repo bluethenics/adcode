@@ -14,7 +14,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { SignInCard } from "@/components/SignInCard";
 import { apiFetch, MESSAGES } from "@/lib/api";
 import type { PlanId, PlanSpec } from "@adcode/api/src/aiPlans.ts";
-import { subscriptionBlocksCheckout, isPlanId } from "@adcode/api/src/aiPlans.ts";
+import { PLAN_SALES_OPEN, subscriptionBlocksCheckout, isPlanId } from "@adcode/api/src/aiPlans.ts";
 import { CodeRedeemer, InviteCard, PlanCards, planArrivalMessage, planName, planRequest, plansOnOffer } from "./Plans";
 import { ModelWallet } from "./ModelWallet";
 import { dollars, formatTokens } from "./tokenFormatting";
@@ -294,6 +294,8 @@ export default function AiTokens() {
     const url = new URL(window.location.href);
     url.searchParams.delete("go");
     window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    // Plans and packs are no longer sold: an old "Get Pro" or "Buy" link shows the notice and stops.
+    if (!PLAN_SALES_OPEN) return;
     if (intent.plan !== null) {
       const plan = offer.plans?.find((one) => one.id === intent.plan);
       if (plan === undefined || subscribed || activity.tokens.plan?.id === plan.id) return;
@@ -309,7 +311,7 @@ export default function AiTokens() {
   return (
     <>
       {/* Signed in and free to buy, the chosen card is outlined and badged; a sentence on top would only repeat it. */}
-      {selectedPlan !== null && (user === null || subscribed) && <p className="notice" role="status">You&apos;re viewing the {planName(selectedPlan)} plan. {user === null ? "Sign in with the account you use in ADCode, then review the plan and billing country." : subscribed ? "Use Manage subscription below to review your existing billing plan." : "Review your billing country and choose the plan below to continue."}</p>}
+      {(selectedPlan !== null || intent?.pack) && <p className="notice" role="status">Plans and credit packs are no longer sold. Every model is now paid from the USD credits below, at its provider&apos;s price plus 35%, and Tagflow AI stays free.</p>}
           {error !== null && <div className="notice" data-tone="error" role="alert">{error}</div>}
           {arrival !== null && (
             <div className="notice" data-tone={arrival === "added" ? "success" : undefined} role="status">
@@ -318,34 +320,24 @@ export default function AiTokens() {
             </div>
           )}
 
-          {activity !== null && <BalanceSummary tokens={activity.tokens} now={now} />}
+          {/* Daily credits only mean something to a plan paid for before plans ended. */}
+          {activity !== null && activity.tokens.plan && activity.tokens.plan.endsAt > now && <BalanceSummary tokens={activity.tokens} now={now} />}
           {(activity?.tokens.legacyUntil ?? 0) > now && <p className="notice">Your previous allowance on the original included models is protected until {new Date(activity!.tokens.legacyUntil!).toLocaleDateString()}. New model access uses the new plans. Renewals follow the credit allowances shown below.</p>}
-          {activity?.tokens.accounting === "cost-v1" && !activity.tokens.plan && activity.tokens.free.remaining <= activity.tokens.free.limit * .2 && <p className="notice" role="status">Your daily credits are running low. <a href="?plan=pro#plans">Get 6× the daily credits with Pro</a>, or wait for your free refill. No automatic charge.</p>}
           {balanceError !== null && <p className="notice" data-tone="error" role="alert">{balanceError} <button type="button" className="btn btn-outline btn-small" onClick={() => void refresh()}>Retry balance</button></p>}
           {user !== null && activity === null && balanceError === null && <p role="status" className="field-hint">Loading your AI access…</p>}
-          {subscription !== null && <div className="ai-plan-management"><p>{planName(subscription.plan)} subscription. Manage your plan, payment method or cancellation in Dodo.</p><button type="button" className="btn btn-outline" disabled={busy !== null} onClick={() => void managePlan()}>{busy === "portal" ? "Opening portal…" : "Manage subscription"}</button></div>}
+          {subscription !== null && <div className="ai-plan-management"><p>{subscriptionAccess ? `Your ${planName(subscription.plan)} plan covers every model until ${new Date(subscription.periodEnd).toLocaleDateString()}. Plans have ended, so it will not renew and you will not be charged again. After that, models use the credits below.` : `Your ${planName(subscription.plan)} plan has ended. Plans are no longer sold; every model now uses the credits below.`} Invoices and payment details stay in Dodo.</p><button type="button" className="btn btn-outline" disabled={busy !== null} onClick={() => void managePlan()}>{busy === "portal" ? "Opening portal…" : "Manage subscription"}</button></div>}
 
-          {offerError !== null ? <p className="notice" data-tone="error" role="alert">{offerError} <button type="button" className="btn btn-outline btn-small" onClick={() => void loadOffer()}>Retry offers</button></p> : offer === null ? <AdcodeLoader /> : !offer.enabled ? (
-            <p className="notice">AI upgrades are temporarily unavailable. Tagflow AI stays free in the meantime.</p>
-          ) : (
-            <>
-              <section id="plans" className="ai-plans-section" aria-labelledby="ai-plans-heading"><div className="ai-section-heading"><div><p className="ai-eyebrow">Plans</p><h2 id="ai-plans-heading">More credits every day</h2><p className="ai-section-lead">Every plan refills daily. Max covers every hosted model, premium ones included, under fair use. Cancel any time in the billing portal.</p></div>
-                {/* Checkout needs it for tax, so it sits where the buying happens rather than in a box of its own. */}
-                {user !== null && <div className="field ai-tokens-country">
-                  <label htmlFor="t-country">Billing country</label>
-                  <input id="t-country" className="input" aria-describedby="t-country-help" required pattern="[A-Z]{2}" autoComplete="country" maxLength={2} value={country} onChange={(event) => setCountry(event.target.value.toUpperCase())} />
-                  <span id="t-country-help" className="field-hint">Two letters, like US or IN. Prices in USD; tax is shown before you pay.</span>
-                </div>}</div>{(offer.plans?.length ?? 0) > 0 ? <PlanCards plans={plansOnOffer(offer.plans!, activity?.tokens.plan?.id ?? null)} current={activity?.tokens.plan?.id ?? null} busy={checkoutBusy} subscribed={subscribed} selected={selectedPlan} onChoose={(plan) => void choosePlan(plan)} /> : <p className="notice" role="status">Subscription plans are unavailable right now. Check the one-time top-ups below, or try again later.</p>}</section>
-              <div className="ai-checkout-trust"><span>Secure checkout by Dodo Payments</span><span>Cancel your plan in the billing portal</span><span>Works in web + desktop</span></div>
-              <section id="packs" className="ai-packs-section" aria-labelledby="ai-packs-heading"><div className="ai-section-heading"><div><p className="ai-eyebrow">Top-ups</p><h2 id="ai-packs-heading">Credits that never expire</h2></div><p>A one-time purchase for a busy stretch, used after your daily allowance on Free, Builder and Pro. Max keeps them saved.</p></div>{offer.packs.length > 0 ? <PackList packs={offer.packs} busy={checkoutBusy} onBuy={(pack) => void buy(pack)} /> : <p className="notice" role="status">No top-ups are available right now. Please check back later.</p>}</section>
-              <p className="ai-purchase-note">Prices in USD before applicable tax. Plans renew at the interval shown; top-ups never renew. Provider availability and model limits apply. For a refund of unused top-ups, <a href="/support">contact support</a>.</p>
-            </>
-          )}
+          {/* Checkout needs it for tax, so it sits right above where the buying happens. */}
+          {user !== null && <div className="field ai-tokens-country">
+            <label htmlFor="t-country">Billing country</label>
+            <input id="t-country" className="input" aria-describedby="t-country-help" required pattern="[A-Z]{2}" autoComplete="country" maxLength={2} value={country} onChange={(event) => setCountry(event.target.value.toUpperCase())} />
+            <span id="t-country-help" className="field-hint">Two letters, like US or IN. Prices in USD; tax is shown before you pay.</span>
+          </div>}
 
           <ModelWallet country={country} />
-          {!authLoading && user === null && <section id="ai-sign-in" className="ai-sign-in" tabIndex={-1} aria-label="Sign in to upgrade"><SignInCard headingTag="h2" heading={selectedPlan !== null ? `Continue with ${planName(selectedPlan)}` : intent?.pack ? "Sign in to buy your top-up" : "Sign in to upgrade"} /></section>}
+          <p className="ai-purchase-note">Prices in USD before applicable tax. Credits never expire and never renew; Tagflow AI stays free. Plans and one-time packs are no longer sold. For a refund of unused credits, <a href="/support">contact support</a>.</p>
+          {!authLoading && user === null && <section id="ai-sign-in" className="ai-sign-in" tabIndex={-1} aria-label="Sign in to add credits"><SignInCard headingTag="h2" heading="Sign in to add credits" /></section>}
           {user !== null && <CodeRedeemer key={`code:${account}`} token={token} onRedeem={() => void refresh()} />}
-          {subscription?.plan === "pro" && subscriptionAccess && <InviteCard key={`invite:${account}`} token={token} />}
 
           {activity !== null && activity.orders.length > 0 && (
             <section className="ai-tokens-history" aria-label="Purchase history">
