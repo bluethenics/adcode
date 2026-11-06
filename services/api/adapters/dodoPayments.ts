@@ -61,6 +61,20 @@ export function createDodoProvider(): PaymentProvider {
         return response.ok ? await response.json() : null;
       } catch { return null; }
     },
+    async cancelAtPeriodEnd(subscriptionId) {
+      const apiKey = process.env["DODO_API_KEY"];
+      if (!apiKey?.trim()) return false;
+      try {
+        const response = await fetch(`${baseUrl()}/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+          method: "PATCH",
+          headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+          body: JSON.stringify({ cancel_at_period_end: true }),
+          redirect: "manual", signal: AbortSignal.timeout(TIMEOUT_MS),
+        });
+        if (!response.ok) console.warn("Dodo cancel_at_period_end rejected", { status: response.status });
+        return response.ok;
+      } catch { return false; }
+    },
     canCreateCheckout: ready,
     async createCheckout(request: CheckoutRequest): Promise<CheckoutSession | null> {
       const apiKey = process.env["DODO_API_KEY"];

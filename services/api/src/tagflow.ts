@@ -111,7 +111,7 @@ export function isTagflowPath(path: string): boolean {
     path === "/v1/ai/tagflow/feedback" || path === "/v1/ai/tagflow/audience" || path === "/v1/admin/tagflow/reports" ||
     path === "/v1/admin/tagflow" || path === "/v1/admin/tagflow/usage" || path === "/v1/admin/tagflow/keys" || path === "/v1/admin/tagflow/heabsy-models" || path === "/v1/admin/tagflow/submissions" || path === "/v1/admin/tagflow/submissions/decide" || path === "/v1/admin/tagflow/submissions/test" || /^\/v1\/admin\/tagflow\/users\/[^/]+$/.test(path) ||
     path === "/v1/ai/plans/checkout" || path === "/v1/ai/plans/portal" || path === "/v1/ai/promo/redeem" || path === "/v1/ai/invites" || path === "/v1/ai/invites/redeem" ||
-    ["reset", "boost", "gift", "promo", "subscriptions", "campaign", "verification-test"].some((route) => path === `/v1/admin/ai-plans/${route}`) ||
+    ["reset", "boost", "gift", "promo", "subscriptions", "end-renewals", "campaign", "verification-test"].some((route) => path === `/v1/admin/ai-plans/${route}`) ||
     path === "/v1/ai/wallet" || path === "/v1/ai/wallet/checkout" || path === "/v1/ai/tokens/checkout" || path === "/v1/ai/tokens/orders" || path === "/v1/admin/ai-tokens/grant" || path === "/v1/admin/ai-tokens/sales";
 }
 
@@ -563,6 +563,25 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
           return json(200, result);
         }
         if (request.method === "GET" && route === "promo") { await audit("read-ai-promos"); return json(200, { promos: await deps.store.listPromos() }); }
+        // Plans ended on 6 November 2026: stop every live subscription renewing. Each keeps the
+        // period already paid for; the provider's webhook then records cancel_at_period_end.
+        if (request.method === "POST" && route === "end-renewals") {
+          if (deps.payments?.cancelAtPeriodEnd === undefined) return fail(503, "not-configured", "The payment provider cannot cancel renewals on this server.");
+          await audit("end-ai-plan-renewals");
+          const now = deps.clock.now();
+          const ended: string[] = [], already: string[] = [], failed: string[] = [];
+          let after = "";
+          for (let page = 0; page < 40; page++) {
+            const rows = await deps.store.listActiveSubscriptions(now, after, 100);
+            for (const row of rows) {
+              if (row.cancelAtPeriodEnd || ["cancelled", "expired", "failed"].includes(row.status)) { already.push(row.subscriptionId); continue; }
+              (await deps.payments.cancelAtPeriodEnd(row.subscriptionId) ? ended : failed).push(row.subscriptionId);
+            }
+            if (rows.length < 100) break;
+            after = rows.at(-1)!.subscriptionId;
+          }
+          return json(200, { ended: ended.length, alreadyEnding: already.length, failed });
+        }
         if (request.method === "GET" && route === "subscriptions") {
           const after = url.searchParams.get("after") ?? "";
           if (after.length > 200) return json(400, { error: "bad-cursor" });

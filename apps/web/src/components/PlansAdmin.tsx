@@ -106,6 +106,8 @@ export function PlansAdmin({ call }: { call: AdminCall }) {
   const [summaryError, setSummaryError] = useState("");
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [verificationBusy, setVerificationBusy] = useState(false);
+  const [renewalsBusy, setRenewalsBusy] = useState(false);
+  const [renewalsNotice, setRenewalsNotice] = useState<Notice | null>(null);
   const [verificationNotice, setVerificationNotice] = useState<Notice | null>(null);
   const [code, setCode] = useState("");
   const [kind, setKind] = useState<"tokens" | "plan">("tokens");
@@ -136,6 +138,18 @@ export function PlansAdmin({ call }: { call: AdminCall }) {
   }, [call]);
   useEffect(() => { void loadPromos(); void loadSummary(); }, [loadPromos, loadSummary]);
   useEffect(() => { pauseReset.current = false; return () => { pauseReset.current = true; }; }, []);
+
+  /** Plans ended on 6 November 2026: nobody is charged again, and each keeps what they paid for. */
+  async function endRenewals(): Promise<void> {
+    if (renewalsBusy || !window.confirm("Stop every active plan from renewing? Each subscriber keeps their plan, on every model, until the period they already paid for ends. Nobody is charged again.")) return;
+    setRenewalsBusy(true); setRenewalsNotice(null);
+    try {
+      const result = await call<{ ended: number; alreadyEnding: number; failed: string[] }>("/admin/ai-plans/end-renewals", {});
+      setRenewalsNotice({ error: result.failed.length > 0, text: `Renewals stopped for ${result.ended} subscription${result.ended === 1 ? "" : "s"}; ${result.alreadyEnding} were already ending.${result.failed.length > 0 ? ` Dodo refused ${result.failed.length}: ${result.failed.join(", ")}. Cancel those in the Dodo dashboard.` : ""}` });
+      void loadSummary();
+    } catch (error) { setRenewalsNotice({ error: true, text: error instanceof Error ? error.message : "Couldn't stop renewals." }); }
+    finally { setRenewalsBusy(false); }
+  }
 
   async function testVerification(): Promise<void> {
     if (verificationBusy) return;
@@ -225,6 +239,11 @@ export function PlansAdmin({ call }: { call: AdminCall }) {
       {summaryError && <p className="notice" data-tone="error" role="alert">{summaryError} Use Refresh subscriptions to retry.</p>}
       {summaryLoading && summaries === null ? <p className="row-sub" role="status">Loading subscriptions…</p> : summaries !== null && <SubscriptionSummaryTable plans={summaries} />}
       <ActiveSubscribersTable subscriptions={subscriptions} />
+      <div className="admin-models-actions" style={{ display: "grid", gap: 8, marginBlock: 12 }}>
+        <p className="row-sub">Plans are no longer sold. Stop the remaining subscriptions renewing: each keeps every model until its paid period ends.</p>
+        <button type="button" className="btn" style={{ justifySelf: "start" }} disabled={renewalsBusy} onClick={() => void endRenewals()}>{renewalsBusy ? "Stopping renewals…" : "Stop all plan renewals"}</button>
+        {renewalsNotice !== null && <p className="notice" data-tone={renewalsNotice.error ? "error" : "success"} role="status">{renewalsNotice.text}</p>}
+      </div>
       {nextCursor && <button type="button" className="btn" disabled={summaryLoading} onClick={() => void loadSummary(nextCursor)}>Load more subscribers</button>}
       <p className="row-sub">Weekly subscriptions count as 52 payments divided across 12 months. Gifts and promo plans are excluded.</p>
       <button type="button" className="btn" disabled={verificationBusy} onClick={() => void testVerification()}>{verificationBusy ? "Sending test…" : "Send me a verification test"}</button>

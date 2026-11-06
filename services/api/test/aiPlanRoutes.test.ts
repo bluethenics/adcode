@@ -43,6 +43,23 @@ describe("AI plan routes", () => {
     handle = createFetchHandler({ store, verifier, clock: { now: () => NOW }, payments: payments(), siteOrigin: "https://adcode.test", tagflow: { apiKey: "k", salesOpen: true } });
   });
 
+  it("stops every live plan renewing, once, and only for an administrator", async () => {
+    const cancelled: string[] = [];
+    await store.applySubscriptionEvent(active("user", "monthly"));
+    await store.applySubscriptionEvent({ ...active("other", "pro"), status: "cancelled" });
+    handle = createFetchHandler({ store, verifier, clock: { now: () => NOW }, payments: { ...payments(), async cancelAtPeriodEnd(id) { cancelled.push(id); return true; } }, siteOrigin: "https://adcode.test", tagflow: { apiKey: "k" } });
+    expect((await call("/admin/ai-plans/end-renewals", "user", {})).status).toBe(403);
+    expect(await (await call("/admin/ai-plans/end-renewals", "admin", {})).json()).toEqual({ ended: 1, alreadyEnding: 1, failed: [] });
+    expect(cancelled).toEqual(["sub-user"]);
+  });
+
+  it("refuses plan checkout once sales are closed, pointing at credits", async () => {
+    handle = createFetchHandler({ store, verifier, clock: { now: () => NOW }, payments: payments(), siteOrigin: "https://adcode.test", tagflow: { apiKey: "k" } });
+    const response = await call("/ai/plans/checkout", "user", { plan: "pro", billingCountry: "US" });
+    expect(response.status).toBe(410);
+    expect(await response.json()).toMatchObject({ error: { code: "plans-retired" } });
+  });
+
   it("reports the same subscribed plan and allowance in usage and token orders", async () => {
     await store.applySubscriptionEvent(active("user", "weekly"));
     for (const path of ["/ai/tagflow/usage", "/ai/tokens/orders"]) {

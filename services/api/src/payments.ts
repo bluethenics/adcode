@@ -47,6 +47,8 @@ export interface PaymentProvider {
   canCreateCheckout?(product: NonNullable<CheckoutRequest["product"]>): boolean | Promise<boolean>;
   /** Null on any provider failure; the caller turns that into a 502 rather than a 500. */
   createCheckout(request: CheckoutRequest): Promise<CheckoutSession | null>;
+  /** Stop a subscription renewing; it stays active to the end of the period already paid. True when the provider accepted it. */
+  cancelAtPeriodEnd?(subscriptionId: string): Promise<boolean>;
   /** A short-lived hosted portal session for this account's provider customer. */
   customerPortal?(customerId: string, returnUrl: string): Promise<string | null>;
 }
