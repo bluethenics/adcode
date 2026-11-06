@@ -333,7 +333,7 @@ function TagflowEditor() {
           })}
         </ul>
         {visible.length === 0 && <p className="row-sub">No models match. Clear the search or choose All models.</p>}
-        <p className="row-sub">Use unique ADCode IDs; set an optional provider ID when you need an alias. Enter your actual upstream prices for spending limits. Zero means no upstream charge. Offer models that support text chat and tool calls. Paid USD models use the dollar wallet with a fixed 35% markup and never draw on included tokens or Heabsy plans.</p>
+        <p className="row-sub">Use unique ADCode IDs; set an optional provider ID when you need an alias. Enter your actual upstream prices for spending limits. A Tagflow model priced at zero is sponsored and free to everyone; on any other provider a zero price counts as missing, and the model stays hidden until you enter one. Offer models that support text chat and tool calls. Paid USD models use the dollar wallet with a fixed 35% markup and never draw on included tokens or Heabsy plans.</p>
       </section>}
 
       {view === "providers" && <>

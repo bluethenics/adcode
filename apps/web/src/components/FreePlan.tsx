@@ -9,11 +9,11 @@ export function FreePlan() {
       <header className="free-plan-head">
         <p className="marketplace-eyebrow">FREE TO START</p>
         <h2 id="free-plan-heading">Free editor. More AI when you need it.</h2>
-        <p className="free-plan-intro">Start without a subscription or credit card. Tagflow AI and other free included models share a daily credit allowance, with plans and packs for more. All Heabsy models are available on the free plan.</p>
+        <p className="free-plan-intro">Start without a subscription or credit card. Tagflow AI is included free every day. Heabsy and other partner models use paid credits: a USD wallet charged at the provider's price plus 35%, or included in Max.</p>
       </header>
       <dl className="free-plan-grid">
         <div>
-          <dt>All included models, including Heabsy</dt>
+          <dt>Free included credits</dt>
           <dd><strong>{creditAmount(FREE_WEEKLY_TOKENS)}</strong> free credits each day</dd>
         </div>
         <div>

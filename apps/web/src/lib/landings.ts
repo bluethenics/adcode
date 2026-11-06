@@ -74,7 +74,7 @@ export interface Landing {
  */
 const perImpression = formatMicros(perImpressionMicros, 3);
 const floorBlock = formatMicros(ECONOMICS.floorBlockMicros, 2);
-const includedAiSummary = `Tagflow AI and other free included models share ${creditAmount(FREE_WEEKLY_TOKENS)} free credits a day, with plans and packs for more. All Heabsy models are available on the free plan. No API key is needed for included models; your own key or local desktop model is optional.`;
+const includedAiSummary = `Tagflow AI and other free included models share ${creditAmount(FREE_WEEKLY_TOKENS)} free credits a day, with plans and packs for more. Heabsy and other partner models use paid credits: a USD wallet charged at the provider's price plus 35%, or included in Max. No API key is needed for included models; your own key or local desktop model is optional.`;
 
 /**
  * The comparison pages live under `/compare/`, the rest at the root.

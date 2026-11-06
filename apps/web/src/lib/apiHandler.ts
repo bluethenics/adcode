@@ -26,6 +26,7 @@ import { createDodoProvider } from "@adcode/api/adapters/dodoPayments.ts";
 import { createWebsiteAnalyticsStore } from "@adcode/api/adapters/websiteAnalyticsStore.ts";
 import { createAppUsageStore } from "@adcode/api/adapters/appUsageStore.ts";
 import { createProviderApplicationStore } from "@adcode/api/adapters/providerApplicationStore.ts";
+import { createProviderModelStore } from "@adcode/api/adapters/providerModelStore.ts";
 import { createFirebaseIdentity } from "@adcode/api/src/accountIdentity.ts";
 import { accountEmailProof, mailingStore, sendReportReplyEmail, sendStatusConfirmationEmail, statusAlertStore } from "./mailing";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
@@ -45,6 +46,7 @@ export const handleApiRequest = createFetchHandler({
   websiteAnalytics: createWebsiteAnalyticsStore(),
   appUsage: createAppUsageStore(),
   providerApplications: createProviderApplicationStore(),
+  providerModels: createProviderModelStore(),
   mailing: mailingStore,
   mailingWebhookSecret: () => process.env["RESEND_WEBHOOK_SECRET"],
   reportReplyMailer: sendReportReplyEmail,

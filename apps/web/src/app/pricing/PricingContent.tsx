@@ -10,7 +10,7 @@ import { PlanFinder } from "./PlanFinder";
 const WHERE_TO_MANAGE = "Where do I manage billing or redeem a code?";
 /** The questions, once: rendered below and published as FAQPage data by the page. */
 export const PRICING_FAQ: readonly { q: string; a: string }[] = [
-  { q: "Do I need to buy a plan to use ADCode?", a: "No. The editor is free, and free included AI has a daily allowance. All included Heabsy models are available on the free plan. Premium models use a separate USD wallet unless you choose Max. Your own provider connections remain available." },
+  { q: "Do I need to buy a plan to use ADCode?", a: "No. The editor is free, and free included AI has a daily allowance. Heabsy and other partner models use paid credits: a USD wallet charged at the provider's price plus 35%, or included in Max. Your own provider connections remain available." },
   { q: "Is Max really unlimited?", a: `Close to it, but not literally. Max covers every ADCode-hosted model, premium ones included, inside ${planCredits("max")} fair-use credits a day. Credits follow each model's price, so a budget model runs hundreds of agent steps a day and a premium model fewer. Usage pauses at the allowance, refills 24 hours after your first request, and never charges a wallet or an overage bill.` },
   { q: "When does my allowance refill?", a: `The shared allowance day starts with your first included AI request. Every plan refills daily: Builder ${planCredits("monthly")} credits, Pro ${planCredits("pro")} and Max ${planCredits("max")} fair-use credits. It is shared across signed-in devices and does not roll over. Purchased credits are separate and never expire.` },
   { q: "What happens when I use the daily allowance?", a: "On Free, Builder and Pro, included models use your purchased credits next. Max pauses at its daily fair-use allowance without charging purchased balances. If no credits remain, you can add a pack, upgrade for more daily credits or use your own connected model. A paused task carries on by itself when your allowance refills or you add credits. A bigger plan does not remove a provider's temporary rate limits." },
@@ -149,7 +149,7 @@ export function PricingContent({ offer, now = Date.now() }: { offer: PricingOffe
         <div className="pricing-free-details">
           <p>Code, run your project and work with agents without buying a plan.</p>
           <dl>
-            <div><dt>All included models, including Heabsy</dt><dd>{creditAmount(offer.freeWeeklyTokens)} free credits each day, at least {freeSteps} agent steps on DeepSeek, shared across your devices.</dd></div>
+            <div><dt>Included models</dt><dd>{creditAmount(offer.freeWeeklyTokens)} free credits each day, shared across your devices; Tagflow AI is free. Heabsy and other partner models use paid credits, or come with Max.</dd></div>
             <div><dt>Your own models</dt><dd>Connect a provider key or a local model. Your provider sets its own prices.</dd></div>
           </dl>
           <p className="pricing-small">Sponsored cards help fund the editor. Provider availability, shared capacity and model context limits still apply.</p>
@@ -158,7 +158,7 @@ export function PricingContent({ offer, now = Date.now() }: { offer: PricingOffe
 
       <section className="pricing-section pricing-packs-section" aria-labelledby="pricing-packs-heading">
         <header className="pricing-section-head"><h2 id="pricing-packs-heading">Or top up once</h2><p>One-time credits work after the daily allowance on Free, Builder and Pro. Max waits for its daily refill. Purchased credits never expire.</p></header>
-        <ul className="pricing-packs" aria-label="One-time Heabsy token packs">
+        <ul className="pricing-packs" aria-label="One-time credit packs">
           {offer.packs.map(pack => <li key={pack.id}><div><strong>{topUpName(pack.id)}<span>{creditAmount(pack.tokens)} credits</span></strong><p>{price(pack.priceCents)} once</p></div><Link href={`/ai-tokens?pack=${pack.id}&go=1#packs`} aria-label={`Buy ${topUpName(pack.id)} top-up, ${price(pack.priceCents)}`}>Buy <Icon node={ArrowUpRight} /></Link></li>)}
         </ul>
         <p className="pricing-small">Prices are in USD. Dodo calculates applicable tax and shows the final amount before you pay. {offer.available === null && "The standard catalogue is shown while live availability is unavailable. "}Review the current offer in your account before checkout.</p>

@@ -1,5 +1,5 @@
 /** Website-only telemetry. Never accepts account identifiers or free-form content. */
-export const WEBSITE_EVENTS = ["page_view", "install_copy", "download_click", "send_to_desktop", "advertise_click", "sign_in", "sign_up", "advertiser_created", "campaign_created", "support_sent", "provider_applied", "outbound_click", "scroll_50", "scroll_90", "engagement", "js_error", "LCP", "CLS", "INP", "FCP", "TTFB"] as const;
+export const WEBSITE_EVENTS = ["page_view", "install_copy", "download_click", "send_to_desktop", "advertise_click", "sign_in", "sign_up", "advertiser_created", "campaign_created", "support_sent", "provider_applied", "provider_models_submitted", "outbound_click", "scroll_50", "scroll_90", "engagement", "js_error", "LCP", "CLS", "INP", "FCP", "TTFB"] as const;
 /** Page-speed metrics. CLS and INP can change during a visit, so a later report replaces an earlier one with the same id. */
 export const WEB_VITALS: readonly string[] = ["LCP", "CLS", "INP", "FCP", "TTFB"];
 export interface WebsiteEvent {

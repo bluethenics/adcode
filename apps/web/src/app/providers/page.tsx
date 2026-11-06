@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ArrowDown, ArrowRight } from "lucide";
+import { ArrowRight } from "lucide";
 import { Icon } from "@/components/Icon";
 import { JsonLd } from "@/components/JsonLd";
 import { breadcrumbs, faqPage } from "@/lib/schema";
@@ -56,7 +56,7 @@ export default function ProvidersPage() {
           <p className="adv-hero-lede">ADCode is a free AI code editor with a model picker people choose from every day. Apply to put your models in it, free and sponsored, as paid credits, or for people&apos;s own keys.</p>
           <div className="adv-actions">
             <a className="adv-primary" href="#apply">Apply in a minute <Icon node={ArrowRight} /></a>
-            <a className="adv-secondary" href="#how">How it works <Icon node={ArrowDown} /></a>
+            <a className="adv-secondary" href="/providers/models">Submit models directly <Icon node={ArrowRight} /></a>
           </div>
         </div>
         <figure className="providers-picker" aria-label="Where your model appears: ADCode's model picker">
@@ -107,6 +107,7 @@ export default function ProvidersPage() {
         <div className="providers-apply-intro">
           <h2 id="providers-apply-title">Apply</h2>
           <p>Five things are required and the rest is optional. No account needed; we reply to the email you give, usually within a few days.</p>
+          <p>Already know which models, limits and prices? <a href="/providers/models">Submit them directly</a> with your endpoint and a key, and they go live as soon as an administrator approves.</p>
         </div>
         <ProviderApplicationForm />
       </section>

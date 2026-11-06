@@ -53,9 +53,15 @@ export function parsePaidConfig(raw: unknown): PaidConfig | null {
   return { enabled, ...(raw["accounting"] === "cost-v1" ? { accounting: "cost-v1" as const } : {}), providers: [...providers] as string[], freeWeeklyTokens, packs: parsed };
 }
 
-/** The original sponsored Tagflow route is intentionally free; unknown prices stay blocked. */
+/**
+ * Tagflow sponsors its models, so a Tagflow model priced at zero is free to use. Zero prices on
+ * any other provider still mean "nobody entered them" and stay blocked.
+ *
+ * This used to match only `tagflow-code-27b` by ID, so a second Tagflow model an administrator
+ * added (tagflow-code-flash-1, November 2026) saved fine and then never reached anybody.
+ */
 export function isSponsoredTagflow(model: { id?: string; provider?: string; billing?: string; inputPrice?: number; outputPrice?: number }): boolean {
-  return model.id === "tagflow-code-27b" && (model.provider ?? "tagflow") === "tagflow" && model.billing !== "wallet" && model.inputPrice === 0 && model.outputPrice === 0;
+  return (model.provider ?? "tagflow") === "tagflow" && model.billing !== "wallet" && model.inputPrice === 0 && model.outputPrice === 0;
 }
 
 export function isPaidModel(model: Parameters<typeof isSponsoredTagflow>[0], paid: PaidConfig | undefined): boolean {

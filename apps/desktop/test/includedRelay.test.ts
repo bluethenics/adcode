@@ -11,7 +11,7 @@ import { recoverIncludedLimits } from "../../../packages/ai/src/includedLimitRec
 it("continues the tool loop past historical credit caps without waiting or repeating completed tools",async()=>{
   vi.useFakeTimers();vi.setSystemTime(Date.parse("2026-10-11T12:00:00Z"));const started=Date.now();const window=5*3_600_000;
   const store=createMemoryStore();let toolRuns=0;const statuses:number[]=[];
-  const config={...DEFAULT_TAGFLOW_CONFIG,enabled:true,baseUrl:"https://api.tagflow-ai.com/v1",defaultModel:"coder",credits:{sessionCredits:1,weeklyCredits:100,sessionHours:5},models:[{id:"coder",name:"Coder",contextWindow:32768,maxOutput:4096,inputPrice:0,outputPrice:0}]};
+  const config={...DEFAULT_TAGFLOW_CONFIG,enabled:true,baseUrl:"https://api.tagflow-ai.com/v1",defaultModel:"coder",credits:{sessionCredits:1,weeklyCredits:100,sessionHours:5},models:[{id:"coder",name:"Coder",contextWindow:32768,maxOutput:4096,inputPrice:0.1,outputPrice:0.2}]};
   await store.putTagflowConfig({config,updatedAt:Date.now(),updatedBy:"admin"});
   const upstream=vi.fn<typeof fetch>()
     .mockResolvedValueOnce(new Response('data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"edit-1","function":{"name":"edit_file","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}\n\ndata: {"choices":[],"usage":{"prompt_tokens":12,"completion_tokens":3}}\n\ndata: [DONE]\n\n',{headers:{"content-type":"text/event-stream"}}))

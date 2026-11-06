@@ -228,10 +228,17 @@ describe("included Tagflow AI", () => {
   });
 
   it("keeps sponsored Tagflow available without credits while rejecting unknown zero prices", async () => {
+    vi.stubEnv("INCLUDED_AI_CUSTOM_METERED_API_KEY", "k");
     const sponsored = { ...config.models[0]!, id: "tagflow-code-27b", inputPrice: 0, outputPrice: 0 };
-    await save({ ...config, defaultModel: sponsored.id, paid: { ...DEFAULT_PAID_CONFIG, enabled: true, accounting: "cost-v1", freeWeeklyTokens: 0 }, models: [sponsored, { ...sponsored, id: "unknown-free" }] });
+    // Every Tagflow model at zero is sponsored, not only the first; another provider's zero is a missing price.
+    const second = { ...sponsored, id: "tagflow-code-flash-1" };
+    const unknown = { ...sponsored, id: "unknown-free", provider: "custom-metered" as const };
+    await save({ ...config, defaultModel: sponsored.id, providers: [{ id: "custom-metered", name: "Metered", baseUrl: "https://api.metered.ai/v1" }], paid: { ...DEFAULT_PAID_CONFIG, enabled: true, accounting: "cost-v1", freeWeeklyTokens: 0 }, models: [sponsored, second, unknown] });
     const published = await (await call("/ai/tagflow/config")).json() as { models: { id: string; paid: boolean }[] };
-    expect(published.models).toEqual([expect.objectContaining({ id: sponsored.id, paid: false })]);
+    expect(published.models).toEqual([expect.objectContaining({ id: sponsored.id, paid: false }), expect.objectContaining({ id: second.id, paid: false })]);
+    const flash = await chat("user", { ...body, model: second.id });
+    expect(flash.status).toBe(200); await flash.text();
+    upstream.mockClear();
     const response = await chat("user", { ...body, model: sponsored.id });
     expect(response.status).toBe(200); await response.text();
     expect((await store.getPaidTokens("user", true)).free).toBeNull();

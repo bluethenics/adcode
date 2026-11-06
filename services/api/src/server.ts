@@ -121,6 +121,8 @@ import type { Clock, IdGen, Store } from "./store.ts";
 import { isAutomatedAgent, parseWebsiteEvents, summarizeWebsiteEvents, type WebsiteAnalyticsStore } from "./websiteAnalytics.ts";
 import { parseAppUsage, summarizeAppUsage, utcDay, type AppUsageStore } from "./appUsage.ts";
 import { isApplicationStatus, parseProviderApplication, type ProviderApplicationStore } from "./providerApplications.ts";
+import { keyHint, parseProviderModels, submissionKeyId, type ProviderModelStore } from "./providerModels.ts";
+import { adNetworkEncryptionKeys, encryptAdNetworkKey } from "./adNetworkCrypto.ts";
 import { growthToWire } from "./growth.ts";
 import { parseModelCatalog, readModelCatalog, saveModelCatalog } from "./modelCatalog.ts";
 import { parseModelOutcomes, readModelHealth, recordModelOutcomes } from "./modelOutcomes.ts";
@@ -276,12 +278,14 @@ function firstHeader(value: string | string[] | undefined): string | undefined {
 
 export interface ApiOptions {
   adNetworks?: AdNetworkRuntime;
-  tagflow?: { modelMetadata?: boolean; priority?: import("./requestPriority.ts").RequestPriority; apiKey?: string; fetchImpl?: typeof fetch; country?: (request: Request) => string | undefined; workerSecrets?: WorkerSecrets; rateLimitWaitsMs?: readonly number[]; fallback?: boolean; identity?: AccountIdentity; emailProof?: import("./accountEmailProof.ts").AccountEmailProof; timeouts?: Partial<{ firstMs: number; idleMs: number; maxMs: number }> };
+  tagflow?: { modelMetadata?: boolean; priority?: import("./requestPriority.ts").RequestPriority; apiKey?: string; fetchImpl?: typeof fetch; country?: (request: Request) => string | undefined; workerSecrets?: WorkerSecrets; rateLimitWaitsMs?: readonly number[]; fallback?: boolean; identity?: AccountIdentity; emailProof?: import("./accountEmailProof.ts").AccountEmailProof; timeouts?: Partial<{ firstMs: number; idleMs: number; maxMs: number }>; encryptionKeys?: () => readonly string[] };
   websiteAnalytics?: WebsiteAnalyticsStore;
   /** Desktop feature-use totals (appUsage.ts). Absent: the editor's reports are accepted and dropped. */
   appUsage?: AppUsageStore;
   /** Model providers applying to be offered in ADCode (providerApplications.ts). */
   providerApplications?: ProviderApplicationStore;
+  /** Models providers submit on /providers/models; approved in the included-AI admin (providerModels.ts). */
+  providerModels?: ProviderModelStore;
   mailing?: MailingStore;
   mailingWebhookSecret?: () => string | undefined;
   /** Renders and sends an administrator's reply to a report (Resend, in production). */
@@ -848,6 +852,26 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       if (await store.bumpRequestCount("provider-applications-global", minute) > 20) { send(res, 429, { error: "Too many applications right now. Try again in a minute." }, { ...cors, "retry-after": "60" }); return; }
       await options.providerApplications.add({ ...parsed.value, id: crypto.randomUUID(), status: "new", note: "", receivedAt: clock.now() });
       send(res, 200, { ok: true }, cors);
+      return;
+    }
+
+    /* ── Provider model submissions: public, approved by an administrator before going live ── */
+    if (path === "/v1/provider-models" && req.method === "POST") {
+      if (req.headers.origin !== siteOrigin) { send(res, 403, { error: "origin" }, cors); return; }
+      const keys = adNetworkEncryptionKeys();
+      if (!options.providerModels || keys.length === 0) { send(res, 503, { error: "Submissions are closed for a moment. Use the application form instead." }, cors); return; }
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const parsed = parseProviderModels(raw);
+      if (!parsed.ok && parsed.bot) { send(res, 200, { ok: true }, cors); return; }
+      if (!parsed.ok) { send(res, 400, { error: parsed.error }, cors); return; }
+      const minute = Math.floor(clock.now() / 60000) * 60000;
+      if (await store.bumpRequestCount("provider-models-global", minute) > 10) { send(res, 429, { error: "Too many submissions right now. Try again in a minute." }, { ...cors, "retry-after": "60" }); return; }
+      const id = crypto.randomUUID();
+      // Encrypted before it is stored, bound to this submission: the database never holds the key itself.
+      const encrypted = encryptAdNetworkKey(submissionKeyId(id), parsed.apiKey, keys[0]!);
+      await options.providerModels.add({ ...parsed.value, id, status: "pending", note: "", receivedAt: clock.now(), keyHint: keyHint(parsed.apiKey), hasKey: true, decidedAt: null, decidedBy: "", providerId: "" }, encrypted);
+      send(res, 200, { ok: true, id }, cors);
       return;
     }
 

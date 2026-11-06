@@ -24,6 +24,8 @@ import { PLANS, LEGACY_PLANS, effectiveWeeklyAllowance, hasActivePlan, hasUnlimi
 import { activeCampaign, startCampaign } from "./usageCampaign.ts";
 import { MODEL_FEEDBACK_CATEGORIES, type ModelRequestOutcome, type ModelRequestRecord, type ModelRequestSource } from "./tagflowReportTypes.ts";
 import { completeModelReport, parseReportRange } from "./tagflowReports.ts";
+import { isSubmissionId, planApproval, submissionKeyId, type ProviderModelStore } from "./providerModels.ts";
+import { adNetworkEncryptionKeys, decryptAdNetworkKey } from "./adNetworkCrypto.ts";
 import { AUDIENCE_ROLES, AUDIENCE_EXPERIENCE, DECLARED_USES, AI_PERSONAS, audienceChoice, audienceCountry, observedUse, type ModelAudienceProfile } from "./modelAudience.ts";
 
 export interface TagflowOptions {
@@ -50,6 +52,10 @@ export interface TagflowOptions {
   /** Reads an account's live verification state and sends Firebase's verification email. */
   identity?: AccountIdentity;
   emailProof?: AccountEmailProof;
+  /** Models providers submitted on /providers/models, approved here (providerModels.ts). */
+  providerModels?: ProviderModelStore;
+  /** Keys that decrypt a submission's API key; defaults to the ad network keys. */
+  encryptionKeys?: () => readonly string[];
 }
 
 /** Two retries of a provider's rate limit when no other included model can answer, then the person hears about it. */
@@ -101,7 +107,7 @@ export function isTagflowPath(path: string): boolean {
   if (path === "/v1/ai/account/verification") return true;
   return path === "/v1/ai/tagflow/config" || path === "/v1/ai/tagflow/usage" || path === "/v1/ai/tagflow/chat/completions" ||
     path === "/v1/ai/tagflow/feedback" || path === "/v1/ai/tagflow/audience" || path === "/v1/admin/tagflow/reports" ||
-    path === "/v1/admin/tagflow" || path === "/v1/admin/tagflow/usage" || path === "/v1/admin/tagflow/keys" || path === "/v1/admin/tagflow/heabsy-models" || /^\/v1\/admin\/tagflow\/users\/[^/]+$/.test(path) ||
+    path === "/v1/admin/tagflow" || path === "/v1/admin/tagflow/usage" || path === "/v1/admin/tagflow/keys" || path === "/v1/admin/tagflow/heabsy-models" || path === "/v1/admin/tagflow/submissions" || path === "/v1/admin/tagflow/submissions/decide" || path === "/v1/admin/tagflow/submissions/test" || /^\/v1\/admin\/tagflow\/users\/[^/]+$/.test(path) ||
     path === "/v1/ai/plans/checkout" || path === "/v1/ai/plans/portal" || path === "/v1/ai/promo/redeem" || path === "/v1/ai/invites" || path === "/v1/ai/invites/redeem" ||
     ["reset", "boost", "gift", "promo", "subscriptions", "campaign", "verification-test"].some((route) => path === `/v1/admin/ai-plans/${route}`) ||
     path === "/v1/ai/wallet" || path === "/v1/ai/wallet/checkout" || path === "/v1/ai/tokens/checkout" || path === "/v1/ai/tokens/orders" || path === "/v1/admin/ai-tokens/grant" || path === "/v1/admin/ai-tokens/sales";
@@ -698,6 +704,68 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
         const result = value === null ? await secrets.remove(connection.secretName) : await secrets.put(connection.secretName, value);
         if (!result.ok) return fail(result.reason === "not-configured" ? 409 : 502, result.reason, result.message);
         return json(200, { ok: true, provider: connection.id, secretName: connection.secretName, saved: value !== null });
+      }
+      if (url.pathname.startsWith("/v1/admin/tagflow/submissions")) {
+        const submissions = deps.providerModels;
+        if (submissions === undefined) return fail(503, "unavailable", "Model submissions are not set up on this server.");
+        if (url.pathname === "/v1/admin/tagflow/submissions" && request.method === "GET") {
+          return json(200, { submissions: await submissions.list(200), keysManageable: secrets.configured() }, { "cache-control": "no-store" });
+        }
+        const raw = request.method === "POST" ? await readJson(request) : null;
+        if (!isRecord(raw) || !isSubmissionId(raw["id"])) return fail(400, "bad-submission", "Choose a submission.");
+        const found = await submissions.get(raw["id"]);
+        if (found === null) return fail(404, "not-found", "That submission no longer exists.");
+        const { submission } = found;
+        const keyOf = (): string | null => {
+          if (found.key === null) return null;
+          try { return decryptAdNetworkKey(submissionKeyId(submission.id), found.key, (deps.encryptionKeys ?? adNetworkEncryptionKeys)()); } catch { return null; }
+        };
+        if (submission.status !== "pending") return fail(409, "decided", `This submission was already ${submission.status}.`);
+        // One real request with the provider's own key, so approval is never a guess.
+        if (url.pathname === "/v1/admin/tagflow/submissions/test") {
+          const model = submission.models.find((one) => one.upstreamModel === raw["model"]) ?? submission.models[0]!;
+          const key = keyOf();
+          if (key === null) return fail(409, "no-key", "The submitted key cannot be read. Ask the provider to submit again.");
+          await audit("test-provider-submission", submission.id);
+          const started = deps.clock.now();
+          try {
+            const response = await fetchImpl(`${submission.apiBase}/chat/completions`, { method: "POST", redirect: "manual", signal: AbortSignal.timeout(30_000),
+              headers: { "content-type": "application/json", ...(submission.authentication === "bearer" ? { authorization: `Bearer ${key}` } : { "x-api-key": key }) },
+              body: JSON.stringify({ model: model.upstreamModel, messages: [{ role: "user", content: "Reply with the single word: ok" }], max_tokens: 16, stream: false }) });
+            const text = (await response.text()).slice(0, 4000);
+            let reply = "";
+            try { reply = String((JSON.parse(text) as { choices?: { message?: { content?: unknown } }[] }).choices?.[0]?.message?.content ?? "").trim().slice(0, 200); } catch { /* Not JSON: reported by status below. */ }
+            return json(200, { ok: response.ok && reply.length > 0, status: response.status, model: model.upstreamModel, reply: reply || text.replace(/s+/g, " ").slice(0, 200), ms: deps.clock.now() - started });
+          } catch {
+            return json(200, { ok: false, status: 0, model: model.upstreamModel, reply: "The provider did not answer within 30 seconds, or refused the connection.", ms: deps.clock.now() - started });
+          }
+        }
+        if (url.pathname === "/v1/admin/tagflow/submissions/decide") {
+          const note = typeof raw["note"] === "string" ? raw["note"].trim().slice(0, 1000) : "";
+          const decided = { note, decidedAt: deps.clock.now(), decidedBy: auth.uid };
+          if (raw["decision"] === "decline") {
+            await audit("decline-provider-submission", submission.id);
+            return (await submissions.decide(submission.id, { ...decided, status: "declined", providerId: "" })) ? json(200, { ok: true, status: "declined" }) : fail(409, "decided", "Another administrator decided this submission first.");
+          }
+          if (raw["decision"] !== "approve") return fail(400, "bad-decision", "Choose approve or decline.");
+          const plan = planApproval(config, submission, new Date(deps.clock.now()).toISOString().slice(0, 10));
+          if (!plan.ok) return fail(409, "catalogue-full", plan.error);
+          // The key goes in first: a catalogue entry without one is hidden, never broken. An
+          // existing provider's working key is kept rather than replaced by a submission.
+          const keepKey = !plan.newProvider && providerKey(config, plan.providerId).length > 0;
+          if (!keepKey) {
+            const key = keyOf();
+            if (key === null) return fail(409, "no-key", "The submitted key cannot be read. Ask the provider to submit again.");
+            const written = await secrets.put(plan.secretName, key);
+            if (!written.ok) return fail(written.reason === "not-configured" ? 409 : 502, written.reason, written.message);
+          }
+          await audit("approve-provider-submission", submission.id);
+          const result = { config: plan.config, updatedAt: deps.clock.now(), updatedBy: auth.uid };
+          await deps.store.putTagflowConfig(result);
+          await submissions.decide(submission.id, { ...decided, status: "approved", providerId: plan.providerId });
+          return json(200, { ok: true, status: "approved", providerId: plan.providerId, modelIds: plan.modelIds, keySaved: !keepKey, newProvider: plan.newProvider });
+        }
+        return fail(405, "method", "Unsupported method.");
       }
       if (url.pathname === "/v1/admin/tagflow/usage" && request.method === "GET") {
         const requestedDay = url.searchParams.get("day") ?? day;

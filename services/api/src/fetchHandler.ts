@@ -112,7 +112,8 @@ export function createFetchHandler(
   const store = options.store ?? createMemoryStore();
   const handle = createRequestHandler({ ...options, store });
   const tagflow = createTagflowHandler({ store, verifier: options.verifier!, clock: options.clock ?? { now: () => Date.now() },
-    ...(options.payments === undefined ? {} : { payments: options.payments }), ...(options.siteOrigin === undefined ? {} : { siteOrigin: options.siteOrigin }), ...options.tagflow });
+    ...(options.payments === undefined ? {} : { payments: options.payments }), ...(options.siteOrigin === undefined ? {} : { siteOrigin: options.siteOrigin }),
+    ...(options.providerModels === undefined ? {} : { providerModels: options.providerModels }), ...options.tagflow });
 
   return async (request: Request): Promise<Response> => {
     // This response owns a live upstream stream and must bypass the buffering shim.

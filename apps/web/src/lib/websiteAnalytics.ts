@@ -1,6 +1,6 @@
 import { campaignFor } from "./invite";
 /** Only this small, explicit event vocabulary can leave the browser. */
-export type WebsiteEventName = "page_view" | "install_copy" | "download_click" | "send_to_desktop" | "advertise_click" | "sign_in" | "sign_up" | "advertiser_created" | "campaign_created" | "support_sent" | "provider_applied" | "outbound_click" | "scroll_50" | "scroll_90" | "engagement" | "js_error" | "LCP" | "CLS" | "INP" | "FCP" | "TTFB";
+export type WebsiteEventName = "page_view" | "install_copy" | "download_click" | "send_to_desktop" | "advertise_click" | "sign_in" | "sign_up" | "advertiser_created" | "campaign_created" | "support_sent" | "provider_applied" | "provider_models_submitted" | "outbound_click" | "scroll_50" | "scroll_90" | "engagement" | "js_error" | "LCP" | "CLS" | "INP" | "FCP" | "TTFB";
 export type WebVitalName = "LCP" | "CLS" | "INP" | "FCP" | "TTFB";
 export type AnalyticsChoice = "accepted" | "declined";
 const consentKey = "adcode.website-analytics";
