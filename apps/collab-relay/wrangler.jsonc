@@ -15,13 +15,15 @@
     { "name": "SHARED_PROJECTS", "class_name": "SharedProject" },
     { "name": "REQUEST_QUEUES", "class_name": "PriorityQueue" },
     { "name": "COMMUNITY", "class_name": "CommunityHub" },
-    { "name": "ARTIFACT_VAULTS", "class_name": "ArtifactVault" }
+    { "name": "ARTIFACT_VAULTS", "class_name": "ArtifactVault" },
+    { "name": "ARTIFACT_ROOMS", "class_name": "ArtifactRoom" }
   ] },
   // Local packages resolve by alias here too (no npm workspaces on FAT32): the community
   // rules import the settings schema to decide which settings a plugin may preset.
   "alias": { "@adcode/settings": "../../packages/settings/src/index.ts" },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["CollabRoom", "ProjectDirectory", "SharedProject", "PriorityQueue"] },
-    { "tag": "v2", "new_sqlite_classes": ["CommunityHub", "ArtifactVault"] }
+    { "tag": "v2", "new_sqlite_classes": ["CommunityHub", "ArtifactVault"] },
+    { "tag": "v3", "new_sqlite_classes": ["ArtifactRoom"] }
   ]
 }

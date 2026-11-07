@@ -19,11 +19,14 @@
  */
 import { DurableObject } from "cloudflare:workers";
 import {
-  applyChanges, checkChanges, checkSnapshot, checkWaitlistPrice, compareVersions, creatorProfile, dayNumber,
-  describeContributions, newlyEarnedBadges, parsePluginManifest, streakDays, trendingScore,
-  type ActivityItem, type ActivityKind, type ArtifactChange, type ArtifactDetail, type ArtifactFile, type ArtifactListing,
-  type ArtifactSnapshot, type CommunityHome, type CommunityMe, type CreatorTotals, type ImprovementDetail,
-  type ImprovementSummary, type PluginDetail, type PluginListing, type PluginManifest,
+  applyChanges, artifactAccess, artifactIsListed, artifactShareFor, checkChanges, checkSnapshot, checkWaitlistPrice,
+  compareVersions, creatorProfile, dayNumber, decodeArtifactShare, describeContributions, encodeArtifactShare,
+  newArtifactShareKey, newlyEarnedBadges, parseArtifactVisibility, parsePluginManifest,
+  streakDays, trendingScore,
+  type ActivityItem, type ActivityKind, type ArtifactAccess, type ArtifactChange, type ArtifactDetail, type ArtifactFile,
+  type ArtifactListing, type ArtifactSnapshot, type ArtifactVisibility, type CommunityHome, type CommunityMe,
+  type CreatorTotals, type ImprovementDetail, type ImprovementSummary, type PluginDetail, type PluginListing,
+  type PluginManifest,
 } from "../../../packages/community/src/index.ts";
 import { SLASH_COMMANDS } from "../../desktop/src/shared/slashCommands.ts";
 
@@ -51,7 +54,7 @@ const MAX_OWNED = { plugins: 50, artifacts: 30 } as const;
 const KEEP_VERSIONS = 10;
 
 type PluginRow = { id: string; ownerId: string; ownerName: string; name: string; description: string; icon: string; category: string; tags: string; version: string; manifest: string; contributes: string; remixOf: string | null; createdAt: number; updatedAt: number; installs: number; stars: number; remixes: number; hidden: number };
-type ArtifactRow = { id: string; ownerId: string; ownerName: string; title: string; description: string; tags: string; helpWanted: string; version: number; fileCount: number; bytes: number; remixes: number; stars: number; readme: string; paths: string; remixOf: string | null; createdAt: number; updatedAt: number; hidden: number };
+type ArtifactRow = { id: string; ownerId: string; ownerName: string; title: string; description: string; tags: string; helpWanted: string; version: number; fileCount: number; bytes: number; remixes: number; stars: number; readme: string; paths: string; remixOf: string | null; createdAt: number; updatedAt: number; hidden: number; visibility: ArtifactVisibility; shareKey: string };
 type ImprovementRow = { id: string; artifactId: string; baseVersion: number; authorId: string; authorName: string; title: string; message: string; status: "open" | "accepted" | "declined"; reply: string; files: number; at: number; decidedAt: number; mergedVersion: number | null };
 
 /** One artifact's files: every version (the latest few), and every improvement's changes. */
@@ -100,6 +103,11 @@ export class CommunityHub extends DurableObject<Env> {
     sql.exec(`CREATE TABLE IF NOT EXISTS artifacts(id TEXT PRIMARY KEY, ownerId TEXT NOT NULL, ownerName TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL, tags TEXT NOT NULL, helpWanted TEXT NOT NULL, version INTEGER NOT NULL, fileCount INTEGER NOT NULL, bytes INTEGER NOT NULL, remixes INTEGER NOT NULL DEFAULT 0, stars INTEGER NOT NULL DEFAULT 0, readme TEXT NOT NULL, paths TEXT NOT NULL, remixOf TEXT, createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL, hidden INTEGER NOT NULL DEFAULT 0)`);
     sql.exec("CREATE INDEX IF NOT EXISTS artifacts_owner ON artifacts(ownerId)");
     sql.exec("CREATE TABLE IF NOT EXISTS artifact_versions(artifactId TEXT NOT NULL, version INTEGER NOT NULL, message TEXT NOT NULL, authorId TEXT NOT NULL, authorName TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY(artifactId, version))");
+    try { sql.exec("ALTER TABLE artifacts ADD COLUMN visibility TEXT NOT NULL DEFAULT 'public'"); } catch { /* Already there. */ }
+    try { sql.exec("ALTER TABLE artifacts ADD COLUMN shareKey TEXT NOT NULL DEFAULT ''"); } catch { /* Already there. */ }
+    for (const row of sql.exec<{ id: string }>("SELECT id FROM artifacts WHERE shareKey=''").toArray()) {
+      sql.exec("UPDATE artifacts SET shareKey=? WHERE id=?", newArtifactShareKey(crypto.getRandomValues(new Uint8Array(16))), row.id);
+    }
     sql.exec(`CREATE TABLE IF NOT EXISTS improvements(id TEXT PRIMARY KEY, artifactId TEXT NOT NULL, baseVersion INTEGER NOT NULL, authorId TEXT NOT NULL, authorName TEXT NOT NULL, title TEXT NOT NULL, message TEXT NOT NULL, status TEXT NOT NULL, reply TEXT NOT NULL DEFAULT '', files INTEGER NOT NULL, at INTEGER NOT NULL, decidedAt INTEGER NOT NULL DEFAULT 0, mergedVersion INTEGER)`);
     sql.exec("CREATE INDEX IF NOT EXISTS improvements_artifact ON improvements(artifactId, status)");
     sql.exec("CREATE INDEX IF NOT EXISTS improvements_author ON improvements(authorId)");
@@ -160,6 +168,13 @@ export class CommunityHub extends DurableObject<Env> {
     if (row === undefined || (row.hidden && !includeHidden)) return deny(404, "That artifact is not shared any more.");
     return row;
   }
+  private access(row: ArtifactRow, uid: string | null, key: string | null): ArtifactAccess {
+    const verdict = artifactAccess({ ownerId: row.ownerId, visibility: row.visibility, shareKey: row.shareKey }, uid, key);
+    return verdict ?? deny(404, "That private artifact needs its share code.");
+  }
+  accessFor(uid: string | null, id: string, key: string | null): ArtifactAccess {
+    return this.access(this.artifactRow(id), uid, key);
+  }
   private weekly(pluginId: string): number {
     return this.sql.exec<{ n: number }>("SELECT COUNT(*) n FROM installs WHERE pluginId=? AND at>?", pluginId, Date.now() - 7 * DAY).one().n;
   }
@@ -171,14 +186,15 @@ export class CommunityHub extends DurableObject<Env> {
       remixOf: row.remixOf, createdAt: row.createdAt, updatedAt: row.updatedAt, featured,
     };
   }
-  private artifactListing(row: ArtifactRow): ArtifactListing {
+  private artifactListing(row: ArtifactRow, access: ArtifactAccess | null = null): ArtifactListing {
     const counts = this.sql.exec<{ total: number; open: number; contributors: number }>(
       "SELECT COUNT(*) total, SUM(CASE WHEN status='open' THEN 1 ELSE 0 END) open, COUNT(DISTINCT CASE WHEN status='accepted' THEN authorId END) contributors FROM improvements WHERE artifactId=?", row.id).one();
     return {
       id: row.id, title: row.title, description: row.description, tags: JSON.parse(row.tags) as string[], helpWanted: row.helpWanted,
       ownerId: row.ownerId, ownerName: row.ownerName, version: row.version, fileCount: row.fileCount, bytes: row.bytes,
       remixes: row.remixes, stars: row.stars, improvements: counts.total, openImprovements: counts.open ?? 0, contributors: counts.contributors,
-      remixOf: row.remixOf, createdAt: row.createdAt, updatedAt: row.updatedAt,
+      remixOf: row.remixOf, createdAt: row.createdAt, updatedAt: row.updatedAt, visibility: row.visibility,
+      shareCode: artifactShareFor({ id: row.id, ownerId: row.ownerId, visibility: row.visibility, shareKey: row.shareKey }, access),
     };
   }
   private improvementSummary(row: ImprovementRow): ImprovementSummary {
@@ -207,7 +223,7 @@ export class CommunityHub extends DurableObject<Env> {
 
   listArtifacts(sort: string, query: string | null, helpOnly: boolean, limit: number, offset: number): ArtifactListing[] {
     const { clause, args } = this.search(query);
-    const rows = this.sql.exec<ArtifactRow>(`SELECT * FROM artifacts WHERE hidden=0${clause.replaceAll("name LIKE", "title LIKE")}${helpOnly ? " AND helpWanted<>''" : ""}`, ...args).toArray();
+    const rows = this.sql.exec<ArtifactRow>(`SELECT * FROM artifacts WHERE hidden=0 AND visibility='public'${clause.replaceAll("name LIKE", "title LIKE")}${helpOnly ? " AND helpWanted<>''" : ""}`, ...args).toArray();
     const listed = rows.map((row) => this.artifactListing(row));
     const now = Date.now();
     if (sort === "new") listed.sort((a, b) => b.createdAt - a.createdAt);
@@ -220,8 +236,8 @@ export class CommunityHub extends DurableObject<Env> {
     const trendingPlugins = this.listPlugins("trending", null, null, 12, 0);
     const featured = trendingPlugins.filter((plugin) => plugin.installs >= 3 || plugin.stars >= 2).slice(0, 3).map((plugin) => ({ ...plugin, featured: true }));
     const totals = this.sql.exec<{ plugins: number; installs: number | null }>("SELECT COUNT(*) plugins, SUM(installs) installs FROM plugins WHERE hidden=0").one();
-    const artifacts = this.sql.exec<{ n: number }>("SELECT COUNT(*) n FROM artifacts WHERE hidden=0").one().n;
-    const creators = this.sql.exec<{ n: number }>("SELECT COUNT(*) n FROM (SELECT ownerId FROM plugins WHERE hidden=0 UNION SELECT ownerId FROM artifacts WHERE hidden=0)").one().n;
+    const artifacts = this.sql.exec<{ n: number }>("SELECT COUNT(*) n FROM artifacts WHERE hidden=0 AND visibility='public'").one().n;
+    const creators = this.sql.exec<{ n: number }>("SELECT COUNT(*) n FROM (SELECT ownerId FROM plugins WHERE hidden=0 UNION SELECT ownerId FROM artifacts WHERE hidden=0 AND visibility='public')").one().n;
     return {
       signedIn: uid !== null,
       featured: featured.length > 0 ? featured : trendingPlugins.slice(0, 3),
@@ -243,12 +259,13 @@ export class CommunityHub extends DurableObject<Env> {
     };
   }
 
-  artifact(id: string, uid: string | null): ArtifactDetail {
+  artifact(id: string, uid: string | null, key: string | null = null): ArtifactDetail {
     const row = this.artifactRow(id);
+    const access = this.access(row, uid, key);
     const versions = this.sql.exec<{ version: number; message: string; authorId: string; authorName: string; at: number }>("SELECT version, message, authorId, authorName, at FROM artifact_versions WHERE artifactId=? ORDER BY version DESC LIMIT 50", id).toArray();
     const contributorNames = this.sql.exec<{ authorName: string }>("SELECT DISTINCT authorName FROM improvements WHERE artifactId=? AND status='accepted' LIMIT 30", id).toArray().map((one) => one.authorName);
     return {
-      ...this.artifactListing(row), paths: JSON.parse(row.paths) as string[], readme: row.readme, versions, contributorNames,
+      ...this.artifactListing(row, access), paths: JSON.parse(row.paths) as string[], readme: row.readme, versions, contributorNames,
       starred: uid !== null && this.sql.exec("SELECT 1 FROM stars WHERE kind='artifact' AND targetId=? AND uid=?", id, uid).toArray().length > 0,
     };
   }
@@ -256,7 +273,7 @@ export class CommunityHub extends DurableObject<Env> {
   me(uid: string): CommunityMe {
     const display = this.sql.exec<{ name: string }>("SELECT name FROM names WHERE uid=?", uid).toArray()[0]?.name ?? "You";
     const plugins = this.sql.exec<PluginRow>("SELECT * FROM plugins WHERE ownerId=? ORDER BY updatedAt DESC", uid).toArray().map((row) => this.pluginListing(row));
-    const artifacts = this.sql.exec<ArtifactRow>("SELECT * FROM artifacts WHERE ownerId=? ORDER BY updatedAt DESC", uid).toArray().map((row) => this.artifactListing(row));
+    const artifacts = this.sql.exec<ArtifactRow>("SELECT * FROM artifacts WHERE ownerId=? ORDER BY updatedAt DESC", uid).toArray().map((row) => this.artifactListing(row, "owner"));
     const inbox = this.sql.exec<ImprovementRow>("SELECT i.* FROM improvements i JOIN artifacts a ON a.id=i.artifactId WHERE a.ownerId=? ORDER BY CASE i.status WHEN 'open' THEN 0 ELSE 1 END, i.at DESC LIMIT 100", uid).toArray().map((row) => this.improvementSummary(row));
     const sent = this.sql.exec<ImprovementRow>("SELECT * FROM improvements WHERE authorId=? ORDER BY at DESC LIMIT 100", uid).toArray().map((row) => this.improvementSummary(row));
     const activity = this.sql.exec<Omit<ActivityItem, "read"> & { read: number }>("SELECT id, kind, text, targetKind, targetId, at, read FROM activity WHERE uid=? ORDER BY id DESC LIMIT 60", uid).toArray().map((row) => ({ ...row, read: row.read === 1 }));
@@ -363,6 +380,8 @@ export class CommunityHub extends DurableObject<Env> {
     const message = typeof body["message"] === "string" && body["message"].trim() ? body["message"].trim().slice(0, 300) : "Published";
     const chosenTags = tags(body["tags"]);
     const display = name(body["ownerName"]);
+    const requestedVisibility = parseArtifactVisibility(body["visibility"]);
+    if (body["visibility"] !== undefined && requestedVisibility === null) deny(400, "Choose public or private visibility.");
     const readme = snapshot.files.find((file) => /^readme(?:\.md|\.txt)?$/i.test(file.path))?.content.slice(0, 20_000) ?? "";
     const paths = JSON.stringify(snapshot.files.map((file) => file.path));
     this.spend(uid, "publishArtifact");
@@ -374,17 +393,21 @@ export class CommunityHub extends DurableObject<Env> {
       const row = this.artifactRow(id, true);
       if (row.ownerId !== uid) deny(403, "Only the owner can publish a new version.");
       version = row.version + 1;
+      const visibility = requestedVisibility ?? row.visibility;
+      const shareKey = row.shareKey === "" ? newArtifactShareKey(crypto.getRandomValues(new Uint8Array(16))) : row.shareKey;
       await this.env.ARTIFACT_VAULTS.getByName(id).putVersion(version, snapshot.files);
-      this.sql.exec("UPDATE artifacts SET ownerName=?, title=?, description=?, tags=?, helpWanted=?, version=?, fileCount=?, bytes=?, readme=?, paths=?, updatedAt=?, hidden=CASE WHEN hidden=2 THEN 0 ELSE hidden END WHERE id=?",
-        display, title, description, JSON.stringify(chosenTags), helpWanted, version, snapshot.files.length, snapshot.bytes, readme, paths, now, id);
+      this.sql.exec("UPDATE artifacts SET ownerName=?, title=?, description=?, tags=?, helpWanted=?, version=?, fileCount=?, bytes=?, readme=?, paths=?, updatedAt=?, visibility=?, shareKey=?, hidden=CASE WHEN hidden=2 THEN 0 ELSE hidden END WHERE id=?",
+        display, title, description, JSON.stringify(chosenTags), helpWanted, version, snapshot.files.length, snapshot.bytes, readme, paths, now, visibility, shareKey, id);
     } else {
       if (this.sql.exec<{ n: number }>("SELECT COUNT(*) n FROM artifacts WHERE ownerId=? AND hidden<>2", uid).one().n >= MAX_OWNED.artifacts) deny(409, `You can share up to ${MAX_OWNED.artifacts} artifacts. Remove one to share another.`);
       id = newId();
       version = 1;
       const remixOf = typeof body["remixOf"] === "string" && ID.test(body["remixOf"]) ? body["remixOf"] : null;
+      const visibility = requestedVisibility ?? "public";
+      const shareKey = newArtifactShareKey(crypto.getRandomValues(new Uint8Array(16)));
       await this.env.ARTIFACT_VAULTS.getByName(id).putVersion(version, snapshot.files);
-      this.withBadges(uid, () => this.sql.exec("INSERT INTO artifacts(id, ownerId, ownerName, title, description, tags, helpWanted, version, fileCount, bytes, readme, paths, remixOf, createdAt, updatedAt) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        id, uid, display, title, description, JSON.stringify(chosenTags), helpWanted, version, snapshot.files.length, snapshot.bytes, readme, paths, remixOf, now, now));
+      this.withBadges(uid, () => this.sql.exec("INSERT INTO artifacts(id, ownerId, ownerName, title, description, tags, helpWanted, version, fileCount, bytes, readme, paths, remixOf, createdAt, updatedAt, visibility, shareKey) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        id, uid, display, title, description, JSON.stringify(chosenTags), helpWanted, version, snapshot.files.length, snapshot.bytes, readme, paths, remixOf, now, now, visibility, shareKey));
     }
     this.sql.exec("INSERT OR REPLACE INTO artifact_versions VALUES(?,?,?,?,?,?)", id, version, message, uid, display, now);
     this.remember(uid, display);
@@ -392,16 +415,18 @@ export class CommunityHub extends DurableObject<Env> {
     return this.artifact(id, uid);
   }
 
-  async files(id: string, versionInput: number | null): Promise<ArtifactSnapshot> {
+  async files(id: string, versionInput: number | null, uid: string | null = null, key: string | null = null): Promise<ArtifactSnapshot> {
     const row = this.artifactRow(id);
+    this.access(row, uid, key);
     const version = versionInput ?? row.version;
     const files = await this.env.ARTIFACT_VAULTS.getByName(id).getVersion(version);
     if (files === null) deny(410, `Version ${version} is no longer kept. Remix the latest version instead.`);
     return { id, title: row.title, version, files: files! };
   }
 
-  async remix(uid: string, id: string): Promise<ArtifactSnapshot> {
+  async remix(uid: string, id: string, key: string | null = null): Promise<ArtifactSnapshot> {
     const row = this.artifactRow(id);
+    this.access(row, uid, key);
     if (row.ownerId !== uid && this.sql.exec("SELECT 1 FROM remixes WHERE kind='artifact' AND targetId=? AND uid=?", id, uid).toArray().length === 0) {
       this.withBadges(row.ownerId, () => {
         this.sql.exec("INSERT INTO remixes VALUES('artifact',?,?,?)", id, uid, Date.now());
@@ -411,7 +436,7 @@ export class CommunityHub extends DurableObject<Env> {
       this.notify(row.ownerId, "artifact.remixed", `${who} remixed ${row.title}. Improvements they send will appear in your inbox.`, "artifact", id);
       this.active(uid);
     }
-    return this.files(id, null);
+    return this.files(id, null, uid, key);
   }
 
   removeArtifact(uid: string, id: string): void {
@@ -420,8 +445,40 @@ export class CommunityHub extends DurableObject<Env> {
     this.sql.exec("UPDATE artifacts SET hidden=2 WHERE id=?", id);
   }
 
-  async sendImprovement(uid: string, id: string, body: Record<string, unknown>): Promise<ImprovementSummary> {
+  share(uid: string, id: string): { visibility: ArtifactVisibility; shareCode: string } {
+    const row = this.artifactRow(id, true);
+    if (row.ownerId !== uid) deny(403, "Only the owner can share an artifact.");
+    const shareKey = row.shareKey === "" ? newArtifactShareKey(crypto.getRandomValues(new Uint8Array(16))) : row.shareKey;
+    if (shareKey !== row.shareKey) this.sql.exec("UPDATE artifacts SET shareKey=? WHERE id=?", shareKey, id);
+    return { visibility: row.visibility, shareCode: encodeArtifactShare(id, shareKey) };
+  }
+
+  setVisibility(uid: string, id: string, value: unknown): ArtifactDetail {
+    const visibility = parseArtifactVisibility(value) ?? deny(400, "Choose public or private visibility.");
+    const row = this.artifactRow(id, true);
+    if (row.ownerId !== uid) deny(403, "Only the owner can change who sees an artifact.");
+    const shareKey = row.shareKey === "" ? newArtifactShareKey(crypto.getRandomValues(new Uint8Array(16))) : row.shareKey;
+    this.sql.exec("UPDATE artifacts SET visibility=?, shareKey=? WHERE id=?", visibility, shareKey, id);
+    return this.artifact(id, uid);
+  }
+
+  rotateShare(uid: string, id: string): { shareCode: string } {
+    const row = this.artifactRow(id, true);
+    if (row.ownerId !== uid) deny(403, "Only the owner can replace an artifact's share code.");
+    const shareKey = newArtifactShareKey(crypto.getRandomValues(new Uint8Array(16)));
+    this.sql.exec("UPDATE artifacts SET shareKey=? WHERE id=?", shareKey, id);
+    return { shareCode: encodeArtifactShare(id, shareKey) };
+  }
+
+  shared(uid: string, codeInput: unknown): ArtifactDetail {
+    if (typeof codeInput !== "string") return deny(400, "Paste the full artifact code.");
+    const code = decodeArtifactShare(codeInput) ?? deny(400, "That artifact code is not valid. Paste the whole line that starts with adartifact:.");
+    return this.artifact(code.id, uid, code.key);
+  }
+
+  async sendImprovement(uid: string, id: string, body: Record<string, unknown>, key: string | null = null): Promise<ImprovementSummary> {
     const row = this.artifactRow(id);
+    this.access(row, uid, key);
     if (row.ownerId === uid) deny(409, "This is your own artifact. Publish a new version instead.");
     const baseVersion = typeof body["baseVersion"] === "number" && Number.isSafeInteger(body["baseVersion"]) && body["baseVersion"] >= 1 && body["baseVersion"] <= row.version ? body["baseVersion"] : deny(400, "The version this improvement started from is unknown.");
     const { changes, problems } = checkChanges(body["changes"]);
@@ -441,10 +498,14 @@ export class CommunityHub extends DurableObject<Env> {
     return this.improvementSummary(this.sql.exec<ImprovementRow>("SELECT * FROM improvements WHERE id=?", improvementId).one());
   }
 
-  async improvement(uid: string, id: string): Promise<ImprovementDetail> {
+  async improvement(uid: string, id: string, key: string | null = null): Promise<ImprovementDetail> {
     const row = this.sql.exec<ImprovementRow>("SELECT * FROM improvements WHERE id=?", id).toArray()[0] ?? deny(404, "That improvement does not exist.");
     const artifact = this.artifactRow(row.artifactId, true);
-    if (artifact.ownerId !== uid && row.authorId !== uid && row.status !== "accepted") deny(403, "Only the artifact's owner and the improvement's author can read it before it is accepted.");
+    if (artifact.ownerId !== uid && row.authorId !== uid) {
+      if (artifact.hidden !== 0) deny(404, "That artifact is not shared any more.");
+      this.access(artifact, uid, key);
+      if (row.status !== "accepted") deny(403, "Only the artifact's owner and the improvement's author can read it before it is accepted.");
+    }
     const vault = this.env.ARTIFACT_VAULTS.getByName(row.artifactId);
     const changes = await vault.getChanges(id) ?? [];
     const latest = row.status === "open" ? await vault.getVersion(artifact.version) : null;
@@ -488,6 +549,7 @@ export class CommunityHub extends DurableObject<Env> {
   star(uid: string, kind: "plugin" | "artifact", id: string, on: boolean): { stars: number; starred: boolean } {
     const table = kind === "plugin" ? "plugins" : "artifacts";
     const row = kind === "plugin" ? this.pluginRow(id) : this.artifactRow(id);
+    if (kind === "artifact" && (row as ArtifactRow).visibility !== "public" && (row as ArtifactRow).ownerId !== uid) deny(404, "That artifact is not listed.");
     const has = this.sql.exec("SELECT 1 FROM stars WHERE kind=? AND targetId=? AND uid=?", kind, id, uid).toArray().length > 0;
     if (on && !has) {
       this.spend(uid, "star");
@@ -506,7 +568,10 @@ export class CommunityHub extends DurableObject<Env> {
 
   report(uid: string, kind: "plugin" | "artifact", id: string, reasonInput: unknown): void {
     const reason = text(reasonInput, "The reason", 5, 500);
-    if (kind === "plugin") this.pluginRow(id); else this.artifactRow(id);
+    if (kind === "plugin") this.pluginRow(id); else {
+      const artifact = this.artifactRow(id);
+      if (artifact.visibility !== "public") deny(404, "That artifact is not listed.");
+    }
     this.spend(uid, "report");
     this.sql.exec("INSERT OR REPLACE INTO reports VALUES(?,?,?,?,?)", kind, id, uid, reason, Date.now());
     // Five separate accounts reporting the same listing take it down until somebody looks.
@@ -571,6 +636,8 @@ const clampInt = (value: string | null, fallback: number, min: number, max: numb
   return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
 };
 
+const watching = (value: unknown): boolean => value === true;
+
 /**
  * `/community/...`. `who` is the verified account, or null for an anonymous reader; the
  * caller has already checked the token, and only `who.uid` ever selects an account.
@@ -583,6 +650,7 @@ export async function communityRoute(request: Request, env: Env, who: { uid: str
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/+$/, "");
   const uid = who?.uid ?? null;
+  const key = url.searchParams.get("key");
   const signedIn = (): string => {
     if (who === null) return deny(401, "Sign in to ADCode to do this.");
     if (!who.email) return deny(403, "Verify your email address to publish, install or send improvements.");
@@ -601,11 +669,17 @@ export async function communityRoute(request: Request, env: Env, who: { uid: str
       let match = /^\/community\/plugins\/([a-z0-9-]{3,48})$/.exec(path);
       if (match && PLUGIN_ROUTE_ID.test(match[1]!)) return respond(await hub.plugin(match[1]!, uid), 200, uid === null);
       match = /^\/community\/artifacts\/([a-z0-9]{12,40})$/.exec(path);
-      if (match) return respond(await hub.artifact(match[1]!, uid), 200, uid === null);
+      if (match) return respond(await hub.artifact(match[1]!, uid, key), 200, uid === null);
       match = /^\/community\/artifacts\/([a-z0-9]{12,40})\/files$/.exec(path);
-      if (match) { signedIn(); const version = url.searchParams.get("version"); return respond(await hub.files(match[1]!, version === null ? null : clampInt(version, 1, 1, 1_000_000))); }
+      if (match) { const account = signedIn(); const version = url.searchParams.get("version"); return respond(await hub.files(match[1]!, version === null ? null : clampInt(version, 1, 1, 1_000_000), account, key)); }
+      match = /^\/community\/artifacts\/([a-z0-9]{12,40})\/room$/.exec(path);
+      if (match) {
+        const account = signedIn();
+        await hub.accessFor(account, match[1]!, key);
+        return respond(await env.ARTIFACT_ROOMS.getByName(match[1]!).snapshot(account));
+      }
       match = /^\/community\/improvements\/([a-z0-9]{12,40})$/.exec(path);
-      if (match) return respond(await hub.improvement(signedIn(), match[1]!));
+      if (match) return respond(await hub.improvement(signedIn(), match[1]!, key));
       return respond({ error: "Not found." }, 404);
     }
     if (request.method !== "POST") return respond({ error: "Method not allowed." }, 405);
@@ -618,6 +692,7 @@ export async function communityRoute(request: Request, env: Env, who: { uid: str
       return respond(await hub.updates(Object.fromEntries(Object.entries(installed).filter(([id, version]) => PLUGIN_ROUTE_ID.test(id) && typeof version === "string" && /^\d{1,5}\.\d{1,5}\.\d{1,5}$/.test(version)))));
     }
     if (path === "/community/artifacts/publish") return respond(await hub.publishArtifact(account, body));
+    if (path === "/community/artifacts/open") return respond(await hub.shared(account, body["code"]));
     if (path === "/community/activity/read") { await hub.markRead(account); return respond({ ok: true }); }
     if (path === "/community/star" || path === "/community/report") {
       const kind = body["kind"] === "plugin" || body["kind"] === "artifact" ? body["kind"] : deny(400, "Choose a plugin or an artifact.");
@@ -637,12 +712,55 @@ export async function communityRoute(request: Request, env: Env, who: { uid: str
       await hub.removePlugin(account, match[1]!);
       return respond({ ok: true });
     }
-    match = /^\/community\/artifacts\/([a-z0-9]{12,40})\/(remix|delete|improvements)$/.exec(path);
+    match = /^\/community\/artifacts\/([a-z0-9]{12,40})\/(remix|delete|improvements|share|rotate|visibility)$/.exec(path);
     if (match) {
-      if (match[2] === "remix") return respond(await hub.remix(account, match[1]!));
-      if (match[2] === "improvements") return respond(await hub.sendImprovement(account, match[1]!, body));
-      await hub.removeArtifact(account, match[1]!);
+      const id = match[1]!;
+      const bodyKey = typeof body["key"] === "string" ? body["key"] : null;
+      if (match[2] === "remix") return respond(await hub.remix(account, id, bodyKey));
+      if (match[2] === "improvements") return respond(await hub.sendImprovement(account, id, body, bodyKey));
+      if (match[2] === "share") return respond(await hub.share(account, id));
+      if (match[2] === "rotate") return respond(await hub.rotateShare(account, id));
+      if (match[2] === "visibility") return respond(await hub.setVisibility(account, id, body["visibility"]));
+      await hub.removeArtifact(account, id);
       return respond({ ok: true });
+    }
+    match = /^\/community\/artifacts\/([a-z0-9]{12,40})\/room\/(open|join|leave|close|action)$/.exec(path);
+    if (match) {
+      const id = match[1]!;
+      const room = env.ARTIFACT_ROOMS.getByName(id);
+      const access = await hub.accessFor(account, id, key);
+      const step = match[2]!;
+      if (step === "open") {
+        if (access !== "owner") deny(403, "Only the owner can open this live room.");
+        const detail = await hub.artifact(id, account);
+        const display = typeof body["name"] === "string" ? body["name"] : deny(400, "Choose a display name.");
+        const invite = typeof body["liveInvite"] === "string" ? body["liveInvite"] : null;
+        return respond(await room.open(account, display, id, detail.title, invite));
+      }
+      if (step === "join") {
+        const display = typeof body["name"] === "string" ? body["name"] : deny(400, "Choose a display name.");
+        return respond(await room.join(account, display, access === "owner" ? "owner" : "editor", watching(body["watching"])));
+      }
+      if (step === "leave") return respond(await room.leave(account));
+      if (step === "close") {
+        if (access !== "owner") deny(403, "Only the owner can close this live room.");
+        return respond(await room.close(account));
+      }
+      const action = typeof body["action"] === "string" ? body["action"] : deny(400, "Choose an action.");
+      if (action === "heartbeat") return respond(await room.heartbeat(account, body));
+      if (action === "post") return respond(await room.post(account, body["text"] as string, body["kind"]));
+      if (action === "plan") return respond(await room.planAction(account, body));
+      if (action === "note") return respond(await room.noteAction(account, body));
+      if (action === "comment") return respond(await room.commentAction(account, body));
+      if (action === "lock") return respond(await room.lockAction(account, body));
+      if (action === "handoff") return respond(await room.handoff(account));
+      if (action === "takeover") return respond(await room.takeover(account, body["targetUid"]));
+      if (action === "setRole") return respond(await room.setRole(account, body["targetUid"] as string, body["role"]));
+      if (action === "setLive") {
+        const invite = body["invite"] === null ? null : typeof body["invite"] === "string" ? body["invite"] : deny(400, "That live invite is not valid.");
+        return respond(await room.setLive(account, invite));
+      }
+      deny(400, "Choose an action.");
     }
     match = /^\/community\/improvements\/([a-z0-9]{12,40})\/decide$/.exec(path);
     if (match) return respond(await hub.decide(account, match[1]!, body["accept"] === true, body["reply"], body["force"] === true));

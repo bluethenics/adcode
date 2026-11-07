@@ -8,7 +8,8 @@ vi.mock("cloudflare:workers", () => ({
 }));
 
 import { ArtifactVault, CommunityHub, communityRoute } from "../src/community.ts";
-import { blankManifest, diffSnapshots, type ArtifactFile } from "../../../packages/community/src/index.ts";
+import { ArtifactRoom } from "../src/artifactRoom.ts";
+import { blankManifest, decodeArtifactShare, diffSnapshots, type ArtifactFile } from "../../../packages/community/src/index.ts";
 
 /** A Durable Object's SQL storage, backed by a real in-memory SQLite database. */
 function state() {
@@ -32,6 +33,8 @@ function world() {
   const vaults = new Map<string, ArtifactVault>();
   const env = {} as Record<string, unknown>;
   env["ARTIFACT_VAULTS"] = { getByName: (id: string) => { if (!vaults.has(id)) vaults.set(id, new ArtifactVault(state() as never, env as never)); return vaults.get(id)!; } };
+  const rooms = new Map<string, ArtifactRoom>();
+  env["ARTIFACT_ROOMS"] = { getByName: (id: string) => { if (!rooms.has(id)) rooms.set(id, new ArtifactRoom(state() as never, env as never)); return rooms.get(id)!; } };
   const hub = new CommunityHub(state() as never, env as never);
   env["COMMUNITY"] = { getByName: () => hub };
   return { hub, env };
@@ -140,6 +143,35 @@ describe("artifacts and improvements", () => {
     await expect(ctx.hub.publishArtifact("eve", { id: artifact.id, title: "Mine now", description: "Taking this over.", files, ownerName: "Eve" })).rejects.toThrow(/\[403\]/);
     await expect(ctx.hub.sendImprovement("ana", artifact.id, { baseVersion: 1, title: "Self", changes: [], authorName: "Ana" })).rejects.toThrow(/\[409\]/);
   });
+
+  it("keeps a private artifact out of Discover until its share code is presented", async () => {
+    const artifact = await ctx.hub.publishArtifact("ana", { title: "Secret app", description: "Only for the people I invite.", files, ownerName: "Ana", visibility: "private" });
+    expect(artifact).toMatchObject({ visibility: "private", shareCode: expect.stringMatching(/^adartifact:/) });
+    expect(ctx.hub.listArtifacts("new", null, false, 10, 0)).toEqual([]);
+    expect(ctx.hub.home(null).totals.artifacts).toBe(0);
+    expect(() => ctx.hub.artifact(artifact.id, null)).toThrow(/\[404\]/);
+    expect(() => ctx.hub.artifact(artifact.id, "ben", "f".repeat(32))).toThrow(/\[404\]/);
+
+    const share = ctx.hub.share("ana", artifact.id);
+    expect(share.visibility).toBe("private");
+    const code = decodeArtifactShare(share.shareCode)!;
+    expect(ctx.hub.shared("ben", share.shareCode)).toMatchObject({ id: artifact.id, visibility: "private" });
+    expect((await ctx.hub.files(artifact.id, null, "ben", code.key)).files).toHaveLength(3);
+    const remix = await ctx.hub.remix("ben", artifact.id, code.key);
+    expect(remix.files).toHaveLength(3);
+    const sent = await ctx.hub.sendImprovement("ben", artifact.id, { baseVersion: 1, title: "Private fix", changes: diffSnapshots(remix.files, remix.files.map((file) => file.path === "app.js" ? { ...file, content: `${file.content}\n// fixed` } : file)), authorName: "Ben" }, code.key);
+    expect(sent.artifactTitle).toBe("Secret app");
+    expect(ctx.hub.me("ana").artifacts[0]!.shareCode).toBe(share.shareCode);
+
+    const rotated = ctx.hub.rotateShare("ana", artifact.id);
+    expect(rotated.shareCode).not.toBe(share.shareCode);
+    expect(() => ctx.hub.artifact(artifact.id, "ben", code.key)).toThrow(/\[404\]/);
+    expect(ctx.hub.artifact(artifact.id, "ben", decodeArtifactShare(rotated.shareCode)!.key).visibility).toBe("private");
+
+    ctx.hub.setVisibility("ana", artifact.id, "public");
+    expect(ctx.hub.listArtifacts("new", null, false, 10, 0).map((one) => one.id)).toEqual([artifact.id]);
+    expect(ctx.hub.artifact(artifact.id, null).visibility).toBe("public");
+  });
 });
 
 describe("monetization waitlist", () => {
@@ -164,6 +196,27 @@ describe("HTTP", () => {
     const missing = await call("/community/plugins/not-here", null);
     expect(missing.status).toBe(404);
     expect(await missing.json()).toEqual({ error: "That plugin is not in the directory." });
+  });
+
+  it("serves a private artifact only through its share code and opens its live room", async () => {
+    const ana = { uid: "ana", email: "a@example.com" };
+    const ben = { uid: "ben", email: "b@example.com" };
+    const published = await call("/community/artifacts/publish", ana, { title: "Secret app", description: "Only for the people I invite.", files, ownerName: "Ana", visibility: "private" });
+    const artifact = await published.json() as { id: string; shareCode: string; visibility: string };
+    expect(artifact).toMatchObject({ visibility: "private", shareCode: expect.stringMatching(/^adartifact:/) });
+    expect((await call(`/community/artifacts/${artifact.id}`, null)).status).toBe(404);
+    const code = decodeArtifactShare(artifact.shareCode)!;
+    expect((await call(`/community/artifacts/${artifact.id}?key=${code.key}`, ben)).status).toBe(200);
+    expect((await call(`/community/artifacts/${artifact.id}/room`, ben)).status).toBe(404);
+
+    const opened = await call(`/community/artifacts/${artifact.id}/room/open`, ana, { name: "Ana" });
+    expect(opened.status).toBe(200);
+    expect(await opened.json()).toMatchObject({ artifactId: artifact.id, open: true, self: { role: "owner" } });
+    const joined = await call(`/community/artifacts/${artifact.id}/room/join?key=${code.key}`, ben, { name: "Ben" });
+    expect(await joined.json()).toMatchObject({ open: true, self: { uid: "ben", role: "editor" } });
+    const after = await call(`/community/artifacts/${artifact.id}/room/action?key=${code.key}`, ben, { action: "post", text: "Ready when you are." });
+    expect((await after.json() as { messages: unknown[] }).messages).toHaveLength(1);
+    expect((await call(`/community/artifacts/${artifact.id}/room/join`, { uid: "eve", email: "e@example.com" }, { name: "Eve" })).status).toBe(404);
   });
 });
 

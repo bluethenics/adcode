@@ -2,7 +2,8 @@ import { DurableObject } from "cloudflare:workers";
 import { verifyIdToken } from "../../cloud/src/auth.ts";
 import { boundedJson, projectRoute, ProjectDirectory, SharedProject } from "./projects.ts";
 import { communityRoute, CommunityHub, ArtifactVault } from "./community.ts";
-export { ProjectDirectory, SharedProject, CommunityHub, ArtifactVault };
+import { ArtifactRoom } from "./artifactRoom.ts";
+export { ProjectDirectory, SharedProject, CommunityHub, ArtifactVault, ArtifactRoom };
 export { PriorityQueue, RequestPriority } from "./priority.ts";
 
 type Env = CollabRelayEnv;

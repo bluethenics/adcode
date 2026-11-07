@@ -8,12 +8,13 @@ interface __BaseEnv_CollabRelayEnv {
 	REQUEST_QUEUES: DurableObjectNamespace<import("./src/index").PriorityQueue>;
 	COMMUNITY: DurableObjectNamespace<import("./src/index").CommunityHub>;
 	ARTIFACT_VAULTS: DurableObjectNamespace<import("./src/index").ArtifactVault>;
+	ARTIFACT_ROOMS: DurableObjectNamespace<import("./src/index").ArtifactRoom>;
 	ENTITLEMENTS: Service /* entrypoint ProjectEntitlements from adcode */;
 }
 declare namespace Cloudflare {
 	interface GlobalProps {
 		mainModule: typeof import("./src/index");
-		durableNamespaces: "CollabRoom" | "ProjectDirectory" | "SharedProject" | "PriorityQueue" | "CommunityHub" | "ArtifactVault";
+		durableNamespaces: "CollabRoom" | "ProjectDirectory" | "SharedProject" | "PriorityQueue" | "CommunityHub" | "ArtifactVault" | "ArtifactRoom";
 	}
 	interface Env extends __BaseEnv_CollabRelayEnv {}
 }
