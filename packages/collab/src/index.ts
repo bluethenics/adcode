@@ -65,3 +65,4 @@ export {
   type Selection,
 } from "./types.ts";
 export * from "./projects.ts";
+export * from "./artifactRoom.ts";

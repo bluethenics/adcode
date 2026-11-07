@@ -3,6 +3,7 @@
  * stores them, the desktop app that shows them and the website that lists them.
  */
 import type { ArtifactChange, ArtifactFile } from "./artifact.ts";
+import type { ArtifactVisibility } from "./sharing.ts";
 import type { PluginCategory, PluginManifest } from "./plugin.ts";
 
 export type ListingSort = "trending" | "new" | "top";
@@ -49,6 +50,10 @@ export interface ArtifactListing {
   readonly title: string;
   readonly description: string;
   readonly tags: readonly string[];
+  /** Public artifacts are listed; private ones are opened with their share code. */
+  readonly visibility: ArtifactVisibility;
+  /** Only the owner sees this: the `adartifact:` code that opens a private artifact. */
+  readonly shareCode: string | null;
   /** What the owner would like help with - the board people browse to find something to do. */
   readonly helpWanted: string;
   readonly ownerId: string;
@@ -195,6 +200,7 @@ export interface PublishArtifactRequest {
   readonly message: string;
   readonly files: readonly ArtifactFile[];
   readonly ownerName: string;
+  readonly visibility?: ArtifactVisibility;
   readonly remixOf?: string | null;
 }
 

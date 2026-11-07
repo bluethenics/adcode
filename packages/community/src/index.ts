@@ -7,6 +7,7 @@
  */
 export * from "./plugin.ts";
 export * from "./artifact.ts";
+export * from "./sharing.ts";
 export * from "./ranking.ts";
 export * from "./addons.ts";
 export * from "./starters.ts";
