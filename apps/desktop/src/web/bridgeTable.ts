@@ -161,6 +161,7 @@ export const BRIDGE = [
   { path: "ai.quickConnect", kind: "invoke", channel: CHANNELS.aiQuickConnect },
   { path: "ai.detectOllama", kind: "invoke", channel: CHANNELS.aiDetectOllama },
   { path: "ai.startOllama", kind: "invoke", channel: CHANNELS.aiStartOllama },
+  { path: "ai.refreshCliAgents", kind: "invoke", channel: CHANNELS.aiRefreshCliAgents },
   { path: "ai.openKeyPage", kind: "invoke", channel: CHANNELS.aiOpenKeyPage },
   { path: "ai.send", kind: "invoke", channel: CHANNELS.aiSend },
   { path: "ai.complete", kind: "invoke", channel: CHANNELS.aiCompletion },
@@ -316,6 +317,7 @@ export const BRIDGE = [
 
   // notices
   { path: "notices.onShow", kind: "subscribe", channel: CHANNELS.serviceNotice },
+  { path: "notices.open", kind: "invoke", channel: CHANNELS.noticeOpen },
 
   // releases
   { path: "releases.onAnnouncement", kind: "subscribe", channel: CHANNELS.releaseAnnouncement },
@@ -420,6 +422,17 @@ export const BRIDGE = [
   { path: "community.plugin", kind: "invoke", channel: CHANNELS.communityPlugin },
   { path: "community.artifacts", kind: "invoke", channel: CHANNELS.communityArtifacts },
   { path: "community.artifact", kind: "invoke", channel: CHANNELS.communityArtifact },
+  { path: "community.openSharedArtifact", kind: "invoke", channel: CHANNELS.communityOpenSharedArtifact },
+  { path: "community.shareArtifact", kind: "invoke", channel: CHANNELS.communityShareArtifact },
+  { path: "community.setArtifactVisibility", kind: "invoke", channel: CHANNELS.communitySetArtifactVisibility },
+  { path: "community.rotateArtifactShare", kind: "invoke", channel: CHANNELS.communityRotateArtifactShare },
+  { path: "community.artifactRoom", kind: "invoke", channel: CHANNELS.communityArtifactRoom },
+  { path: "community.openArtifactRoom", kind: "invoke", channel: CHANNELS.communityOpenArtifactRoom },
+  { path: "community.joinArtifactRoom", kind: "invoke", channel: CHANNELS.communityJoinArtifactRoom },
+  { path: "community.artifactRoomAction", kind: "invoke", channel: CHANNELS.communityArtifactRoomAction },
+  { path: "community.leaveArtifactRoom", kind: "invoke", channel: CHANNELS.communityLeaveArtifactRoom },
+  { path: "community.closeArtifactRoom", kind: "invoke", channel: CHANNELS.communityCloseArtifactRoom },
+  { path: "community.setArtifactRoomLive", kind: "invoke", channel: CHANNELS.communitySetArtifactRoomLive },
   { path: "community.me", kind: "invoke", channel: CHANNELS.communityMe },
   { path: "community.markRead", kind: "invoke", channel: CHANNELS.communityMarkRead },
   { path: "community.installed", kind: "invoke", channel: CHANNELS.communityInstalled },

@@ -18,9 +18,10 @@ import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/p
 import { app, BrowserWindow, ipcMain } from "electron";
 import {
   ARTIFACT_LIMITS, PLUGIN_FILE, REMIX_BASE, REMIX_RECORD, STARTER_PLUGINS, applyChanges, artifactFileVerdict, artifactFolderAllowed,
-  changeStats, checkSnapshot, compareVersions, diffSnapshots, findSecrets, gitignoreMatcher, isSafeArtifactPath, notAProjectReason,
-  fillOptions, optionDisplay, optionValues, parsePluginManifest, parseRemixRecord, remixFolderName, skillMarkdown, type ArtifactFile, type ArtifactSnapshot, type PluginAddon,
-  type PluginManifest, type RemixRecord,
+  changeStats, checkSnapshot, compareVersions, decodeArtifactShare, diffSnapshots, findSecrets, gitignoreMatcher,
+  isArtifactShareKey, isSafeArtifactPath, notAProjectReason, fillOptions, optionDisplay, optionValues,
+  parseArtifactVisibility, parsePluginManifest, parseRemixRecord, remixFolderName, skillMarkdown,
+  type ArtifactFile, type ArtifactSnapshot, type ArtifactVisibility, type PluginAddon, type PluginManifest, type RemixRecord,
 } from "@adcode/community";
 import { CHANNELS } from "../shared/api.ts";
 import type { ArtifactPreview, InstalledPluginView, ProjectLinkView, PublishArtifactInput } from "../shared/community.ts";
@@ -190,6 +191,14 @@ const artifactId = (value: unknown): string => {
   return value;
 };
 const improvementId = artifactId;
+const shareKey = (value: unknown): string | null => {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value !== "string") throw new Error("That artifact code is not valid.");
+  const code = decodeArtifactShare(value);
+  if (code !== null) return code.key;
+  if (isArtifactShareKey(value)) return value;
+  throw new Error("That artifact code is not valid.");
+};
 const short = (value: unknown, label: string, max: number, min = 0): string => {
   if (typeof value !== "string" || value.trim().length < min || value.length > max) throw new Error(`${label} must be ${min ? `${min}–` : "up to "}${max} characters.`);
   return value.trim();
@@ -334,15 +343,16 @@ async function publishArtifact(input: PublishArtifactInput) {
     files: check.files,
     ownerName: await displayName(),
     remixOf: linked?.link.role === "remix" ? linked.link.artifactId : null,
+    visibility: input.visibility,
   });
   await writeLink(root, { artifactId: detail.id, title: detail.title, version: detail.version, remixedAt: Date.now(), role: "owner" }, check.files);
   return detail;
 }
 
-async function remix(id: string): Promise<string> {
+async function remix(id: string, artifactShareKey: string | null = null): Promise<string> {
   const key = `remix:${id}`;
   progress(key, "download");
-  const snapshot = await request<ArtifactSnapshot>(`/community/artifacts/${id}/remix`, {}).catch((error: unknown) => { progress(key, "failed"); throw error; });
+  const snapshot = await request<ArtifactSnapshot>(`/community/artifacts/${id}/remix`, artifactShareKey === null ? {} : { key: artifactShareKey }).catch((error: unknown) => { progress(key, "failed"); throw error; });
   const check = checkSnapshot(snapshot.files);
   if (check.files.length === 0) throw new Error("That artifact has no files to remix.");
   const home = projectsHome();
@@ -354,7 +364,7 @@ async function remix(id: string): Promise<string> {
   const root = join(home, folder);
   await mkdir(root, { recursive: false });
   await writeFiles(root, check.files, (done) => progress(key, "write", done, check.files.length));
-  await writeLink(root, { artifactId: snapshot.id, title: snapshot.title, version: snapshot.version, remixedAt: Date.now(), role: "remix" }, check.files);
+  await writeLink(root, { artifactId: snapshot.id, title: snapshot.title, version: snapshot.version, remixedAt: Date.now(), role: "remix", shareCode: artifactShareKey === null ? null : `adartifact:${snapshot.id}:${artifactShareKey}` }, check.files);
   progress(key, "done", check.files.length, check.files.length);
   return root;
 }
@@ -366,7 +376,8 @@ async function projectLink(): Promise<ProjectLinkView> {
   if (linked === null) return { root, link: null, changes: [], latestVersion: null };
   const { files } = await collectFiles(root);
   const changes = diffSnapshots(linked.base, files).map((change) => ({ path: change.path, kind: change.kind, ...changeStats(change) }));
-  const latestVersion = await request<{ version: number }>(`/community/artifacts/${linked.link.artifactId}`).then((detail) => detail.version, () => null);
+  const key = linked.link.shareCode === null || linked.link.shareCode === undefined ? "" : `?key=${encodeURIComponent(shareKey(linked.link.shareCode) ?? "")}`;
+  const latestVersion = await request<{ version: number }>(`/community/artifacts/${linked.link.artifactId}${key}`).then((detail) => detail.version, () => null);
   return { root, link: linked.link, changes, latestVersion };
 }
 
@@ -377,8 +388,9 @@ async function sendImprovement(title: string, message: string) {
   const { files } = await collectFiles(root);
   const changes = diffSnapshots(linked.base, checkSnapshot(files).files);
   if (changes.length === 0) throw new Error("Nothing has changed since you remixed it yet.");
+  const access = shareKey(linked.link.shareCode);
   return request<import("@adcode/community").ImprovementSummary>(`/community/artifacts/${linked.link.artifactId}/improvements`, {
-    baseVersion: linked.link.version, title, message, changes, authorName: await displayName(),
+    baseVersion: linked.link.version, title, message, changes, authorName: await displayName(), ...(access === null ? {} : { key: access }),
   });
 }
 
@@ -393,7 +405,8 @@ async function pullLatest() {
   if (linked === null) throw new Error("This project is not linked to a community artifact.");
   const key = `pull:${linked.link.artifactId}`;
   progress(key, "download");
-  const latest = await request<ArtifactSnapshot>(`/community/artifacts/${linked.link.artifactId}/files`, undefined, "required").catch((error: unknown) => { progress(key, "failed"); throw error; });
+  const access = shareKey(linked.link.shareCode);
+  const latest = await request<ArtifactSnapshot>(`/community/artifacts/${linked.link.artifactId}/files${access === null ? "" : `?key=${encodeURIComponent(access)}`}`, undefined, "required").catch((error: unknown) => { progress(key, "failed"); throw error; });
   if (latest.version <= linked.link.version) return { version: latest.version, applied: 0, conflicts: [] };
   const upstream = diffSnapshots(linked.base, latest.files);
   const { files } = await collectFiles(root);
@@ -430,7 +443,18 @@ export function registerCommunityIpc(): void {
   ipcMain.handle(CHANNELS.communityPlugin, (_event, id: unknown) => request(`/community/plugins/${pluginId(id)}`));
   ipcMain.handle(CHANNELS.communityArtifacts, (_event, sorting: unknown, search: unknown, help: unknown) =>
     request(`/community/artifacts${query({ sort: sort(sorting), q: typeof search === "string" ? search.slice(0, 60) : null, help: help === true ? "1" : null })}`));
-  ipcMain.handle(CHANNELS.communityArtifact, (_event, id: unknown) => request(`/community/artifacts/${artifactId(id)}`));
+  ipcMain.handle(CHANNELS.communityArtifact, (_event, id: unknown, key: unknown) => {
+    const access = shareKey(key);
+    return request(`/community/artifacts/${artifactId(id)}${access === null ? "" : `?key=${encodeURIComponent(access)}`}`);
+  });
+  ipcMain.handle(CHANNELS.communityOpenSharedArtifact, (_event, code: unknown) => request("/community/artifacts/open", { code: short(code, "The artifact code", 200, 10) }));
+  ipcMain.handle(CHANNELS.communityShareArtifact, (_event, id: unknown) => request(`/community/artifacts/${artifactId(id)}/share`, {}));
+  ipcMain.handle(CHANNELS.communitySetArtifactVisibility, (_event, id: unknown, visibility: unknown) => {
+    const value = parseArtifactVisibility(visibility);
+    if (value === null) throw new Error("Choose public or private visibility.");
+    return request(`/community/artifacts/${artifactId(id)}/visibility`, { visibility: value });
+  });
+  ipcMain.handle(CHANNELS.communityRotateArtifactShare, (_event, id: unknown) => request(`/community/artifacts/${artifactId(id)}/rotate`, {}));
   // Polled for the tab badges whether or not anybody is signed in. A rejected handler is logged
   // by Electron as an error on every poll, so the failure travels back as a value and
   // communityMe() throws it in the renderer, where "sign in" still selects the signed-out view.
@@ -544,10 +568,31 @@ export function registerCommunityIpc(): void {
     const value = input as Partial<PublishArtifactInput> | null;
     if (value === null || typeof value !== "object") throw new Error("Describe the artifact first.");
     const tags = Array.isArray(value.tags) ? value.tags.filter((tag): tag is string => typeof tag === "string").slice(0, 6) : [];
-    return publishArtifact({ title: String(value.title ?? ""), description: String(value.description ?? ""), tags, helpWanted: String(value.helpWanted ?? ""), message: String(value.message ?? ""), exclude: paths(value.exclude) });
+    return publishArtifact({ title: String(value.title ?? ""), description: String(value.description ?? ""), tags, helpWanted: String(value.helpWanted ?? ""), message: String(value.message ?? ""), exclude: paths(value.exclude), visibility: parseArtifactVisibility(value.visibility) ?? "public" });
   });
   ipcMain.handle(CHANNELS.communityRemoveArtifact, async (_event, id: unknown) => { await request(`/community/artifacts/${artifactId(id)}/delete`, {}); });
-  ipcMain.handle(CHANNELS.communityRemix, (_event, id: unknown) => remix(artifactId(id)));
+  ipcMain.handle(CHANNELS.communityRemix, (_event, id: unknown, key: unknown) => remix(artifactId(id), shareKey(key)));
+  ipcMain.handle(CHANNELS.communityArtifactRoom, (_event, id: unknown, key: unknown) => {
+    const access = shareKey(key);
+    return request(`/community/artifacts/${artifactId(id)}/room${access === null ? "" : `?key=${encodeURIComponent(access)}`}`);
+  });
+  ipcMain.handle(CHANNELS.communityOpenArtifactRoom, (_event, id: unknown, name: unknown, liveInvite: unknown) =>
+    request(`/community/artifacts/${artifactId(id)}/room/open`, { name: short(name, "Your name", 40, 1), liveInvite: typeof liveInvite === "string" ? liveInvite.slice(0, 2000) : null }));
+  ipcMain.handle(CHANNELS.communityJoinArtifactRoom, (_event, id: unknown, key: unknown, name: unknown, watching: unknown) => {
+    const access = shareKey(key);
+    return request(`/community/artifacts/${artifactId(id)}/room/join${access === null ? "" : `?key=${encodeURIComponent(access)}`}`, { name: short(name, "Your name", 40, 1), watching: watching === true });
+  });
+  ipcMain.handle(CHANNELS.communityArtifactRoomAction, (_event, id: unknown, key: unknown, action: unknown) => {
+    if (typeof action !== "object" || action === null || Array.isArray(action)) throw new Error("Choose a room action.");
+    const value = action as Record<string, unknown>;
+    if (typeof value["action"] !== "string" || !/^[A-Za-z]{2,20}$/.test(value["action"])) throw new Error("Choose a room action.");
+    const access = shareKey(key);
+    return request(`/community/artifacts/${artifactId(id)}/room/action${access === null ? "" : `?key=${encodeURIComponent(access)}`}`, value);
+  });
+  ipcMain.handle(CHANNELS.communityLeaveArtifactRoom, (_event, id: unknown) => request(`/community/artifacts/${artifactId(id)}/room/leave`, {}));
+  ipcMain.handle(CHANNELS.communityCloseArtifactRoom, (_event, id: unknown) => request(`/community/artifacts/${artifactId(id)}/room/close`, {}));
+  ipcMain.handle(CHANNELS.communitySetArtifactRoomLive, (_event, id: unknown, invite: unknown) =>
+    request(`/community/artifacts/${artifactId(id)}/room/action`, { action: "setLive", invite: typeof invite === "string" ? invite.slice(0, 2000) : null }));
   ipcMain.handle(CHANNELS.communityProjectLink, () => projectLink());
   ipcMain.handle(CHANNELS.communitySendImprovement, (_event, title: unknown, message: unknown) =>
     sendImprovement(short(title, "The title", 100, 3), short(message ?? "", "The message", 4000)));

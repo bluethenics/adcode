@@ -216,6 +216,12 @@ describe("HTTP", () => {
     expect(await joined.json()).toMatchObject({ open: true, self: { uid: "ben", role: "editor" } });
     const after = await call(`/community/artifacts/${artifact.id}/room/action?key=${code.key}`, ben, { action: "post", text: "Ready when you are." });
     expect((await after.json() as { messages: unknown[] }).messages).toHaveLength(1);
+    const planned = await call(`/community/artifacts/${artifact.id}/room/action?key=${code.key}`, ben, { action: "plan", operation: "add", title: "Ship the live room" });
+    const step = (await planned.json() as { plan: { id: string; status: string }[] }).plan[0]!;
+    const moved = await call(`/community/artifacts/${artifact.id}/room/action?key=${code.key}`, ben, { action: "plan", operation: "move", id: step.id, status: "doing" });
+    expect((await moved.json() as { plan: { status: string }[] }).plan[0]!.status).toBe("doing");
+    const locked = await call(`/community/artifacts/${artifact.id}/room/action?key=${code.key}`, ben, { action: "lock", operation: "lock", path: "app.js" });
+    expect((await locked.json() as { locks: { path: string }[] }).locks).toMatchObject([{ path: "app.js" }]);
     expect((await call(`/community/artifacts/${artifact.id}/room/join`, { uid: "eve", email: "e@example.com" }, { name: "Eve" })).status).toBe(404);
   });
 });

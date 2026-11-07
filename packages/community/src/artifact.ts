@@ -391,6 +391,8 @@ export interface RemixRecord {
   readonly version: number;
   readonly remixedAt: number;
   readonly role: "owner" | "remix";
+  /** Kept with a private remix so improvements and pulls can present it later. */
+  readonly shareCode?: string | null;
 }
 
 export const REMIX_RECORD = ".adcode/remix.json";
@@ -401,7 +403,8 @@ export function parseRemixRecord(text: string): RemixRecord | null {
     const value = JSON.parse(text) as Partial<RemixRecord>;
     if (typeof value.artifactId !== "string" || !/^[a-z0-9]{12,40}$/.test(value.artifactId)) return null;
     if (typeof value.version !== "number" || !Number.isSafeInteger(value.version) || value.version < 1) return null;
-    return { artifactId: value.artifactId, title: typeof value.title === "string" ? value.title.slice(0, 80) : "Remix", version: value.version, remixedAt: typeof value.remixedAt === "number" ? value.remixedAt : 0, role: value.role === "owner" ? "owner" : "remix" };
+    const shareCode = typeof value.shareCode === "string" && /^adartifact:[a-z0-9]{12,40}:[a-f0-9]{32,64}$/.test(value.shareCode) ? value.shareCode : null;
+    return { artifactId: value.artifactId, title: typeof value.title === "string" ? value.title.slice(0, 80) : "Remix", version: value.version, remixedAt: typeof value.remixedAt === "number" ? value.remixedAt : 0, role: value.role === "owner" ? "owner" : "remix", ...(shareCode === null ? {} : { shareCode }) };
   } catch {
     return null;
   }

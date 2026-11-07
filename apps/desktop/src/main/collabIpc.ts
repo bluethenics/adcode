@@ -167,9 +167,10 @@ export function registerCollabIpc(deps: { readonly workspaceRoot: () => string |
     }
 
     const displayName = requireString(options["displayName"], "displayName");
-    const project = bind === "internet" ? await githubProject() : null;
-    if (bind === "internet" && project === null) throw new Error("Connect this project's Git repository to GitHub before sharing it online.");
-    if (bind === "internet") {
+    const artifactLive = options["artifactLive"] === true;
+    const project = bind === "internet" && !artifactLive ? await githubProject() : null;
+    if (bind === "internet" && !artifactLive && project === null) throw new Error("Connect this project's Git repository to GitHub before sharing it online.");
+    if (bind === "internet" && !artifactLive) {
       const id = options["sharedProjectId"];
       if (id !== undefined && (typeof id !== "string" || !/^[a-f0-9]{64}$/.test(id))) throw new Error("Choose a shared project.");
       activeProject = typeof id === "string" ? await projectRequest<SharedProjectSnapshot>(`/projects/${id}`) : await createSharedProject(undefined,displayName);

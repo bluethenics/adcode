@@ -3,14 +3,26 @@
  * artifacts and improvements. Types only - importable from the sandboxed preload.
  */
 import type {
-  ArtifactDetail, ArtifactListing, ChangeKind, CommunityHome, CommunityMe, ImprovementDetail, ImprovementSummary,
-  ListingSort, MonetizationStatus, PluginDetail, PluginListing, PluginManifest, RemixRecord,
+  ArtifactDetail, ArtifactListing, ArtifactVisibility, ChangeKind, CommunityHome, CommunityMe, ImprovementDetail,
+  ImprovementSummary, ListingSort, MonetizationStatus, PluginDetail, PluginListing, PluginManifest, RemixRecord,
 } from "@adcode/community";
+import type { ArtifactRoomSnapshot } from "@adcode/collab";
 
 export type {
-  ArtifactDetail, ArtifactListing, CommunityHome, CommunityMe, ImprovementDetail, ImprovementSummary, ListingSort,
-  MonetizationStatus, PluginDetail, PluginListing, PluginManifest, RemixRecord,
+  ArtifactDetail, ArtifactListing, ArtifactRoomSnapshot, ArtifactVisibility, CommunityHome, CommunityMe,
+  ImprovementDetail, ImprovementSummary, ListingSort, MonetizationStatus, PluginDetail, PluginListing, PluginManifest,
+  RemixRecord,
 };
+
+export interface ArtifactShareView {
+  readonly visibility: ArtifactVisibility;
+  readonly shareCode: string;
+}
+
+export interface ArtifactRoomActionView {
+  readonly action: string;
+  readonly [key: string]: unknown;
+}
 
 export interface InstalledPluginView {
   readonly manifest: PluginManifest;
@@ -81,6 +93,7 @@ export interface PublishArtifactInput {
   readonly message: string;
   /** Files to leave out of this share, such as the ones flagged as holding a key. */
   readonly exclude: readonly string[];
+  readonly visibility: ArtifactVisibility;
 }
 
 export interface CommunityApi {
@@ -88,7 +101,12 @@ export interface CommunityApi {
   plugins(sort: ListingSort, query: string, category: string | null): Promise<readonly PluginListing[]>;
   plugin(id: string): Promise<PluginDetail>;
   artifacts(sort: ListingSort, query: string, helpOnly: boolean): Promise<readonly ArtifactListing[]>;
-  artifact(id: string): Promise<ArtifactDetail>;
+  artifact(id: string, key?: string | null): Promise<ArtifactDetail>;
+  /** Open an `adartifact:` code, including a private artifact it belongs to. */
+  openSharedArtifact(code: string): Promise<ArtifactDetail>;
+  shareArtifact(id: string): Promise<ArtifactShareView>;
+  setArtifactVisibility(id: string, visibility: ArtifactVisibility): Promise<ArtifactDetail>;
+  rotateArtifactShare(id: string): Promise<{ readonly shareCode: string }>;
   me(): Promise<CommunityMe>;
   markRead(): Promise<void>;
 
@@ -119,13 +137,22 @@ export interface CommunityApi {
   publishArtifact(input: PublishArtifactInput): Promise<ArtifactDetail>;
   removeArtifact(id: string): Promise<void>;
   /** Download the latest version into a new folder; resolves to that folder. */
-  remix(id: string): Promise<string>;
+  remix(id: string, key?: string | null): Promise<string>;
   projectLink(): Promise<ProjectLinkView>;
   sendImprovement(title: string, message: string): Promise<ImprovementSummary>;
   improvement(id: string): Promise<ImprovementDetail>;
   decide(id: string, accept: boolean, reply: string, force: boolean): Promise<ImprovementDetail>;
   /** Bring the open, linked project up to the artifact's latest version. */
   pullLatest(): Promise<PullResult>;
+
+  /** The live coordination room around an artifact: people, agents, plan, Brain, comments. */
+  artifactRoom(id: string, key?: string | null): Promise<ArtifactRoomSnapshot>;
+  openArtifactRoom(id: string, name: string, liveInvite: string | null): Promise<ArtifactRoomSnapshot>;
+  joinArtifactRoom(id: string, key: string | null, name: string, watching: boolean): Promise<ArtifactRoomSnapshot>;
+  artifactRoomAction(id: string, key: string | null, action: ArtifactRoomActionView): Promise<ArtifactRoomSnapshot>;
+  leaveArtifactRoom(id: string): Promise<ArtifactRoomSnapshot>;
+  closeArtifactRoom(id: string): Promise<ArtifactRoomSnapshot>;
+  setArtifactRoomLive(id: string, invite: string | null): Promise<ArtifactRoomSnapshot>;
 
   waitlist(join: boolean, price: number | null, note: string): Promise<MonetizationStatus>;
   onPluginsChanged(listener: (installed: readonly InstalledPluginView[]) => void): () => void;

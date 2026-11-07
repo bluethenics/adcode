@@ -806,6 +806,17 @@ export const CHANNELS = {
   communityPlugin: "community:plugin",
   communityArtifacts: "community:artifacts",
   communityArtifact: "community:artifact",
+  communityOpenSharedArtifact: "community:open-shared-artifact",
+  communityShareArtifact: "community:share-artifact",
+  communitySetArtifactVisibility: "community:set-artifact-visibility",
+  communityRotateArtifactShare: "community:rotate-artifact-share",
+  communityArtifactRoom: "community:artifact-room",
+  communityOpenArtifactRoom: "community:open-artifact-room",
+  communityJoinArtifactRoom: "community:join-artifact-room",
+  communityArtifactRoomAction: "community:artifact-room-action",
+  communityLeaveArtifactRoom: "community:leave-artifact-room",
+  communityCloseArtifactRoom: "community:close-artifact-room",
+  communitySetArtifactRoomLive: "community:set-artifact-room-live",
   communityMe: "community:me",
   communityMarkRead: "community:mark-read",
   communityInstalled: "community:installed",
@@ -2529,6 +2540,8 @@ export interface AdcodeApi {
       bind: "lan" | "loopback" | "internet";
       port: number;
       displayName: string;
+      /** Internet hosting for an artifact's live room: no GitHub checkout is required. */
+      artifactLive?: boolean;
     }): Promise<CollabStatusView>;
     join(code: string, displayName: string): Promise<CollabStatusView>;
     leave(): Promise<CollabStatusView>;

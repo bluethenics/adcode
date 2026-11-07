@@ -434,6 +434,15 @@
   }
 }
 
+/* The live room: people, lanes and the shared plan in one readable column. */
+.community-live-body { display: flex; flex-direction: column; gap: 14px; }
+.community-live-list { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.community-live-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--border-hairline); border-radius: 8px; }
+.community-live-grow { flex: 1; min-width: 160px; margin: 0; }
+.community-live-form { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.community-live-form .form-input { flex: 1; min-width: 140px; }
+.community-lane-dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--lane-colour, var(--text-tertiary)); }
+
 /* Stillness asked for: colour still answers hover, nothing moves. */
 @media (hover: hover) and (pointer: fine) {
   .community-card:hover { border-color: var(--border-strong); }

@@ -69,7 +69,7 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   "community.artifacts": {
     added: "2026-11-04",
     actions: [command("community.artifacts", "Browse shared projects"), command("community.shareProject", "Share this project"), command("community.inbox", "Improvements inbox")],
-    keywords: ["artifact", "share project", "publish project", "remix", "fork", "improve someone else's project", "pull request", "contribute", "help wanted", "open source", "send improvement", "accept changes", "inbox"],
+    keywords: ["artifact", "share project", "publish project", "remix", "fork", "improve someone else's project", "pull request", "contribute", "help wanted", "open source", "send improvement", "accept changes", "inbox", "private project", "share code", "invite a friend", "live room", "collaborate live", "work together", "agent lane", "shared plan", "takeover"],
   },
   "community.profile": {
     added: "2026-11-04",
@@ -310,6 +310,10 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   "ai.connect": {
     actions: [command("ai.connect", "Connect")],
     keywords: ["api key", "provider", "model", "free models", "BYOK", "bring your own key", "tabs", "local ai", "NVIDIA NIM", "custom endpoint", "connections", "requests per minute", "RPM", "rate limit", "429"],
+  },
+  "ai.codingCli": {
+    actions: [command("ai.useCodingCli", "Use a coding CLI")],
+    keywords: ["claude code", "claude cli", "codex", "codex cli", "opencode", "open code", "gemini cli", "freebuff", "cli", "coding cli", "terminal agent", "subscription", "use my claude subscription", "chatgpt plan", "agent cli", "wrapper"],
   },
   "ai.freeKey": {
     actions: [command("ai.getFreeKey", "Get a free key")],

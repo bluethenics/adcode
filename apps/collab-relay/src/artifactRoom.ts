@@ -191,7 +191,7 @@ export class ArtifactRoom extends DurableObject<Env> {
     this.room();
     const member = this.member(uid);
     if (member.role !== "owner" && member.role !== "editor") deny(403, "Only an owner or editor can change the plan.");
-    const action = input["action"];
+    const action = input["operation"] ?? input["action"];
     if (action === "add") {
       const title = roomText(input["title"], 3, 200) ?? deny(400, "Give the step a title of 3-200 characters.");
       const ownerUid = optionalUid(input["ownerUid"]);
@@ -221,7 +221,7 @@ export class ArtifactRoom extends DurableObject<Env> {
     this.room();
     const member = this.member(uid);
     if (member.role !== "owner" && member.role !== "editor") deny(403, "Only an owner or editor can change the shared Brain.");
-    const action = input["action"];
+    const action = input["operation"] ?? input["action"];
     if (action === "add") {
       const path = roomPath(input["path"]) ?? deny(400, "Pin the note to a file inside the project.");
       const text = roomText(input["text"], 3, ARTIFACT_ROOM_LIMITS.note) ?? deny(400, `Write the note in 3-${ARTIFACT_ROOM_LIMITS.note} characters.`);
@@ -252,7 +252,7 @@ export class ArtifactRoom extends DurableObject<Env> {
     this.room();
     const member = this.member(uid);
     if (member.role === "viewer") deny(403, "Join as a commenter or editor to comment.");
-    const action = input["action"];
+    const action = input["operation"] ?? input["action"];
     if (action === "add") {
       const path = roomPath(input["path"]) ?? deny(400, "Comment on a file inside the project.");
       const line = integer(input["line"], "The line", 1, 2_000_000);
@@ -276,7 +276,7 @@ export class ArtifactRoom extends DurableObject<Env> {
     this.room();
     const member = this.member(uid);
     if (member.role !== "owner" && member.role !== "editor") deny(403, "Only an owner or editor can lock a file.");
-    const action = input["action"];
+    const action = input["operation"] ?? input["action"];
     const path = roomPath(input["path"]) ?? deny(400, "Choose a file inside the project.");
     if (action === "lock") {
       const count = this.sql.exec<{ n: number }>("SELECT COUNT(*) n FROM locks").one().n;

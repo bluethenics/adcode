@@ -8,10 +8,13 @@
  * - Your artifacts - your level and badges, what you share, and what happened to it.
  */
 import {
-  changeStats, compactCount, lineDiff, timeAgo, type ArtifactChange, type ArtifactListing, type CommunityMe, type ImprovementDetail,
-  type ImprovementSummary, type ListingSort,
+  artifactShareMessage, changeStats, compactCount, decodeArtifactShare, lineDiff, timeAgo, type ArtifactChange,
+  type ArtifactListing, type CommunityMe, type ImprovementDetail, type ImprovementSummary, type ListingSort,
 } from "@adcode/community";
-import type { ArtifactDetail, ArtifactPreview, ProjectLinkView } from "../../shared/community.ts";
+import type {
+  ArtifactDetail, ArtifactPreview, ArtifactRoomActionView, ArtifactRoomSnapshot, ArtifactVisibility, ProjectLinkView,
+} from "../../shared/community.ts";
+import { copyText } from "../clipboard.ts";
 import { askThemed } from "../dialogs/confirmDialog.ts";
 import { communityMe } from "./communityMe.ts";
 import { button, el, field } from "../dialogs/formDialog.ts";
@@ -53,6 +56,7 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
   let sort: ListingSort = "trending";
   let helpOnly = false;
   let me: CommunityMe | null = null;
+  const accessKeys = new Map<string, string>();
 
   const shell = createHubShell<ArtifactsTab>({
     name: "artifacts",
@@ -99,6 +103,7 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
     const doors = el("div", "community-doors");
     doors.append(
       door(ICON.projects, "Share this project", "Anyone on ADCode can remix it and send you improvements", () => shareProject()),
+      door(ICON.search, "Open a shared artifact", "Paste an adartifact: code to open a friend's public or private project", () => openSharedDialog()),
       door(ICON.checklist, "Help someone", "Improve a project with your AI and send it back. Accepted work is worth 20 points", () => { helpOnly = true; void renderDiscover(); }),
       door(ICON.edit, "Send an improvement", "Changed a remix? Send it to its owner from This project", () => shell.showTab("project")),
     );
@@ -148,13 +153,16 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
     } else if (link.link.role === "owner") {
       words.append(el("strong", "", link.link.title), document.createTextNode(` · you share this as version ${link.link.version}. ${changed === 0 ? "No local changes since." : `${plural(changed, "file")} changed since.`}${behind ? ` Version ${link.latestVersion} has accepted improvements.` : ""}`));
       if (behind) actions.append(button(`Get version ${link.latestVersion}`, "ad-btn ad-btn-primary", () => void pullLatest()));
-      actions.append(button(changed > 0 ? "Publish new version" : "Edit listing", changed > 0 && !behind ? "ad-btn ad-btn-primary" : "ad-btn", () => shareProject()), button("Open", "ad-btn", () => void openArtifact(link.link!.artifactId)));
+      actions.append(button(changed > 0 ? "Publish new version" : "Edit listing", changed > 0 && !behind ? "ad-btn ad-btn-primary" : "ad-btn", () => shareProject()), button("Open", "ad-btn", () => void openArtifact(link.link!.artifactId)), button("Live room", "ad-btn", () => void liveRoom(link.link!.artifactId, null, true)));
     } else {
       words.append(document.createTextNode("Remix of "), el("strong", "", link.link.title), document.createTextNode(` v${link.link.version}. ${changed === 0 ? "Change something, then send it back as an improvement." : `${plural(changed, "file")} changed - ready to send.`}${behind ? ` The original is at version ${link.latestVersion}.` : ""}`));
       if (behind) actions.append(button("Get latest", "ad-btn", () => void pullLatest()));
       const send = button("Send improvement", "ad-btn ad-btn-primary", () => sendImprovement(link));
       send.disabled = changed === 0;
-      actions.append(send, button("Share as my own", "ad-btn", () => shareProject()));
+      actions.append(send, button("Share as my own", "ad-btn", () => shareProject()), button("Live room", "ad-btn", () => {
+        const key = link.link!.shareCode === null || link.link!.shareCode === undefined ? null : decodeArtifactShare(link.link!.shareCode)?.key ?? null;
+        void liveRoom(link.link!.artifactId, key, false);
+      }));
     }
     banner.append(words, actions);
     const parts: HTMLElement[] = [banner];
@@ -198,19 +206,24 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
     }
   }
 
-  async function remix(id: string, name: string): Promise<void> {
-    const ok = await askThemed({ title: `Remix ${name}?`, body: "ADCode copies the latest version into a new folder in Documents › ADCode Projects and opens it. When you are happy with your changes, send them back from This project.", confirmLabel: "Remix" });
+  async function remix(id: string, name: string, key: string | null = null): Promise<void> {
+    const ok = await askThemed({ title: `Remix ${name}?`, body: "ADCode copies the latest version into a new folder in Documents �?� ADCode Projects and opens it. When you are happy with your changes, send them back from This project.", confirmLabel: "Remix" });
     if (!ok) return;
-    const root = await withProgress(`remix:${id}`, `Downloading ${name}`, () => window.adcode.community.remix(id), "That artifact could not be remixed.");
+    const root = await withProgress(`remix:${id}`, `Downloading ${name}`, () => window.adcode.community.remix(id, key), "That artifact could not be remixed.");
     if (root === null) return;
     deps.track("artifact_remixed");
     say(`Remixed into ${root}`);
     await deps.openFolder(root);
   }
 
-  async function openArtifact(id: string): Promise<void> {
-    const detail = await attempt<ArtifactDetail>(() => window.adcode.community.artifact(id), "That artifact could not be loaded.");
+  async function openArtifact(id: string, key: string | null = null): Promise<void> {
+    const detail = await attempt<ArtifactDetail>(() => window.adcode.community.artifact(id, key), "That artifact could not be loaded.");
     if (detail === null) return;
+    if (key !== null) accessKeys.set(id, key);
+    showArtifact(detail, key);
+  }
+
+  function showArtifact(detail: ArtifactDetail, key: string | null = null): void {
     const { dialog, card, finish } = detailDialog("community-detail", detail.title);
     card.append(el("p", "community-card-by", `by ${detail.ownerName} · version ${detail.version} · ${plural(detail.fileCount, "file")} · ${formatBytes(detail.bytes)}`), el("p", "result-summary", detail.description));
     if (detail.helpWanted) {
@@ -219,7 +232,7 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
       card.append(help);
     }
     const meta = el("div", "community-card-meta");
-    meta.append(stat("remixes", compactCount(detail.remixes)), stat("improvements", compactCount(detail.improvements)));
+    meta.append(stat("remixes", compactCount(detail.remixes)), stat("improvements", compactCount(detail.improvements)), chip(detail.visibility === "private" ? "Private link" : "Public"));
     card.append(meta);
     if (detail.contributorNames.length > 0) card.append(el("p", "community-card-by", `Improved by ${detail.contributorNames.join(", ")}`));
     if (detail.readme) card.append(el("h3", "community-dialog-subtitle", "Read me"), el("p", "community-readme-text", detail.readme));
@@ -235,7 +248,10 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
       card.append(el("h3", "community-dialog-subtitle", "History"), versions);
     }
     const buttons = el("div", "confirm-buttons community-dialog-actions");
-    buttons.append(starButton("artifact", detail.id, detail.starred, detail.stars, say), button("Report", "ad-btn", () => { finish(); reportDialog("artifact", detail.id, detail.title, say); }), button("Remix", "result-close", () => { finish(); void remix(detail.id, detail.title); }));
+    buttons.append(starButton("artifact", detail.id, detail.starred, detail.stars, say), button("Report", "ad-btn", () => { finish(); reportDialog("artifact", detail.id, detail.title, say); }));
+    if (detail.shareCode !== null) buttons.append(button("Sharing and live", "ad-btn", () => { finish(); void shareSettings(detail); }));
+    else buttons.append(button("Live room", "ad-btn", () => { finish(); void liveRoom(detail.id, accessKeys.get(detail.id) ?? key, false); }));
+    buttons.append(button("Remix", "result-close", () => { finish(); void remix(detail.id, detail.title, accessKeys.get(detail.id) ?? key); }));
     card.append(buttons);
     dialog.showModal();
   }
@@ -262,7 +278,7 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
       }
       const owned = preview.link?.role === "owner";
       const { dialog, card, finish } = detailDialog("community-share", owned ? `Publish a new version of ${preview.link!.title}` : `Share ${preview.name}`);
-      card.append(el("p", "result-summary", `${plural(preview.files, "file")} · ${formatBytes(preview.bytes)} will be public. Anyone signed in to ADCode can remix it.`));
+      const summary = el("p", "result-summary");
 
       if (preview.problems.length > 0) {
         const callout = el("div", "community-callout");
@@ -310,15 +326,24 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
       help.placeholder = "Add dark mode, write tests, make it work on phones";
       const tags = el("input", "form-input");
       tags.placeholder = "game, beginner, react";
+      const visibility = el("select", "ad-select");
+      visibility.append(new Option("Public - listed in Discover", "public"), new Option("Private - only people with the code", "private"));
       const message = el("input", "form-input");
       message.maxLength = 300;
       message.placeholder = owned ? "What changed in this version" : "First version";
-      for (const input of [titleInput, description, help, tags, message]) input.disabled = blocked;
+      const describeVisibility = (): void => {
+        summary.textContent = visibility.value === "private"
+          ? `${plural(preview.files, "file")} - ${formatBytes(preview.bytes)}. It stays out of Discover until you set it public. Only people with its share code can open or remix it.`
+          : `${plural(preview.files, "file")} - ${formatBytes(preview.bytes)} will be public. Anyone signed in to ADCode can remix it.`;
+      };
+      visibility.addEventListener("change", describeVisibility);
+      describeVisibility();
+      for (const input of [titleInput, description, help, tags, visibility, message]) input.disabled = blocked;
       const error = el("p", "form-notice");
       error.setAttribute("role", "alert");
       error.hidden = true;
       const buttons = el("div", "confirm-buttons");
-      const label = owned ? "Publish version" : "Share publicly";
+      let label = owned ? "Publish version" : "Share";
       const submit = el("button", "result-close", label);
       submit.type = "submit";
       submit.disabled = blocked;
@@ -328,20 +353,27 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
         field("What is it?", description, "One or two sentences. The README is shown on the page too."),
         field("What would you like help with?", help, "Optional. Projects that ask are listed under Help wanted."),
         field("Tags", tags, "Up to 6, separated by commas."),
+        field("Who can open it?", visibility, "Private artifacts stay out of Discover. Share their code with friends."),
         field("Note for this version", message),
         error, buttons,
       );
+      visibility.addEventListener("change", () => {
+        label = owned ? "Publish version" : visibility.value === "private" ? "Create private link" : "Share";
+        submit.textContent = label;
+      });
+      card.insertBefore(summary, card.firstChild);
       form.addEventListener("submit", (event) => {
         event.preventDefault();
         submit.disabled = true;
         submit.textContent = "Sharing";
         void window.adcode.community.publishArtifact({
           title: titleInput.value, description: description.value, helpWanted: help.value, message: message.value, exclude,
+          visibility: visibility.value as ArtifactVisibility,
           tags: tags.value.split(",").map((tag) => tag.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/^-+|-+$/g, "")).filter(Boolean).slice(0, 6),
         }).then((detail) => {
           finish();
           deps.track("artifact_shared");
-          say(`${detail.title} is shared as version ${detail.version}. Improvements people send arrive in Inbox`);
+          say(visibility.value === "private" ? `${detail.title} is private. Open Sharing and live to copy its code.` : `${detail.title} is shared as version ${detail.version}. Improvements people send arrive in Inbox`);
           shell.showTab("project");
         }, (failure: unknown) => {
           error.textContent = errorText(failure, "It could not be shared.");
@@ -354,6 +386,289 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
       dialog.showModal();
       if (!blocked) titleInput.focus();
     })();
+  }
+
+  function openSharedDialog(): void {
+    const { dialog, card, finish } = detailDialog("community-share", "Open a shared artifact");
+    card.append(el("p", "result-summary", "Paste the whole code a friend sent you. It starts with adartifact: and works for public and private projects."));
+    const code = el("input", "form-input");
+    code.placeholder = "adartifact:...";
+    code.setAttribute("aria-label", "Artifact code");
+    const error = el("p", "form-notice");
+    error.hidden = true;
+    const open = button("Open", "result-close", () => {
+      void (async () => {
+        const text = code.value.trim();
+        const decoded = decodeArtifactShare(text);
+        if (decoded === null) {
+          error.textContent = "That code is not complete. Paste the line that starts with adartifact:.";
+          error.hidden = false;
+          return;
+        }
+        const detail = await attempt<ArtifactDetail>(() => window.adcode.community.openSharedArtifact(text), "That artifact could not be opened.");
+        if (detail === null) return;
+        accessKeys.set(detail.id, decoded.key);
+        finish();
+        showArtifact(detail, decoded.key);
+      })();
+    });
+    const buttons = el("div", "confirm-buttons");
+    buttons.append(button("Cancel", "confirm-cancel", finish), open);
+    card.append(field("Artifact code", code), error, buttons);
+    dialog.showModal();
+    code.focus();
+  }
+
+  function shareSettings(detail: ArtifactDetail): void {
+    if (detail.shareCode === null) return;
+    let shareCode = detail.shareCode;
+    let visibility = detail.visibility;
+    const { dialog, card, finish } = detailDialog("community-share", `Sharing ${detail.title}`);
+    const summary = el("p", "result-summary");
+    const code = el("textarea", "form-input");
+    code.readOnly = true;
+    code.rows = 2;
+    code.value = shareCode;
+    const visibilitySelect = el("select", "ad-select");
+    visibilitySelect.append(new Option("Public - listed in Discover", "public"), new Option("Private - only people with the code", "private"));
+    visibilitySelect.value = visibility;
+    const error = el("p", "form-notice");
+    error.hidden = true;
+    const describe = (): void => {
+      summary.textContent = visibility === "private"
+        ? "This artifact is unlisted. Anyone with the code can open and remix it; rotating the code locks out old links."
+        : "This artifact is listed in Discover. The code below also opens it directly.";
+    };
+    describe();
+    const save = button("Save visibility", "ad-btn ad-btn-primary", () => {
+      void (async () => {
+        const next = await attempt<ArtifactDetail>(() => window.adcode.community.setArtifactVisibility(detail.id, visibilitySelect.value as ArtifactVisibility), "The visibility could not be changed.");
+        if (next === null) return;
+        visibility = next.visibility;
+        detail = next;
+        visibilitySelect.value = visibility;
+        describe();
+        say(next.visibility === "private" ? `${next.title} is private now` : `${next.title} is listed in Discover`);
+      })();
+    });
+    const copy = button("Copy code", "ad-btn", () => { void copyText(shareCode).then((ok) => say(ok ? "Share code copied" : "Could not copy the code")); });
+    const copyInvite = button("Copy invitation", "ad-btn", () => { void copyText(artifactShareMessage(detail.title, detail.id, decodeArtifactShare(shareCode)!.key)).then((ok) => say(ok ? "Invitation copied" : "Could not copy the invitation")); });
+    const rotate = button("Replace code", "ad-btn", () => {
+      void (async () => {
+        if (!await askThemed({ title: "Replace the share code?", body: "Every old link stops working. People already remixing keep their copy.", confirmLabel: "Replace code", danger: true })) return;
+        const next = await attempt<{ shareCode: string }>(() => window.adcode.community.rotateArtifactShare(detail.id), "The code could not be replaced.");
+        if (next === null) return;
+        shareCode = next.shareCode;
+        code.value = shareCode;
+        say("New share code ready. The old one stopped working");
+      })();
+    });
+    const live = button("Open live room", "ad-btn", () => { finish(); void liveRoom(detail.id, null, true); });
+    const buttons = el("div", "confirm-buttons");
+    buttons.append(button("Close", "confirm-cancel", finish), copy, copyInvite, rotate, save, live);
+    card.append(visibilitySelect, summary, field("Share code", code, "Only people you send this to can open a private artifact."), error, buttons);
+    dialog.showModal();
+  }
+
+  async function liveRoom(id: string, key: string | null, owner: boolean): Promise<void> {
+    if (me === null) {
+      const loaded = await attempt<CommunityMe>(() => communityMe(), "Sign in to ADCode to use a live room.");
+      if (loaded === null) return;
+      me = loaded;
+    }
+    const person = me.profile.name || "Builder";
+    let current: ArtifactRoomSnapshot;
+    try {
+      current = await window.adcode.community.artifactRoom(id, key);
+    } catch (failure) {
+      const message = errorText(failure, "The live room could not be loaded.");
+      if (message.includes("has not been opened")) {
+        if (!owner) { say("The owner has not opened this live room yet."); return; }
+        if (!await askThemed({ title: "Open the live room?", body: "Friends you invite can see everyone's agent lane, one shared plan, pinned notes, comments and the room chat while their agents work on the same project.", confirmLabel: "Open room" })) return;
+        const opened = await attempt<ArtifactRoomSnapshot>(() => window.adcode.community.openArtifactRoom(id, person, null), "The live room could not be opened.");
+        if (opened === null) return;
+        current = opened;
+      } else if (message.includes("Join this live room first")) {
+        const joined = await attempt<ArtifactRoomSnapshot>(() => window.adcode.community.joinArtifactRoom(id, key, person, false), "Could not join the live room.");
+        if (joined === null) return;
+        current = joined;
+      } else {
+        say(message);
+        return;
+      }
+    }
+    const { dialog, card, finish } = detailDialog("community-live", current.title);
+    const body = el("div", "community-live-body");
+    card.append(body);
+    const act = async (action: ArtifactRoomActionView): Promise<void> => {
+      const next = await attempt<ArtifactRoomSnapshot>(() => window.adcode.community.artifactRoomAction(id, key, action), "That room action could not be saved.");
+      if (next !== null) { current = next; draw(); }
+    };
+    const refresh = async (): Promise<void> => {
+      const next = await attempt<ArtifactRoomSnapshot>(() => window.adcode.community.artifactRoom(id, key), "The live room could not be refreshed.");
+      if (next !== null) { current = next; draw(); }
+    };
+    function draw(): void {
+      const actions = el("div", "confirm-buttons community-dialog-actions");
+      if (current.open) {
+        if (current.self.role === "owner") {
+          actions.append(button(current.liveInvite === null ? "Start live files" : "Stop live files", "ad-btn ad-btn-primary", () => {
+            void (async () => {
+              if (current.liveInvite !== null) {
+                await window.adcode.collab.leave().catch(() => null);
+                await act({ action: "setLive", invite: null });
+                return;
+              }
+              const status = await attempt(() => window.adcode.collab.host({ bind: "internet", port: 0, displayName: person, artifactLive: true }), "Live files could not start. Sign in and check your connection.");
+              if (status === null) return;
+              if (status.invite === null) { say(errorText(status.error, "Live files could not start.")); return; }
+              await act({ action: "setLive", invite: status.invite });
+              say("Live files started. Friends can join from this room");
+            })();
+          }));
+          actions.append(button("Close room", "ad-btn", () => {
+            void (async () => {
+              if (!await askThemed({ title: "Close this live room?", body: "The room becomes read-only. Start it again later to keep collaborating.", confirmLabel: "Close room", danger: true })) return;
+              const next = await attempt<ArtifactRoomSnapshot>(() => window.adcode.community.closeArtifactRoom(id), "The room could not be closed.");
+              if (next !== null) { current = next; draw(); }
+            })();
+          }));
+        } else if (current.liveInvite !== null) {
+          actions.append(button("Join live files", "ad-btn ad-btn-primary", () => {
+            void (async () => {
+              const status = await attempt(() => window.adcode.collab.join(current.liveInvite!, person), "Could not join live files. Remix the artifact and open that folder first.");
+              if (status !== null) say("Joined live files. Open the same file to see changes as they happen");
+            })();
+          }));
+        }
+        actions.append(button("Leave room", "ad-btn", () => {
+          void (async () => {
+            await window.adcode.community.leaveArtifactRoom(id).catch(() => null);
+            finish();
+          })();
+        }));
+        actions.append(button("Refresh", "ad-btn", () => void refresh()));
+      } else actions.append(el("p", "community-section-note", "This room is closed and read-only."));
+      const members = el("ul", "community-live-list");
+      for (const member of current.members) {
+        const row = el("li", "community-live-row");
+        const dot = el("span", "community-lane-dot");
+        dot.style.setProperty("--lane-colour", member.colour);
+        const lane = el("div", "community-live-grow");
+        lane.append(el("strong", "", member.name), chip(member.role), chip(member.lane.status));
+        if (member.lane.task) lane.append(el("p", "community-card-by", member.lane.task));
+        const where = [member.lane.provider, member.lane.model].filter(Boolean).join(" / ");
+        if (where) lane.append(el("p", "community-card-by", `${where}${member.lane.sponsorUid ? ` paid by ${current.members.find((one) => one.uid === member.lane.sponsorUid)?.name ?? "a teammate"}` : ""}`));
+        if (member.presence.path) lane.append(el("p", "community-card-by", `${member.presence.path}${member.presence.line === null ? "" : `:${member.presence.line}`}`));
+        row.append(dot, lane);
+        if (current.open && member.uid !== current.selfId && member.lane.status === "handoff" && (current.self.role === "owner" || current.self.role === "editor")) {
+          row.append(button("Take over", "ad-btn", () => void act({ action: "takeover", targetUid: member.uid })));
+        } else if (current.open && member.uid === current.selfId && member.lane.status !== "offline" && member.lane.status !== "handoff") {
+          row.append(button("Hand off", "ad-btn", () => void act({ action: "handoff" })));
+        }
+        members.append(row);
+      }
+      const coordination = el("ul", "community-live-list");
+      for (const warning of current.warnings) {
+        const row = el("li", "community-live-row");
+        row.append(el("strong", "", warning.path), el("p", "community-live-grow", warning.kind === "locked" ? `${warning.name} locked this file` : `${warning.name} is also editing this file`));
+        coordination.append(row);
+      }
+      for (const lock of current.locks) {
+        const row = el("li", "community-live-row");
+        row.append(el("strong", "", lock.path), el("span", "community-card-by", `held by ${lock.name}`));
+        if (current.open && (lock.uid === current.selfId || current.self.role === "owner")) row.append(button("Unlock", "ad-btn", () => void act({ action: "lock", operation: "unlock", path: lock.path })));
+        coordination.append(row);
+      }
+      if (coordination.childElementCount === 0) coordination.append(el("li", "community-live-row", "No file overlaps. Lock a file before a big edit so everyone can see it is taken"));
+      const lockForm = el("form", "community-live-form");
+      const lockPath = el("input", "form-input");
+      lockPath.placeholder = "File to lock, e.g. src/app.ts";
+      lockForm.append(lockPath, button("Lock file", "ad-btn", () => {
+        if (lockPath.value.trim() === "") return;
+        void act({ action: "lock", operation: "lock", path: lockPath.value.trim() });
+      }));
+      if (!current.open || (current.self.role !== "owner" && current.self.role !== "editor")) lockForm.hidden = true;
+      const plan = el("ul", "community-live-list");
+      for (const step of current.plan) {
+        const row = el("li", "community-live-row");
+        const ownerName = current.members.find((one) => one.uid === step.ownerUid)?.name;
+        row.append(el("strong", "", step.title), chip(step.status), el("span", "community-card-by", ownerName ? `with ${ownerName}` : "unclaimed"));
+        if (current.open && (current.self.role === "owner" || current.self.role === "editor")) {
+          const status = el("select", "ad-select");
+          for (const value of ["todo", "doing", "done", "blocked"]) status.append(new Option(value, value, false, value === step.status));
+          status.addEventListener("change", () => void act({ action: "plan", operation: "move", id: step.id, status: status.value }));
+          row.append(status);
+        }
+        plan.append(row);
+      }
+      const steps = el("form", "community-live-form");
+      const stepTitle = el("input", "form-input");
+      stepTitle.placeholder = "Next step";
+      stepTitle.maxLength = 200;
+      steps.append(stepTitle, button("Add step", "ad-btn", () => {
+        if (stepTitle.value.trim().length < 3) return;
+        void act({ action: "plan", operation: "add", title: stepTitle.value.trim() });
+      }));
+      const notes = el("ul", "community-live-list");
+      for (const note of current.notes.filter((one) => !one.retired)) {
+        const row = el("li", "community-live-row");
+        row.append(el("strong", "", note.path), el("p", "community-live-grow", note.text), el("span", "community-card-by", `${note.authorName}${note.anchor === null ? "" : ` / ${note.anchor}`}`));
+        if (current.open && (note.authorId === current.selfId || current.self.role === "owner")) row.append(button("Retire", "ad-btn", () => void act({ action: "note", operation: "retire", id: note.id })));
+        notes.append(row);
+      }
+      const noteForm = el("form", "community-live-form");
+      const notePath = el("input", "form-input");
+      notePath.placeholder = "File, e.g. src/app.ts";
+      const noteText = el("input", "form-input");
+      noteText.placeholder = "What should everyone know?";
+      noteText.maxLength = 2000;
+      noteForm.append(notePath, noteText, button("Pin note", "ad-btn", () => {
+        if (notePath.value.trim() === "" || noteText.value.trim().length < 3) return;
+        void act({ action: "note", operation: "add", path: notePath.value.trim(), text: noteText.value.trim() });
+      }));
+      const comments = el("ul", "community-live-list");
+      for (const comment of current.comments.filter((one) => !one.resolved)) {
+        const row = el("li", "community-live-row");
+        row.append(el("strong", "", `${comment.path}:${comment.line}`), el("p", "community-live-grow", comment.text), el("span", "community-card-by", comment.authorName));
+        if (current.open && (comment.authorId === current.selfId || current.self.role === "owner")) row.append(button("Resolve", "ad-btn", () => void act({ action: "comment", operation: "resolve", id: comment.id })));
+        comments.append(row);
+      }
+      const commentForm = el("form", "community-live-form");
+      const commentPath = el("input", "form-input");
+      commentPath.placeholder = "File";
+      const commentLine = el("input", "form-input");
+      commentLine.placeholder = "Line";
+      commentLine.type = "number";
+      commentLine.min = "1";
+      const commentText = el("input", "form-input");
+      commentText.placeholder = "Comment";
+      commentForm.append(commentPath, commentLine, commentText, button("Comment", "ad-btn", () => {
+        if (commentPath.value.trim() === "" || commentText.value.trim() === "") return;
+        void act({ action: "comment", operation: "add", path: commentPath.value.trim(), line: Number(commentLine.value || 1), text: commentText.value.trim() });
+      }));
+      const chat = el("ul", "community-live-list");
+      for (const message of current.messages.slice(-30)) chat.append(el("li", "community-live-row", `${message.name}: ${message.text}`));
+      const chatForm = el("form", "community-live-form");
+      const chatText = el("input", "form-input");
+      chatText.placeholder = current.open ? "Message everyone" : "This room is closed";
+      chatText.disabled = !current.open;
+      chatForm.append(chatText, button("Send", "ad-btn", () => {
+        if (chatText.value.trim() === "") return;
+        void act({ action: "post", text: chatText.value.trim() });
+      }));
+      const activity = el("ul", "community-live-list");
+      for (const item of current.activity.slice(0, 12)) activity.append(el("li", "community-live-row", `${item.text} / ${timeAgo(item.at, Date.now())}`));
+      body.replaceChildren(actions, section("People and agents", current.liveInvite === null ? "Start live files to share edits; the lanes work without them" : "Live files are on", members), section("Coordination", "Overlaps are advisory: agree before editing the same file", coordination, lockForm), section("One plan", "Everyone sees the same steps", plan, steps), section("Shared Brain", "Pinned to files, not people", notes, noteForm), section("Comments", "Questions attached to a file and line", comments, commentForm), section("Room chat", "", chat, chatForm), section("Activity", "", activity));
+    }
+    const timer = window.setInterval(() => {
+      if (!dialog.open) { window.clearInterval(timer); return; }
+      if (card.contains(document.activeElement)) return;
+      void refresh();
+    }, 5000);
+    dialog.addEventListener("close", () => window.clearInterval(timer));
+    draw();
+    dialog.showModal();
   }
 
   function sendImprovement(link: ProjectLinkView): void {

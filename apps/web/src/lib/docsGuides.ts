@@ -2430,18 +2430,25 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Open the project you want to share, choose Artifacts in the sidebar, then This project › Share this project.",
       "Read anything flagged at the top first. A file that looks like it holds a key is listed with Leave these files out; a folder that is not a project is refused.",
       "Write a title and a short description, and what you would like help with to be listed under Help wanted.",
+      "Choose Public to list the artifact in Discover. Choose Private to keep it unlisted so only a signed-in person with its share code can open it.",
+      "Open Sharing and live to copy the adartifact: share code or a ready invitation. Rotate the code there if it leaked, or switch between Public and Private later.",
+      "To open a code a friend sent, choose Open a shared artifact in Discover and paste the whole adartifact: code.",
       "To improve someone else's project, press Remix on its card in Discover. ADCode copies it into Documents › ADCode Projects and opens it.",
       "After changing it, open This project, check the changed files, and press Send improvement.",
       "As the owner, open Inbox, read each file's changes, optionally press Ask AI to review it, then Accept or Decline.",
       "Press Get version N on This project to bring accepted changes into your own folder.",
+      "For live collaboration, open Live room on This project, or on a shared artifact you can access. The owner starts the room; everyone joins with the same code and sees who is present, each agent's lane, the shared plan, pinned notes, comments and chat.",
+      "Press Start live files on the owner side to share the collaborative file session, and Join live files on a teammate's side. Teammates can take over a lane or hand it back, and the owner can close the room when the session ends.",
     ],
     benefits: [
       "Your .gitignore, hidden folders, .env files, keys, node_modules and build output are never uploaded.",
       "Strangers can improve your project without access to your repository or your computer.",
+      "Private artifacts stay unlisted, and a leaked code can be rotated without republishing the project.",
+      "A live room shows the shared plan, comments and each agent's current lane, so parallel work does not drift apart.",
       "You see every changed line before anything is accepted, and accepted work credits its author.",
     ],
     betterThan:
-      "Getting outside help usually means a GitHub account, a fork, a branch and a pull request. Here, remixing is one click, the improvement is computed for you, and review happens in the editor with the assistant's help.",
+      "Getting outside help usually means a GitHub account, a fork, a branch and a pull request. Here, remixing is one click, a private share code replaces repository access, the improvement is computed for you, and review happens in the editor with the assistant's help. A live room adds the coordination a pull request never gives you: one plan, pinned notes, visible agent lanes and a shared file session while the work is happening.",
   },
 
   "community-profile": {
