@@ -8,6 +8,13 @@ export interface AgentBrowserView {
   readonly updatedAt: number;
 }
 
+/** What the main process asks the Browser panel to do: for the assistant, or for a page that opened a popup. */
+export type LiveBrowserRequest =
+  | { readonly kind: "open"; readonly url: string; readonly newTab: boolean }
+  | { readonly kind: "select" | "close"; readonly tab: number }
+  | { readonly kind: "popup"; readonly url: string }
+  | { readonly kind: "notice"; readonly text: string };
+
 /**
  * The contextBridge surface: the complete list of things the renderer may ask the main
  * process to do.
@@ -163,6 +170,15 @@ export interface ServiceNotice {
   readonly severity: "info" | "warning";
   readonly title: string;
   readonly body: string;
+  /** An https image above the text. */
+  readonly imageUrl?: string;
+  readonly imageAlt?: string;
+  /**
+   * Button labels only. Each link stays in the main process, which opens it when
+   * `notices.open(noticeId, index)` names the button: the window never holds a URL it
+   * could hand to `shell.openExternal`.
+   */
+  readonly buttons?: readonly string[];
 }
 
 /** A release note, as the main process hands it to the window. */
@@ -669,6 +685,10 @@ export const CHANNELS = {
   aiQuickConnect: "ai:quick-connect",
   aiDetectOllama: "ai:detect-ollama",
   aiStartOllama: "ai:start-ollama",
+  aiRefreshCliAgents: "ai:refresh-cli-agents",
+  aiImportScan: "ai:import-scan",
+  aiImportFile: "ai:import-file",
+  aiImportChats: "ai:import-chats",
   aiOpenKeyPage: "ai:open-key-page",
   aiCheckpoint: "ai:checkpoint",
   aiCheckpoints: "ai:checkpoints",
@@ -762,6 +782,10 @@ export const CHANNELS = {
   browserView: "browser:view",
   browserRead: "browser:read",
   browserChanged: "browser:changed",
+  browserAttachTab: "browser:attach-tab",
+  browserDetachTab: "browser:detach-tab",
+  browserRequest: "browser:request",
+  browserClearData: "browser:clear-data",
   previewStart: "preview:start",
   previewStop: "preview:stop",
   previewStatus: "preview:status",
@@ -806,6 +830,7 @@ export const CHANNELS = {
   communityPlugin: "community:plugin",
   communityArtifacts: "community:artifacts",
   communityArtifact: "community:artifact",
+  communityLiveRooms: "community:live-rooms",
   communityOpenSharedArtifact: "community:open-shared-artifact",
   communityShareArtifact: "community:share-artifact",
   communitySetArtifactVisibility: "community:set-artifact-visibility",
@@ -862,6 +887,7 @@ export const CHANNELS = {
   collabPushUpdate: "collab:push-update",
   collabSaveDoc: "collab:save-doc",
   collabPresence: "collab:presence",
+  collabPresenceList: "collab:presence-list",
   collabRequestCommit: "collab:request-commit",
   collabDecideCommit: "collab:decide-commit",
   collabStatusChanged: "collab:status-changed",
@@ -912,6 +938,7 @@ export const CHANNELS = {
   updatePrepared: "update:prepared",
   updatePrepareCancel: "update:prepare-cancel",
   serviceNotice: "notice:show",
+  noticeOpen: "notice:open",
   releaseAnnouncement: "release:announcement",
   releaseMarkSeen: "release:mark-seen",
   releaseList: "release:list",
@@ -1210,6 +1237,57 @@ export interface AiModelInfo {
   readonly note?: string;
 }
 
+/**
+ * A coding CLI (Claude Code, Codex, OpenCode...) and whether this computer has it.
+ * Found on PATH, never assumed: installed means the executable is there.
+ */
+/** One conversation another tool kept, as the import list shows it. Never its text. */
+export interface ChatImportEntry {
+  /** Opaque: what the import call refers back to. Never a path. */
+  readonly key: string;
+  readonly source: string;
+  /** "Claude Code", "Codex", "OpenCode" … */
+  readonly sourceName: string;
+  readonly title: string;
+  /** The project folder it happened in, when the tool recorded one. */
+  readonly folder: string | null;
+  readonly updatedAt: number;
+  readonly messages: number;
+}
+
+export interface ChatImportScan {
+  readonly entries: readonly ChatImportEntry[];
+  /** Session files too large to read. */
+  readonly skipped: number;
+  readonly sources: readonly string[];
+}
+
+export interface ChatImportResult {
+  readonly imported: number;
+  readonly failed: number;
+  /** The project folders that received conversations. */
+  readonly folders: readonly string[];
+  /** Whether the project open now received any - its chat list has new entries. */
+  readonly here: boolean;
+}
+
+export interface CliAgentView {
+  readonly id: string;
+  readonly name: string;
+  /** The executable, as it would be typed in a terminal. */
+  readonly command: string;
+  readonly installed: boolean;
+  /** Its own `--version` line, when it answered. */
+  readonly version: string | null;
+  /** Answers in ADCode's chat. False: it runs in a terminal tab only. */
+  readonly headless: boolean;
+  /** What to run in a terminal to sign it in. */
+  readonly signIn: string;
+  /** How to install it. */
+  readonly install: string;
+  readonly docs: string;
+}
+
 /** What is true of Ollama on this computer right now - asked, never assumed. */
 export interface LocalModelsView {
   readonly installed: boolean;
@@ -1227,6 +1305,8 @@ export interface AiProviderInfo {
   readonly needsKey: boolean;
   /** For Ollama: whether it is installed, running, and which models it has. */
   readonly local?: LocalModelsView;
+  /** For a coding CLI used as a model: whether it is installed, and how to sign in or run it. */
+  readonly cli?: CliAgentView;
   /**
    * Whether this editor can talk to it, and how.
    *
@@ -1924,6 +2004,16 @@ export interface AdcodeApi {
     view(input: Record<string, unknown>): Promise<AgentBrowserView>;
     read(): Promise<AgentBrowserView | null>;
     onChanged(listener: (view: AgentBrowserView) => void): () => void;
+    /**
+     * Register a tab of the Browser panel - a `<webview>` in the shared-browser session - so
+     * the assistant can drive it. Refused unless the guest really is this window's.
+     */
+    attachTab(tabId: number, contentsId: number, active: boolean): Promise<void>;
+    detachTab(tabId: number): Promise<void>;
+    /** The assistant opening or switching a tab, a page's popup, or a notice to show. */
+    onRequest(listener: (request: LiveBrowserRequest) => void): () => void;
+    /** Sign out of everything in the shared browser: cookies, storage and cache. */
+    clearData(): Promise<void>;
   };
   readonly preview: {
     /** Omit the mode to let ADCode pick: the project's dev script when there is one. */
@@ -2064,6 +2154,17 @@ export interface AdcodeApi {
     detectOllama(): Promise<{ running: boolean; models: string[] }>;
     /** Start an installed Ollama, wait for it to answer, and return the status that follows. */
     startOllama(): Promise<AiStatus>;
+    /** Look again for coding CLIs on this computer (after installing one) and return the status. */
+    refreshCliAgents(): Promise<AiStatus>;
+    /**
+     * Look for conversations Claude Code, Codex and OpenCode keep on this computer. Returns
+     * titles, folders, dates and counts - no message text.
+     */
+    scanChatImports(): Promise<ChatImportScan>;
+    /** Pick an exported conversations file (Claude, ChatGPT, ADCode) and list what is in it. Null: cancelled. */
+    pickChatImportFile(): Promise<ChatImportScan | null>;
+    /** Save the chosen conversations into ADCode: each under its own project folder, or all in the open one. */
+    importChats(keys: readonly string[], target: "own-folder" | "current"): Promise<ChatImportResult>;
     /** Open AI Studio's key page, or Ollama's download page, in the system browser. */
     openKeyPage(intent: "gemini" | "ollama"): Promise<void>;
     /**
@@ -2367,6 +2468,8 @@ export interface AdcodeApi {
   };
   readonly notices: {
     onShow(listener: (notices: readonly ServiceNotice[]) => void): () => void;
+    /** Opens a notice's button link in the browser. Unknown notices and buttons do nothing. */
+    open(noticeId: string, button: number): Promise<void>;
   };
   readonly releases: {
     /** Main pushes what it knows; the window decides whether now is a good moment. */
@@ -2546,6 +2649,8 @@ export interface AdcodeApi {
     join(code: string, displayName: string): Promise<CollabStatusView>;
     leave(): Promise<CollabStatusView>;
     status(): Promise<CollabStatusView>;
+    /** Everyone's last known cursor, for painting a room roster on open rather than on a keystroke. */
+    presenceList(): Promise<readonly CollabPresenceView[]>;
     /** Every address the session could be reached on, so the user can pick the right one. */
     addresses(): Promise<readonly string[]>;
     /** Re-issue the invite code against a different local address. */

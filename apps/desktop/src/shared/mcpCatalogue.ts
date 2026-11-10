@@ -39,6 +39,17 @@ export function mcpCatalogueFor(platform: string): readonly McpCatalogueEntry[] 
 
 export const MCP_CATALOGUE: readonly McpCatalogueEntry[] = [
   {
+    // The same connector Plugins > Apps adds; the id is `COMPOSIO_CONNECTOR_ID`.
+    id: "composio",
+    name: "Composio",
+    purpose: "Reach Gmail, Supabase, Cloudflare, GitHub, Slack, Notion and hundreds of other services through one connector, each linked on your own account.",
+    transport: "http",
+    endpoint: "https://connect.composio.dev/mcp",
+    args: [],
+    before: "Press Sign in on its card: your browser opens Composio to approve. Each app is then linked the first time you use it.",
+    homepage: "https://composio.dev",
+  },
+  {
     id: "playwright",
     name: "Playwright browser",
     purpose: "Open pages in a real browser, click, type and read what is on screen - so the assistant can check a UI change actually works.",

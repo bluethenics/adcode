@@ -10,6 +10,7 @@
  * text so a model can never inject an element or attribute.
  */
 import { parseCodeReference } from "../editor/codeReferences.ts";
+import { renderChatButtons, renderChatLinks, renderChatMockup } from "./chatRich.ts";
 
 export interface ChatTextSegment {
   readonly kind: "text";
@@ -153,7 +154,7 @@ export function renderChatInline(escaped: string): string {
    */
   const spans: string[] = [];
   const held = escaped.replace(/[]/g, "").replace(/`([^`\n]*)`/g, (_whole, code: string) => `${spans.push(code) - 1}`);
-  return renderReferenceButtons(renderItalic(renderBold(held)))
+  return renderReferenceButtons(renderChatLinks(renderItalic(renderBold(held))))
     .replace(/(\d+)/g, (_whole, index: string) => `<code class="chat-inline-code">${spans[Number(index)] ?? ""}</code>`);
 }
 
@@ -303,6 +304,15 @@ function renderTextBlock(block: string): string {
 }
 
 function renderCodeSegment(segment: ChatCodeSegment): string {
+  // Two languages are not code to read: link buttons, and a mockup to look at (chatRich.ts).
+  if (segment.language === "buttons") {
+    const buttons = renderChatButtons(segment.code);
+    if (buttons !== "") return buttons;
+  }
+  if (segment.language === "mockup") {
+    const mockup = renderChatMockup(segment.code, renderCodeSegment({ kind: "code", language: "html", code: segment.code }));
+    if (mockup !== "") return mockup;
+  }
   const language = segment.language.length > 0 ? segment.language : "code";
   return (
     `<div class="chat-codeblock" data-language="${escapeAttribute(language)}">` +

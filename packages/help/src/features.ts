@@ -69,7 +69,7 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   "community.artifacts": {
     added: "2026-11-04",
     actions: [command("community.artifacts", "Browse shared projects"), command("community.shareProject", "Share this project"), command("community.inbox", "Improvements inbox")],
-    keywords: ["artifact", "share project", "publish project", "remix", "fork", "improve someone else's project", "pull request", "contribute", "help wanted", "open source", "send improvement", "accept changes", "inbox", "private project", "share code", "invite a friend", "live room", "collaborate live", "work together", "agent lane", "shared plan", "takeover"],
+    keywords: ["artifact", "share project", "publish project", "remix", "fork", "improve someone else's project", "pull request", "contribute", "help wanted", "open source", "send improvement", "accept changes", "inbox", "private project", "share code", "invite a friend", "live room", "live session", "start session", "join session", "collaborate live", "work together", "live project", "live editing", "multiplayer editing", "team create", "roblox studio", "share project live", "edit together", "who is online", "agent lane", "shared plan", "takeover", "watch live", "join live room", "join checks", "approvals", "hand off", "handoff", "mission control", "live now", "overlap warning", "lock file", "stale comment"],
   },
   "community.profile": {
     added: "2026-11-04",
@@ -335,12 +335,43 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("agents.open", "Open Agents"), command("agents.newTask", "New task")],
     keywords: ["agents", "agent board", "parallel agents", "background agents", "multiple agents", "run in background", "kanban", "boxes", "tasks", "ai tasks", "queued", "needs you", "ready to review", "apply and continue", "cost cap", "starter agents", "reviewer", "tester", "bug fixer", "like cursor agents", "like devin"],
   },
+  "workbench.browser": {
+    actions: [command("workspace.browser", "Open Browser"), command("browser.clearData", "Sign out and clear its data")],
+    keywords: ["browser", "web browser", "in-app browser", "built-in browser", "tabs", "address bar", "open a website", "google", "search the web", "agent browser", "agent-browser", "browse for me", "fill a form", "research", "sign in to a site", "cookies", "clear cookies", "webview", "docs", "dashboard"],
+  },
+  "adcode.browser.agentControl": {
+    keywords: ["assistant browser", "ai controls browser", "let ai browse", "stop ai browsing", "browser permission", "agent control"],
+  },
+  "ai.exportChat": {
+    actions: [command("ai.exportChat", "Export as Markdown"), command("ai.exportChatJson", "Export as JSON")],
+    keywords: ["export chat", "export conversation", "save chat", "download chat", "save conversation", "markdown", "json", "transcript", "share chat", "backup chat"],
+  },
+  "ai.moveIn": {
+    actions: [command("onboarding.moveIn", "Open Move in"), command("ai.importChats", "Import conversations")],
+    keywords: ["move in", "onboarding", "import chats", "import conversations", "import from claude", "import from codex", "import from chatgpt", "import from opencode", "claude desktop", "bring my chats", "migrate", "switch from cursor", "chat history", "conversations.json", "scan this computer", "connect chatgpt", "connect claude", "connect opencode", "freebuff", "use my subscription", "existing subscription"],
+  },
+  "ai.richReplies": {
+    actions: [command("ai.askMockup", "Ask for a mockup")],
+    keywords: ["link button", "clickable link", "buttons in chat", "mockup", "wireframe", "design sketch", "image in chat", "show a picture", "preview a layout", "rich reply"],
+  },
+  "ai.skillOrder": {
+    actions: [command("tools.sortSkills", "Sort and pin skills")],
+    keywords: ["sort skills", "order skills", "pin skill", "favourite skill", "too many skills", "organise skills", "skill priority", "disable all skills", "group skills", "skill source", "last resort"],
+  },
+  "community.apps": {
+    actions: [command("community.apps", "Connect apps")],
+    keywords: ["apps", "connect apps", "composio", "gmail", "google calendar", "supabase", "cloudflare", "github", "slack", "notion", "linear", "jira", "stripe", "vercel", "hubspot", "integrations", "connectors", "send email", "app logos", "oauth", "could not be verified", "unverified"],
+  },
+  "community.roomContext": {
+    actions: [command("collab.liveRoom", "Open the live room")],
+    keywords: ["live room", "shared context", "room chat", "team chat", "who is online", "presence", "work together", "multiplayer", "collaborate with ai", "shared plan", "talk to teammates", "live session", "mascots"],
+  },
   "workbench.toolsPage": {
     actions: [command("tools.open", "Open Tools"), command("tools.addServer", "Add a connector"), command("tools.servers", "Connectors"), command("tools.skills", "Skills")],
     keywords: ["tools", "mcp", "mcp server", "model context protocol", "connectors", "custom connector", "mcp url", "server url", "skills", "plugins", "integrations", "marketplace", "playwright", "context7", "figma", "netlify", "chrome devtools", "roblox", "roblox studio", "tool access", "server not working", "agents and tools", "claude desktop extension", ".mcpb", "claude code plugin", "chatgpt plugin", "gpt actions", "openapi", "import from cursor", "import from vs code", "windsurf", "api token", "encrypted values"],
   },
   "ai.seesYourApp": {
-    actions: [command("ai.checkApp", "Check my running app"), command("workspace.browser", "Open browser")],
+    actions: [command("ai.checkApp", "Check my running app")],
     keywords: ["see my app", "look at the page", "screenshot", "does it work", "check the page", "test in browser", "click through", "console errors", "broken images", "404", "mobile view", "phone width", "open a page", "specific page", "live server", "browser tool", "playwright", "view_page", "/check"],
   },
   "ai.agentTools": {
@@ -678,6 +709,8 @@ const DESKTOP_GROUPS: ReadonlySet<string> = new Set(["editing", "formatting", "n
 const DESKTOP_ONLY: ReadonlySet<string> = new Set([
   // The community hub installs plugins into ~/.adcode and remixes into Documents: desktop only for now.
   "community.plugins", "community.addons", "community.studio", "community.artifacts", "community.profile", "community.monetize",
+  // The live Browser is a webview, the importer reads this computer's disk, and rooms and Composio's sign-in are desktop features.
+  "workbench.browser", "adcode.browser.agentControl", "ai.moveIn", "community.apps", "community.roomContext",
   "adcode.privacy.usageStats",
   "adcode.git.gutterDiff", "adcode.git.blame", "adcode.git.fileTimeline", "adcode.git.mergeConflict",
   "adcode.session.autoSave", "adcode.session.localFileHistory", "adcode.session.crashRecovery",

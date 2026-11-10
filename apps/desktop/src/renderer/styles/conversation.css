@@ -1126,3 +1126,16 @@
   background: transparent;
   color-scheme: normal;
 }
+
+/*
+ * The sponsor strip above the composer (ai/sponsoredReply.ts, createSponsorStrip). It takes
+ * the composer's width and no room at all until its first card arrives; a new card grows in
+ * beneath the old one, which then leaves, so the strip is never empty in between.
+ */
+.chat-sponsor-strip { display: grid; width: 100%; padding: var(--space-2) var(--space-4) 0; box-sizing: border-box; background: var(--bg-app); }
+/* It shares the transcript's row, pinned to its foot; the transcript ends with a spacer as tall as the strip, so no message hides behind it. */
+.chat-conversation > .chat-sponsor-strip { grid-row: 3; grid-column: 1; align-self: end; z-index: 1; }
+.chat-conversation > .chat-transcript::after { content: ""; display: block; flex: none; height: var(--sponsor-strip-height, 0px); }
+.chat-sponsor-strip[hidden] { display: none; }
+.chat-sponsor-strip > .chat-sponsored-frame { margin: 0; max-height: 180px; }
+.chat-sponsor-strip[data-filled="true"] { padding-bottom: var(--space-2); }

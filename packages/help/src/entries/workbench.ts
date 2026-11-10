@@ -10,6 +10,16 @@ import type { HelpEntry } from "../types.ts";
 
 export const WORKBENCH_ENTRIES: readonly HelpEntry[] = [
   {
+    id: "workbench.browser",
+    title: "Browser",
+    plain: "A real web browser inside ADCode, with tabs, an address bar and your sign-ins, that you and your assistant can both use.",
+    why: "Docs, a dashboard, your deployed site, a form to fill in: they all used to mean leaving the editor, and the assistant could not follow you there. Here the page sits beside your work, and you can hand a web task to the assistant and watch it happen in the same tab, then take over the moment you want to.",
+    how: "Run Open Browser from the command palette, or pick Browser in the workspace menu. Type an address or a search in the bar; Ctrl+T opens a tab, Ctrl+W closes one, Ctrl+L goes to the address bar, Ctrl+R reloads. Sign-ins are kept between launches, in a store of their own that your everyday browser never sees. To let the assistant use it, just ask: \"open the Supabase dashboard and find my project URL\", \"search for the Stripe webhook docs and summarise them\". It opens the panel, a green outline and an Assistant is browsing label show while it acts, and you can click into the page at any time. It reads a page as a list of its buttons, links and fields and acts on those, the way agent-browser does. It is told never to type passwords or card numbers; type those yourself. Links in chat replies open here. Downloads are off in this browser, and a page asking for your camera, microphone or location is refused. To sign out of everything, run Browser: Sign Out of Everything and Clear Its Data. The web version shows snapshots of the assistant's own page instead of a live browser.",
+    group: "workbench",
+    settingIds: [],
+    related: ["adcode.browser.agentControl","ai.seesYourApp","workbench.preview"],
+  },
+  {
     id: "workbench.modes",
     title: "Vibe and Code modes",
     plain: "Vibe is the default conversation window. Code opens as a separate IDE window for the same project.",
@@ -193,7 +203,17 @@ export const WORKBENCH_ENTRIES: readonly HelpEntry[] = [
     how: "Open Connect a model. Free · no API key opens first with included models and ready local models: choose Use this model. Included models require a verified ADCode account; Tagflow AI and all other included models share one weekly free allowance. Use the local setup buttons to start or download Ollama. Bring your own key contains personal provider connections and the three-step guide: choose a provider, check and save its key, pick a model. Add a named connection with an OpenAI-compatible base URL and exact model ID for other endpoints; the NVIDIA NIM preset fills its hosted endpoint. Set requests per minute, save the connection, then check and save its API key. Select the connection for chat or an agent. Chat, completion, and team requests share its queue. Server cooldowns are respected; token or account quotas can still cause rate-limit errors. Keys remain encrypted by the operating system. Administrators can add, hide and select default models in the linked Free models and BYOK models catalogs.",
     group: "ai",
     settingIds: ["adcode.ai.connections"],
-    related: ["ai.freeKey", "adcode.ai.provider", "adcode.ai.model", "ai.sessions", "ai.team"],
+    related: ["ai.freeKey", "adcode.ai.provider", "adcode.ai.model", "ai.sessions", "ai.team", "ai.codingCli"],
+  },
+  {
+    id: "ai.codingCli",
+    title: "Use a coding CLI as your model",
+    plain: "Chat with Claude Code, Codex CLI, OpenCode or Gemini CLI inside ADCode, using the CLI you already installed and signed in to. Freebuff opens in a terminal tab.",
+    why: "You keep the subscription, models and tools you already pay for, and gain ADCode's chat, editor context and conversation history around them. No new key, and nothing billed by ADCode.",
+    how: "Run AI: Use a Coding CLI, or open Connect a model and choose a provider marked (CLI). ADCode finds Claude Code (claude), Codex CLI (codex), OpenCode (opencode) and Gemini CLI (gemini) on your PATH and shows the version it found. Not installed: Install in a terminal runs the install command for you; then press Check again. Signed out: Sign in in a terminal opens the CLI's own sign-in, then send your message again. Pick a model: the CLI's default, one of its listed models (OpenCode lists every model it can reach), or type any model name the CLI accepts and choose Use model. Each message runs the CLI in the open project with your editor context; its tool use (commands it ran, files it changed) appears as activity above the answer, and the next message continues the same CLI session. Claude Code may edit files (shell commands keep its own permissions); Codex runs in its workspace-write sandbox. Freebuff has no chat mode, so choosing it offers Open Freebuff in a terminal instead. Stop ends the CLI and everything it started.",
+    group: "ai",
+    settingIds: [],
+    related: ["ai.connect", "adcode.ai.provider", "adcode.ai.model"],
   },
   {
     id: "ai.freeKey",

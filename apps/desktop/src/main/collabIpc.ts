@@ -176,7 +176,7 @@ export function registerCollabIpc(deps: { readonly workspaceRoot: () => string |
       activeProject = typeof id === "string" ? await projectRequest<SharedProjectSnapshot>(`/projects/${id}`) : await createSharedProject(undefined,displayName);
       if (activeProject.repository !== await currentRepository()) throw new Error("Open the shared project's GitHub checkout before starting live files.");
     } else activeProject = null;
-    const result = await ensureRuntime().startHosting(deps.workspaceRoot(), { bind, port, displayName, ...(activeProject ? { sharedProjectId: activeProject.id } : {}), ...(project === null ? {} : { project }) });
+    const result = await ensureRuntime().startHosting(deps.workspaceRoot(), { bind, port, displayName, artifactLive, ...(activeProject ? { sharedProjectId: activeProject.id } : {}), ...(project === null ? {} : { project }) });
     if (activeProject && result.mode === "hosting" && result.invite) await projectRequest(`/projects/${activeProject.id}/live`,{invite:result.invite});
     recordMilestone(result.error === null ? "collab_hosted" : "collab_failed");
     return statusView(result);
@@ -193,7 +193,16 @@ export function registerCollabIpc(deps: { readonly workspaceRoot: () => string |
       text = activeProject.liveInvite;
     }
     const decoded = decodeInvite(text);
-    if (decoded && isRelayHost(decoded.host) && (!decoded.project || decoded.project !== await githubProject())) throw new Error(`Open a checkout of ${decoded.project ?? "the host's GitHub project"} before joining. Your project tree must match the shared project.`);
+    /*
+     * Only a session that names a GitHub project requires a matching checkout.
+     *
+     * Artifact live rooms deliberately carry no `project`: everyone joins the same downloaded
+     * artifact, and the host's Yjs document is the shared truth. Treating a missing `project`
+     * as "must be GitHub" made every one of those invites fail at the last step.
+     */
+    if (decoded && isRelayHost(decoded.host) && typeof decoded.project === "string" && decoded.project !== await githubProject()) {
+      throw new Error(`Open a checkout of ${decoded.project} before joining. Your project tree must match the shared project.`);
+    }
     return statusView(await ensureRuntime().joinWith(text, requireString(displayName, "displayName")));
   });
 
@@ -203,6 +212,8 @@ export function registerCollabIpc(deps: { readonly workspaceRoot: () => string |
   });
 
   ipcMain.handle(CHANNELS.collabStatus, async () => statusView(ensureRuntime().status()));
+
+  ipcMain.handle(CHANNELS.collabPresenceList, async () => ensureRuntime().presence());
 
   // Reported from the main process because only it can enumerate interfaces, and the renderer
   // has no business with `node:os`.

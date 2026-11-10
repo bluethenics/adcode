@@ -16,7 +16,7 @@
  */
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, ipcMain, shell } from "electron";
 import { CHANNELS, type ServiceNotice } from "../shared/api.ts";
 import { apiBaseUrl, createBackendTokens } from "./backend.ts";
 import { DiskFileStore, FetchHttpTransport, SystemClock } from "./adPorts.ts";
@@ -29,6 +29,24 @@ const TIMEOUT_MS = 10_000;
 const MAX_TITLE = 100;
 const MAX_BODY = 500;
 const MAX_NOTICES = 3;
+const MAX_URL = 500;
+const MAX_BUTTONS = 2;
+const MAX_LABEL = 30;
+const MAX_ALT = 200;
+
+/** Every button link of the notices this session was sent, by notice id. Never leaves this process. */
+const buttonLinks = new Map<string, string[]>();
+
+/** An https address with a host, or null: the only kind of link or image a notice may carry. */
+export function httpsOnly(value: unknown): string | null {
+  if (typeof value !== "string" || value.length === 0 || value.length > MAX_URL) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.hostname.includes(".") && !url.username && !url.password ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
 
 function seenPath(): string {
   return join(app.getPath("userData"), "notices", "seen.json");
@@ -55,8 +73,14 @@ async function writeSeen(seen: ReadonlySet<string>): Promise<void> {
   }
 }
 
+/** A notice as the window may see it, plus the links only this process keeps. */
+export interface ValidNotice {
+  readonly notice: ServiceNotice;
+  readonly links: readonly string[];
+}
+
 /** The server is untrusted here exactly as it is for creatives. */
-function validate(raw: unknown): ServiceNotice | null {
+export function validate(raw: unknown): ValidNotice | null {
   if (typeof raw !== "object" || raw === null) return null;
   const r = raw as Record<string, unknown>;
 
@@ -70,10 +94,34 @@ function validate(raw: unknown): ServiceNotice | null {
   if (typeof title !== "string" || title.length === 0 || title.length > MAX_TITLE) return null;
   if (typeof body !== "string" || body.length === 0 || body.length > MAX_BODY) return null;
 
-  return { noticeId: id, severity, title, body };
+  // Extras degrade rather than reject: a notice about an outage still matters with its
+  // image or a malformed button dropped.
+  const imageUrl = r["imageUrl"] === undefined ? null : httpsOnly(r["imageUrl"]);
+  const imageAlt = typeof r["imageAlt"] === "string" ? r["imageAlt"].slice(0, MAX_ALT) : "";
+  const labels: string[] = [];
+  const links: string[] = [];
+  if (Array.isArray(r["buttons"])) {
+    for (const button of r["buttons"].slice(0, MAX_BUTTONS)) {
+      if (typeof button !== "object" || button === null) continue;
+      const label = (button as Record<string, unknown>)["label"];
+      const url = httpsOnly((button as Record<string, unknown>)["url"]);
+      if (typeof label !== "string" || label.trim().length === 0 || label.length > MAX_LABEL || url === null) continue;
+      labels.push(label.trim());
+      links.push(url);
+    }
+  }
+
+  return {
+    notice: {
+      noticeId: id, severity, title, body,
+      ...(imageUrl === null ? {} : { imageUrl, imageAlt }),
+      ...(labels.length === 0 ? {} : { buttons: labels }),
+    },
+    links,
+  };
 }
 
-async function fetchNotices(): Promise<ServiceNotice[]> {
+async function fetchNotices(): Promise<ValidNotice[]> {
   const clock = new SystemClock();
   const store = new DiskFileStore(join(app.getPath("userData"), "ads"));
   const http = new FetchHttpTransport([]);
@@ -94,25 +142,33 @@ async function fetchNotices(): Promise<ServiceNotice[]> {
 
   return parsed.notices
     .map(validate)
-    .filter((n): n is ServiceNotice => n !== null)
+    .filter((n): n is ValidNotice => n !== null)
     .slice(0, MAX_NOTICES);
 }
 
 export function startNoticePolling(): void {
+  // The window names a notice and a button; the link comes from what this process validated.
+  ipcMain.handle(CHANNELS.noticeOpen, async (_event, noticeId: unknown, button: unknown) => {
+    if (typeof noticeId !== "string" || typeof button !== "number" || !Number.isInteger(button)) return;
+    const url = buttonLinks.get(noticeId)?.[button];
+    if (url !== undefined) await shell.openExternal(url);
+  });
+
   const poll = async (): Promise<void> => {
     try {
       const notices = await fetchNotices();
       if (notices.length === 0) return;
 
       const seen = await readSeen();
-      const fresh = notices.filter((n) => !seen.has(n.noticeId));
+      const fresh = notices.filter((n) => !seen.has(n.notice.noticeId));
       if (fresh.length === 0) return;
 
+      for (const { notice, links } of fresh) if (links.length > 0) buttonLinks.set(notice.noticeId, [...links]);
       for (const window of BrowserWindow.getAllWindows()) {
-        if (!window.isDestroyed()) window.webContents.send(CHANNELS.serviceNotice, fresh);
+        if (!window.isDestroyed()) window.webContents.send(CHANNELS.serviceNotice, fresh.map((n) => n.notice));
       }
 
-      for (const notice of fresh) seen.add(notice.noticeId);
+      for (const { notice } of fresh) seen.add(notice.noticeId);
       await writeSeen(seen);
     } catch {
       // Silent, deliberately. See the note at the top of this file.

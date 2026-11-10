@@ -375,6 +375,19 @@
   overflow-wrap: anywhere;
 }
 
+/* A service notice's picture: never taller than the card is wide, never wider than the card. */
+.toast-image,
+.notification-inbox-image {
+  display: block;
+  width: 100%;
+  max-height: 160px;
+  margin: 8px 0 2px;
+  object-fit: cover;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-lg);
+  background: var(--bg-app);
+}
+
 .toast-body {
   margin: 4px 0 0;
   font-size: var(--text-xs);

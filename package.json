@@ -41,6 +41,7 @@
     "smoke:rules": "node scripts/smoke-agent-rules.mjs",
     "smoke:commands": "node scripts/smoke-chat-commands.mjs",
     "smoke:live": "node scripts/smoke-live-agents.mjs",
+    "smoke:artifact-room": "node scripts/smoke-artifact-room.mjs",
     "record:hero": "node scripts/record-hero.mjs",
     "smoke:first-run": "node scripts/smoke-first-run.mjs",
     "smoke:all": "node scripts/smoke.mjs && node scripts/smoke-ads.mjs",

@@ -17,6 +17,7 @@ import { forgetMcpSignIn, signInToMcp } from "./mcpOAuth.ts";
 import { setFeatureSurface } from "@adcode/help";
 import { ADCODE_APP_TOOLS, createAdcodeAppTools } from "./adcodeAppTools.ts";
 import { currentSettings, writeSetting } from "./settings.ts";
+import { runRoomTool } from "./liveRoom.ts";
 
 export { ASSISTANT_EXTENSION_TOOLS, ADCODE_APP_TOOLS };
 /** The "Ask before connector tools" setting, read fresh so a change applies to the next call. */
@@ -89,6 +90,8 @@ function adcodeAppTools(): ToolRunner {
     platform: onWeb ? "linux" : process.platform,
     settings: currentSettings,
     writeSetting,
+    room: runRoomTool,
+    ...(onWeb ? {} : { browser: async (input: Record<string, unknown>, signal: AbortSignal) => (await import("./liveBrowser.ts")).runLiveBrowser(input, signal) }),
     // The window the person is using; the menu's own channel, so it runs like a menu choice.
     runCommand: (command) => {
       const target = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows().find((window) => !window.isDestroyed()) ?? null;

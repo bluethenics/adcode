@@ -19,16 +19,19 @@ import { communityMe } from "./communityMe.ts";
 import { button, el, field } from "../dialogs/formDialog.ts";
 import { markFor } from "../motionFlip.ts";
 import { createIcon, ICON } from "../workbench/icons.ts";
+import { createComposioAppsView } from "./composioAppsView.ts";
 import { CONTRIBUTION_LABELS, addContribution, aiBuildPrompt, featureDraftText, installSummary, type ContributionKind } from "./communityModel.ts";
 import {
   activityFor, activityList, chip, createHubShell, detailDialog, door, errorText, installedMark, list, monogram, plural, profileCard,
   progressBar, reportDialog, section, signedOutBox, starButton, stat, swapIn, watchProgress,
 } from "./communityShell.ts";
 
-export type PluginsTab = "discover" | "installed" | "studio" | "mine";
+export type PluginsTab = "discover" | "apps" | "installed" | "studio" | "mine";
 
 export interface PluginsPageDeps {
   readonly askAssistant: (prompt: string) => void;
+  /** Open the Tools page, where a connector's own tools are switched on and off. */
+  readonly openTools: () => void;
   readonly features: () => readonly RemixableFeature[];
   readonly builtInSlash: () => readonly string[];
   readonly signIn: () => void;
@@ -73,13 +76,19 @@ export function createPluginsPage(deps: PluginsPageDeps): PluginsPage {
     searchLabel: "Search plugins",
     tabs: [
       { id: "discover", label: "Discover" },
+      { id: "apps", label: "Apps" },
       { id: "installed", label: "Installed" },
       { id: "studio", label: "Studio" },
       { id: "mine", label: "Your plugins" },
     ],
-    render: (tab) => (tab === "discover" ? renderDiscover() : tab === "installed" ? renderInstalled() : tab === "studio" ? renderStudio() : renderMine()),
+    render: (tab) => (tab === "discover" ? renderDiscover() : tab === "apps" ? renderApps() : tab === "installed" ? renderInstalled() : tab === "studio" ? renderStudio() : renderMine()),
   });
   const { say, attempt } = shell;
+  const apps = createComposioAppsView({ query: () => shell.search.value, askAssistant: deps.askAssistant, say, openTools: deps.openTools });
+
+  function renderApps(): Promise<void> {
+    return apps.render(shell.panel("apps"));
+  }
 
   async function refreshInstalled(): Promise<void> {
     installed = await attempt(() => window.adcode.community.installed(), "Could not read installed plugins.") ?? installed;
@@ -139,6 +148,7 @@ export function createPluginsPage(deps: PluginsPageDeps): PluginsPage {
     doors.append(
       door(ICON.edit, "Build a plugin", "Describe it and the assistant writes it, or start from a template", () => shell.showTab("studio")),
       door(ICON.tool, "Customize a built-in feature", "Make your own version of anything ADCode does, then share it", () => focusRemixPicker()),
+      door(ICON.plug, "Connect your apps", "Gmail, Supabase, Cloudflare, GitHub, Slack and more, with one sign-in", () => shell.showTab("apps")),
       door(ICON.plug, "Add-ons", "Small panels for the chat, the sidebar and the status bar", () => showAddons()),
     );
 

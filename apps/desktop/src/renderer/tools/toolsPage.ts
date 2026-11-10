@@ -23,6 +23,17 @@ import type {
   ConnectorDraftView,
 } from "../../shared/assistantControls.ts";
 import { mcpCatalogueFor } from "../../shared/mcpCatalogue.ts";
+import { SKILL_SORTS, isSkillSort, skillSources, sortSkills, type SkillSort } from "../../shared/skillOrder.ts";
+
+const SKILL_SORT_KEY = "adcode.tools.skillSort";
+function storedSkillSort(): SkillSort {
+  try {
+    const saved = localStorage.getItem(SKILL_SORT_KEY);
+    return isSkillSort(saved) ? saved : "smart";
+  } catch {
+    return "smart";
+  }
+}
 import { MCP_NODE_REQUIREMENT, mcpNodeNote } from "../../shared/mcpNode.ts";
 import { AGENT_PROFILES_SETTING, parseAgentProfiles, type AgentProfile } from "../ai/agentProfiles.ts";
 import { askThemed } from "../dialogs/confirmDialog.ts";
@@ -196,6 +207,9 @@ export function createToolsPage(deps: ToolsPageDeps): ToolsPage {
   let agents: readonly AgentProfile[] = [];
   let memoryCommand: McpConnectionInfo | null = null;
   let skillScope: "all" | "workspace" | "system" = "all";
+  let skillSort: SkillSort = storedSkillSort();
+  /** One source ("Claude", "Plugin: x") to narrow the Skills tab to, or "" for all. */
+  let skillSource = "";
   let visible = false;
 
   function showTab(tab: ToolsTab): void {
@@ -461,11 +475,53 @@ export function createToolsPage(deps: ToolsPageDeps): ToolsPage {
     }
     scope.value = skillScope;
     scope.addEventListener("change", () => { skillScope = scope.value as typeof skillScope; render(); });
+    const order = el("select", "form-select tools-scope");
+    order.setAttribute("aria-label", "Sort skills");
+    for (const sort of SKILL_SORTS) {
+      const option = el("option", "", `Sort: ${sort.label}`);
+      option.value = sort.id;
+      order.append(option);
+    }
+    order.value = skillSort;
+    order.addEventListener("change", () => {
+      if (!isSkillSort(order.value)) return;
+      skillSort = order.value;
+      try { localStorage.setItem(SKILL_SORT_KEY, skillSort); } catch { /* The choice lasts for this session. */ }
+      render();
+    });
     const add = button("New skill", "agents-primary", () => openNewSkill());
     add.prepend(createIcon(ICON.plus));
-    bar.append(scope, add);
+    bar.append(scope, order, add);
     panel.replaceChildren(bar);
-    const skills = (controls?.skills ?? []).filter((skill) => (skillScope === "all" || skill.scope === skillScope) && matchesQuery(query, [skill.name, skill.description, skill.source]));
+    const everySkill = controls?.skills ?? [];
+    // Where they came from, as chips: one press narrows the list, and a whole tool's skills go on or off at once.
+    const sources = skillSources(everySkill);
+    if (sources.length > 1) {
+      const chips = el("div", "tools-skill-sources");
+      chips.setAttribute("role", "group");
+      chips.setAttribute("aria-label", "Where skills came from");
+      for (const item of [{ source: "", count: everySkill.length, enabled: everySkill.filter((skill) => skill.enabled).length }, ...sources]) {
+        const chip = button(`${item.source === "" ? "All" : item.source} · ${item.enabled.toString()}/${item.count.toString()}`, "tools-skill-source", () => { skillSource = item.source; render(); });
+        chip.setAttribute("aria-pressed", String(skillSource === item.source));
+        chips.append(chip);
+      }
+      panel.append(chips);
+    }
+    if (skillSource !== "" && !sources.some((item) => item.source === skillSource)) skillSource = "";
+    const skills = sortSkills(everySkill.filter((skill) => (skillScope === "all" || skill.scope === skillScope) && (skillSource === "" || skill.source === skillSource) && matchesQuery(query, [skill.name, skill.description, skill.source])), skillSort);
+    if (skills.length > 1) {
+      const bulk = el("div", "tools-skill-bulk");
+      const usable = skills.filter((skill) => skill.error === null);
+      const on = usable.filter((skill) => skill.enabled).length;
+      const pinned = everySkill.filter((skill) => skill.rank === "pinned").length;
+      bulk.append(el("span", "", `${skills.length.toString()} shown · ${on.toString()} on${pinned > 0 ? ` · ${pinned.toString()} pinned` : ""}`));
+      const allOn = button("Turn these on", "agent-box-action", () => void act({ kind: "set-skills", ids: usable.map((skill) => skill.id), enabled: true }, "Skills turned on."));
+      allOn.disabled = on === usable.length;
+      const allOff = button("Turn these off", "agent-box-action", () => void act({ kind: "set-skills", ids: skills.map((skill) => skill.id), enabled: false }, "Skills turned off."));
+      allOff.disabled = skills.every((skill) => !skill.enabled);
+      bulk.append(allOn, allOff);
+      panel.append(bulk);
+    }
     if (skills.length === 0) {
       panel.append(emptyNote(query.trim() || skillScope !== "all" ? "No skills match." : "No skills yet. Write one to teach the assistant a routine it should follow."));
       return;
@@ -485,8 +541,9 @@ export function createToolsPage(deps: ToolsPageDeps): ToolsPage {
       el("span", "tools-badge", skill.scope === "workspace" ? "This project" : "This computer"),
       toggle(`Offer ${skill.name}`, skill.enabled, (enabled) => void act({ kind: "set-skill", id: skill.id, enabled })),
     );
+    card.dataset["rank"] = skill.rank;
     card.append(head, el("p", "tool-card-text", skill.description));
-    card.append(el("p", "tool-card-users", `${skill.source} · about ${skill.estimatedTokens.toLocaleString()} tokens when used`));
+    card.append(el("p", "tool-card-users", `${skill.source} · about ${skill.estimatedTokens.toLocaleString()} tokens when used${skill.rank === "pinned" ? " · pinned: offered first" : skill.rank === "low" ? " · last resort: only when nothing else fits" : ""}`));
     if (skill.error !== null) {
       const warning = el("p", "tool-card-problem", skill.error);
       warning.setAttribute("role", "alert");
@@ -495,7 +552,15 @@ export function createToolsPage(deps: ToolsPageDeps): ToolsPage {
     const actions = el("div", "tool-card-actions");
     const preview = button("Preview", "agent-box-action", () => void openSkillPreview(skill));
     preview.setAttribute("aria-label", `Preview ${skill.name}`);
-    actions.append(preview);
+    const pin = button(skill.rank === "pinned" ? "Unpin" : "Pin", "agent-box-action", () => void act({ kind: "rank-skill", id: skill.id, rank: skill.rank === "pinned" ? "normal" : "pinned" }));
+    pin.setAttribute("aria-label", `${skill.rank === "pinned" ? "Unpin" : "Pin"} ${skill.name}`);
+    pin.setAttribute("aria-pressed", String(skill.rank === "pinned"));
+    pin.title = "Pinned skills are listed first and offered to the assistant ahead of the rest";
+    const low = button(skill.rank === "low" ? "Normal priority" : "Last resort", "agent-box-action", () => void act({ kind: "rank-skill", id: skill.id, rank: skill.rank === "low" ? "normal" : "low" }));
+    low.setAttribute("aria-label", `${skill.rank === "low" ? "Give normal priority to" : "Make a last resort of"} ${skill.name}`);
+    low.setAttribute("aria-pressed", String(skill.rank === "low"));
+    low.title = "A last-resort skill stays on, but the assistant is only offered it when nothing else matches";
+    actions.append(preview, pin, low);
     card.append(actions);
     return card;
   }

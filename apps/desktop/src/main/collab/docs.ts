@@ -69,6 +69,14 @@ export interface DocStore {
   text(path: string): string | null;
   /** Write the document to the host's disk. Returns false when the path is not shareable. */
   save(path: string): Promise<boolean>;
+  /**
+   * Write every open shared document, returning how many files changed on disk.
+   *
+   * The host's autosave calls this. A guest's edits reach the host's document immediately, but
+   * a crash before the host saves would lose them from the project on disk - so the live room
+   * commits its in-memory work periodically rather than trusting someone to press save.
+   */
+  saveAll(): Promise<number>;
   /** Re-seed a document from disk, for a file changed outside the session. */
   reload(path: string): Promise<boolean>;
   close(path: string): void;
@@ -206,6 +214,16 @@ export function createDocStore(deps: DocStoreDeps): DocStore {
 
       await writeFile(resolved, doc.getText(TEXT_KEY).toString(), "utf8");
       return true;
+    },
+
+    async saveAll() {
+      if (!deps.ownsDisk) return 0;
+
+      let saved = 0;
+      for (const path of [...docs.keys()]) {
+        if (await this.save(path)) saved += 1;
+      }
+      return saved;
     },
 
     async reload(path) {

@@ -19,7 +19,7 @@ import {
   NIM_BASE_URL,
   type ConnectionProfile,
 } from "@adcode/ai/connections";
-import type { AiModelInfo, AiProviderInfo, AiStatus, LocalModelsView } from "../../shared/api.ts";
+import type { AiModelInfo, AiProviderInfo, AiStatus, CliAgentView, LocalModelsView } from "../../shared/api.ts";
 import { pasteText } from "../clipboard.ts";
 import { createQuickConnect, type QuickConnect } from "./quickConnect.ts";
 import { localDescription as localDescriptionText, localLabel as localLabelText, WEB_LOCAL_MODELS } from "./localModelsText.ts";
@@ -29,6 +29,8 @@ export interface ConnectView {
   readonly element: HTMLElement;
   /** Show the quick routes on the next open even if a model is already connected. */
   showQuick(): void;
+  /** Open on one provider's page, such as a coding CLI's. */
+  select(providerId: string): void;
   shown(): void;
   hidden(): void;
   open(): void;
@@ -50,6 +52,23 @@ export interface ConnectViewDeps {
   /** The coordinator owns the dialog shell, dismissal, and focus return. */
   readonly requestOpen: () => void;
   readonly requestClose: () => void;
+  /** Runs a command in a terminal tab: installing, signing in to, or opening a coding CLI. */
+  readonly runInTerminal?: (command: string) => void;
+  /** Looks for coding CLIs again after one is installed. */
+  readonly refreshCliAgents?: () => Promise<AiStatus>;
+}
+
+/** A coding CLI's state in the provider list: what is true of this computer. */
+export function cliLabel(cli: CliAgentView): string {
+  if (!cli.installed) return "not installed";
+  return cli.headless ? "installed" : "runs in terminal";
+}
+
+/** What choosing a coding CLI means, in a sentence or two. */
+export function cliDescription(cli: CliAgentView): string {
+  if (!cli.installed) return `${cli.name} is not installed on this computer. Install it, sign in once in a terminal, then press Check again.`;
+  if (!cli.headless) return `${cli.name} runs as an interactive app in a terminal. Open it in a terminal tab beside your code; it uses its own account and works in the open project.`;
+  return `${cli.name} answers in ADCode's chat, with its own account, models and tools, working in the open project. ADCode adds your editor context and keeps the conversation. Usage is billed by ${cli.name}, not by ADCode.`;
 }
 
 /** "1M", "200K", "32K": a token count the way a person reads it. */
@@ -330,7 +349,8 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
       if (!freeError) { const loading = document.createElement("p"); loading.className = "connect-free-note"; loading.textContent = "Checking available models…"; loading.setAttribute("role", "status"); freePanel.append(loading); }
       return;
     }
-    const providers = status.providers.filter((provider) => !provider.needsKey && provider.hasKey && provider.models.length > 0 && (provider.local === undefined || provider.local.running));
+    // Coding CLIs are not "free models": they bill through their own accounts.
+    const providers = status.providers.filter((provider) => provider.cli === undefined && !provider.needsKey && provider.hasKey && provider.models.length > 0 && (provider.local === undefined || provider.local.running));
     if (providers.length === 0) {
       const empty = document.createElement("p");
       empty.className = "empty-hint";
@@ -571,6 +591,9 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
     "anthropic",
     "openai",
     "google",
+    "cli-claude",
+    "cli-codex",
+    "cli-opencode",
     "ollama",
     "openrouter",
     "deepseek",
@@ -580,12 +603,17 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
     "custom",
   ];
 
+  /** In the provider list: anything that needs a key, and the coding CLIs. */
+  function listed(provider: AiProviderInfo): boolean {
+    return provider.needsKey || provider.cli !== undefined;
+  }
+
   function orderedProviders(): AiProviderInfo[] {
     if (status === null) return [];
     const rank = new Map(PINNED_PROVIDERS.map((id, index) => [id, index]));
     const fallback = PINNED_PROVIDERS.length;
     return status.providers
-      .filter((provider) => provider.needsKey && matches(provider))
+      .filter((provider) => listed(provider) && matches(provider))
       .sort(
         (a, b) =>
           (rank.get(a.id) ?? fallback) - (rank.get(b.id) ?? fallback) ||
@@ -597,7 +625,7 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
     list.replaceChildren();
     if (status === null) return;
     renderSteps();
-    providerCount.textContent = String(status.providers.filter((provider) => provider.needsKey && matches(provider)).length);
+    providerCount.textContent = String(status.providers.filter((provider) => listed(provider) && matches(provider)).length);
     const current = status.providers.find((provider) => provider.id === status?.activeProvider);
     const currentModel = current?.models.find((model) => model.id === status?.activeModel);
     connectionStatus.textContent = status.ready
@@ -633,6 +661,8 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
       const local = provider.local;
       state.textContent = provider.id === status.activeProvider && status.ready
         ? "In use"
+        : provider.cli !== undefined
+        ? cliLabel(provider.cli)
         : local !== undefined
         ? localLabel(local)
         : !provider.needsKey
@@ -642,7 +672,9 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
           : provider.transport === "unsupported"
             ? "needs an address"
             : "needs a key";
-      state.dataset["tone"] = local !== undefined
+      state.dataset["tone"] = provider.cli !== undefined
+        ? provider.cli.installed ? "ok" : ""
+        : local !== undefined
         ? local.running && local.models.length > 0 ? "ok" : local.installed ? "warn" : ""
         : provider.hasKey || !provider.needsKey
           ? "ok"
@@ -694,6 +726,8 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
     description.className = "connect-detail-description";
     description.textContent = provider.id === "tagflow"
       ? "Included AI for your verified account, free and with no ADCode usage limit. No API key needed. Prompts and project context pass through ADCode's server to the selected provider. Sign in in Account before your first message."
+      : provider.cli !== undefined
+      ? cliDescription(provider.cli)
       : provider.transport === "unsupported"
       ? "Add an API connection with this provider's endpoint to get started."
       : provider.local !== undefined
@@ -703,6 +737,9 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
           : "Run your assistant with a local model. No API key required.";
     detail.append(description);
     if (provider.local !== undefined) detail.append(localActions(provider.local));
+    if (provider.cli !== undefined) detail.append(cliActions(provider, provider.cli));
+    // A CLI with no headless mode is opened, not selected: the rest is about chat models.
+    if (provider.cli !== undefined && !provider.cli.headless) { renderSteps(); animateDetail(); return; }
     const selection = document.createElement("div");
     selection.className = "connect-selection";
     const selectionText = document.createElement("p");
@@ -1197,6 +1234,94 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
     animateDetail();
   }
 
+  /**
+   * A coding CLI's way forward: install it, sign in once, or open it in a terminal - and, once
+   * it answers in the chat, any model name the CLI accepts, not just the ones listed.
+   */
+  function cliActions(provider: AiProviderInfo, cli: CliAgentView): HTMLElement {
+    const wrap = document.createElement("div");
+    wrap.className = "connect-cli";
+    const row = document.createElement("div");
+    row.className = "connect-local-actions";
+    const note = document.createElement("p");
+    note.className = "connect-result";
+    note.setAttribute("role", "status");
+    const action = (label: string, primary: boolean, run: () => Promise<void> | void): void => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = primary ? "btn btn-primary" : "ad-btn";
+      button.textContent = label;
+      button.addEventListener("click", () => {
+        button.disabled = true;
+        void Promise.resolve(run()).finally(() => { button.disabled = false; });
+      });
+      row.append(button);
+    };
+    const terminal = (command: string, said: string): void => {
+      if (deps.runInTerminal === undefined) return;
+      deps.runInTerminal(command);
+      deps.requestClose();
+      note.textContent = said;
+    };
+    if (isWebSurface()) {
+      action("Get the desktop app", true, () => { window.open(DESKTOP_DOWNLOAD_URL, "_blank", "noopener"); });
+      note.textContent = "Coding CLIs run on your own computer, in the desktop app.";
+      row.append(note);
+      wrap.append(row);
+      return wrap;
+    }
+    if (!cli.installed) {
+      action("Install in a terminal", true, () => terminal(cli.install, `Installing ${cli.name} in a terminal.`));
+      action("Copy install command", false, async () => { await window.adcode.clipboard.writeText(cli.install); note.textContent = `Copied: ${cli.install}`; });
+    } else if (!cli.headless) {
+      action(`Open ${cli.name} in a terminal`, true, () => terminal(cli.command, `Opened ${cli.name} in a terminal.`));
+    } else {
+      action("Sign in in a terminal", false, () => terminal(cli.signIn, `Opened ${cli.name}'s sign-in in a terminal. Come back when it is done.`));
+    }
+    action("Check again", false, async () => {
+      if (deps.refreshCliAgents === undefined) return;
+      status = await deps.refreshCliAgents();
+      keepDetailScroll(() => { renderProviders(); renderDetail(); });
+    });
+    row.append(note);
+    wrap.append(row);
+    if (cli.installed) {
+      const meta = document.createElement("p");
+      meta.className = "settings-row-description";
+      meta.textContent = cli.version === null ? `Found as \`${cli.command}\`.` : `Found ${cli.version}.`;
+      wrap.append(meta);
+    }
+    if (cli.installed && cli.headless) {
+      // Any model the CLI accepts, typed as it spells it: lists go stale faster than CLIs do.
+      const form = document.createElement("form");
+      form.className = "connect-cli-model";
+      const input = document.createElement("input");
+      input.className = "input connect-input";
+      input.placeholder = provider.models.length > 1 ? `Or type a model, such as ${provider.models[1]!.id}` : "Or type a model name the CLI accepts";
+      input.setAttribute("aria-label", `Model name for ${cli.name}`);
+      input.spellcheck = false;
+      const use = document.createElement("button");
+      use.type = "submit";
+      use.className = "ad-btn";
+      use.textContent = "Use model";
+      form.append(input, use);
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const model = input.value.trim();
+        if (!/^[A-Za-z0-9][A-Za-z0-9._:/@+=-]{0,199}$/.test(model)) { note.textContent = "Type the model exactly as the CLI names it, with no spaces."; return; }
+        use.disabled = true;
+        void (async () => {
+          await deps.write("adcode.ai.provider", provider.id);
+          await deps.write("adcode.ai.model", model);
+          status = await deps.status();
+          keepDetailScroll(() => { renderProviders(); renderDetail(); });
+        })().finally(() => { use.disabled = false; });
+      });
+      wrap.append(form);
+    }
+    return wrap;
+  }
+
   /** Ollama's way forward: get it, start it, or look again once a model is pulled. */
   function localActions(local: LocalModelsView): HTMLElement {
     const row = document.createElement("div");
@@ -1331,7 +1456,7 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
       status = await deps.status();
       if (!open) return;
       freeError = "";
-      if (!status.providers.some((provider) => provider.id === selected && provider.needsKey) && !status.connections?.some((connection) => connection.id === selected)) {
+      if (!status.providers.some((provider) => provider.id === selected && listed(provider)) && !status.connections?.some((connection) => connection.id === selected)) {
         selected = status.providers.find((provider) => provider.id === status?.activeProvider && provider.needsKey)?.id ?? status.providers.find((provider) => provider.needsKey)?.id ?? null;
       }
 
@@ -1385,6 +1510,13 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
 
     showQuick(): void {
       forceQuick = true;
+    },
+
+    select(providerId: string): void {
+      selected = providerId;
+      forceQuick = false;
+      selectTab("all");
+      if (open) { renderProviders(); renderDetail(); } else deps.requestOpen();
     },
 
     hidden(): void {

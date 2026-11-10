@@ -1,0 +1,71 @@
+/*
+ * The Browser panel as a real browser (preview/liveBrowserPane.ts).
+ *
+ * Everything sizes from the panel, not the window: it is a container, and the toolbar and
+ * start page answer its width. A tab is a <webview> filling the stage; inactive tabs stay
+ * laid out but invisible, so a page keeps playing and the assistant can still read it.
+ * Motion is transform and opacity only, and off for anyone who asked for stillness.
+ */
+.live-browser { container: live-browser / inline-size; position: relative; }
+.live-browser-toolbar { gap: var(--space-1); padding: var(--space-2) var(--space-3); }
+.live-browser-toolbar > button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; flex: none; border-radius: var(--radius-lg); }
+.live-browser-address { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--space-2); height: 32px; padding: 0 var(--space-3); border-radius: 999px; background: var(--surface-control); border: 1px solid var(--border-subtle); transition: border-color 140ms ease, box-shadow 140ms ease; }
+.live-browser-address:focus-within { border-color: var(--border-strong); box-shadow: var(--focus-ring); }
+.live-browser .live-browser-address input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; outline: 0; background: transparent; box-shadow: none; color: var(--text-primary); font: inherit; font-size: var(--text-sm); text-overflow: ellipsis; }
+.live-browser-security { display: grid; place-items: center; flex: none; color: var(--text-secondary); }
+.live-browser-security svg { width: 13px; height: 13px; }
+.live-browser-security[data-secure="true"] { color: var(--success); }
+.live-browser-driver { display: inline-flex; align-items: center; gap: 6px; flex: none; height: 26px; padding: 0 10px; border-radius: 999px; font-size: var(--text-xs); color: var(--text-primary); background: color-mix(in srgb, var(--success) 16%, transparent); white-space: nowrap; }
+.live-browser-driver::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+.live-browser-progress { height: 2px; flex: none; overflow: hidden; background: transparent; }
+.live-browser-progress::after { content: ""; display: block; width: 40%; height: 100%; background: var(--text-primary); opacity: 0; transform: translateX(-100%); }
+.live-browser[data-loading="true"] .live-browser-progress::after { opacity: .7; }
+.live-browser-stage { position: relative; overflow: hidden; background: var(--bg-editor); }
+.live-browser-view { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; visibility: hidden; pointer-events: none; }
+.live-browser-view[data-active="true"] { visibility: visible; pointer-events: auto; }
+.live-browser[data-driven="true"] .live-browser-stage { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--success) 55%, transparent); }
+
+.live-browser-start, .live-browser-failure { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-3); padding: var(--space-5) var(--space-4); overflow: auto; text-align: center; background: var(--bg-app); color: var(--text-secondary); }
+.live-browser-failure { z-index: 1; }
+.live-browser-start h2, .live-browser-failure h2 { margin: var(--space-2) 0 0; font-size: var(--text-xl); font-weight: 600; letter-spacing: -.01em; color: var(--text-primary); }
+.live-browser-start p, .live-browser-failure p { margin: 0; max-width: 42ch; font-size: var(--text-sm); line-height: 1.6; }
+.live-browser-start-search { display: flex; align-items: center; gap: var(--space-2); width: min(520px, 100%); height: 44px; margin-top: var(--space-3); padding: 0 var(--space-4); border-radius: 999px; background: var(--surface-control); border: 1px solid var(--border-subtle); box-shadow: var(--shadow-surface); }
+.live-browser-start-search:focus-within { border-color: var(--border-strong); box-shadow: var(--focus-ring); }
+.live-browser-start-search svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; }
+.live-browser .live-browser-start-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; box-shadow: none; color: var(--text-primary); font: inherit; font-size: var(--text-md); }
+.live-browser-recents { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-2); width: min(680px, 100%); margin-top: var(--space-4); }
+.live-browser .live-browser-recent { display: grid; gap: 2px; padding: var(--space-3); text-align: left; border-radius: var(--radius-lg); border: 1px solid var(--border-subtle); background: var(--bg-elevated); cursor: pointer; min-width: 0; }
+.live-browser-recent strong { font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-browser-recent span { font-size: var(--text-xs); color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-browser .live-browser-retry { height: var(--control-height); padding: 0 var(--space-4); border-radius: var(--radius-lg); background: var(--fill-primary); color: var(--text-on-accent); cursor: pointer; }
+.live-browser-status { position: absolute; left: 0; bottom: 0; z-index: 2; max-width: min(70%, 560px); margin: 0; padding: 3px 10px; font-size: var(--text-xs); color: var(--text-secondary); background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-left: 0; border-bottom: 0; border-top-right-radius: var(--radius-md); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.live-browser-tab-icon { display: grid; place-items: center; width: 15px; height: 15px; flex: none; }
+.live-browser-tab-icon img { width: 15px; height: 15px; border-radius: 3px; }
+.live-browser-spinner { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid var(--border-strong); border-top-color: var(--text-primary); }
+.live-browser [hidden] { display: none !important; }
+
+/* Narrow panel: the address bar keeps the room; the label goes, the dot stays. */
+@container live-browser (max-width: 520px) {
+  .live-browser-toolbar { padding: var(--space-2); }
+  .live-browser-driver { width: 26px; padding: 0; justify-content: center; font-size: 0; gap: 0; }
+  .live-browser-start h2 { font-size: var(--text-lg); }
+  .live-browser-recents { grid-template-columns: 1fr 1fr; }
+}
+@container live-browser (max-width: 360px) {
+  .live-browser-toolbar > button:nth-of-type(2) { display: none; }
+  .live-browser-recents { grid-template-columns: 1fr; }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .live-browser .live-browser-recent:hover { border-color: var(--border-strong); background: var(--surface-control-hover); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-reduced-motion="true"]) .live-browser[data-loading="true"] .live-browser-progress::after { animation: live-browser-load 1.1s cubic-bezier(.4, 0, .2, 1) infinite; }
+  :root:not([data-reduced-motion="true"]) .live-browser-spinner { animation: live-browser-spin .7s linear infinite; }
+  :root:not([data-reduced-motion="true"]) .live-browser-driver::before { animation: live-browser-pulse 1.4s ease-in-out infinite; }
+  :root:not([data-reduced-motion="true"]) .live-browser .live-browser-recent { transition: border-color 140ms ease, background-color 140ms ease, scale 140ms var(--motion-curve); }
+  :root:not([data-reduced-motion="true"]) .live-browser .live-browser-recent:active { scale: var(--motion-press); }
+}
+@keyframes live-browser-load { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
+@keyframes live-browser-spin { to { transform: rotate(360deg); } }
+@keyframes live-browser-pulse { 50% { opacity: .35; } }

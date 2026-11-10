@@ -24,7 +24,8 @@ import { createAgentViewCard, createPlanCard, planStepsFrom, type AgentViewCard,
 import { createChatLiveRoom } from "../liveAgents/chatLiveRoom.ts";
 import { createTaskDetailsDialog } from "./taskDetailsDialog.ts";
 import { createTasksPopupDialog } from "./tasksPopupDialog.ts";
-import { SPONSORED_SETTING, followSponsoredCard, sponsoredReplyFrame } from "./sponsoredReply.ts";
+import { SPONSORED_SETTING, createSponsorStrip } from "./sponsoredReply.ts";
+import { exportConversationText } from "./chatExport.ts";
 import { isWebSurface } from "../surface.ts";
 import type { PreviewStatus } from "../../shared/api.ts";
 import type {
@@ -114,6 +115,7 @@ import { openUsageDialog } from "./usageDialog.ts";
 import { firstBuildPrompt, looksLikeBuildRequest } from "../../shared/firstBuild.ts";
 import { BUY_TOKENS_URL } from "../../shared/tagflow.ts";
 import { createLimitPauseCard, parseLimitPause } from "./limitPause.ts";
+import { createLiveSessionDock } from "../collab/liveSessionDock.ts";
 import { AppWindow, ArrowDown, ArrowRight, CalendarClock, CircleAlert, Folder, Maximize2, Mic, Users, type IconNode } from "lucide";
 
 export interface ChatWidget {
@@ -144,6 +146,10 @@ export interface ChatWidget {
   compactConversation(focus?: string): void;
   /** Show what the last compaction wrote. */
   viewConversationSummary(): void;
+  /** Open or close the live room dock beside the composer: who is online, and the room chat. */
+  toggleLiveRoom(): void;
+  /** Save the open conversation to a file the person picks: Markdown to read, or JSON to process. */
+  exportConversation(format?: "markdown" | "json"): void;
   /** Bring chat forward with its conversations listed: which are working, which finished. */
   showConversations(): void;
   close(): void;
@@ -214,6 +220,8 @@ export interface ChatWidgetDeps {
   readonly promptText?: (title: string, body: string, value: string) => Promise<string | null>;
   /** Switch the open project folder. Wired to workspace.open in main. */
   readonly switchFolder?: () => void;
+  /** Open a known folder, used after downloading an artifact to join its session. */
+  readonly openFolderAt?: (root: string) => Promise<void>;
   /** Current open folder root, for the per-folder banner. Updated via setWorkspace. */
   readonly currentFolder?: () => string | null;
   /** What the user is looking at; rides with each send so "this file" means something. */
@@ -296,13 +304,14 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   window.adcode.settings.onChanged(() => { if (open) void refreshModelStatus(); });
   // Sponsored cards under replies follow their setting: read now and whenever settings change.
   let sponsoredReplies = false;
+  const sponsorStrip = createSponsorStrip();
   const readSponsored = (): void => {
     void window.adcode.settings.read().then((values) => {
       const record = values as Record<string, unknown>;
       // Desktop only: the web workspace's own policy does not admit the sponsored frame yet.
       sponsoredReplies = !isWebSurface() && record[SPONSORED_SETTING] === true && record["adcode.ads.enabled"] !== false;
       // Turning the setting off stops the cards already on screen, not just the next reply.
-      if (!sponsoredReplies) for (const frame of document.querySelectorAll(".chat-sponsored-frame")) frame.remove();
+      if (!sponsoredReplies) sponsorStrip.clear();
     }, () => { sponsoredReplies = false; });
   };
   readSponsored();
@@ -324,6 +333,20 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   });
 
   function wireMessageButtons(scope: HTMLElement): void {
+    // Links and link buttons open in the Browser panel; the web version hands them to a new tab.
+    for (const link of scope.querySelectorAll<HTMLButtonElement>("[data-chat-link]")) {
+      link.addEventListener("click", () => {
+        const url = link.dataset["chatLink"] ?? "";
+        if (url !== "") document.dispatchEvent(new CustomEvent("adcode:open-link", { detail: { url } }));
+      });
+    }
+    for (const toggle of scope.querySelectorAll<HTMLButtonElement>(".chat-mockup-toggle")) {
+      toggle.addEventListener("click", () => {
+        const narrow = toggle.getAttribute("aria-pressed") !== "true";
+        toggle.setAttribute("aria-pressed", String(narrow));
+        toggle.closest(".chat-mockup")?.toggleAttribute("data-narrow", narrow);
+      });
+    }
     for (const copy of scope.querySelectorAll<HTMLButtonElement>(".chat-codeblock-copy")) {
       copy.addEventListener("click", () => {
         const code = copy.closest(".chat-codeblock")?.querySelector("code")?.textContent ?? "";
@@ -1792,6 +1815,15 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const composer = document.createElement("form");
   composer.className = "chat-composer";
 
+  const liveDock = createLiveSessionDock({
+    currentFolder: () => deps.currentFolder?.() ?? null,
+    ...(deps.openFolderAt === undefined ? {} : { openFolderAt: deps.openFolderAt }),
+    ...(deps.switchFolder === undefined ? {} : { switchFolder: deps.switchFolder }),
+    ...(deps.runCommand === undefined ? {} : { runCommand: deps.runCommand }),
+    ...(deps.openAccount === undefined ? {} : { openAccount: deps.openAccount }),
+    ...(deps.editorContext === undefined ? {} : { editorContext: deps.editorContext }),
+  });
+
   const input = document.createElement("textarea");
   input.className = "chat-input";
   input.rows = 2;
@@ -2211,7 +2243,31 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   composerTools.addEventListener("keydown", event => {
     if (event.key === "Escape" && composerTools.open) { event.stopPropagation(); composerTools.open = false; toolsLabel.focus(); }
   });
-  utilities.append(attachButton, attachContext, composerTools);
+  const liveButton = document.createElement("button");
+  liveButton.type = "button";
+  liveButton.className = "chat-team-button chat-live-button";
+  liveButton.append(createIcon(Users), toolLabel("Live"));
+  liveButton.title = "Start or join a live project session";
+  liveButton.setAttribute("aria-label", "Live project session");
+  liveButton.setAttribute("aria-expanded", "false");
+  const liveBadge = document.createElement("span");
+  liveBadge.className = "chat-live-badge";
+  liveBadge.hidden = true;
+  liveButton.append(liveBadge);
+  liveButton.addEventListener("click", () => {
+    liveDock.toggle();
+    liveButton.setAttribute("aria-expanded", String(!liveDock.element.hidden));
+  });
+  liveDock.onChange((state) => {
+    liveButton.dataset["live"] = String(state.live);
+    liveButton.setAttribute("aria-expanded", String(state.open));
+    liveBadge.hidden = !state.live || state.online === 0;
+    liveBadge.textContent = String(state.online);
+    liveButton.title = state.live
+      ? `Live project · ${String(state.online)} online · ${String(state.working)} working`
+      : "Start or join a live project session";
+  });
+  utilities.append(attachButton, attachContext, liveButton, composerTools);
   routing.append(modePill, modelLabel, sendButton);
   toolbar.append(utilities, routing);
   const composerFooter = document.createElement("div");
@@ -2284,7 +2340,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   void window.adcode.chat.current().then((session) => {
     currentSummary = session?.summary?.text ?? null;
   }, () => undefined);
-  composer.append(queueStrip, input, attachmentStrip, composerNotice, toolbar, composerFooter, filePicker);
+  const composerMain = document.createElement("div");
+  composerMain.className = "chat-composer-main";
+  composerMain.append(queueStrip, input, attachmentStrip, composerNotice, toolbar, composerFooter);
+  composer.append(composerMain, liveDock.element, filePicker);
 
   /* ── Typed menus: `/` runs a command, `@` adds a file ─────────────────── */
 
@@ -2703,7 +2762,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     input.focus({ preventScroll: true });
   });
   transcript.addEventListener("scroll", () => updateScrollButton(), { passive: true });
-  conversation.append(memory, connectBanner, folderBanner, welcome, transcript, scrollButton, composer, quickActions);
+  conversation.append(memory, connectBanner, folderBanner, welcome, transcript, scrollButton, sponsorStrip.element, composer, quickActions);
   refreshWelcome();
   /*
    * The "is writing" row: what the assistant is doing, for how long, and the way to stop it
@@ -4902,18 +4961,17 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           finished.after(messageActions(finished));
           scrollToEnd();
         }
-        // Sponsored cards (sponsoredReply.ts): a live finished reply only, never a replay.
+        // The sponsor strip (sponsoredReply.ts): a live finished reply only, never a replay.
         if (finished && !replaying && sponsoredReplies) {
-          const frame = sponsoredReplyFrame({
+          sponsorStrip.show({
             request: lastUserPrompt,
             response: messageSources.get(finished) ?? "",
             sessionId: eventSession ?? activeSessionId ?? "",
             theme: document.documentElement.dataset["theme"] === "light" ? "light" : "dark",
             // Which question of this conversation the reply answers - Zeekend paces by it.
             turn: transcript.querySelectorAll(".chat-bubble-user").length,
-          }, undefined, undefined, followSponsoredCard(transcript, () => stickToBottom, updateScrollButton));
-          // Below the reply's own actions row, so copy/retry stay attached to the reply.
-          if (frame !== null) (finished.nextElementSibling ?? finished).after(frame);
+            layout: "notification",
+          });
         }
         void refreshHistory();
         // A follow-up typed while this turn ran goes now.
@@ -5403,6 +5461,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       });
 
       void refreshModelStatus();
+      liveDock.refresh();
       refreshContextMeter();
       statusTimer = window.setInterval(() => { if (!document.hidden) void refreshModelStatus(); }, 5_000);
       void refreshWorkspaceTask();
@@ -5461,6 +5520,28 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     compactConversation(focus?: string): void {
       api.open();
       void compactNow(focus);
+    },
+
+    toggleLiveRoom(): void {
+      api.open();
+      liveButton.click();
+    },
+
+    exportConversation(format: "markdown" | "json" = "markdown"): void {
+      api.open();
+      const messages = transcriptMessages().filter(([, text]) => text.trim() !== "");
+      if (messages.length === 0) {
+        complain("There is nothing to export yet. Send a message first.");
+        return;
+      }
+      const title = conversationTitle.textContent?.trim() || "Conversation";
+      const exported = exportConversationText(title, messages, format, new Date());
+      void window.adcode.files.saveAs(exported.text, exported.fileName).then((path) => {
+        if (path === null) return;
+        composerNotice.textContent = `Conversation saved to ${path}`;
+        composerNotice.hidden = false;
+        window.setTimeout(() => { composerNotice.hidden = true; }, 6000);
+      }, () => complain("The conversation could not be saved."));
     },
 
     viewConversationSummary(): void {
@@ -5541,6 +5622,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       tasksPopup.close();
       reviewShownFor.clear();
       currentFolderRoot = root;
+      liveDock.setWorkspace(root);
       paintFolderBanner();
       paintSetup();
       void refreshHistory();

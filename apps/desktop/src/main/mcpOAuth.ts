@@ -33,6 +33,7 @@ import {
   protectedResourceUrls,
   refreshBody,
   registrationRequest,
+  signInScopes,
   type AuthorizationServer,
   type McpOAuthGrant,
   type ProtectedResource,
@@ -161,9 +162,14 @@ export async function signInToMcp(id: string, endpoint: string, values: Readonly
       // Only the redirect decides anything; the browser also asks for /favicon.ico.
       if (url.pathname !== "/callback") { res.writeHead(404).end(); return; }
       if (url.searchParams.get("state") !== state || client === null) {
+        /*
+         * Not ours: an older tab finishing a sign-in that was started again, a browser
+         * prefetching the address, or something probing the port. It is told so and ignored.
+         * It used to end the flow - so one stale tab made the real answer, arriving a moment
+         * later, land on a closed listener and the connector report "could not be verified".
+         */
         res.writeHead(400, RESULT_PAGE_HEADERS);
-        res.end(resultPage("Couldn't verify that sign-in", "The response didn't match the request ADCode started. Try again from ADCode.", false, "your connector"));
-        finish({ reason: "The sign-in response could not be verified." });
+        res.end(resultPage("This sign-in page is out of date", "ADCode started a newer sign-in for this connector. Finish that one, or start again from ADCode.", false, "your connector"));
         return;
       }
       if (answer !== null) { res.writeHead(409).end(); return; }
@@ -187,7 +193,7 @@ export async function signInToMcp(id: string, endpoint: string, values: Readonly
       void clientFor(server, redirectUri, values)
         .then(async (chosen) => {
           client = chosen;
-          const url = authorizeUrl({ server, clientId: chosen.clientId, redirectUri, scopes: resource.scopes, challenge, state, resource: resource.resource });
+          const url = authorizeUrl({ server, clientId: chosen.clientId, redirectUri, scopes: signInScopes(resource, server), challenge, state, resource: resource.resource });
           await shell.openExternal(url);
         })
         .catch((error: unknown) => finish({ reason: error instanceof Error ? error.message : "Could not open your browser." }));

@@ -15,6 +15,7 @@ export * from "./teamBudget.ts";
 export * from "./teamMerge.ts";
 export * from "./automation.ts";
 export * from "./continuation.ts";
+export * from "./cliAgents.ts";
 export * from "./terminalTeam.ts";
 export * from "./teamMailbox.ts";
 export * from "./chatForks.ts";

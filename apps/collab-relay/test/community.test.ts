@@ -144,6 +144,15 @@ describe("artifacts and improvements", () => {
     await expect(ctx.hub.sendImprovement("ana", artifact.id, { baseVersion: 1, title: "Self", changes: [], authorName: "Ana" })).rejects.toThrow(/\[409\]/);
   });
 
+  it("drops a stopped share from the owner's list instead of offering Stop sharing again", async () => {
+    const artifact = await ctx.hub.publishArtifact("ana", { title: "Todo app", description: "A tiny todo list to learn with.", files, ownerName: "Ana" });
+    expect(ctx.hub.me("ana").artifacts.map((one) => one.id)).toEqual([artifact.id]);
+    expect(() => ctx.hub.removeArtifact("ben", artifact.id)).toThrow(/\[403\]/);
+    ctx.hub.removeArtifact("ana", artifact.id);
+    expect(ctx.hub.me("ana").artifacts.map((one) => one.id)).toEqual([]);
+    expect(ctx.hub.listArtifacts("new", null, false, 10, 0)).toEqual([]);
+  });
+
   it("keeps a private artifact out of Discover until its share code is presented", async () => {
     const artifact = await ctx.hub.publishArtifact("ana", { title: "Secret app", description: "Only for the people I invite.", files, ownerName: "Ana", visibility: "private" });
     expect(artifact).toMatchObject({ visibility: "private", shareCode: expect.stringMatching(/^adartifact:/) });
@@ -209,11 +218,13 @@ describe("HTTP", () => {
     expect((await call(`/community/artifacts/${artifact.id}?key=${code.key}`, ben)).status).toBe(200);
     expect((await call(`/community/artifacts/${artifact.id}/room`, ben)).status).toBe(404);
 
-    const opened = await call(`/community/artifacts/${artifact.id}/room/open`, ana, { name: "Ana" });
+    const opened = await call(`/community/artifacts/${artifact.id}/room/open`, ana, { name: "Ana", branch: "feat/live", task: "Ship the live room" });
     expect(opened.status).toBe(200);
-    expect(await opened.json()).toMatchObject({ artifactId: artifact.id, open: true, self: { role: "owner" } });
-    const joined = await call(`/community/artifacts/${artifact.id}/room/join?key=${code.key}`, ben, { name: "Ben" });
-    expect(await joined.json()).toMatchObject({ open: true, self: { uid: "ben", role: "editor" } });
+    expect(await opened.json()).toMatchObject({ artifactId: artifact.id, open: true, branch: "feat/live", task: "Ship the live room", self: { role: "owner" } });
+    const joined = await call(`/community/artifacts/${artifact.id}/room/join?key=${code.key}`, ben, { name: "Ben", hasAgent: true, pushAccess: true });
+    const joinedBody = await joined.json() as { open: boolean; self: { uid: string; role: string }; checks: { id: string; ok: boolean | null }[] };
+    expect(joinedBody).toMatchObject({ open: true, self: { uid: "ben", role: "editor" } });
+    expect(joinedBody.checks.find((one) => one.id === "agent")!.ok).toBe(true);
     const after = await call(`/community/artifacts/${artifact.id}/room/action?key=${code.key}`, ben, { action: "post", text: "Ready when you are." });
     expect((await after.json() as { messages: unknown[] }).messages).toHaveLength(1);
     const planned = await call(`/community/artifacts/${artifact.id}/room/action?key=${code.key}`, ben, { action: "plan", operation: "add", title: "Ship the live room" });
@@ -222,6 +233,20 @@ describe("HTTP", () => {
     expect((await moved.json() as { plan: { status: string }[] }).plan[0]!.status).toBe("doing");
     const locked = await call(`/community/artifacts/${artifact.id}/room/action?key=${code.key}`, ben, { action: "lock", operation: "lock", path: "app.js" });
     expect((await locked.json() as { locks: { path: string }[] }).locks).toMatchObject([{ path: "app.js" }]);
+    const owned = await call(`/community/artifacts/${artifact.id}/room/action?key=${code.key}`, ana, { action: "plan", operation: "add", title: "Rewrite the parser", ownerUid: "ana", paths: ["app.js"] });
+    const ownedStep = (await owned.json() as { plan: { id: string; ownerUid: string }[] }).plan.find((one) => one.ownerUid === "ana")!;
+    const asked = await call(`/community/artifacts/${artifact.id}/room/action?key=${code.key}`, ben, { action: "plan", operation: "request", id: ownedStep.id, note: "I can do this next" });
+    const approval = (await asked.json() as { approvals: { id: string; status: string; stepId: string }[] }).approvals[0]!;
+    expect(approval).toMatchObject({ status: "pending", stepId: ownedStep.id });
+    const decided = await call(`/community/artifacts/${artifact.id}/room/action?key=${code.key}`, ana, { action: "decideApproval", id: approval.id, accept: true });
+    expect((await decided.json() as { plan: { id: string; ownerUid: string }[] }).plan.find((one) => one.id === ownedStep.id)!.ownerUid).toBe("ben");
+    const offered = await call(`/community/artifacts/${artifact.id}/room/action?key=${code.key}`, ana, { action: "offerHandoff", toUid: "ben", note: "Take the parser" });
+    const handoff = (await offered.json() as { handoffs: { id: string; acceptedAt: number }[] }).handoffs[0]!;
+    const accepted = await call(`/community/artifacts/${artifact.id}/room/action?key=${code.key}`, ben, { action: "acceptHandoff", id: handoff.id });
+    expect((await accepted.json() as { handoffs: { acceptedAt: number }[] }).handoffs[0]!.acceptedAt).toBeGreaterThan(0);
+    const rooms = await call("/community/rooms", ana);
+    expect(rooms.status).toBe(200);
+    expect(await rooms.json()).toContainEqual(expect.objectContaining({ artifactId: artifact.id, branch: "feat/live", task: "Ship the live room", memberCount: 2, open: true }));
     expect((await call(`/community/artifacts/${artifact.id}/room/join`, { uid: "eve", email: "e@example.com" }, { name: "Eve" })).status).toBe(404);
   });
 });

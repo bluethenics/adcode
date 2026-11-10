@@ -115,6 +115,8 @@ export interface AssistantSkillView {
   readonly enabled: boolean;
   readonly error: string | null;
   readonly estimatedTokens: number;
+  /** The person's ordering: pinned skills are offered first, low ones last (`skillOrder.ts`). */
+  readonly rank: "pinned" | "normal" | "low";
 }
 
 export interface AssistantControlsView {
@@ -132,6 +134,9 @@ export type AssistantControlAction =
   | { readonly kind: "connect" | "disconnect" | "remove-server" | "forget-values" | "sign-in" | "sign-out"; readonly id: string }
   | { readonly kind: "set-tool"; readonly id: string; readonly tool: string; readonly enabled: boolean }
   | { readonly kind: "set-skill"; readonly id: string; readonly enabled: boolean }
+  /** Turn several skills on or off in one step, e.g. everything one tool brought. */
+  | { readonly kind: "set-skills"; readonly ids: readonly string[]; readonly enabled: boolean }
+  | { readonly kind: "rank-skill"; readonly id: string; readonly rank: "pinned" | "normal" | "low" }
   | { readonly kind: "scan-imports" }
   | { readonly kind: "import-path" | "import-url"; readonly from: string }
   | { readonly kind: "import-text"; readonly text: string; readonly fileName?: string | null }

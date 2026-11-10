@@ -730,6 +730,17 @@ How to use it: In Code mode, select the lines to change - or put the cursor wher
 
 Access: `All Features → Edit with AI`; `Edit with AI`; `Keyboard → Ctrl+E`.
 
+<!-- feature:ai.exportChat -->
+### Export a conversation
+
+Save the conversation you have open as a file: Markdown to read or share, or JSON to keep or move to another computer.
+
+Why use it: A good conversation is worth keeping outside the app: to paste into a ticket, send to a teammate, or put in the repository next to the change it produced.
+
+How to use it: Open the conversation, then run Export This Conversation as Markdown, or as JSON, from the command palette. Choose where to save it. The file holds what you and the assistant said, in order, and nothing else: no tool output, no file contents the assistant read, no attachments. A JSON export can be brought back in with Move In, under Import an exported file. Share in the chat header still copies the same Markdown to the clipboard.
+
+Access: `All Features → Export a conversation`; `Export as Markdown`; `Export as JSON`.
+
 <!-- feature:ai.chatForks -->
 ### Fork chats
 
@@ -796,6 +807,28 @@ How to use it: On by default. Turn it off from the approval menu in the chat's c
 
 Access: `All Features → Keep going until done`; `Turn on or off`; `Settings`.
 
+<!-- feature:adcode.browser.agentControl -->
+### Let the assistant use the Browser
+
+Whether the assistant may open pages, click and type in the Browser panel's tabs.
+
+Why use it: Those tabs hold your sign-ins. Most people want the assistant to be able to look something up or fill in a form for them; some would rather the Browser stayed theirs alone.
+
+How to use it: On by default. Open Settings, choose Assistant, and switch Let the assistant use the Browser. With it off, the assistant says so when a task needs the web and asks you to do that step; it can still check your own project's pages in its separate, signed-out browser.
+
+Access: `All Features → Let the assistant use the Browser`; `Turn on or off`; `Settings`.
+
+<!-- feature:ai.richReplies -->
+### Links, buttons, images and mockups in replies
+
+The assistant's replies can contain links you can click, rows of link buttons, pictures, and small live mockups of a design.
+
+Why use it: "Go to the dashboard and click..." is slower than a button that takes you there, and a paragraph describing a layout is worse than seeing it. Showing the thing is usually the shorter answer.
+
+How to use it: Nothing to turn on. Ask for it in plain words: "give me buttons for the docs and the dashboard", "sketch three layouts for the pricing section", "show me that image". A link or button opens the page in the Browser panel. A mockup is drawn in a sealed frame: none of its scripts run, it cannot reach your files or the app, and it can load nothing but images over https; press Phone width to see it narrow, and Show the HTML for its source. A mockup is a sketch to react to, so ask the assistant to build the one you like. Only web addresses become links; anything else stays plain text.
+
+Access: `All Features → Links, buttons, images and mockups in replies`; `Ask for a mockup`.
+
 <!-- feature:ai.liveAgents -->
 ### Live agent view
 
@@ -850,6 +883,17 @@ Why use it: Bigger models are cleverer and slower; smaller ones are quick and ch
 How to use it: Pick from the list, which shows only models that can work as your assistant - ones that write text and use tools - newest first. Each says what it reads at once and what it costs per million tokens, and is tagged Recommended (the one Use this model picks), New, Free or Free tier where that is true. To switch quickly, click the model chip beside the send button: it lists the model in use, each connected provider's recommended model and the ones you used recently, with More models and providers for the full list. Switching takes effect on your next message - it does not restart the conversation. Thinking effort sets how hard reasoning models think: Auto lets the provider decide, higher efforts answer harder questions better and cost more; each model is sent the nearest level it actually has. A long reply that reaches the model's output limit carries on by itself with more room.
 
 Access: `All Features → Model`; `Settings`.
+
+<!-- feature:ai.moveIn -->
+### Move in: bring your AI accounts and conversations
+
+One screen that connects the AI coding tools already on your computer and imports the conversations you had in them.
+
+Why use it: Trying a new editor usually means paying for another AI and starting every conversation from nothing. Your Claude, ChatGPT or OpenCode subscription already works through its command-line tool, and months of context sit in files on your disk. Move in uses both, so the first hour in ADCode is not spent re-explaining your project.
+
+How to use it: Run Move In from the command palette, or choose Bring your accounts and chats on the welcome screen. Your AI accounts lists Claude Code, Codex (your ChatGPT account), OpenCode, Gemini CLI and Freebuff: Use in ADCode makes an installed one answer in ADCode's chat with its own subscription and models, Sign in or Install opens a terminal with the right command, and Check again looks afresh. ADCode never sees a password or key for any of them. Your conversations: press Scan this computer and ADCode looks in the three folders Claude Code, Codex and OpenCode keep their sessions in, nowhere else, and lists what it finds by project with titles, dates and message counts. Everything is ticked; untick what you do not want and press Import. Each conversation is filed under the project folder it happened in, so it is in that project's conversation list when you open it, or tick the box to put them all in the project open now. Only what you and the assistant said is imported; tool output and system prompts are left behind. Nothing is uploaded and the other tools' files are only read. Claude Desktop and ChatGPT keep conversations online, so export them there and use Import an exported file with the conversations.json you get. Importing the same conversation again replaces it rather than duplicating it.
+
+Access: `All Features → Move in: bring your AI accounts and conversations`; `Open Move in`; `Import conversations`.
 
 <!-- feature:adcode.ai.designTaste -->
 ### Product design guidance
@@ -961,6 +1005,17 @@ How to use it: Type / at the start of the composer to list every command; keep t
 
 Access: `All Features → Slash commands and @ files`; `Show commands`; `Add a file`.
 
+<!-- feature:ai.skillOrder -->
+### Sort, pin and group skills
+
+Put your skills in order: pin the ones you use, push rarely useful ones to the back, sort and filter the list, and turn a whole group on or off at once.
+
+Why use it: Skills pile up - a few of your own, dozens that came with other tools and plugins. With eighty in the list you cannot find the three you use, and the assistant has the same problem: every enabled skill competes when it searches for one. Ordering them fixes both.
+
+How to use it: Run Tools: Skills. Sort by Pinned first, Name, Where it came from, Smallest first or Enabled first. The chips above the list show each place skills came from with how many are on; press one to see only those, then Turn these on or Turn these off to switch the whole group. On a skill, Pin makes it a favourite: listed first, named to the assistant up front, and ahead of the rest whenever it matches. Last resort keeps a skill on but only offers it when nothing else fits. Search narrows the list as you type. Your ordering applies to every project.
+
+Access: `All Features → Sort, pin and group skills`; `Sort and pin skills`.
+
 <!-- feature:ai.statusAlerts -->
 ### Status alerts by email
 
@@ -1014,7 +1069,7 @@ Why use it: An assistant that only reads code has to guess whether a page works.
 
 How to use it: Ask in plain words: "check the contact form sends", "look at the pricing page on a phone", "open the about page". Or type /check in the assistant's composer, or run AI: Check My Running App from the command palette, and it looks at the app at desktop and phone width, clicks through the main links and buttons, and fixes what is broken. It starts the live preview by itself when it is not running - a framework's dev server or a plain file server - and waits for its address. The latest screenshot it took appears in the conversation under What the assistant saw, with how many problems it found; click it to open that page in the preview. When it opens a page for you, the preview card in the chat and an open preview window go to that page. Its browser opens only addresses on this computer, forgets everything when it closes, and closes itself after a few idle minutes. A model that cannot read images gets the same report as text.
 
-Access: `All Features → The assistant sees your app`; `Check my running app`; `Open browser`.
+Access: `All Features → The assistant sees your app`; `Check my running app`.
 
 <!-- feature:ai.operatesAdcode -->
 ### The assistant uses ADCode for you
@@ -1026,6 +1081,17 @@ Why use it: You should not have to learn where every switch lives to get somethi
 How to use it: Ask in plain words: "connect Roblox Studio", "turn on dark theme", "show my usage", "add the Playwright server". Or run AI: Set Up a Connector for Me. The assistant searches ADCode's own feature list, runs the command or changes the setting, and adds, connects and enables MCP connectors on the Tools page for you. Some steps stay yours, and it asks for them: starting a connector's program, removing a connector, and settings that change ads, updates, where its edits land, or what runs as a command, each open a dialog first. A step only another app can do - such as turning on Enable Studio as MCP server inside Roblox Studio (Assistant, ..., Manage MCP Servers) - it names exactly. It never claims a feature is missing, or that something is connected or changed, without a result that shows it. Local models get a shorter request without these tools; they say they cannot check rather than guess.
 
 Access: `All Features → The assistant uses ADCode for you`; `Set up a connector for me`.
+
+<!-- feature:ai.codingCli -->
+### Use a coding CLI as your model
+
+Chat with Claude Code, Codex CLI, OpenCode or Gemini CLI inside ADCode, using the CLI you already installed and signed in to. Freebuff opens in a terminal tab.
+
+Why use it: You keep the subscription, models and tools you already pay for, and gain ADCode's chat, editor context and conversation history around them. No new key, and nothing billed by ADCode.
+
+How to use it: Run AI: Use a Coding CLI, or open Connect a model and choose a provider marked (CLI). ADCode finds Claude Code (claude), Codex CLI (codex), OpenCode (opencode) and Gemini CLI (gemini) on your PATH and shows the version it found. Not installed: Install in a terminal runs the install command for you; then press Check again. Signed out: Sign in in a terminal opens the CLI's own sign-in, then send your message again. Pick a model: the CLI's default, one of its listed models (OpenCode lists every model it can reach), or type any model name the CLI accepts and choose Use model. Each message runs the CLI in the open project with your editor context; its tool use (commands it ran, files it changed) appears as activity above the answer, and the next message continues the same CLI session. Claude Code may edit files (shell commands keep its own permissions); Codex runs in its workspace-write sandbox. Freebuff has no chat mode, so choosing it offers Open Freebuff in a terminal instead. Stop ends the CLI and everything it started.
+
+Access: `All Features → Use a coding CLI as your model`; `Use a coding CLI`.
 
 <!-- feature:ai.agentTools -->
 ### What the assistant can do
@@ -1212,11 +1278,11 @@ Access: `All Features → All Features`; `Open`; `Preferences`; `Full screen`; `
 <!-- feature:community.artifacts -->
 ### Artifacts
 
-Share a project so anyone on ADCode can remix it and send improvements back. Make it public or private, invite friends with a share code, and work together in a live room.
+Share a project so anyone on ADCode can remix it and send improvements back - or open a live room where everyone edits the same project at once and sees who is working where.
 
-Why use it: Getting help usually means giving someone access to your repository. An artifact lets strangers improve your project without any access at all: you see every changed line and decide. A live room goes one step further and lets invited friends watch the shared plan, comments and each other's agent lanes while the work happens.
+Why use it: Getting help usually means giving someone access to your repository. An artifact lets strangers improve your project without any access at all: you see every changed line and decide. A live room goes further: friends join the project itself, edit the same files at the same time, and see each other's file and caret. No branch, no merge, no GitHub checkout.
 
-How to use it: Choose Artifacts in the Vibe sidebar (or Artifacts: Share This Project in the palette), open This project and press Share this project. ADCode shares only the project's own text files: anything your .gitignore leaves out, hidden folders like .local and .config, .env files, keys, node_modules, build output, images and lockfiles stay on your machine, and opening your home folder or a whole drive is refused outright. A file that looks like it holds a key or password is listed at the top of the dialog with Leave these files out. Choose Public to list it in Discover, or Private to keep it unlisted: a private artifact opens only for a signed-in person who has its adartifact: share code. After publishing, Sharing and live shows the code, copies it or a ready invitation, rotates it if it leaked, and changes visibility later. Discover also has Open a shared artifact for pasting a code you were sent. Anyone can Remix a shared project: ADCode copies it into Documents -> ADCode Projects and opens it. After changing things, This project lists the changed files and offers Send improvement, with Ask AI to describe it for the message. Inbox shows what people sent you; open one to read each file's changes, Ask AI to review it, then Accept or Decline with a reply. An accepted improvement becomes the next version and credits its author; Get version N on This project brings it into your folder, leaving any file you edited meanwhile alone. For live work, open Live room on This project (owner) or on a shared artifact you can access. The owner starts the room; everyone joins with the same share code, sees who is present and what each agent is doing, edits one shared plan, keeps pinned Brain notes, comments, and chats. Start live files to share the owner's collaborative file session, or join it on the host's side; teammates can take over a lane or hand it back. Closing the room makes it read-only and can be started again later.
+How to use it: Choose Artifacts in the Vibe sidebar (or Artifacts: Share This Project in the palette), open This project and press Share this project. ADCode shares only the project's own text files: anything your .gitignore leaves out, hidden folders like .local and .config, .env files, keys, node_modules, build output, images and lockfiles stay on your machine, and opening your home folder or a whole drive is refused outright. A file that looks like it holds a key or password is listed at the top of the dialog with Leave these files out. Choose Public to list it in Discover, or Private to keep it unlisted: a private artifact opens only for a signed-in person who has its adartifact: share code. After publishing, Sharing and live shows the code, copies it or a ready invitation, rotates it if it leaked, and changes visibility later. Discover also has Open a shared artifact for pasting a code you were sent. Anyone can Remix a shared project: ADCode copies it into Documents -> ADCode Projects and opens it. After changing things, This project lists the changed files and offers Send improvement, with Ask AI to describe it for the message. Inbox shows what people sent you; open one to read each file's changes, Ask AI to review it, then Accept or Decline with a reply. An accepted improvement becomes the next version and credits its author; Get version N on This project brings it into your folder, leaving any file you edited meanwhile alone. For live work, press Live in any chat's composer. The session dock sits beside the message box: the owner presses Start live session for the project they shared, friends press Join on an open session or paste the artifact code under Join with code, and everyone sees who is online and which file each person is working in without leaving the conversation. Open Live room on This project for the full coordination room - the same session with one shared plan, pinned Brain notes, comments, approvals, handoffs and chat. The owner starts the room; everyone joins with the same artifact code, sees who is present and what each agent is doing. Share project live starts one shared copy of the project that everyone in the room can edit. The first time a guest joins without a project open, ADCode downloads the artifact to Documents -> ADCode Projects, opens it, and joins; anyone who already remixed it joins in their own folder. Live editors at the top of the room lists everyone online, their role and the file and line they are in, with Go to opening that place and the host able to switch a person between Can edit and View only. Cursor carets carry the same colours, and the host's copy autosaves every four minutes. No GitHub checkout or merge is needed: edits are shared as people type. Teammates can still take over a lane or hand it back. Before you join, the room shows four checks: your role, a free seat, whether you can push the branch, and whether an agent is available; Watch only joins read-only, and Join as editor switches you back. The Coordination list warns before you type: a teammate on the same file, a file somebody locked, a plan step that expects the file, or a task that sounds related. Session shows the one branch and task. Approvals name the exact push, command, network action or takeover; another owner or editor answers and the first answer wins. Handoffs carry the branch, plan and fresh notes to one teammate, who accepts to take the lane. Comments can attach to a file, a diff hunk, a session or a transcript moment, and can become a plan step or a prompt to your agent; a note or comment whose file moved on is labelled, never deleted. Discover's Live now lists sessions with people and agents working right now. Closing the room makes it read-only and can be started again later.
 
 Access: `All Features → Artifacts`; `Browse shared projects`; `Share this project`; `Improvements inbox`.
 
@@ -1230,6 +1296,17 @@ Why use it: "Fix this" and "what does this function do" should just work. Ask ab
 How to use it: Nothing to switch on: every message carries the file you are looking at, the cursor line, any selected code, your open tabs and the errors and warnings the editor reports, so the assistant knows what "this" means. Select code and press Ctrl+L, or right-click and choose ADCode: Add Selection to Chat, to put it in the composer as a chip without sending - then ask your question. With nothing selected, Ctrl+L still selects the line as usual. Right-click for Explain, Refactor, Write Tests and Find Issues, which prepare instructions you edit before sending. In Vibe mode the editor is hidden, so only file names and errors are shared, never a stale selection.
 
 Access: `All Features → Ask AI about your code`; `Add to chat`; `Ask AI`; `Explain`; `Refactor`; `Write tests`; `Find issues`; `Keyboard → Ctrl+L`.
+
+<!-- feature:workbench.browser -->
+### Browser
+
+A real web browser inside ADCode, with tabs, an address bar and your sign-ins, that you and your assistant can both use.
+
+Why use it: Docs, a dashboard, your deployed site, a form to fill in: they all used to mean leaving the editor, and the assistant could not follow you there. Here the page sits beside your work, and you can hand a web task to the assistant and watch it happen in the same tab, then take over the moment you want to.
+
+How to use it: Run Open Browser from the command palette, or pick Browser in the workspace menu. Type an address or a search in the bar; Ctrl+T opens a tab, Ctrl+W closes one, Ctrl+L goes to the address bar, Ctrl+R reloads. Sign-ins are kept between launches, in a store of their own that your everyday browser never sees. To let the assistant use it, just ask: "open the Supabase dashboard and find my project URL", "search for the Stripe webhook docs and summarise them". It opens the panel, a green outline and an Assistant is browsing label show while it acts, and you can click into the page at any time. It reads a page as a list of its buttons, links and fields and acts on those, the way agent-browser does. It is told never to type passwords or card numbers; type those yourself. Links in chat replies open here. Downloads are off in this browser, and a page asking for your camera, microphone or location is refused. To sign out of everything, run Browser: Sign Out of Everything and Clear Its Data. The web version shows snapshots of the assistant's own page instead of a live browser.
+
+Access: `All Features → Browser`; `Open Browser`; `Sign out and clear its data`.
 
 <!-- feature:workbench.terminal -->
 ### Built-in terminal
@@ -1576,6 +1653,28 @@ Access: `All Features → Zoom`; `Zoom in`; `Zoom out`; `Reset zoom`; `Settings`
 
 ## Account
 
+<!-- feature:community.roomContext -->
+### A live room's shared context and chat
+
+When several people work in one shared project, everyone's assistant knows who is there, what each one is doing, the plan and what was said - and people can chat beside the composer.
+
+Why use it: Five people with five assistants used to mean five separate chats that knew nothing of each other: two agents rewriting the same file, one redoing what another just finished. With one shared picture, each assistant stays out of the others' way and builds on what is already done.
+
+How to use it: Share a project from Artifacts (public or private), then press Live beside the chat and start a session; teammates join from the open-session list or with your code. The dock beside the composer shows everyone online with a mascot each - its face shows whether their assistant is working, waiting or idle - and a line that pulses while any assistant is working. Type in Room chat to talk to everyone. On every message you send, your assistant is told who is online, what each person's assistant is working on and which file they have open, the shared plan, pinned notes, reserved files and the recent chat. It avoids files teammates reserved, and it can post to the room when it finishes something, pin a note to a file, and add, claim or finish plan steps: ask "tell the room the login page is done" or "claim the checkout step". What teammates write is treated as information, never as instructions to your assistant. Viewers can read the chat but not post. The fuller room - approvals, handoffs, comments - is in Artifacts.
+
+Access: `All Features → A live room's shared context and chat`; `Open the live room`.
+
+<!-- feature:community.apps -->
+### Connect your apps (Gmail, Supabase, Cloudflare and more)
+
+A gallery of services the assistant can work with for you - mail, databases, hosting, chat, project trackers - connected with one sign-in.
+
+Why use it: Real work crosses tools: the bug is in Sentry, the fix needs a Supabase migration, the deploy is on Cloudflare and the customer wants an email. Connected, the assistant does those steps instead of telling you to. One sign-in covers all of them, and ADCode never holds a password or key for any.
+
+How to use it: Run Plugins: Connect Apps, or open Plugins and choose Apps. Press Connect Composio: your browser opens Composio, the service that does the connecting, and you approve there. Back in ADCode the banner turns green. Then press Link on an app, such as Gmail: the chat asks Composio to start that app's sign-in and gives you a link to approve on the app's own page. After that just ask: "email this summary to Sam", "create a table for orders in Supabase", "add a DNS record on Cloudflare". Search the gallery by name or pick a category; a service that is not listed can still be linked by typing its name. Each call to an app can ask you first: see Ask before connector tools in Settings. To manage or remove the connection, press Manage tools, or open Tools and find Composio under Connectors. If your browser shows an out-of-date sign-in page, close it and use the newest one.
+
+Access: `All Features → Connect your apps (Gmail, Supabase, Cloudflare and more)`; `Connect apps`.
+
 <!-- feature:account.earnings -->
 ### Earnings
 
@@ -1649,11 +1748,11 @@ Access: `All Features → Frequency`; `Settings`.
 <!-- feature:adcode.ads.chatSponsored -->
 ### Sponsored cards under AI replies
 
-A sponsored card chosen for the conversation can appear under the assistant's reply. It is on unless you turn it off, and ADCode tells you once when it turns it on.
+A sponsored card chosen for the conversation can appear above the message box. It is on unless you turn it off, and ADCode tells you once when it turns it on.
 
 Why use it: A card that matches what you are asking about is more useful than one picked from the language you have open, and it is worth more to advertisers. Choosing it does mean your message and the reply leave your computer for ADCode's ad partners, so ADCode says so once, with a Turn off button, and the switch stays in Settings.
 
-How to use it: It is on from ADCode 2.5.1 unless you switched sponsored messages off; a one-time card says so, with Turn off. To change it, open Settings, choose Ads, and switch Sponsored cards under AI replies; it needs Sponsored messages on too. After each answer in the desktop app, ADCode asks its ad partners for one card: Zeekend first, then Imprezia if Zeekend has nothing. Zeekend receives your message (its first 2,000 characters) and the reply (4,000), which question of the conversation it is, an identifier for the conversation that is not your account, and your IP address and browser details; it uses Anthropic's models to match a product to the conversation. Imprezia receives your message and the reply (4,000 characters each), the conversation's identifier, and your IP address and browser details. One card appears under the reply, or nothing does. It is a page from adcode.bluethenics.com walled off from the editor, so the ad partner cannot reach your files or the rest of ADCode. Clicking a card opens your browser. Nothing else from your project is sent. Turn it off in the same place and the next reply sends nothing. Not yet in the web version.
+How to use it: It is on from ADCode 2.5.1 unless you switched sponsored messages off; a one-time card says so, with Turn off. To change it, open Settings, choose Ads, and switch Sponsored cards under AI replies; it needs Sponsored messages on too. After each answer in the desktop app, ADCode asks its ad partners for one card: Zeekend first, then Imprezia if Zeekend has nothing. Zeekend receives your message (its first 2,000 characters) and the reply (4,000), which question of the conversation it is, an identifier for the conversation that is not your account, and your IP address and browser details; it uses Anthropic's models to match a product to the conversation. Imprezia receives your message and the reply (4,000 characters each), the conversation's identifier, and your IP address and browser details. One card appears in a strip just above the message box and stays there while you work; when the next reply brings a new card it takes the old one's place only once it has arrived, so the strip is never empty in between, and a reply with no card leaves the last one where it is. It is a page from adcode.bluethenics.com walled off from the editor, so the ad partner cannot reach your files or the rest of ADCode. Clicking a card opens your browser. Nothing else from your project is sent. Turn it off in the same place and the next reply sends nothing. Not yet in the web version.
 
 Access: `All Features → Sponsored cards under AI replies`; `Turn on or off`; `Settings`.
 

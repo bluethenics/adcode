@@ -261,6 +261,12 @@
 .connect-local-actions .connect-result { flex-basis: 100%; margin: 0; }
 .connect-local-actions .connect-result:empty { display: none; }
 
+/* A coding CLI: its actions, then any model name it accepts. */
+.connect-cli { display: grid; gap: var(--space-2, 8px); }
+.connect-cli .settings-row-description { margin: 0; }
+.connect-cli-model { display: flex; gap: var(--space-2, 8px); align-items: center; }
+.connect-cli-model .connect-input { flex: 1; min-width: 0; }
+
 /* ── Thinking effort: one segmented control, five honest options ────── */
 
 .connect-effort { margin: 18px 0 0; padding: 14px; background: var(--surface-sheen), var(--bg-app); border-radius: var(--radius-md); }

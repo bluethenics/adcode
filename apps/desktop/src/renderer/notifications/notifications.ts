@@ -23,6 +23,8 @@ export interface Notification {
   readonly title: string;
   readonly body?: string;
   readonly actions?: ReadonlyArray<{ readonly label: string; readonly run: () => void }>;
+  /** An https picture above the text, such as a service notice's. */
+  readonly image?: { readonly src: string; readonly alt: string };
   /** Omit to leave it up until dismissed - the right default for anything with actions. */
   readonly autoDismissMs?: number;
   /**
@@ -68,6 +70,21 @@ function removeAfterExit(element: HTMLElement): void {
     if (event.target === element) finish();
   });
   window.setTimeout(finish, EXIT_MS + 60);
+}
+
+/**
+ * A picture that never breaks the card: no referrer leaves for the image host, and an
+ * address that fails to load removes itself rather than leaving a broken-image frame.
+ */
+function notificationImage(image: { readonly src: string; readonly alt: string }, className: string): HTMLImageElement {
+  const img = document.createElement("img");
+  img.className = className;
+  img.alt = image.alt;
+  img.decoding = "async";
+  img.referrerPolicy = "no-referrer";
+  img.addEventListener("error", () => img.remove(), { once: true });
+  img.src = image.src;
+  return img;
 }
 
 export function createNotificationCentre(host: HTMLElement): NotificationCentre {
@@ -121,6 +138,7 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
       const title = document.createElement("h3");
       title.textContent = entry.notification.title;
       item.append(time, title);
+      if (entry.notification.image) item.append(notificationImage(entry.notification.image, "notification-inbox-image"));
       if (entry.notification.body) {
         const body = document.createElement("p");
         body.textContent = entry.notification.body;
@@ -273,6 +291,8 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
       title.className = "toast-title";
       title.textContent = notification.title;
       content.append(title);
+
+      if (notification.image !== undefined) content.append(notificationImage(notification.image, "toast-image"));
 
       if (notification.body !== undefined) {
         const body = document.createElement("p");

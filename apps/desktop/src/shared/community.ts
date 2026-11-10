@@ -6,10 +6,10 @@ import type {
   ArtifactDetail, ArtifactListing, ArtifactVisibility, ChangeKind, CommunityHome, CommunityMe, ImprovementDetail,
   ImprovementSummary, ListingSort, MonetizationStatus, PluginDetail, PluginListing, PluginManifest, RemixRecord,
 } from "@adcode/community";
-import type { ArtifactRoomSnapshot } from "@adcode/collab";
+import type { ArtifactRoomCard, ArtifactRoomSnapshot } from "@adcode/collab";
 
 export type {
-  ArtifactDetail, ArtifactListing, ArtifactRoomSnapshot, ArtifactVisibility, CommunityHome, CommunityMe,
+  ArtifactDetail, ArtifactListing, ArtifactRoomCard, ArtifactRoomSnapshot, ArtifactVisibility, CommunityHome, CommunityMe,
   ImprovementDetail, ImprovementSummary, ListingSort, MonetizationStatus, PluginDetail, PluginListing, PluginManifest,
   RemixRecord,
 };
@@ -145,10 +145,12 @@ export interface CommunityApi {
   /** Bring the open, linked project up to the artifact's latest version. */
   pullLatest(): Promise<PullResult>;
 
+  /** Live rooms across ADCode, for Mission Control: the present, not the git history. */
+  liveRooms(): Promise<readonly ArtifactRoomCard[]>;
   /** The live coordination room around an artifact: people, agents, plan, Brain, comments. */
   artifactRoom(id: string, key?: string | null): Promise<ArtifactRoomSnapshot>;
-  openArtifactRoom(id: string, name: string, liveInvite: string | null): Promise<ArtifactRoomSnapshot>;
-  joinArtifactRoom(id: string, key: string | null, name: string, watching: boolean): Promise<ArtifactRoomSnapshot>;
+  openArtifactRoom(id: string, name: string, liveInvite: string | null, branch?: string | null, task?: string | null): Promise<ArtifactRoomSnapshot>;
+  joinArtifactRoom(id: string, key: string | null, name: string, watching: boolean, hasAgent?: boolean | null, pushAccess?: boolean | null): Promise<ArtifactRoomSnapshot>;
   artifactRoomAction(id: string, key: string | null, action: ArtifactRoomActionView): Promise<ArtifactRoomSnapshot>;
   leaveArtifactRoom(id: string): Promise<ArtifactRoomSnapshot>;
   closeArtifactRoom(id: string): Promise<ArtifactRoomSnapshot>;

@@ -47,6 +47,8 @@ export interface OnboardingDeps {
   openAllProviders: () => void;
   /** Settings, at the ads section. */
   openAdSettings: () => void;
+  /** Move in (`moveIn.ts`): connect the coding CLIs already installed and import their conversations. */
+  moveIn?: () => void;
   /**
    * Look once for an invite the invite page put on the clipboard, and claim it. Who invited
    * them, if one was claimed now; null otherwise. The clipboard itself is read in main.
@@ -224,6 +226,17 @@ export function createOnboardingSheet(deps: OnboardingDeps): OnboardingSheet {
       deps.openFolder();
     });
     existing.append("Already have a project? ", openFolder, ".");
+    if (deps.moveIn !== undefined) {
+      const moveIn = document.createElement("button");
+      moveIn.type = "button";
+      moveIn.className = "onboarding-link";
+      moveIn.textContent = "Bring your accounts and chats";
+      moveIn.addEventListener("click", () => {
+        finish("welcome_done");
+        deps.moveIn?.();
+      });
+      existing.append(" Coming from Claude Code, Codex or OpenCode? ", moveIn, ".");
+    }
 
     const ads = document.createElement("p");
     ads.className = "onboarding-ads-note";

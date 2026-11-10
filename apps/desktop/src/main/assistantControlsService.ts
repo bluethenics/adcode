@@ -35,6 +35,7 @@ import { atomicReplace } from "./atomicReplace.ts";
 import type { ConnectorSources, PendingDraft } from "./connectorImport.ts";
 import type { ConnectorSecretStore } from "./connectorSecrets.ts";
 import { discoverSkills, fingerprint, parseSkill, readSkillResource, type InstalledSkillRoot } from "./assistantSkills.ts";
+import { isSkillRank, rankedSkillScore } from "../shared/skillOrder.ts";
 import { resolveSandboxPath } from "./aiSandbox.ts";
 
 export interface RemoteTool { name: string; description: string; inputSchema: Record<string, unknown> }
@@ -77,7 +78,7 @@ export interface AssistantControlsDeps {
 }
 
 type SavedServer = AssistantServerRecord & { allowed: Record<string, string> };
-interface Preferences { servers: SavedServer[]; skills: Record<string, Record<string, string>> }
+interface Preferences { servers: SavedServer[]; skills: Record<string, Record<string, string>>; skillRanks?: Record<string, string> }
 interface LiveServer {
   status: AssistantServerView["status"];
   error: string | null;
@@ -236,7 +237,9 @@ export function createAssistantControlsService(deps: AssistantControlsDeps) {
       if (new Set(servers.map(server => server.id)).size !== servers.length) throw new Error("Duplicate server IDs.");
       const skills = record(saved["skills"] ?? {});
       for (const value of Object.values(skills)) if (Object.values(record(value)).some(hash => typeof hash !== "string")) throw new Error("Invalid skill permissions.");
-      prefs = { servers, skills: skills as Preferences["skills"] };
+      // The person's ordering of skills. Anything unreadable is simply "normal": it grants nothing.
+      const skillRanks = Object.fromEntries(Object.entries(record(saved["skillRanks"] ?? {})).filter((entry): entry is [string, string] => isSkillRank(entry[1])));
+      prefs = { servers, skills: skills as Preferences["skills"], skillRanks };
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") notice = "Saved assistant controls could not be read. Capabilities remain off; your original settings file is preserved until you save a change.";
     }
@@ -251,7 +254,7 @@ export function createAssistantControlsService(deps: AssistantControlsDeps) {
   }
   const skillPermissions = (root: string | null) => ({ ...prefs.skills["@system"], ...(root ? prefs.skills[root] : {}) });
   const skillsFor = async (root: string | null, permissions = skillPermissions(root)) =>
-    discoverSkills(root, permissions, deps.installedSkills === undefined ? [] : await deps.installedSkills());
+    discoverSkills(root, permissions, deps.installedSkills === undefined ? [] : await deps.installedSkills(), prefs.skillRanks ?? {});
   /** The saved list with its stored value names refreshed from the encrypted store. */
   async function storeNames(id: string): Promise<string[]> {
     const values = await deps.secrets.read(id);
@@ -497,6 +500,32 @@ export function createAssistantControlsService(deps: AssistantControlsDeps) {
       if (deps.workspace() !== root) throw new Error("The open project changed. Try again.");
       // User-created skills start disabled. Never replace an existing skill silently.
       await writeFile(target, content, { encoding: "utf8", flag: "wx" });
+    } else if (kind === "rank-skill") {
+      const id = string(request["id"], "skill ID");
+      const rank = request["rank"];
+      if (!isSkillRank(rank)) throw new Error("Expected pinned, normal or low.");
+      const skillRanks = { ...prefs.skillRanks };
+      if (rank === "normal") delete skillRanks[id];
+      else skillRanks[id] = rank;
+      await persist({ ...prefs, skillRanks });
+    } else if (kind === "set-skills") {
+      const ids = request["ids"];
+      const enabled = request["enabled"];
+      if (!Array.isArray(ids) || ids.length > 400 || ids.some(id => typeof id !== "string") || typeof enabled !== "boolean") throw new Error("Expected skill IDs and an enabled switch.");
+      const root = deps.workspace();
+      const wanted = new Set(ids as string[]);
+      const next = { ...prefs.skills };
+      for (const skill of await skillsFor(root, {})) {
+        // A skill with a problem is skipped rather than failing the whole batch.
+        if (!wanted.has(skill.id) || (enabled && skill.error)) continue;
+        const scopeKey = skill.scope === "system" ? "@system" : root;
+        if (!scopeKey) continue;
+        const permissions = { ...next[scopeKey] };
+        if (enabled) permissions[skill.id] = skill.fingerprint;
+        else delete permissions[skill.id];
+        next[scopeKey] = permissions;
+      }
+      await persist({ ...prefs, skills: next });
     } else if (kind === "set-skill") {
       const id = string(request["id"], "skill ID");
       const enabled = request["enabled"];
@@ -612,8 +641,14 @@ export function createAssistantControlsService(deps: AssistantControlsDeps) {
           if (enabledTool(server.id, tool.name)) candidates.push({ score: score(`${server.name} ${tool.name} ${tool.description}`), value: { kind: "mcp", server: server.id, ...tool } });
         }
         const root = deps.workspace();
-        for (const skill of await skillsFor(root)) if (skill.enabled) candidates.push({ score: score(`${skill.name} ${skill.description}`), value: { kind: "skill", id: skill.id, name: skill.name, description: skill.description, source: skill.source, estimatedTokens: skill.estimatedTokens } });
-        const matches = candidates.filter(item => item.score > 0).sort((a, b) => b.score - a.score);
+        const offered = (await skillsFor(root)).filter(skill => skill.enabled);
+        // The person's ordering decides ties and more: pinned ahead of everything, low behind it.
+        for (const skill of offered) candidates.push({ score: rankedSkillScore(score(`${skill.name} ${skill.description}`), skill.rank), value: { kind: "skill", id: skill.id, name: skill.name, description: skill.description, source: skill.source, estimatedTokens: skill.estimatedTokens, ...(skill.rank === "pinned" ? { pinned: true } : {}) } });
+        const sorted = candidates.filter(item => item.score > 0).sort((a, b) => b.score - a.score);
+        // A low skill is only worth offering when nothing better matched.
+        const better = sorted.filter(item => item.score >= 1);
+        const matches = better.length > 0 ? better : sorted;
+        const pinned = offered.filter(skill => skill.rank === "pinned").map(skill => skill.name);
         // Keep JSON valid even when an unusually large schema cannot fit the response budget.
         const selected: object[] = [];
         for (const item of matches.slice(0, 8)) if (JSON.stringify([...selected, item.value]).length <= 24_000) selected.push(item.value);
@@ -623,6 +658,7 @@ export function createAssistantControlsService(deps: AssistantControlsDeps) {
           "Use a narrower query if the capability you need is missing. Only connected, enabled tools and enabled skills are searched.",
           idle.length > 0 ? `Saved connectors not connected now: ${idle.join(", ")}.` : "",
           "To add, connect or enable an MCP server, use adcode_connectors.",
+          pinned.length > 0 ? `The user's pinned skills, to prefer when one fits: ${pinned.slice(0, 20).join(", ")}.` : "",
         ].filter(Boolean).join(" ");
         return result(JSON.stringify({ matches: selected, totalMatches: matches.length, hint }));
       }

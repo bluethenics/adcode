@@ -570,6 +570,14 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     true,
   ),
   bool(
+    "adcode.browser.agentControl",
+    "ai",
+    "Let the assistant use the Browser",
+    "The assistant can open pages, click and type in the Browser panel's tabs - the same tabs you use, with your sign-ins. You watch it happen and can take over. Off keeps the panel yours alone; the assistant can still check your project's own pages.",
+    true,
+    true,
+  ),
+  bool(
     "adcode.ai.keepGoing",
     "ai",
     "Keep going until done",

@@ -25,6 +25,8 @@ export interface AuthorizationServer {
   readonly tokenEndpoint: string;
   /** Dynamic client registration (RFC 7591), when the server offers it. */
   readonly registrationEndpoint: string | null;
+  /** Scopes the server says it issues; used only when the resource names none of its own. */
+  readonly scopes: readonly string[];
 }
 
 export interface McpOAuthTokens {
@@ -108,7 +110,22 @@ export function parseAuthorizationServer(json: unknown, issuer: string): Authori
   const methods = strings(doc["code_challenge_methods_supported"], 8);
   // PKCE is not optional for a public client: a server that lists methods without S256 cannot be used.
   if (methods.length > 0 && !methods.includes("S256")) return null;
-  return { issuer: safeOAuthUrl(doc["issuer"]) ?? issuer, authorizationEndpoint, tokenEndpoint, registrationEndpoint: safeOAuthUrl(doc["registration_endpoint"]) };
+  return { issuer: safeOAuthUrl(doc["issuer"]) ?? issuer, authorizationEndpoint, tokenEndpoint, registrationEndpoint: safeOAuthUrl(doc["registration_endpoint"]), scopes: strings(doc["scopes_supported"], 64) };
+}
+
+/** The sign-in scopes every OpenID server understands; `offline_access` is what earns a refresh token. */
+const IDENTITY_SCOPES = ["openid", "profile", "email", "offline_access"];
+
+/**
+ * The scopes to ask for. The resource's own list wins. A resource that names none (Composio's
+ * does not) would otherwise be signed in with no scope at all: some servers refuse that
+ * outright, and the rest issue a token with no refresh, so the connector drops out within the
+ * hour. Then the server's standard sign-in scopes are asked for - and `offline_access` is
+ * added to a resource's own list whenever the server offers it.
+ */
+export function signInScopes(resource: ProtectedResource, server: AuthorizationServer): string[] {
+  if (resource.scopes.length === 0) return IDENTITY_SCOPES.filter((scope) => server.scopes.includes(scope));
+  return server.scopes.includes("offline_access") && !resource.scopes.includes("offline_access") ? [...resource.scopes, "offline_access"] : [...resource.scopes];
 }
 
 /** Google's accounts server: no client registration, a desktop client instead, and its own consent knobs. */

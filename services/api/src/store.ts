@@ -445,11 +445,23 @@ export type CreditEventResult =
  * outage people are already wondering about. This is the deliberate, human-written
  * exception - never automatic error spam.
  */
+/** A link a notice offers, opened in the reader's browser. */
+export interface NoticeButton {
+  label: string;
+  url: string;
+}
+
 export interface NoticeRecord {
   noticeId: string;
   severity: "info" | "warning";
   title: string;
   body: string;
+  /** An https image shown above the text; missing shows none. */
+  imageUrl?: string;
+  /** What the image shows, for screen readers. */
+  imageAlt?: string;
+  /** Up to two links, the first drawn as the primary button. */
+  buttons?: NoticeButton[];
   /** False retracts it without deleting the record, so the history stays. */
   active: boolean;
   authorUid: string;

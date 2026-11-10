@@ -29,7 +29,8 @@ export type AgentId =
   | "goose"
   | "crush"
   | "droid"
-  | "continue";
+  | "continue"
+  | "freebuff";
 
 export interface DetectedAgent {
   readonly id: AgentId;
@@ -62,6 +63,7 @@ const AGENTS = new Map<string, DetectedAgent>(
     crush: { id: "crush", name: "Crush" },
     droid: { id: "droid", name: "Factory Droid" },
     cn: { id: "continue", name: "Continue CLI" },
+    freebuff: { id: "freebuff", name: "Freebuff" },
   }) as [string, DetectedAgent][],
 );
 

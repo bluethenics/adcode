@@ -14,6 +14,7 @@ import type {
   Clock,
   CreativeRecord,
   IdGen,
+  NoticeButton,
   NoticeRecord,
   Page,
   PostRecord,
@@ -622,6 +623,24 @@ export interface NoticeInput {
   severity: "info" | "warning";
   title: string;
   body: string;
+  imageUrl?: string;
+  imageAlt?: string;
+  buttons?: NoticeButton[];
+}
+
+export const MAX_NOTICE_BUTTONS = 2;
+
+/** A public https address, or null. Notices reach every editor, so nothing else is accepted. */
+export function noticeHttpsUrl(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed.length > 500) return null;
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === "https:" && url.hostname.includes(".") && !url.username && !url.password ? url.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 export function parseNotice(raw: unknown): NoticeInput | null {
@@ -641,7 +660,32 @@ export function parseNotice(raw: unknown): NoticeInput | null {
   const body = text(r["body"], 500);
   if (title === null || body === null) return null;
 
-  return { severity, title, body };
+  // Optional, but when present every part must be valid: a half-kept image or a button
+  // that silently disappeared is worse than a refusal the admin can fix.
+  const rawImage = r["imageUrl"];
+  const imageUrl = rawImage === undefined || rawImage === null || rawImage === "" ? undefined : noticeHttpsUrl(rawImage);
+  if (imageUrl === null) return null;
+  const rawAlt = r["imageAlt"];
+  if (rawAlt !== undefined && (typeof rawAlt !== "string" || rawAlt.length > 200)) return null;
+  const imageAlt = typeof rawAlt === "string" && rawAlt.trim() !== "" && imageUrl !== undefined ? rawAlt.trim() : undefined;
+
+  const rawButtons = r["buttons"] ?? [];
+  if (!Array.isArray(rawButtons) || rawButtons.length > MAX_NOTICE_BUTTONS) return null;
+  const buttons: NoticeButton[] = [];
+  for (const raw of rawButtons) {
+    if (typeof raw !== "object" || raw === null) return null;
+    const label = text((raw as Record<string, unknown>)["label"], 30);
+    const url = noticeHttpsUrl((raw as Record<string, unknown>)["url"]);
+    if (label === null || url === null) return null;
+    buttons.push({ label, url });
+  }
+
+  return {
+    severity, title, body,
+    ...(imageUrl === undefined ? {} : { imageUrl }),
+    ...(imageAlt === undefined ? {} : { imageAlt }),
+    ...(buttons.length === 0 ? {} : { buttons }),
+  };
 }
 
 export async function handlePublishNotice(
@@ -654,6 +698,9 @@ export async function handlePublishNotice(
     severity: input.severity,
     title: input.title,
     body: input.body,
+    ...(input.imageUrl === undefined ? {} : { imageUrl: input.imageUrl }),
+    ...(input.imageAlt === undefined ? {} : { imageAlt: input.imageAlt }),
+    ...(input.buttons === undefined ? {} : { buttons: input.buttons }),
     active: true,
     authorUid: adminUid,
     createdAt: deps.clock.now(),

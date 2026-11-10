@@ -202,6 +202,9 @@ export interface NoticeRow {
   severity: string;
   title: string;
   body: string;
+  image_url: string | null;
+  image_alt: string;
+  buttons: { label: string; url: string }[] | null;
   active: boolean;
   author_uid: string;
   created_at: number;
@@ -304,7 +307,7 @@ export const CREDIT_ORDER_COLS =
   "order_id,advertiser_id,amount_micros::text,currency,billing_country,customer_email,status,provider_session_id,checkout_url,provider_payment_id,created_at,updated_at";
 export const REPORT_COLS =
   "report_id,uid,kind,title,body,app_version,platform,status,created_at";
-export const NOTICE_COLS = "notice_id,severity,title,body,active,author_uid,created_at";
+export const NOTICE_COLS = "notice_id,severity,title,body,image_url,image_alt,buttons,active,author_uid,created_at";
 export const STATUS_INCIDENT_COLS = "incident_id,title,impact,status,author_uid,created_at,updated_at,resolved_at";
 export const STATUS_INCIDENT_UPDATE_COLS = "update_id,incident_id,status,body,author_uid,created_at";
 export const POST_COLS =
@@ -608,6 +611,9 @@ export function toNotice(row: NoticeRow): NoticeRecord {
     severity: row.severity === "warning" ? "warning" : "info",
     title: row.title,
     body: row.body,
+    ...(row.image_url ? { imageUrl: row.image_url } : {}),
+    ...(row.image_url && row.image_alt ? { imageAlt: row.image_alt } : {}),
+    ...(Array.isArray(row.buttons) && row.buttons.length > 0 ? { buttons: row.buttons.map((button) => ({ label: button.label, url: button.url })) } : {}),
     active: row.active,
     authorUid: row.author_uid,
     createdAt: row.created_at,
@@ -620,6 +626,9 @@ export function fromNotice(n: NoticeRecord): NoticeRow {
     severity: n.severity,
     title: n.title,
     body: n.body,
+    image_url: n.imageUrl ?? null,
+    image_alt: n.imageAlt ?? "",
+    buttons: n.buttons ?? [],
     active: n.active,
     author_uid: n.authorUid,
     created_at: n.createdAt,

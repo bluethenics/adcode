@@ -29,6 +29,7 @@ import {
   type PluginManifest,
 } from "../../../packages/community/src/index.ts";
 import { SLASH_COMMANDS } from "../../desktop/src/shared/slashCommands.ts";
+import { roomCardFromSnapshot, type ArtifactRoomCard, type ArtifactRoomSnapshot } from "../../../packages/collab/src/index.ts";
 
 type Env = CollabRelayEnv;
 const DAY = 86_400_000;
@@ -120,6 +121,7 @@ export class CommunityHub extends DurableObject<Env> {
     sql.exec("CREATE TABLE IF NOT EXISTS quota(uid TEXT NOT NULL, day INTEGER NOT NULL, action TEXT NOT NULL, n INTEGER NOT NULL, PRIMARY KEY(uid, day, action))");
     sql.exec("CREATE TABLE IF NOT EXISTS waitlist(uid TEXT PRIMARY KEY, price REAL, note TEXT NOT NULL, at INTEGER NOT NULL)");
     sql.exec("CREATE TABLE IF NOT EXISTS names(uid TEXT PRIMARY KEY, name TEXT NOT NULL)");
+    sql.exec("CREATE TABLE IF NOT EXISTS live_rooms(artifactId TEXT PRIMARY KEY, title TEXT NOT NULL, task TEXT NOT NULL, hostName TEXT NOT NULL, branch TEXT NOT NULL, open INTEGER NOT NULL, memberCount INTEGER NOT NULL, planDone INTEGER NOT NULL, planTotal INTEGER NOT NULL, percent INTEGER NOT NULL, files TEXT NOT NULL, approvals INTEGER NOT NULL, handoffs INTEGER NOT NULL, warnings INTEGER NOT NULL, updatedAt INTEGER NOT NULL)");
   }
 
   private get sql() { return this.ctx.storage.sql; }
@@ -174,6 +176,25 @@ export class CommunityHub extends DurableObject<Env> {
   }
   accessFor(uid: string | null, id: string, key: string | null): ArtifactAccess {
     return this.access(this.artifactRow(id), uid, key);
+  }
+  rememberRoom(snapshot: ArtifactRoomSnapshot): void {
+    const card = roomCardFromSnapshot(snapshot);
+    this.sql.exec(
+      "INSERT INTO live_rooms(artifactId,title,task,hostName,branch,open,memberCount,planDone,planTotal,percent,files,approvals,handoffs,warnings,updatedAt) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(artifactId) DO UPDATE SET title=excluded.title,task=excluded.task,hostName=excluded.hostName,branch=excluded.branch,open=excluded.open,memberCount=excluded.memberCount,planDone=excluded.planDone,planTotal=excluded.planTotal,percent=excluded.percent,files=excluded.files,approvals=excluded.approvals,handoffs=excluded.handoffs,warnings=excluded.warnings,updatedAt=excluded.updatedAt",
+      card.artifactId, card.title, card.task, card.hostName, card.branch, card.open ? 1 : 0, card.memberCount,
+      card.planDone, card.planTotal, card.percent, JSON.stringify(card.files), card.approvals, card.handoffs, card.warnings, card.updatedAt,
+    );
+  }
+  liveRooms(): ArtifactRoomCard[] {
+    return this.sql.exec<{
+      artifactId: string; title: string; task: string; hostName: string; branch: string; open: number; memberCount: number;
+      planDone: number; planTotal: number; percent: number; files: string; approvals: number; handoffs: number; warnings: number; updatedAt: number;
+    }>("SELECT * FROM live_rooms ORDER BY open DESC, updatedAt DESC LIMIT 50").toArray().map((row) => ({
+      artifactId: row.artifactId, title: row.title, task: row.task, hostName: row.hostName, branch: row.branch,
+      open: row.open === 1, memberCount: row.memberCount, planDone: row.planDone, planTotal: row.planTotal,
+      percent: row.percent, files: JSON.parse(row.files) as string[], approvals: row.approvals,
+      handoffs: row.handoffs, warnings: row.warnings, updatedAt: row.updatedAt,
+    }));
   }
   private weekly(pluginId: string): number {
     return this.sql.exec<{ n: number }>("SELECT COUNT(*) n FROM installs WHERE pluginId=? AND at>?", pluginId, Date.now() - 7 * DAY).one().n;
@@ -272,8 +293,10 @@ export class CommunityHub extends DurableObject<Env> {
 
   me(uid: string): CommunityMe {
     const display = this.sql.exec<{ name: string }>("SELECT name FROM names WHERE uid=?", uid).toArray()[0]?.name ?? "You";
-    const plugins = this.sql.exec<PluginRow>("SELECT * FROM plugins WHERE ownerId=? ORDER BY updatedAt DESC", uid).toArray().map((row) => this.pluginListing(row));
-    const artifacts = this.sql.exec<ArtifactRow>("SELECT * FROM artifacts WHERE ownerId=? ORDER BY updatedAt DESC", uid).toArray().map((row) => this.artifactListing(row, "owner"));
+    // A removed item is kept so people who installed or remixed it keep their copy, but it is
+    // not something the owner still shares: it must not come back as a row with Stop sharing.
+    const plugins = this.sql.exec<PluginRow>("SELECT * FROM plugins WHERE ownerId=? AND hidden<>2 ORDER BY updatedAt DESC", uid).toArray().map((row) => this.pluginListing(row));
+    const artifacts = this.sql.exec<ArtifactRow>("SELECT * FROM artifacts WHERE ownerId=? AND hidden<>2 ORDER BY updatedAt DESC", uid).toArray().map((row) => this.artifactListing(row, "owner"));
     const inbox = this.sql.exec<ImprovementRow>("SELECT i.* FROM improvements i JOIN artifacts a ON a.id=i.artifactId WHERE a.ownerId=? ORDER BY CASE i.status WHEN 'open' THEN 0 ELSE 1 END, i.at DESC LIMIT 100", uid).toArray().map((row) => this.improvementSummary(row));
     const sent = this.sql.exec<ImprovementRow>("SELECT * FROM improvements WHERE authorId=? ORDER BY at DESC LIMIT 100", uid).toArray().map((row) => this.improvementSummary(row));
     const activity = this.sql.exec<Omit<ActivityItem, "read"> & { read: number }>("SELECT id, kind, text, targetKind, targetId, at, read FROM activity WHERE uid=? ORDER BY id DESC LIMIT 60", uid).toArray().map((row) => ({ ...row, read: row.read === 1 }));
@@ -663,6 +686,7 @@ export async function communityRoute(request: Request, env: Env, who: { uid: str
       const limit = clampInt(url.searchParams.get("limit"), 30, 1, 60);
       const offset = clampInt(url.searchParams.get("offset"), 0, 0, 5000);
       if (path === "/community/home") return respond(await hub.home(uid), 200, uid === null);
+      if (path === "/community/rooms") return respond(await hub.liveRooms(), 200, uid === null);
       if (path === "/community/plugins") return respond(await hub.listPlugins(sort, query, url.searchParams.get("category"), limit, offset), 200, uid === null);
       if (path === "/community/artifacts") return respond(await hub.listArtifacts(sort, query, url.searchParams.get("help") === "1", limit, offset), 200, uid === null);
       if (path === "/community/me") return respond(await hub.me(signedIn()));
@@ -676,7 +700,9 @@ export async function communityRoute(request: Request, env: Env, who: { uid: str
       if (match) {
         const account = signedIn();
         await hub.accessFor(account, match[1]!, key);
-        return respond(await env.ARTIFACT_ROOMS.getByName(match[1]!).snapshot(account));
+        const snapshot = await env.ARTIFACT_ROOMS.getByName(match[1]!).snapshot(account);
+        await hub.rememberRoom(snapshot);
+        return respond(snapshot);
       }
       match = /^\/community\/improvements\/([a-z0-9]{12,40})$/.exec(path);
       if (match) return respond(await hub.improvement(signedIn(), match[1]!, key));
@@ -735,32 +761,49 @@ export async function communityRoute(request: Request, env: Env, who: { uid: str
         const detail = await hub.artifact(id, account);
         const display = typeof body["name"] === "string" ? body["name"] : deny(400, "Choose a display name.");
         const invite = typeof body["liveInvite"] === "string" ? body["liveInvite"] : null;
-        return respond(await room.open(account, display, id, detail.title, invite));
+        const snapshot = await room.open(account, display, id, detail.title, invite, body["branch"], body["task"]);
+        await hub.rememberRoom(snapshot);
+        return respond(snapshot);
       }
       if (step === "join") {
         const display = typeof body["name"] === "string" ? body["name"] : deny(400, "Choose a display name.");
-        return respond(await room.join(account, display, access === "owner" ? "owner" : "editor", watching(body["watching"])));
+        const snapshot = await room.join(account, display, access === "owner" ? "owner" : "editor", watching(body["watching"]), body["hasAgent"], body["pushAccess"]);
+        await hub.rememberRoom(snapshot);
+        return respond(snapshot);
       }
-      if (step === "leave") return respond(await room.leave(account));
+      if (step === "leave") {
+        const snapshot = await room.leave(account);
+        await hub.rememberRoom(snapshot);
+        return respond(snapshot);
+      }
       if (step === "close") {
         if (access !== "owner") deny(403, "Only the owner can close this live room.");
-        return respond(await room.close(account));
+        const snapshot = await room.close(account);
+        await hub.rememberRoom(snapshot);
+        return respond(snapshot);
       }
       const action = typeof body["action"] === "string" ? body["action"] : deny(400, "Choose an action.");
-      if (action === "heartbeat") return respond(await room.heartbeat(account, body));
-      if (action === "post") return respond(await room.post(account, body["text"] as string, body["kind"]));
-      if (action === "plan") return respond(await room.planAction(account, body));
-      if (action === "note") return respond(await room.noteAction(account, body));
-      if (action === "comment") return respond(await room.commentAction(account, body));
-      if (action === "lock") return respond(await room.lockAction(account, body));
-      if (action === "handoff") return respond(await room.handoff(account));
-      if (action === "takeover") return respond(await room.takeover(account, body["targetUid"]));
-      if (action === "setRole") return respond(await room.setRole(account, body["targetUid"] as string, body["role"]));
-      if (action === "setLive") {
+      let snapshot: ArtifactRoomSnapshot | null = null;
+      if (action === "heartbeat") snapshot = await room.heartbeat(account, body);
+      else if (action === "post") snapshot = await room.post(account, body["text"] as string, body["kind"]);
+      else if (action === "plan") snapshot = await room.planAction(account, body);
+      else if (action === "note") snapshot = await room.noteAction(account, body);
+      else if (action === "comment") snapshot = await room.commentAction(account, body);
+      else if (action === "lock") snapshot = await room.lockAction(account, body);
+      else if (action === "handoff") snapshot = await room.handoff(account);
+      else if (action === "offerHandoff") snapshot = await room.offerHandoff(account, body);
+      else if (action === "acceptHandoff") snapshot = await room.acceptHandoff(account, body);
+      else if (action === "requestApproval") snapshot = await room.requestApproval(account, body);
+      else if (action === "decideApproval") snapshot = await room.decideApproval(account, body);
+      else if (action === "takeover") snapshot = await room.takeover(account, body["targetUid"]);
+      else if (action === "setRole") snapshot = await room.setRole(account, body["targetUid"] as string, body["role"]);
+      else if (action === "setLive") {
         const invite = body["invite"] === null ? null : typeof body["invite"] === "string" ? body["invite"] : deny(400, "That live invite is not valid.");
-        return respond(await room.setLive(account, invite));
-      }
-      deny(400, "Choose an action.");
+        snapshot = await room.setLive(account, invite);
+      } else deny(400, "Choose an action.");
+      const result = snapshot ?? deny(400, "Choose an action.");
+      await hub.rememberRoom(result);
+      return respond(result);
     }
     match = /^\/community\/improvements\/([a-z0-9]{12,40})\/decide$/.exec(path);
     if (match) return respond(await hub.decide(account, match[1]!, body["accept"] === true, body["reply"], body["force"] === true));

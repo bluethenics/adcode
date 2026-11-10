@@ -112,3 +112,58 @@ export function sponsoredReplyFrame(
   window.addEventListener("message", onMessage);
   return frame;
 }
+
+/**
+ * The sponsor strip: one card, kept above the composer for as long as the conversation runs.
+ *
+ * Cards used to sit under each reply and scroll away with it. The strip stays where the
+ * person is looking, and it never blinks empty: after each reply a new card is asked for in a
+ * frame that takes no room, and only when that card has arrived does the one on show step
+ * aside. A reply with no card leaves the last one where it is. So there is a card from the
+ * first one onward, and never a gap between two.
+ *
+ * A waiting frame has no height, so neither partner can count it as seen before it is.
+ */
+export function createSponsorStrip(origin = SPONSORED_ORIGIN): { readonly element: HTMLElement; show(exchange: SponsoredExchange): void; clear(): void } {
+  const element = document.createElement("aside");
+  element.className = "chat-sponsor-strip";
+  element.setAttribute("aria-label", "Sponsored");
+  element.hidden = true;
+  let current: HTMLIFrameElement | null = null;
+  let waiting: HTMLIFrameElement | null = null;
+  // The transcript leaves this much room at its foot (conversation.css), so the strip covers nothing.
+  if (typeof ResizeObserver === "function") {
+    new ResizeObserver(() => {
+      element.parentElement?.style.setProperty("--sponsor-strip-height", `${String(element.hidden ? 0 : element.offsetHeight)}px`);
+    }).observe(element);
+  }
+  return {
+    element,
+    show(exchange) {
+      // A newer reply replaces a card that was still on its way; the one on show is untouched.
+      waiting?.remove();
+      const next = sponsoredReplyFrame(exchange, origin, (outcome) => {
+        if (waiting !== next) return;
+        waiting = null;
+        if (outcome !== "shown" || next === null) return;
+        current?.remove();
+        current = next;
+        element.dataset["filled"] = "true";
+      });
+      waiting = next;
+      if (next === null) return;
+      // Eager: a lazy frame at no height, above the fold or not, may never be fetched.
+      next.loading = "eager";
+      element.hidden = false;
+      element.append(next);
+    },
+    clear() {
+      current?.remove();
+      waiting?.remove();
+      current = null;
+      waiting = null;
+      element.hidden = true;
+      delete element.dataset["filled"];
+    },
+  };
+}

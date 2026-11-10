@@ -7,6 +7,7 @@
  * - Inbox - improvements people sent you, and the ones you sent.
  * - Your artifacts - your level and badges, what you share, and what happened to it.
  */
+import { contentFingerprint } from "@adcode/collab";
 import {
   artifactShareMessage, changeStats, compactCount, decodeArtifactShare, lineDiff, timeAgo, type ArtifactChange,
   type ArtifactListing, type CommunityMe, type ImprovementDetail, type ImprovementSummary, type ListingSort,
@@ -14,11 +15,12 @@ import {
 import type {
   ArtifactDetail, ArtifactPreview, ArtifactRoomActionView, ArtifactRoomSnapshot, ArtifactVisibility, ProjectLinkView,
 } from "../../shared/community.ts";
+import type { CollabPresenceView, CollabStatusView } from "../../shared/api.ts";
 import { copyText } from "../clipboard.ts";
 import { askThemed } from "../dialogs/confirmDialog.ts";
-import { communityMe } from "./communityMe.ts";
+import { communityMe, forgetArtifactRemoved, rememberArtifactRemoved, withoutRemovedArtifacts } from "./communityMe.ts";
 import { button, el, field } from "../dialogs/formDialog.ts";
-import { ICON } from "../workbench/icons.ts";
+import { createIcon, ICON } from "../workbench/icons.ts";
 import { formatBytes } from "./communityModel.ts";
 import {
   activityFor, activityList, chip, createHubShell, detailDialog, door, errorText, list, plural, profileCard, progressBar, reportDialog, section,
@@ -35,6 +37,10 @@ export interface ArtifactsPageDeps {
   readonly signIn: () => void;
   readonly onUnread: (count: number) => void;
   readonly track: (event: string) => void;
+  /** The active editor buffer, for lane presence and comment anchors. Null when nothing is open. */
+  readonly activeFile: () => { readonly path: string; readonly content: string } | null;
+  /** Open a teammate's file at their caret, so "who is working" is one click from their code. */
+  readonly openAt: (relativePath: string, line: number, column: number) => void;
 }
 
 export interface ArtifactsPage {
@@ -51,6 +57,49 @@ const SORTS: readonly { readonly id: ListingSort; readonly label: string }[] = [
   { id: "new", label: "New" },
   { id: "top", label: "Most remixed" },
 ];
+
+/** Two letters at most: a lane should read as a person before it reads as a row. */
+function roomInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] ?? "?";
+  const last = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : "";
+  return `${first}${last}`.toUpperCase();
+}
+
+function roomStatusLabel(status: string): string {
+  if (status === "working") return "Agent working";
+  if (status === "waiting") return "Waiting";
+  if (status === "awaiting") return "Awaiting handoff";
+  if (status === "handoff") return "Handoff ready";
+  if (status === "offline") return "Offline";
+  return "Idle";
+}
+
+function roomChip(text: string, tone: string): HTMLElement {
+  const node = chip(text, "community-chip community-live-chip");
+  node.dataset["tone"] = tone;
+  return node;
+}
+
+function roomFact(label: string, value: string, mono = false): HTMLElement {
+  const node = el("span", "community-live-fact");
+  node.append(el("span", "community-live-fact-label", label), el("strong", mono ? "community-live-fact-value community-live-file" : "community-live-fact-value", value));
+  return node;
+}
+
+/** A single bar, filled from the left with transform so a repaint cannot make it jump. */
+function roomMeter(percent: number, label: string): HTMLElement {
+  const meter = el("div", "community-live-meter");
+  meter.setAttribute("role", "progressbar");
+  meter.setAttribute("aria-label", label);
+  meter.setAttribute("aria-valuemin", "0");
+  meter.setAttribute("aria-valuemax", "100");
+  meter.setAttribute("aria-valuenow", String(Math.round(percent)));
+  const fill = el("span", "community-live-meter-fill");
+  fill.style.setProperty("--value", String(Math.max(0, Math.min(1, percent / 100))));
+  meter.append(fill);
+  return meter;
+}
 
 export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
   let sort: ListingSort = "trending";
@@ -115,14 +164,32 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
     for (const option of SORTS) sortSelect.append(new Option(option.label, option.id, false, option.id === sort));
     sortSelect.addEventListener("change", () => { sort = sortSelect.value as ListingSort; void renderDiscover(); });
     bar.append(el("p", "community-section-note", "Remix copies a project into a folder of your own. The owner reviews anything you send back, file by file"), help, sortSelect);
-    const [home, listings] = await Promise.all([
+    const [home, listings, live] = await Promise.all([
       query === "" && !helpOnly ? window.adcode.community.home().then((value) => value, () => null) : Promise.resolve(null),
       window.adcode.community.artifacts(sort, query, helpOnly).then((value) => value, () => null),
+      query === "" && !helpOnly ? window.adcode.community.liveRooms().then((value) => value, () => []) : Promise.resolve([]),
     ]);
     if (listings === null) { shell.offline(panel, "Shared projects could not be reached. Check your connection", () => void renderDiscover()); return; }
     if (home !== null) shell.setSummary(`${plural(home.totals.artifacts, "shared project")} · ${plural(home.totals.creators, "creator")}`);
+    const liveCards = live.filter((room) => room.open).map((room) => {
+      const card = el("article", "community-card community-live-card");
+      const top = el("div", "community-card-top");
+      const names = el("div", "community-card-names");
+      names.append(button(room.title, "community-card-title", () => void liveRoom(room.artifactId, null, false)), el("span", "community-card-by", `${room.hostName} · ${room.branch}`));
+      top.append(names, roomChip("Live", "live"));
+      card.append(top, el("p", "community-card-text", room.task || "A clean live session"));
+      const presence = el("div", "community-live-card-presence");
+      presence.append(el("span", "community-live-signal-dot"), el("span", "community-card-by", `${plural(room.memberCount, "person", "people")} here`));
+      card.append(presence, roomMeter(room.percent, "Plan progress"));
+      const meta = el("div", "community-card-meta");
+      meta.append(stat("done", `${room.percent}%`), stat("files", String(room.files.length)), stat("waiting", String(room.approvals + room.handoffs)));
+      if (room.warnings > 0) meta.append(chip(`${room.warnings} overlap${room.warnings === 1 ? "" : "s"}`));
+      card.append(meta);
+      return card;
+    });
     panel.replaceChildren(
       ...(query === "" && !helpOnly ? [doors] : []),
+      ...(liveCards.length > 0 ? [section("Live now", "Sessions with people and agents working right now", shell.grid(liveCards, ""))] : []),
       ...(home !== null && home.helpWanted.length > 0 ? [section("Help wanted", "Owners asked for a hand", shell.grid(home.helpWanted.map(artifactCard), ""))] : []),
       section(helpOnly ? "Asking for help" : "All shared projects", "", el("div", "")),
       bar,
@@ -372,6 +439,7 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
           tags: tags.value.split(",").map((tag) => tag.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/^-+|-+$/g, "")).filter(Boolean).slice(0, 6),
         }).then((detail) => {
           finish();
+          forgetArtifactRemoved(detail.id);
           deps.track("artifact_shared");
           say(visibility.value === "private" ? `${detail.title} is private. Open Sharing and live to copy its code.` : `${detail.title} is shared as version ${detail.version}. Improvements people send arrive in Inbox`);
           shell.showTab("project");
@@ -477,6 +545,24 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
       me = loaded;
     }
     const person = me.profile.name || "Builder";
+    let laneStatus: "idle" | "working" = "idle";
+    let laneTask = "";
+    let laneProvider = "";
+    let laneModel = "";
+    let aiReady: boolean | null = null;
+    try {
+      const ai = await window.adcode.ai.status();
+      aiReady = ai.ready;
+      laneProvider = ai.activeProvider;
+      laneModel = ai.activeModel;
+      const runs = await window.adcode.ai.runs();
+      laneStatus = runs.length > 0 ? "working" : "idle";
+      laneTask = runs[0]?.title ?? "";
+    } catch { /* Signed out or no model: the lane stays idle. */ }
+    const stopRuns = window.adcode.ai.onRunsChanged((runs) => {
+      laneStatus = runs.length > 0 ? "working" : "idle";
+      laneTask = runs[0]?.title ?? "";
+    });
     let current: ArtifactRoomSnapshot;
     try {
       current = await window.adcode.community.artifactRoom(id, key);
@@ -489,41 +575,279 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
         if (opened === null) return;
         current = opened;
       } else if (message.includes("Join this live room first")) {
-        const joined = await attempt<ArtifactRoomSnapshot>(() => window.adcode.community.joinArtifactRoom(id, key, person, false), "Could not join the live room.");
-        if (joined === null) return;
+        let joined = await attempt<ArtifactRoomSnapshot>(() => window.adcode.community.joinArtifactRoom(id, key, person, false, aiReady, null), "Could not join the live room.");
+        if (joined === null) joined = await attempt<ArtifactRoomSnapshot>(() => window.adcode.community.joinArtifactRoom(id, key, person, true, aiReady, null), "Could not watch the live room.");
+        if (joined === null) { stopRuns(); return; }
         current = joined;
       } else {
+        stopRuns();
         say(message);
         return;
       }
     }
     const { dialog, card, finish } = detailDialog("community-live", current.title);
     const body = el("div", "community-live-body");
-    card.append(body);
+    const status = el("p", "community-live-status");
+    status.setAttribute("role", "status");
+    status.setAttribute("aria-live", "polite");
+    status.hidden = true;
+    const busy = el("div", "community-live-busy");
+    busy.setAttribute("aria-hidden", "true");
+    busy.append(el("span", "community-live-busy-bar"));
+    card.append(status, busy, body);
+    let liveStatus: CollabStatusView | null = null;
+    let livePresence: readonly CollabPresenceView[] = [];
+    let liveFromRoom = false;
+    /** When each person's cursor last moved, so "active" means recently active, not merely connected. */
+    const liveSeen = new Map<string, number>();
+    const editors = el("section", "community-live-editors t-panel-slide");
+    editors.dataset["open"] = "false";
+    editors.hidden = true;
+    let editorsOpen = false;
+    let editorsHideTimer: number | undefined;
+    let lastOnline = -1;
+    let lastActive = -1;
+    let statusTimer: number | undefined;
+    function flash(message: string, tone: "info" | "success" | "error" = "info"): void {
+      const text = el("span", "community-live-status-text", message);
+      status.replaceChildren();
+      if (tone === "success") {
+        const check = el("span", "t-success-check");
+        check.dataset["state"] = "in";
+        check.setAttribute("aria-hidden", "true");
+        check.append(createIcon(ICON.check));
+        status.append(check);
+      }
+      status.append(text);
+      status.dataset["tone"] = tone;
+      status.hidden = false;
+      window.clearTimeout(statusTimer);
+      statusTimer = window.setTimeout(() => { status.hidden = true; }, tone === "error" ? 9000 : 4000);
+    }
+    function setBusy(value: boolean): void {
+      card.dataset["busy"] = value ? "true" : "false";
+      body.setAttribute("aria-busy", value ? "true" : "false");
+      body.inert = value;
+    }
     const act = async (action: ArtifactRoomActionView): Promise<void> => {
-      const next = await attempt<ArtifactRoomSnapshot>(() => window.adcode.community.artifactRoomAction(id, key, action), "That room action could not be saved.");
-      if (next !== null) { current = next; draw(); }
+      setBusy(true);
+      flash("Saving the change");
+      try {
+        const next = await window.adcode.community.artifactRoomAction(id, key, action);
+        current = next;
+        draw();
+        flash("Saved", "success");
+      } catch (failure) {
+        flash(errorText(failure, "That room action could not be saved."), "error");
+      } finally {
+        setBusy(false);
+      }
     };
-    const refresh = async (): Promise<void> => {
-      const next = await attempt<ArtifactRoomSnapshot>(() => window.adcode.community.artifactRoom(id, key), "The live room could not be refreshed.");
-      if (next !== null) { current = next; draw(); }
+    const refresh = async (quiet = false): Promise<void> => {
+      if (!quiet) { setBusy(true); flash("Refreshing the room"); }
+      try {
+        const next = await window.adcode.community.artifactRoom(id, key);
+        current = next;
+        draw();
+        if (!quiet) flash("Up to date", "success");
+      } catch (failure) {
+        if (!quiet) flash(errorText(failure, "The live room could not be refreshed."), "error");
+      } finally {
+        if (!quiet) setBusy(false);
+      }
     };
+    function setEditorsOpen(open: boolean): void {
+      if (open === editorsOpen) return;
+      editorsOpen = open;
+      window.clearTimeout(editorsHideTimer);
+      if (open) {
+        editors.hidden = false;
+        editors.dataset["open"] = "false";
+        void editors.offsetHeight;
+        editors.dataset["open"] = "true";
+        return;
+      }
+      lastOnline = -1;
+      lastActive = -1;
+      editors.dataset["open"] = "false";
+      editorsHideTimer = window.setTimeout(() => {
+        if (!editorsOpen) editors.hidden = true;
+      }, 200);
+    }
+
+    function liveCountChip(value: number, label: string, animate: boolean, tone: "ready" | "working"): HTMLElement {
+      const node = roomChip("", tone);
+      const group = el("span", `t-digit-group${animate ? " is-animating" : ""}`);
+      const characters = String(value).split("");
+      characters.forEach((character, index) => {
+        const digit = el("span", "t-digit", character);
+        if (characters.length > 2 && index === characters.length - 2) digit.dataset["stagger"] = "1";
+        else if (characters.length > 2 && index === characters.length - 1) digit.dataset["stagger"] = "2";
+        group.append(digit);
+      });
+      node.append(group, document.createTextNode(` ${label}`));
+      return node;
+    }
+
+    function liveAvatarStack(people: CollabStatusView["participants"]): HTMLElement {
+      const stack = el("div", "community-live-avatar-stack t-avatar-group");
+      stack.setAttribute("aria-hidden", "true");
+      for (const person of people.slice(0, 4)) {
+        const avatar = el("span", "community-live-avatar community-live-stack-avatar t-avatar", roomInitials(person.name));
+        avatar.style.setProperty("--lane-colour", person.colour);
+        avatar.title = person.name;
+        avatar.append(el("span", "community-live-avatar-dot"));
+        stack.append(avatar);
+      }
+      if (people.length > 4) stack.append(el("span", "community-live-stack-more", `+${people.length - 4}`));
+
+      const avatars = [...stack.querySelectorAll<HTMLElement>(".t-avatar")];
+      const styles = getComputedStyle(document.documentElement);
+      const number = (name: string, fallback: number): number => {
+        const value = Number.parseFloat(styles.getPropertyValue(name));
+        return Number.isFinite(value) ? value : fallback;
+      };
+      const easing = (name: string, fallback: string): string => styles.getPropertyValue(name).trim() || fallback;
+      const setShifts = (activeIndex: number | null, phase: "in" | "out"): void => {
+        const lift = number("--avatar-lift", -3);
+        const falloff = number("--avatar-falloff", 0.45);
+        const scale = number("--avatar-scale", 1.06);
+        const timing = phase === "out"
+          ? easing("--avatar-ease-out", "cubic-bezier(0.34, 1.56, 0.64, 1)")
+          : easing("--avatar-ease", "cubic-bezier(0.22, 1, 0.36, 1)");
+        avatars.forEach((avatar, index) => {
+          avatar.style.transitionTimingFunction = timing;
+          if (activeIndex === null) {
+            avatar.style.setProperty("--shift", "0px");
+            avatar.style.setProperty("--scale-active", "1");
+            return;
+          }
+          const distance = Math.abs(index - activeIndex);
+          avatar.style.setProperty("--shift", `${(lift * Math.pow(falloff, distance)).toFixed(3)}px`);
+          avatar.style.setProperty("--scale-active", index === activeIndex ? String(scale) : "1");
+        });
+      };
+      avatars.forEach((avatar, index) => avatar.addEventListener("mouseenter", () => setShifts(index, "in")));
+      stack.addEventListener("mouseleave", () => setShifts(null, "out"));
+      return stack;
+    }
+
+    function drawEditors(): void {
+      const session = liveStatus;
+      const running = current.liveInvite !== null && session !== null
+        && (session.mode === "hosting" || session.mode === "joined" || session.mode === "connecting");
+      if (!running) { setEditorsOpen(false); return; }
+
+      const now = Date.now();
+      const presenceById = new Map(livePresence.map((one) => [one.participantId, one]));
+      const active = livePresence.filter((one) => one.path !== null && now - (liveSeen.get(one.participantId) ?? 0) < 120_000).length;
+      const online = session.participants.length;
+      const onlineChanged = online !== lastOnline;
+      const activeChanged = active !== lastActive;
+      lastOnline = online;
+      lastActive = active;
+      const head = el("div", "community-live-editors-head");
+      const words = el("div", "");
+      words.append(
+        el("h2", "community-section-title", "Live editors"),
+        el("p", "community-section-note", "The same project, on everyone's machine. Changes land as they type - no branch, no pull request."),
+      );
+      const side = el("div", "community-live-editors-side");
+      if (online > 0) side.append(liveAvatarStack(session.participants));
+      side.append(liveCountChip(online, "online", onlineChanged, "ready"));
+      if (active > 0) side.append(liveCountChip(active, "active now", activeChanged, "working"));
+      head.append(words, side);
+
+      const rows = el("ul", "community-live-list community-live-editors-list");
+      for (const person of session.participants) {
+        const presence = presenceById.get(person.id);
+        const isActive = presence !== undefined && presence.path !== null && now - (liveSeen.get(person.id) ?? 0) < 120_000;
+        const row = el("li", "community-live-row community-live-editor");
+        row.dataset["active"] = String(isActive);
+        if (person.id === session.selfId) row.dataset["you"] = "true";
+
+        const avatar = el("span", "community-live-avatar", roomInitials(person.name));
+        avatar.style.setProperty("--lane-colour", person.colour);
+        avatar.setAttribute("aria-hidden", "true");
+        avatar.append(el("span", "community-live-avatar-dot"));
+        const copy = el("div", "community-live-grow");
+        const title = el("div", "community-live-member-title");
+        title.append(el("strong", "", person.name));
+        if (person.id === session.selfId) title.append(el("span", "community-live-you", "You"));
+        title.append(roomChip(person.role === "host" ? "Host" : person.role === "editor" ? "Can edit" : "View only", person.role === "viewer" ? "warning" : "ready"));
+        copy.append(title);
+        if (presence !== undefined && presence.path !== null) {
+          const where = el("span", "community-live-file", `${presence.path}:${presence.cursor.line}:${presence.cursor.column}`);
+          copy.append(where);
+        } else {
+          copy.append(el("span", "community-card-by", "Online · no file open"));
+        }
+        row.append(avatar, copy);
+
+        if (presence !== undefined && presence.path !== null) {
+          row.append(button("Go to", "ad-btn", () => {
+            // The room is modal, so opening the file behind it would look like nothing happened.
+            // Close the room; the live session itself keeps running in the status bar.
+            finish();
+            deps.openAt(presence.path!, presence.cursor.line, presence.cursor.column);
+          }));
+        }
+        if (person.id !== session.selfId && person.role !== "host" && session.mode === "hosting") {
+          const access = el("select", "ad-select community-live-access");
+          access.setAttribute("aria-label", `Access for ${person.name}`);
+          for (const role of ["editor", "viewer"] as const) access.append(new Option(role === "editor" ? "Can edit" : "View only", role, false, role === person.role));
+          access.addEventListener("change", () => {
+            void (async () => {
+              const next = await attempt<CollabStatusView>(() => window.adcode.collab.setRole(person.id, access.value === "editor" ? "editor" : "viewer"), "That access change could not be saved.");
+              if (next !== null) { liveStatus = next; drawEditors(); }
+            })();
+          });
+          row.append(access);
+        }
+        rows.append(row);
+      }
+      if (rows.childElementCount === 0) rows.append(el("li", "community-live-row community-live-empty", "Waiting for the first person to join"));
+      const foot = el("p", "community-section-note", "Cursor colours match the carets in the editor. The host's copy autosaves every 4 minutes.");
+      editors.replaceChildren(head, rows, foot);
+      setEditorsOpen(true);
+    }
+
+    async function refreshLive(): Promise<void> {
+      const [nextStatus, nextPresence] = await Promise.all([
+        window.adcode.collab.status().catch(() => null),
+        window.adcode.collab.presenceList().catch(() => [] as readonly CollabPresenceView[]),
+      ]);
+      liveStatus = nextStatus;
+      livePresence = nextPresence;
+      const now = Date.now();
+      for (const one of nextPresence) if (one.path !== null) liveSeen.set(one.participantId, now);
+      drawEditors();
+    }
+
     function draw(): void {
       const actions = el("div", "confirm-buttons community-dialog-actions");
       if (current.open) {
         if (current.self.role === "owner") {
-          actions.append(button(current.liveInvite === null ? "Start live files" : "Stop live files", "ad-btn ad-btn-primary", () => {
+          actions.append(button(current.liveInvite === null ? "Share project live" : "Stop live project", "ad-btn ad-btn-primary", () => {
             void (async () => {
               if (current.liveInvite !== null) {
                 await window.adcode.collab.leave().catch(() => null);
+                liveStatus = null;
+                livePresence = [];
+                liveSeen.clear();
+                liveFromRoom = false;
+                drawEditors();
                 await act({ action: "setLive", invite: null });
                 return;
               }
-              const status = await attempt(() => window.adcode.collab.host({ bind: "internet", port: 0, displayName: person, artifactLive: true }), "Live files could not start. Sign in and check your connection.");
-              if (status === null) return;
-              if (status.invite === null) { say(errorText(status.error, "Live files could not start.")); return; }
-              await act({ action: "setLive", invite: status.invite });
-              say("Live files started. Friends can join from this room");
+              const started = await attempt(() => window.adcode.collab.host({ bind: "internet", port: 0, displayName: person, artifactLive: true }), "The live project could not start. Sign in and check your connection.");
+              if (started === null) return;
+              if (started.invite === null) { say(errorText(started.error, "The live project could not start.")); return; }
+              liveStatus = started;
+              liveFromRoom = true;
+              await act({ action: "setLive", invite: started.invite });
+              drawEditors();
+              flash("Live project started. Everyone in this room can edit the same project", "success");
             })();
           }));
           actions.append(button("Close room", "ad-btn", () => {
@@ -534,33 +858,117 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
             })();
           }));
         } else if (current.liveInvite !== null) {
-          actions.append(button("Join live files", "ad-btn ad-btn-primary", () => {
+          actions.append(button("Join live project", "ad-btn ad-btn-primary", () => {
             void (async () => {
-              const status = await attempt(() => window.adcode.collab.join(current.liveInvite!, person), "Could not join live files. Remix the artifact and open that folder first.");
-              if (status !== null) say("Joined live files. Open the same file to see changes as they happen");
+              /*
+               * A live session binds Monaco models, so there must be a project open before the
+               * socket connects. With none, download this artifact first - the same copy the
+               * host is sharing - instead of joining into an empty workbench and seeing nothing.
+               */
+              const opened = await window.adcode.workspace.current().catch(() => null);
+              if (opened === null) {
+                const proceed = await askThemed({
+                  title: "Open this live project?",
+                  body: "Live editing needs the project's files on this computer. ADCode will download a copy to Documents → ADCode Projects, open it, and join everyone else. The host's copy stays the source of truth while you are live.",
+                  confirmLabel: "Download and join",
+                });
+                if (!proceed) return;
+                const root = await withProgress(`join-live:${id}`, `Preparing ${current.title}`, () => window.adcode.community.remix(id, key), "The project could not be downloaded.");
+                if (root === null) return;
+                await deps.openFolder(root);
+              }
+              const joined = await attempt(() => window.adcode.collab.join(current.liveInvite!, person), "Could not join the live project. Ask the host to keep the room open and try again.");
+              if (joined !== null) {
+                liveStatus = joined;
+                liveFromRoom = true;
+                await refreshLive();
+                flash("Joined the live project. Open any file to see everyone's edits as they happen", "success");
+              }
+            })();
+          }));
+        }
+        if (current.self.role !== "owner") {
+          const selfMember = current.members.find((one) => one.uid === current.selfId);
+          actions.append(button(selfMember?.watching === true ? "Join as editor" : "Watch only", "ad-btn", () => {
+            void (async () => {
+              const next = await attempt<ArtifactRoomSnapshot>(
+                () => window.adcode.community.joinArtifactRoom(id, key, person, !(selfMember?.watching === true), aiReady, null),
+                "Could not change how you joined.",
+              );
+              if (next !== null) { current = next; draw(); }
             })();
           }));
         }
         actions.append(button("Leave room", "ad-btn", () => {
           void (async () => {
+            if (liveFromRoom) await window.adcode.collab.leave().catch(() => null);
             await window.adcode.community.leaveArtifactRoom(id).catch(() => null);
+            stopRuns();
             finish();
           })();
         }));
-        actions.append(button("Refresh", "ad-btn", () => void refresh()));
+        actions.append(button("Refresh", "ad-btn", () => { void refresh(); void refreshLive(); }));
       } else actions.append(el("p", "community-section-note", "This room is closed and read-only."));
-      const members = el("ul", "community-live-list");
+      const planDone = current.plan.filter((step) => step.status === "done").length;
+      const planTotal = current.plan.length;
+      const present = current.members.filter((member) => member.present && member.lane.status !== "offline").length;
+      const canDecide = current.open && (current.self.role === "owner" || current.self.role === "editor");
+      const needsYou = current.approvals.filter((approval) => approval.status === "pending" && approval.requestedBy !== current.selfId && canDecide).length
+        + current.handoffs.filter((handoff) => handoff.acceptedAt === 0 && handoff.toUid === current.selfId).length;
+      const head = el("header", "community-live-head");
+      const signal = el("div", "community-live-signal");
+      signal.dataset["state"] = current.open ? "live" : "closed";
+      const signalDot = el("span", "community-live-signal-dot");
+      signalDot.setAttribute("aria-hidden", "true");
+      signal.append(signalDot, el("span", "community-live-signal-label", current.open ? "Live session" : "Read-only"));
+      const facts = el("div", "community-live-facts");
+      facts.append(
+        roomFact("Branch", current.branch, true),
+        roomFact("Task", current.task || "No task set"),
+        roomFact("Here", `${present} ${present === 1 ? "person" : "people"}`),
+        roomFact("Synced", current.lastSyncedAt > 0 ? timeAgo(current.lastSyncedAt, Date.now()) : "Not yet"),
+      );
+      head.append(signal, facts);
+      if (needsYou > 0) head.append(roomChip(`${needsYou} waiting on you`, "attention"));
+      const meter = el("div", "community-live-meter-wrap");
+      const meterText = el("div", "community-live-meter-text");
+      meterText.append(el("span", "", "Plan"), el("span", "community-live-meter-count", `${planDone} of ${planTotal} done`));
+      meter.append(meterText, roomMeter(planTotal === 0 ? 0 : (planDone / planTotal) * 100, "Plan progress"));
+      head.append(meter);
+
+      const checks = el("ul", "community-live-list community-live-checks");
+      for (const check of current.checks) {
+        const row = el("li", "community-live-row community-live-check");
+        row.dataset["state"] = check.ok === true ? "ready" : check.ok === false ? "blocked" : "unchecked";
+        const mark = el("span", "community-live-check-mark");
+        mark.setAttribute("aria-hidden", "true");
+        const copy = el("div", "community-live-grow");
+        copy.append(el("strong", "", check.label), el("p", "community-card-by", check.detail));
+        row.append(mark, copy, roomChip(check.ok === true ? "Ready" : check.ok === false ? "Blocked" : "Not checked", check.ok === true ? "ready" : check.ok === false ? "blocked" : "unchecked"));
+        checks.append(row);
+      }
+      const ready = current.checks.filter((check) => check.ok === true).length;
+      const members = el("ul", "community-live-list community-live-members");
       for (const member of current.members) {
-        const row = el("li", "community-live-row");
-        const dot = el("span", "community-lane-dot");
-        dot.style.setProperty("--lane-colour", member.colour);
+        const row = el("li", "community-live-row community-live-member");
+        row.dataset["lane"] = member.lane.status;
+        if (member.uid === current.selfId) row.dataset["you"] = "true";
+        const avatar = el("span", "community-live-avatar", roomInitials(member.name));
+        avatar.style.setProperty("--lane-colour", member.colour);
+        avatar.setAttribute("aria-hidden", "true");
+        avatar.append(el("span", "community-live-avatar-dot"));
         const lane = el("div", "community-live-grow");
-        lane.append(el("strong", "", member.name), chip(member.role), chip(member.lane.status));
-        if (member.lane.task) lane.append(el("p", "community-card-by", member.lane.task));
+        const title = el("div", "community-live-member-title");
+        title.append(el("strong", "", member.name));
+        if (member.uid === current.selfId) title.append(el("span", "community-live-you", "You"));
+        title.append(roomChip(roomStatusLabel(member.lane.status), member.lane.status), chip(member.role, "community-chip community-live-chip community-live-role"));
+        lane.append(title);
+        if (member.lane.task) lane.append(el("p", "community-live-task", member.lane.task));
         const where = [member.lane.provider, member.lane.model].filter(Boolean).join(" / ");
-        if (where) lane.append(el("p", "community-card-by", `${where}${member.lane.sponsorUid ? ` paid by ${current.members.find((one) => one.uid === member.lane.sponsorUid)?.name ?? "a teammate"}` : ""}`));
-        if (member.presence.path) lane.append(el("p", "community-card-by", `${member.presence.path}${member.presence.line === null ? "" : `:${member.presence.line}`}`));
-        row.append(dot, lane);
+        if (where) lane.append(el("p", "community-card-by", `${where}${member.lane.sponsorUid ? ` · paid by ${current.members.find((one) => one.uid === member.lane.sponsorUid)?.name ?? "a teammate"}` : ""}`));
+        if (member.presence.path) lane.append(el("span", "community-live-file", `${member.presence.path}${member.presence.line === null ? "" : `:${member.presence.line}`}`));
+        lane.append(el("span", "community-card-by", `${member.watching ? "Watching" : "Editing"} · seen ${timeAgo(member.lastSeen, Date.now())}`));
+        row.append(avatar, lane);
         if (current.open && member.uid !== current.selfId && member.lane.status === "handoff" && (current.self.role === "owner" || current.self.role === "editor")) {
           row.append(button("Take over", "ad-btn", () => void act({ action: "takeover", targetUid: member.uid })));
         } else if (current.open && member.uid === current.selfId && member.lane.status !== "offline" && member.lane.status !== "handoff") {
@@ -568,19 +976,32 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
         }
         members.append(row);
       }
-      const coordination = el("ul", "community-live-list");
+      const people = el("div", "");
+      people.append(checks, members);
+      const coordination = el("ul", "community-live-list community-live-coordination");
       for (const warning of current.warnings) {
-        const row = el("li", "community-live-row");
-        row.append(el("strong", "", warning.path), el("p", "community-live-grow", warning.kind === "locked" ? `${warning.name} locked this file` : `${warning.name} is also editing this file`));
+        const row = el("li", "community-live-row community-live-warning");
+        row.dataset["kind"] = warning.kind;
+        const mark = el("span", "community-live-warning-mark");
+        mark.setAttribute("aria-hidden", "true");
+        const detail = warning.kind === "locked" ? `${warning.name} locked this file`
+          : warning.kind === "planned" ? `${warning.name} plans to edit this file${warning.detail ? `: ${warning.detail}` : ""}`
+          : warning.kind === "adjacent" ? `${warning.name} is working on something related${warning.detail ? `: ${warning.detail}` : ""}`
+          : `${warning.name} is also editing this file`;
+        const copy = el("div", "community-live-grow");
+        copy.append(el("strong", "", warning.path || "Related work"), el("p", "community-card-by", detail));
+        row.append(mark, copy);
         coordination.append(row);
       }
       for (const lock of current.locks) {
-        const row = el("li", "community-live-row");
-        row.append(el("strong", "", lock.path), el("span", "community-card-by", `held by ${lock.name}`));
+        const row = el("li", "community-live-row community-live-lock");
+        const copy = el("div", "community-live-grow");
+        copy.append(el("strong", "community-live-file", lock.path), el("span", "community-card-by", `Held by ${lock.name}`));
+        row.append(copy);
         if (current.open && (lock.uid === current.selfId || current.self.role === "owner")) row.append(button("Unlock", "ad-btn", () => void act({ action: "lock", operation: "unlock", path: lock.path })));
         coordination.append(row);
       }
-      if (coordination.childElementCount === 0) coordination.append(el("li", "community-live-row", "No file overlaps. Lock a file before a big edit so everyone can see it is taken"));
+      if (coordination.childElementCount === 0) coordination.append(el("li", "community-live-row community-live-empty", "No file overlaps. Lock a file before a big edit so everyone can see it is taken"));
       const lockForm = el("form", "community-live-form");
       const lockPath = el("input", "form-input");
       lockPath.placeholder = "File to lock, e.g. src/app.ts";
@@ -589,19 +1010,33 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
         void act({ action: "lock", operation: "lock", path: lockPath.value.trim() });
       }));
       if (!current.open || (current.self.role !== "owner" && current.self.role !== "editor")) lockForm.hidden = true;
-      const plan = el("ul", "community-live-list");
+      const plan = el("ul", "community-live-list community-live-plan");
       for (const step of current.plan) {
-        const row = el("li", "community-live-row");
+        const row = el("li", "community-live-row community-live-step");
+        row.dataset["status"] = step.status;
         const ownerName = current.members.find((one) => one.uid === step.ownerUid)?.name;
-        row.append(el("strong", "", step.title), chip(step.status), el("span", "community-card-by", ownerName ? `with ${ownerName}` : "unclaimed"));
+        const copy = el("div", "community-live-grow");
+        const title = el("div", "community-live-step-title");
+        title.append(el("strong", "", step.title), roomChip(step.status, step.status));
+        copy.append(title);
+        const bits = [ownerName ? `With ${ownerName}` : "Unclaimed"];
+        if (step.paths !== undefined && step.paths.length > 0) bits.push(step.paths.join(", "));
+        copy.append(el("span", "community-card-by", bits.join(" · ")));
+        row.append(copy);
         if (current.open && (current.self.role === "owner" || current.self.role === "editor")) {
           const status = el("select", "ad-select");
           for (const value of ["todo", "doing", "done", "blocked"]) status.append(new Option(value, value, false, value === step.status));
           status.addEventListener("change", () => void act({ action: "plan", operation: "move", id: step.id, status: status.value }));
           row.append(status);
+          if (step.status === "todo" && step.ownerUid !== current.selfId) {
+            row.append(button(step.ownerUid === null ? "Claim" : "Ask to take over", "ad-btn", () => void act(step.ownerUid === null
+              ? { action: "plan", operation: "claim", id: step.id }
+              : { action: "plan", operation: "request", id: step.id })));
+          }
         }
         plan.append(row);
       }
+      if (plan.childElementCount === 0) plan.append(el("li", "community-live-row community-live-empty", "No steps yet. Add the first one below"));
       const steps = el("form", "community-live-form");
       const stepTitle = el("input", "form-input");
       stepTitle.placeholder = "Next step";
@@ -610,30 +1045,142 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
         if (stepTitle.value.trim().length < 3) return;
         void act({ action: "plan", operation: "add", title: stepTitle.value.trim() });
       }));
-      const notes = el("ul", "community-live-list");
+      const pendingApprovals = current.approvals.filter((approval) => approval.status === "pending");
+      const approvals = el("ul", "community-live-list community-live-approvals");
+      for (const approval of pendingApprovals) {
+        const mineToAnswer = canDecide && approval.requestedBy !== current.selfId;
+        const row = el("li", "community-live-row community-live-approval");
+        row.dataset["action"] = mineToAnswer ? "needs-you" : "waiting";
+        const copy = el("div", "community-live-grow");
+        const title = el("div", "community-live-approval-title");
+        title.append(el("strong", "", approval.title), roomChip(approval.kind, "kind"));
+        if (mineToAnswer) title.append(roomChip("Waiting on you", "attention"));
+        copy.append(title);
+        const meta = [approval.requestedName];
+        if (approval.detail) meta.push(approval.detail);
+        if (approval.paths.length > 0) meta.push(approval.paths.join(", "));
+        copy.append(el("p", "community-card-by", meta.join(" · ")));
+        row.append(copy);
+        if (mineToAnswer) row.append(button("Approve", "ad-btn ad-btn-primary", () => void act({ action: "decideApproval", id: approval.id, accept: true })), button("Decline", "ad-btn", () => void act({ action: "decideApproval", id: approval.id, accept: false })));
+        approvals.append(row);
+      }
+      if (approvals.childElementCount === 0) approvals.append(el("li", "community-live-row community-live-empty", "Nothing waiting. Ask before a push, a command or a takeover"));
+      const approvalForm = el("form", "community-live-form");
+      const approvalKind = el("select", "ad-select");
+      for (const value of ["push", "network", "command", "plan-transfer", "handoff"]) approvalKind.append(new Option(value, value));
+      const approvalTitle = el("input", "form-input");
+      approvalTitle.placeholder = "The exact action, e.g. Push feat/live";
+      approvalTitle.maxLength = 200;
+      const approvalDetail = el("input", "form-input");
+      approvalDetail.placeholder = "What it changes, and how to check it";
+      approvalDetail.maxLength = 2000;
+      const approvalPaths = el("input", "form-input");
+      approvalPaths.placeholder = "Files, e.g. src/app.ts, src/db.ts";
+      approvalForm.append(approvalKind, approvalTitle, approvalDetail, approvalPaths, button("Ask the room", "ad-btn", () => {
+        if (approvalTitle.value.trim().length < 3) return;
+        void act({
+          action: "requestApproval", kind: approvalKind.value, title: approvalTitle.value.trim(),
+          detail: approvalDetail.value.trim(), paths: approvalPaths.value.split(",").map((one) => one.trim()).filter(Boolean),
+        });
+      }));
+      if (!current.open || (current.self.role !== "owner" && current.self.role !== "editor")) approvalForm.hidden = true;
+
+      const handoffs = el("ul", "community-live-list community-live-handoffs");
+      for (const handoff of current.handoffs) {
+        if (handoff.acceptedAt !== 0) continue;
+        const row = el("li", "community-live-row community-live-handoff");
+        row.dataset["for-you"] = String(handoff.toUid === current.selfId);
+        const copy = el("div", "community-live-grow");
+        const title = el("div", "community-live-handoff-title");
+        title.append(el("strong", "", `${handoff.fromName} → ${handoff.toName ?? "anyone"}`));
+        if (handoff.toUid === current.selfId) title.append(roomChip("For you", "attention"));
+        copy.append(title, el("p", "community-live-task", handoff.note || "No note. The branch and plan travel with it."));
+        copy.append(el("span", "community-card-by", `${handoff.branch} · ${handoff.planDone}/${handoff.planTotal} steps done`));
+        row.append(copy);
+        if (current.open && handoff.toUid === current.selfId) row.append(button("Accept", "ad-btn ad-btn-primary", () => void act({ action: "acceptHandoff", id: handoff.id })));
+        handoffs.append(row);
+      }
+      if (handoffs.childElementCount === 0) handoffs.append(el("li", "community-live-row community-live-empty", "No handoff waiting. Hand the branch, plan and fresh notes to a teammate"));
+      const handoffForm = el("form", "community-live-form");
+      const handoffTo = el("select", "ad-select");
+      for (const member of current.members) if (member.uid !== current.selfId) handoffTo.append(new Option(member.name, member.uid));
+      const handoffNote = el("input", "form-input");
+      handoffNote.placeholder = "What is done, and where to start";
+      handoffNote.maxLength = 1000;
+      handoffForm.append(handoffTo, handoffNote, button("Offer handoff", "ad-btn", () => {
+        if (handoffTo.value === "") return;
+        void act({ action: "offerHandoff", toUid: handoffTo.value, note: handoffNote.value.trim() });
+      }));
+      if (!current.open || current.members.length < 2 || current.self.role === "viewer") handoffForm.hidden = true;
+      const notes = el("ul", "community-live-list community-live-notes");
       for (const note of current.notes.filter((one) => !one.retired)) {
-        const row = el("li", "community-live-row");
-        row.append(el("strong", "", note.path), el("p", "community-live-grow", note.text), el("span", "community-card-by", `${note.authorName}${note.anchor === null ? "" : ` / ${note.anchor}`}`));
+        const row = el("li", "community-live-row community-live-note");
+        row.dataset["stale"] = String(note.stale === true);
+        const copy = el("div", "community-live-grow");
+        const title = el("div", "community-live-note-title");
+        title.append(el("strong", "community-live-file", note.path));
+        if (note.stale === true) title.append(roomChip("Code moved on", "warning"));
+        copy.append(title, el("p", "community-live-task", note.text));
+        copy.append(el("span", "community-card-by", `${note.authorName}${note.commit ? ` · ${note.commit.slice(0, 7)}` : ""} · ${timeAgo(note.updatedAt, Date.now())}`));
+        row.append(copy);
         if (current.open && (note.authorId === current.selfId || current.self.role === "owner")) row.append(button("Retire", "ad-btn", () => void act({ action: "note", operation: "retire", id: note.id })));
         notes.append(row);
       }
+      if (notes.childElementCount === 0) notes.append(el("li", "community-live-row community-live-empty", "No pinned notes yet. Pin what the code cannot say"));
       const noteForm = el("form", "community-live-form");
       const notePath = el("input", "form-input");
       notePath.placeholder = "File, e.g. src/app.ts";
       const noteText = el("input", "form-input");
       noteText.placeholder = "What should everyone know?";
       noteText.maxLength = 2000;
-      noteForm.append(notePath, noteText, button("Pin note", "ad-btn", () => {
+      const noteCommit = el("input", "form-input");
+      noteCommit.placeholder = "Commit (optional)";
+      noteCommit.maxLength = 64;
+      noteForm.append(notePath, noteText, noteCommit, button("Pin note", "ad-btn", () => {
         if (notePath.value.trim() === "" || noteText.value.trim().length < 3) return;
-        void act({ action: "note", operation: "add", path: notePath.value.trim(), text: noteText.value.trim() });
+        const file = deps.activeFile();
+        const anchor = file !== null && file.path === notePath.value.trim() ? contentFingerprint(file.content) : null;
+        void act({
+          action: "note", operation: "add", path: notePath.value.trim(), text: noteText.value.trim(),
+          ...(noteCommit.value.trim() ? { commit: noteCommit.value.trim() } : {}), ...(anchor === null ? {} : { anchor }),
+        });
       }));
-      const comments = el("ul", "community-live-list");
+      const comments = el("ul", "community-live-list community-live-comments");
       for (const comment of current.comments.filter((one) => !one.resolved)) {
-        const row = el("li", "community-live-row");
-        row.append(el("strong", "", `${comment.path}:${comment.line}`), el("p", "community-live-grow", comment.text), el("span", "community-card-by", comment.authorName));
-        if (current.open && (comment.authorId === current.selfId || current.self.role === "owner")) row.append(button("Resolve", "ad-btn", () => void act({ action: "comment", operation: "resolve", id: comment.id })));
+        const row = el("li", "community-live-row community-live-comment");
+        row.dataset["stale"] = String(comment.stale === true);
+        const copy = el("div", "community-live-grow");
+        const title = el("div", "community-live-comment-title");
+        title.append(el("strong", "community-live-file", `${comment.path}:${comment.line}`));
+        if (comment.stale === true) title.append(roomChip("Code moved on", "warning"));
+        if (comment.linkedKind) title.append(roomChip(`Linked ${comment.linkedKind}`, "linked"));
+        copy.append(title, el("p", "community-live-task", comment.text));
+        copy.append(el("span", "community-card-by", `${comment.authorName} · ${comment.anchorKind ?? "file"} · ${timeAgo(comment.at, Date.now())}`));
+        row.append(copy);
+        const mine = comment.authorId === current.selfId || current.self.role === "owner";
+        if (current.open && mine) row.append(button("Resolve", "ad-btn", () => void act({ action: "comment", operation: "resolve", id: comment.id })));
+        if (current.open && current.self.role !== "viewer" && comment.text.trim().length >= 3) {
+          row.append(button("Make plan step", "ad-btn", () => {
+            void (async () => {
+              const stepId = crypto.randomUUID().replaceAll("-", "").slice(0, 20);
+              const next = await attempt<ArtifactRoomSnapshot>(() => window.adcode.community.artifactRoomAction(id, key, {
+                action: "plan", operation: "add", id: stepId, title: comment.text.trim().slice(0, 200), paths: [comment.path], ownerUid: current.selfId,
+              }), "The plan step could not be added.");
+              if (next === null) return;
+              current = next;
+              await act({ action: "comment", operation: "link", id: comment.id, linkedKind: "plan", linkedId: stepId });
+            })();
+          }));
+        }
+        if (current.open && current.self.role !== "viewer") row.append(button("Ask my agent", "ad-btn", () => {
+          void (async () => {
+            await act({ action: "comment", operation: "link", id: comment.id, linkedKind: "prompt" });
+            deps.askAssistant(`In the shared live room for "${current.title}", there is a comment on ${comment.path}:${comment.line}: "${comment.text}". Read that file, make the change, and explain what you changed. If it is a question, answer it first.`);
+          })();
+        }));
         comments.append(row);
       }
+      if (comments.childElementCount === 0) comments.append(el("li", "community-live-row community-live-empty", "No open comments. Anchor one to a file, a hunk or a moment"));
       const commentForm = el("form", "community-live-form");
       const commentPath = el("input", "form-input");
       commentPath.placeholder = "File";
@@ -641,14 +1188,32 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
       commentLine.placeholder = "Line";
       commentLine.type = "number";
       commentLine.min = "1";
+      const commentAnchor = el("select", "ad-select");
+      for (const value of ["file", "hunk", "session", "transcript"]) commentAnchor.append(new Option(value, value));
+      const commentHunk = el("input", "form-input");
+      commentHunk.placeholder = "Diff hunk or transcript moment";
+      commentHunk.maxLength = 240;
       const commentText = el("input", "form-input");
       commentText.placeholder = "Comment";
-      commentForm.append(commentPath, commentLine, commentText, button("Comment", "ad-btn", () => {
+      commentForm.append(commentPath, commentLine, commentAnchor, commentHunk, commentText, button("Comment", "ad-btn", () => {
         if (commentPath.value.trim() === "" || commentText.value.trim() === "") return;
-        void act({ action: "comment", operation: "add", path: commentPath.value.trim(), line: Number(commentLine.value || 1), text: commentText.value.trim() });
+        if (commentAnchor.value === "hunk" && commentHunk.value.trim() === "") return;
+        const file = deps.activeFile();
+        const anchor = file !== null && file.path === commentPath.value.trim() ? contentFingerprint(file.content) : null;
+        void act({
+          action: "comment", operation: "add", path: commentPath.value.trim(), line: Number(commentLine.value || 1),
+          text: commentText.value.trim(), anchorKind: commentAnchor.value,
+          ...(commentAnchor.value === "hunk" || commentAnchor.value === "transcript" ? { hunk: commentHunk.value.trim() } : {}),
+          ...(anchor === null ? {} : { anchor }),
+        });
       }));
-      const chat = el("ul", "community-live-list");
-      for (const message of current.messages.slice(-30)) chat.append(el("li", "community-live-row", `${message.name}: ${message.text}`));
+      const chat = el("ul", "community-live-list community-live-chat");
+      for (const message of current.messages.slice(-30)) {
+        const row = el("li", "community-live-row community-live-message");
+        row.append(el("strong", "community-live-message-name", message.name), el("time", "community-live-message-time", timeAgo(message.at, Date.now())), el("p", "community-live-message-text", message.text));
+        chat.append(row);
+      }
+      if (chat.childElementCount === 0) chat.append(el("li", "community-live-row community-live-empty", "No messages yet. Say what you are taking"));
       const chatForm = el("form", "community-live-form");
       const chatText = el("input", "form-input");
       chatText.placeholder = current.open ? "Message everyone" : "This room is closed";
@@ -657,16 +1222,71 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
         if (chatText.value.trim() === "") return;
         void act({ action: "post", text: chatText.value.trim() });
       }));
-      const activity = el("ul", "community-live-list");
-      for (const item of current.activity.slice(0, 12)) activity.append(el("li", "community-live-row", `${item.text} / ${timeAgo(item.at, Date.now())}`));
-      body.replaceChildren(actions, section("People and agents", current.liveInvite === null ? "Start live files to share edits; the lanes work without them" : "Live files are on", members), section("Coordination", "Overlaps are advisory: agree before editing the same file", coordination, lockForm), section("One plan", "Everyone sees the same steps", plan, steps), section("Shared Brain", "Pinned to files, not people", notes, noteForm), section("Comments", "Questions attached to a file and line", comments, commentForm), section("Room chat", "", chat, chatForm), section("Activity", "", activity));
+      const activity = el("ul", "community-live-list community-live-activity");
+      for (const item of current.activity.slice(0, 12)) {
+        const row = el("li", "community-live-row community-live-event");
+        row.append(el("time", "", timeAgo(item.at, Date.now())), el("span", "", item.text));
+        activity.append(row);
+      }
+      if (activity.childElementCount === 0) activity.append(el("li", "community-live-row community-live-empty", "Nothing has happened yet"));
+      body.replaceChildren(
+        head,
+        actions,
+        editors,
+        section("People and agents", `${ready} of ${current.checks.length} join checks ready · ${present} here`, people),
+        section("Coordination", "Overlaps are advisory: agree before editing the same file", coordination, lockForm),
+        section("Approvals", pendingApprovals.length === 0 ? "Nothing waiting" : `${pendingApprovals.length} waiting for an answer`, approvals, approvalForm),
+        section("Handoffs", "The branch, plan and fresh notes travel together", handoffs, handoffForm),
+        section("One plan", planTotal === 0 ? "No steps yet" : `${planDone} of ${planTotal} done`, plan, steps),
+        section("Shared Brain", "Pinned to files, not people", notes, noteForm),
+        section("Comments", "Attached to a file, a hunk or a moment", comments, commentForm),
+        section("Room chat", "", chat, chatForm),
+        section("Activity", "", activity),
+      );
+      drawEditors();
     }
+    const beat = async (): Promise<void> => {
+      const file = deps.activeFile();
+      const self = current.members.find((one) => one.uid === current.selfId);
+      const holding = self?.lane.status === "awaiting" || self?.lane.status === "handoff";
+      await window.adcode.community.artifactRoomAction(id, key, {
+        action: "heartbeat",
+        watching: self?.watching ?? false,
+        path: file?.path ?? null,
+        line: null,
+        provider: laneProvider,
+        model: laneModel,
+        status: holding ? self!.lane.status : laneStatus,
+        task: holding ? self!.lane.task : laneTask,
+        hasAgent: aiReady,
+        files: file === null ? [] : [{ path: file.path, fingerprint: contentFingerprint(file.content) }],
+      }).catch(() => null);
+    };
     const timer = window.setInterval(() => {
       if (!dialog.open) { window.clearInterval(timer); return; }
+      void beat();
       if (card.contains(document.activeElement)) return;
-      void refresh();
+      void refresh(true);
     }, 5000);
-    dialog.addEventListener("close", () => window.clearInterval(timer));
+    const offStatus = window.adcode.collab.onStatus((next) => {
+      liveStatus = next;
+      drawEditors();
+    });
+    const offPresence = window.adcode.collab.onPresence((next) => {
+      const now = Date.now();
+      for (const one of next) if (one.path !== null) liveSeen.set(one.participantId, now);
+      livePresence = next;
+      drawEditors();
+    });
+    void refreshLive();
+    dialog.addEventListener("close", () => {
+      offStatus();
+      offPresence();
+      window.clearInterval(timer);
+      window.clearTimeout(statusTimer);
+      stopRuns();
+    });
+    void beat();
     draw();
     dialog.showModal();
   }
@@ -801,17 +1421,38 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
     );
   }
 
+  /**
+   * A relay from before a removal was deployed can keep the artifact in `me()`. Confirm
+   * each row once per visit: a removed artifact answers "not shared any more", so it is
+   * remembered locally and leaves this list even before the server is updated.
+   */
+  const checkedArtifacts = new Set<string>();
+  async function hideGoneArtifacts(artifacts: readonly ArtifactListing[]): Promise<readonly ArtifactListing[]> {
+    const unchecked = artifacts.filter((artifact) => !checkedArtifacts.has(artifact.id));
+    await Promise.all(unchecked.map(async (artifact) => {
+      try {
+        await window.adcode.community.artifact(artifact.id);
+      } catch (failure) {
+        if (/not shared any more/i.test(errorText(failure, ""))) rememberArtifactRemoved(artifact.id);
+      } finally {
+        checkedArtifacts.add(artifact.id);
+      }
+    }));
+    return withoutRemovedArtifacts(artifacts);
+  }
+
   async function renderMine(): Promise<void> {
     const panel = shell.panel("mine");
     const result = await loadMe(panel, "Sign in to share projects and see who remixed and improved them");
     if (result === null) return;
-    const rows = result.artifacts.map((artifact) => {
+    const artifacts = await hideGoneArtifacts(result.artifacts);
+    const rows = artifacts.map((artifact) => {
       const node = el("li", "community-installed-row");
       const names = el("div", "community-card-names");
       names.append(button(artifact.title, "community-card-title", () => void openArtifact(artifact.id)), el("span", "community-card-by", `v${artifact.version} · ${plural(artifact.remixes, "remix", "remixes")} · ${artifact.openImprovements} waiting`));
       node.append(names, button("Stop sharing", "ad-btn", () => void (async () => {
         if (!await askThemed({ title: `Stop sharing ${artifact.title}?`, body: "It leaves the community. Remixes people already made stay theirs.", confirmLabel: "Stop sharing", danger: true })) return;
-        if (await attempt(() => window.adcode.community.removeArtifact(artifact.id), "Could not stop sharing it.") !== null) { say(`${artifact.title} is no longer shared`); shell.rerender(); }
+        if (await attempt(() => window.adcode.community.removeArtifact(artifact.id), "Could not stop sharing it.") !== null) { rememberArtifactRemoved(artifact.id); say(`${artifact.title} is no longer shared`); shell.rerender(); }
       })()));
       return node;
     });

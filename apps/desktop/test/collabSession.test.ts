@@ -18,7 +18,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import * as Y from "yjs";
 import { PROTOCOL_VERSION, decodeInvite, encodeInvite } from "@adcode/collab";
-import { createCollabRuntime, type CollabRuntime, type CollabStatus, type CommitRequest } from "../src/main/collab/runtime.ts";
+import { createCollabRuntime, relayGuestsBecomeViewers, type CollabRuntime, type CollabStatus, type CommitRequest } from "../src/main/collab/runtime.ts";
+import { createDocStore } from "../src/main/collab/docs.ts";
 
 /** The one file every test in here shares. */
 const FILE = "notes.txt";
@@ -456,4 +457,47 @@ describe("a live collaboration session", { timeout: 30_000 }, () => {
   function editGuest(text: string): void {
     editAs(guest, text);
   }
+
+  it("reports every peer's last cursor without waiting for another keystroke", async () => {
+    const code = await share();
+    await joinAs("Grace", code);
+    await until(() => host.runtime.status().participants.length === 2, "the roster");
+
+    const guestId = guest.runtime.status().selfId as string;
+    guest.runtime.publishPresence(FILE, { line: 4, column: 2 }, null);
+    await until(
+      () => host.runtime.presence().some((entry) => entry.participantId === guestId),
+      "the host to receive the guest's cursor",
+    );
+
+    expect(host.runtime.presence()).toContainEqual({
+      participantId: guestId,
+      path: FILE,
+      cursor: { line: 4, column: 2 },
+      selection: null,
+    });
+  });
+
+  it("saves every open shared document in one pass", async () => {
+    await writeFile(join(root, "second.txt"), "two", "utf8");
+    const store = createDocStore({ root, ownsDisk: true });
+
+    const first = await store.open(FILE);
+    const second = await store.open("second.txt");
+    first?.getText("text").insert(5, "!");
+    second?.getText("text").insert(3, "!");
+
+    expect(await store.saveAll()).toBe(2);
+    expect(await readFile(join(root, FILE), "utf8")).toBe("hello!");
+    expect(await readFile(join(root, "second.txt"), "utf8")).toBe("two!");
+    store.dispose();
+  });
+
+  it("keeps artifact-room guests as editors while other relay sessions stay view-only", () => {
+    const relay = [`${"a".repeat(64)}.projects.adcode`];
+
+    expect(relayGuestsBecomeViewers(relay, false)).toBe(true);
+    expect(relayGuestsBecomeViewers(relay, true)).toBe(false);
+    expect(relayGuestsBecomeViewers(["127.0.0.1"], false)).toBe(false);
+  });
 });

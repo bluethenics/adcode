@@ -1,5 +1,7 @@
 import { viewPage, readAgentBrowser, setAgentBrowserSink } from "./agentBrowser.ts";
 import { parseViewPageInput } from "./agentBrowserModel.ts";
+import { importChats, readChatExport, scanChatImports } from "./chatImport.ts";
+import { clearLiveBrowserData, registerLiveTab, setLiveBrowserRequestSink, unregisterLiveTab } from "./liveBrowser.ts";
 /**
  * The only place the renderer can reach the main process.
  *
@@ -143,6 +145,7 @@ import {
   aiQuickConnect,
   aiDetectOllama,
   aiStartOllama,
+  aiRefreshCliAgents,
   aiTeamCancel,
   aiTeamConfigure,
   aiTeamList,
@@ -639,6 +642,19 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
   /* ── Chat history ─────────────────────────────────────────────────────── */
 
   ipcMain.handle(CHANNELS.aiSessions, () => aiSessions());
+  // Other tools' conversations: found in three known folders, listed without their text, saved only when chosen.
+  ipcMain.handle(CHANNELS.aiImportScan, () => scanChatImports(app.getPath("home")));
+  ipcMain.handle(CHANNELS.aiImportFile, async (event) => {
+    const owner = BrowserWindow.fromWebContents(event.sender);
+    const options: Electron.OpenDialogOptions = { title: "Choose an exported conversations file", properties: ["openFile"], filters: [{ name: "Conversations", extensions: ["json"] }] };
+    const picked = owner === null ? await dialog.showOpenDialog(options) : await dialog.showOpenDialog(owner, options);
+    const path = picked.filePaths[0];
+    return picked.canceled || path === undefined ? null : readChatExport(path);
+  });
+  ipcMain.handle(CHANNELS.aiImportChats, (_event, keys: unknown, target: unknown) => {
+    if (!Array.isArray(keys) || keys.length > 400 || keys.some((key) => typeof key !== "string" || key.length > 80)) throw new Error("Invalid import request");
+    return importChats(keys as string[], target === "current" ? "current" : "own-folder", currentWorkspace()?.root ?? null);
+  });
   ipcMain.handle(CHANNELS.aiSessionChanged, () => aiCurrentSession());
 
   ipcMain.handle(CHANNELS.aiResumeSession, (_event, id: unknown) =>
@@ -674,6 +690,7 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
   ipcMain.handle(CHANNELS.aiDetectOllama, () => aiDetectOllama());
   // Start Ollama on the person's click: the executable is found here, never named by the renderer.
   ipcMain.handle(CHANNELS.aiStartOllama, () => aiStartOllama());
+  ipcMain.handle(CHANNELS.aiRefreshCliAgents, () => aiRefreshCliAgents());
 
   /*
    * Where to get a key, by intent rather than by URL - the same rule as every other
@@ -820,6 +837,16 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
 
   setAgentBrowserSink((view) => broadcast(CHANNELS.browserChanged, view));
   ipcMain.handle(CHANNELS.browserRead, () => readAgentBrowser());
+  // The shared browser's tabs. The panel asks; the guest is checked against the asking window.
+  setLiveBrowserRequestSink((host, request) => {
+    if (host !== null && !host.isDestroyed()) host.send(CHANNELS.browserRequest, request);
+    else broadcast(CHANNELS.browserRequest, request);
+  });
+  ipcMain.handle(CHANNELS.browserAttachTab, (event, tabId: unknown, contentsId: unknown, active: unknown) => {
+    registerLiveTab(event.sender, Number(tabId), Number(contentsId), active === true);
+  });
+  ipcMain.handle(CHANNELS.browserDetachTab, (event, tabId: unknown) => { unregisterLiveTab(event.sender, Number(tabId)); });
+  ipcMain.handle(CHANNELS.browserClearData, () => clearLiveBrowserData());
   ipcMain.handle(CHANNELS.browserView, async (_event, input: unknown) => {
     if (input === null || typeof input !== "object" || Array.isArray(input)) throw new Error("Invalid browser request");
     const request = parseViewPageInput(input as Record<string, unknown>);

@@ -3,6 +3,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { resolveSandboxPath } from "./aiSandbox.ts";
 import type { AssistantSkillView } from "../shared/assistantControls.ts";
+import { isSkillRank } from "../shared/skillOrder.ts";
 
 export const SKILL_ROOTS = [".agents/skills", ".adcode/skills", ".claude/skills"];
 const MAX_BYTES = 64_000;
@@ -60,7 +61,7 @@ export function parseSkill(content: string): { name: string; description: string
   return { name, description };
 }
 
-export async function discoverSkills(root: string | null, enabled: Record<string, string>, installed: readonly InstalledSkillRoot[] = []): Promise<DiscoveredSkill[]> {
+export async function discoverSkills(root: string | null, enabled: Record<string, string>, installed: readonly InstalledSkillRoot[] = [], ranks: Readonly<Record<string, string>> = {}): Promise<DiscoveredSkill[]> {
   const found: DiscoveredSkill[] = [];
   const locations: { base: string; relative: string | null; scope: "workspace" | "system"; source: string }[] = [
     ...(root ? SKILL_ROOTS.map(relative => ({ base: root, relative, scope: "workspace" as const, source: "This project" })) : []),
@@ -104,7 +105,7 @@ export async function discoverSkills(root: string | null, enabled: Record<string
       const hash = fingerprint(content);
       const approved = enabled[id];
       if (!error && approved && approved !== hash) error = "Changed since activation. Preview and enable again.";
-      found.push({ ...metadata, id, path: displayPath, directory: skillDirectory, scope, source, content, fingerprint: hash, enabled: !error && approved === hash, error, estimatedTokens: Math.ceil(content.length / 3) });
+      found.push({ ...metadata, id, path: displayPath, directory: skillDirectory, scope, source, content, fingerprint: hash, enabled: !error && approved === hash, error, estimatedTokens: Math.ceil(content.length / 3), rank: isSkillRank(ranks[id]) ? ranks[id] : "normal" });
     }
   }
   return found;

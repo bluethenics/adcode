@@ -95,4 +95,66 @@ describe("artifact live room", () => {
     expect(() => room.setRole("ben", "ana", "viewer")).toThrow(/\[403\]/);
     expect(() => room.setRole("ana", "ana", "editor")).toThrow(/\[409\]/);
   });
+
+  it("opens on a branch and task, joins watch-only, and reports practical checks", () => {
+    const opened = room.open("ana", "Ana", ID, "Todo app", null, "feat/live", "Ship live editing");
+    expect(opened).toMatchObject({ branch: "feat/live", task: "Ship live editing" });
+    expect(opened.checks.map((one) => one.id)).toEqual(["role", "seat", "push", "agent"]);
+    expect(opened.checks.find((one) => one.id === "seat")!.ok).toBe(true);
+    const watched = room.join("ben", "Ben", "editor", true, true, false);
+    expect(watched.members.find((one) => one.uid === "ben")).toMatchObject({ role: "viewer", watching: true, hasAgent: true, pushAccess: false });
+    expect(watched.checks.find((one) => one.id === "agent")!.ok).toBe(true);
+    expect(watched.checks.find((one) => one.id === "push")!.ok).toBe(false);
+    const upgraded = room.join("ben", "Ben", "editor", false, true, true);
+    expect(upgraded.members.find((one) => one.uid === "ben")).toMatchObject({ role: "editor", watching: false, pushAccess: true });
+  });
+
+  it("answers an approval once, by somebody else, and moves the requested step", () => {
+    room.open("ana", "Ana", ID, "Todo app", null);
+    room.join("ben", "Ben", "editor", false);
+    room.planAction("ana", { action: "add", id: "step-one", title: "Rewrite the list", ownerUid: "ana", paths: ["app.js"] });
+    const requested = room.planAction("ben", { action: "request", id: "step-one", note: "I can do this next" });
+    const approval = requested.approvals[0]!;
+    expect(approval).toMatchObject({ kind: "plan-transfer", requestedBy: "ben", stepId: "step-one", status: "pending" });
+    expect(approval.paths).toEqual(["app.js"]);
+    expect(() => room.decideApproval("ben", { id: approval.id, accept: true })).toThrow(/\[409\]/);
+    const decided = room.decideApproval("ana", { id: approval.id, accept: true });
+    expect(decided.approvals[0]!.status).toBe("approved");
+    expect(decided.plan[0]!.ownerUid).toBe("ben");
+    expect(() => room.decideApproval("ana", { id: approval.id, accept: false })).toThrow(/\[409\]/);
+  });
+
+  it("offers a handoff with the branch, plan and fresh notes, and accepts it", () => {
+    room.open("ana", "Ana", ID, "Todo app", null, "feat/live", "Ship live editing");
+    room.join("ben", "Ben", "editor", false);
+    room.noteAction("ana", { action: "add", path: "app.js", text: "The list is the source of truth." });
+    room.planAction("ana", { action: "add", id: "step-one", title: "Rewrite the list", ownerUid: "ana" });
+    const offered = room.offerHandoff("ana", { toUid: "ben", note: "The parser is next" });
+    const offer = offered.handoffs[0]!;
+    expect(offer).toMatchObject({ fromUid: "ana", toUid: "ben", branch: "feat/live", planDone: 0, planTotal: 1 });
+    expect(offer.noteIds).toHaveLength(1);
+    expect(offered.members.find((one) => one.uid === "ana")!.lane.status).toBe("awaiting");
+    expect(() => room.acceptHandoff("ana", { id: offer.id })).toThrow(/\[403\]/);
+    const accepted = room.acceptHandoff("ben", { id: offer.id });
+    expect(accepted.handoffs[0]!.acceptedAt).toBeGreaterThan(0);
+    expect(accepted.plan[0]!.ownerUid).toBe("ben");
+    expect(accepted.members.find((one) => one.uid === "ana")!.lane.status).toBe("idle");
+  });
+
+  it("marks a note and a comment stale when the file fingerprint moves, and links a comment", () => {
+    room.open("ana", "Ana", ID, "Todo app", null);
+    room.noteAction("ana", { action: "add", path: "app.js", anchor: "deadbeef", text: "The list is the source of truth." });
+    const commented = room.commentAction("ana", { action: "add", path: "app.js", line: 1, text: "This is the entry point.", anchor: "deadbeef", anchorKind: "file" });
+    const comment = commented.comments[0]!;
+    let snapshot = room.heartbeat("ana", { files: [{ path: "app.js", fingerprint: "deadbeef" }] });
+    expect(snapshot.notes[0]!.stale).toBe(false);
+    expect(snapshot.comments[0]!.stale).toBe(false);
+    snapshot = room.heartbeat("ana", { files: [{ path: "app.js", fingerprint: "cafebabe" }] });
+    expect(snapshot.notes[0]!.stale).toBe(true);
+    expect(snapshot.comments[0]!.stale).toBe(true);
+    expect(snapshot.lastSyncedAt).toBeGreaterThan(0);
+    room.planAction("ana", { action: "add", id: "step-one", title: "Rewrite the list" });
+    const linked = room.commentAction("ana", { action: "link", id: comment.id, linkedKind: "plan", linkedId: "step-one" });
+    expect(linked.comments[0]).toMatchObject({ linkedKind: "plan", linkedId: "step-one" });
+  });
 });

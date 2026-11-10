@@ -5,8 +5,18 @@ import { reconcileTabs, tabMotionAllowed, updateTabStrip } from "../workbench/ta
 import { ICON, createIcon } from "../workbench/icons.ts";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, RotateCw, type IconNode } from "lucide";
 
+import { createLiveBrowserPane, liveBrowserSupported } from "./liveBrowserPane.ts";
+
+/**
+ * The Browser panel. On the desktop it is a real browser (`liveBrowserPane.ts`); the web
+ * version has no `<webview>`, so it keeps the snapshot view of the assistant's own page below.
+ */
+export function createAgentBrowserPane(): { open: (url?: string) => void; panel: ReturnType<typeof createFloatingPanel> } {
+  return liveBrowserSupported() ? createLiveBrowserPane() : createSnapshotBrowserPane();
+}
+
 /** The same Chromium session agents drive, rendered safely as snapshots instead of privileged web content. */
-export function createAgentBrowserPane() {
+function createSnapshotBrowserPane() {
   const content = document.createElement("div"); content.className = "agent-browser";
   const tabs = document.createElement("div"); tabs.className = "agent-browser-tabs"; tabs.setAttribute("role", "tablist"); tabs.setAttribute("aria-label", "Browser tabs");
   const toolbar = document.createElement("form"); toolbar.className = "agent-browser-toolbar";

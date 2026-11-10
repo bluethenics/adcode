@@ -54,7 +54,7 @@ export interface MarkdownEditorProps {
 const MAX_IMAGE_DIM = 1600;
 const MAX_INPUT_BYTES = 8 * 1024 * 1024;
 /** Roughly the server's 512KB asset ceiling, measured in data-URL characters. */
-const MAX_DATA_URL_CHARS = 700_000;
+export const MAX_DATA_URL_CHARS = 700_000;
 
 /**
  * A file, as a data URL the asset endpoint accepts.
@@ -63,7 +63,7 @@ const MAX_DATA_URL_CHARS = 700_000;
  * animated GIF arrives as its first frame - documentation has no use for animation,
  * and a still is an honest answer where a silent failure would not be.
  */
-async function toWebImage(file: File): Promise<{ dataUrl: string; name: string }> {
+export async function toWebImage(file: File): Promise<{ dataUrl: string; name: string }> {
   const bitmap = await createImageBitmap(file);
 
   try {

@@ -31,6 +31,8 @@ import { DiskFileStore, FetchHttpTransport, SystemClock } from "./adPorts.ts";
 import { projectsHome } from "./newProject.ts";
 import { currentSettings, writeSetting } from "./settings.ts";
 import { currentWorkspace } from "./workspace.ts";
+import type { ArtifactRoomSnapshot } from "@adcode/collab";
+import { forgetRoom, rememberRoom, setRoomRequest, type RoomRequest } from "./liveRoom.ts";
 
 const BUILT_IN_SLASH = SLASH_COMMANDS.map((command) => command.id);
 export const communityOrigin = (): string => process.env["ADCODE_COMMUNITY_ORIGIN"] ?? process.env["ADCODE_COLLAB_ORIGIN"] ?? "https://projects.bluethenics.com";
@@ -572,25 +574,56 @@ export function registerCommunityIpc(): void {
   });
   ipcMain.handle(CHANNELS.communityRemoveArtifact, async (_event, id: unknown) => { await request(`/community/artifacts/${artifactId(id)}/delete`, {}); });
   ipcMain.handle(CHANNELS.communityRemix, (_event, id: unknown, key: unknown) => remix(artifactId(id), shareKey(key)));
-  ipcMain.handle(CHANNELS.communityArtifactRoom, (_event, id: unknown, key: unknown) => {
+  // Every room answer also goes to `liveRoom.ts`, so the assistant knows the room the person is in.
+  const roomCall: RoomRequest = async (id, key, action) => {
     const access = shareKey(key);
-    return request(`/community/artifacts/${artifactId(id)}/room${access === null ? "" : `?key=${encodeURIComponent(access)}`}`);
+    const query = access === null ? "" : `?key=${encodeURIComponent(access)}`;
+    const snapshot = await (action === null
+      ? request<ArtifactRoomSnapshot>(`/community/artifacts/${artifactId(id)}/room${query}`)
+      : request<ArtifactRoomSnapshot>(`/community/artifacts/${artifactId(id)}/room/action${query}`, action));
+    rememberRoom(artifactId(id), access, snapshot);
+    return snapshot;
+  };
+  setRoomRequest(roomCall);
+  ipcMain.handle(CHANNELS.communityArtifactRoom, (_event, id: unknown, key: unknown) => roomCall(artifactId(id), shareKey(key), null));
+  // An older relay may not have the live-room list yet. Return an empty list and back off;
+  // otherwise Electron logs a rejected handler for every five-second poll in the dock.
+  let liveRoomsRetryAt = 0;
+  ipcMain.handle(CHANNELS.communityLiveRooms, async () => {
+    if (Date.now() < liveRoomsRetryAt) return [];
+    try {
+      return await request("/community/rooms");
+    } catch (error) {
+      if (error instanceof Error && /not found/i.test(error.message)) {
+        liveRoomsRetryAt = Date.now() + 60_000;
+        return [];
+      }
+      throw error;
+    }
   });
-  ipcMain.handle(CHANNELS.communityOpenArtifactRoom, (_event, id: unknown, name: unknown, liveInvite: unknown) =>
-    request(`/community/artifacts/${artifactId(id)}/room/open`, { name: short(name, "Your name", 40, 1), liveInvite: typeof liveInvite === "string" ? liveInvite.slice(0, 2000) : null }));
-  ipcMain.handle(CHANNELS.communityJoinArtifactRoom, (_event, id: unknown, key: unknown, name: unknown, watching: unknown) => {
+  ipcMain.handle(CHANNELS.communityOpenArtifactRoom, (_event, id: unknown, name: unknown, liveInvite: unknown, branch: unknown, task: unknown) =>
+    request(`/community/artifacts/${artifactId(id)}/room/open`, {
+      name: short(name, "Your name", 40, 1),
+      liveInvite: typeof liveInvite === "string" ? liveInvite.slice(0, 2000) : null,
+      ...(typeof branch === "string" && branch.trim() !== "" ? { branch: branch.trim().slice(0, 120) } : {}),
+      ...(typeof task === "string" && task.trim() !== "" ? { task: task.trim().slice(0, 200) } : {}),
+    }));
+  ipcMain.handle(CHANNELS.communityJoinArtifactRoom, (_event, id: unknown, key: unknown, name: unknown, watching: unknown, hasAgent: unknown, pushAccess: unknown) => {
     const access = shareKey(key);
-    return request(`/community/artifacts/${artifactId(id)}/room/join${access === null ? "" : `?key=${encodeURIComponent(access)}`}`, { name: short(name, "Your name", 40, 1), watching: watching === true });
+    return request(`/community/artifacts/${artifactId(id)}/room/join${access === null ? "" : `?key=${encodeURIComponent(access)}`}`, {
+      name: short(name, "Your name", 40, 1), watching: watching === true,
+      hasAgent: typeof hasAgent === "boolean" ? hasAgent : null,
+      pushAccess: typeof pushAccess === "boolean" ? pushAccess : null,
+    });
   });
   ipcMain.handle(CHANNELS.communityArtifactRoomAction, (_event, id: unknown, key: unknown, action: unknown) => {
     if (typeof action !== "object" || action === null || Array.isArray(action)) throw new Error("Choose a room action.");
     const value = action as Record<string, unknown>;
     if (typeof value["action"] !== "string" || !/^[A-Za-z]{2,20}$/.test(value["action"])) throw new Error("Choose a room action.");
-    const access = shareKey(key);
-    return request(`/community/artifacts/${artifactId(id)}/room/action${access === null ? "" : `?key=${encodeURIComponent(access)}`}`, value);
+    return roomCall(artifactId(id), shareKey(key), value);
   });
-  ipcMain.handle(CHANNELS.communityLeaveArtifactRoom, (_event, id: unknown) => request(`/community/artifacts/${artifactId(id)}/room/leave`, {}));
-  ipcMain.handle(CHANNELS.communityCloseArtifactRoom, (_event, id: unknown) => request(`/community/artifacts/${artifactId(id)}/room/close`, {}));
+  ipcMain.handle(CHANNELS.communityLeaveArtifactRoom, (_event, id: unknown) => { forgetRoom(artifactId(id)); return request(`/community/artifacts/${artifactId(id)}/room/leave`, {}); });
+  ipcMain.handle(CHANNELS.communityCloseArtifactRoom, (_event, id: unknown) => { forgetRoom(artifactId(id)); return request(`/community/artifacts/${artifactId(id)}/room/close`, {}); });
   ipcMain.handle(CHANNELS.communitySetArtifactRoomLive, (_event, id: unknown, invite: unknown) =>
     request(`/community/artifacts/${artifactId(id)}/room/action`, { action: "setLive", invite: typeof invite === "string" ? invite.slice(0, 2000) : null }));
   ipcMain.handle(CHANNELS.communityProjectLink, () => projectLink());

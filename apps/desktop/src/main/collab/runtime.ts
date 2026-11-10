@@ -95,6 +95,15 @@ export interface StartHostingOptions {
   readonly bind: "lan" | "loopback" | "internet";
   readonly port: number;
   readonly displayName: string;
+  /**
+   * An artifact live room, where the point is for everyone to edit.
+   *
+   * Internet sessions normally admit relay guests as viewers because a GitHub checkout is the
+   * shared truth and a guest with a different tree must not write into it. An artifact room has
+   * no GitHub requirement: every guest downloads the same project, so the host's Yjs document is
+   * the shared truth and an editor role is the honest default.
+   */
+  readonly artifactLive?: boolean;
 }
 
 export interface CollabRuntime {
@@ -128,6 +137,8 @@ export interface CollabRuntime {
   publishPresence(path: string | null, cursor: Presence["cursor"], selection: Presence["selection"]): void;
   setRole(participantId: string, role: Role): CollabStatus;
   setTerminalWrite(participantId: string, allowed: boolean): CollabStatus;
+  /** Everyone's last known cursor, so a room can paint its roster without waiting for a keystroke. */
+  presence(): readonly Presence[];
   requestCommit(message: string): void;
   decideCommit(id: string, approved: boolean, detail: string): void;
   /** For the host, when a file changed outside the session. */
@@ -154,6 +165,18 @@ const OFF: CollabStatus = {
  */
 const MAX_FAULTS = 8;
 
+/**
+ * Whether a relay guest joins read-only.
+ *
+ * Every internet session defaults to viewer because the shared truth is a GitHub checkout the
+ * guest may not have. An artifact live room is the deliberate exception: its guests join the
+ * same downloaded project, so they can edit. Kept as a function because this is the one rule
+ * standing between a stranger and the host's files, and it should be named and tested.
+ */
+export function relayGuestsBecomeViewers(addresses: readonly string[], artifactLive: boolean): boolean {
+  return !artifactLive && addresses.some(isRelayHost);
+}
+
 export function createCollabRuntime(
   events: CollabEvents,
   transport: TransportFactory = sharedTransport,
@@ -161,7 +184,9 @@ export function createCollabRuntime(
   /* ── Session state, one of these at a time ──────────────────────────────── */
 
   let mode: CollabStatus["mode"] = "off";
+  let artifactLive = false;
   let session: SessionState | null = null;
+  let autosaveTimer: ReturnType<typeof setInterval> | null = null;
   let selfId: string | null = null;
   let docs: DocStore | null = null;
   let error: string | null = null;
@@ -316,7 +341,11 @@ export function createCollabRuntime(
       return;
     }
 
-    session = host?.addresses.some(isRelayHost) ? setSessionRole(result.state, result.participant.id, "viewer") : result.state;
+    // Artifact rooms are the exception: their guests downloaded the same project, so they join
+    // as editors. Every other internet session keeps the GitHub-checkout viewer rule.
+    session = relayGuestsBecomeViewers(host?.addresses ?? [], artifactLive)
+      ? setSessionRole(result.state, result.participant.id, "viewer")
+      : result.state;
     authenticated.set(link.id, result.participant.id);
 
     link.send({
@@ -590,10 +619,13 @@ export function createCollabRuntime(
     toolWaiters.clear();
     for (const controller of toolControllers.values()) controller.abort();
     toolControllers.clear();
+    if (autosaveTimer !== null) clearInterval(autosaveTimer);
+    autosaveTimer = null;
     await host?.close();
     await guest?.close();
     docs?.dispose();
 
+    artifactLive = false;
     host = null;
     guest = null;
     docs = null;
@@ -679,8 +711,23 @@ export function createCollabRuntime(
         });
 
         selfId = "host";
+        artifactLive = options.artifactLive === true;
         session = startSession(selfId, options.displayName);
         attachDocs(createDocStore({ root, ownsDisk: true }));
+
+        /*
+         * Autosave the shared documents, the way a team-create session does.
+         *
+         * A guest's keystrokes live in the host's Yjs document immediately, but the host's disk
+         * only changes on an explicit save. Four minutes is the interval a lost window is worth
+         * risking: frequent enough that a crash costs little, sparse enough that a large project
+         * is not rewritten on every edit.
+         */
+        autosaveTimer = setInterval(() => {
+          void docs?.saveAll().catch(() => 0);
+        }, 4 * 60_000);
+        const timer = autosaveTimer as unknown as { unref?: () => void };
+        timer.unref?.();
 
         addresses = host.addresses;
         // The first address is the best guess; the UI lets the user pick another and re-encode.
@@ -833,6 +880,10 @@ export function createCollabRuntime(
       broadcastRoster();
       publishStatus();
       return status();
+    },
+
+    presence() {
+      return [...presence.values()];
     },
 
     requestCommit(message) {

@@ -1,0 +1,39 @@
+/*
+ * The live dock's room: a mascot per member, the room chat, and the signal line
+ * (collab/liveSessionDock.ts). The dock's frame and roster rows live in composer.css.
+ *
+ * The signal line is the one piece of ambient motion: a pulse drawn along a trace while
+ * somebody's assistant is working, still when nobody's is. Everything else moves once, on
+ * arrival. All of it is transform, opacity or dash offset, and none of it runs for anyone
+ * who asked for less motion.
+ */
+.chat-live-signal { display: block; width: 100%; height: 14px; flex: none; overflow: visible; }
+.chat-live-signal path { fill: none; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.chat-live-signal-track { stroke: var(--border-subtle); }
+.chat-live-signal-run { stroke: var(--success); stroke-dasharray: 18 82; stroke-dashoffset: 18; opacity: 0; }
+.chat-live-dock[data-working="true"] .chat-live-signal-run { opacity: 1; stroke: var(--warning); }
+
+.chat-live-mascot { position: relative; display: grid; place-items: center; flex: none; width: 28px; height: 28px; }
+.chat-live-mascot .agent-mascot { display: block; }
+.chat-live-mascot .chat-live-avatar-dot { position: absolute; right: -1px; bottom: -1px; box-shadow: 0 0 0 2px var(--bg-app); }
+.chat-live-person[data-tone="working"] .chat-live-mascot::after { content: ""; position: absolute; inset: -2px; border-radius: 50%; border: 1.5px solid var(--lane-colour, var(--warning)); opacity: .5; pointer-events: none; }
+
+.chat-live-chat-wrap { display: flex; flex-direction: column; gap: 4px; min-height: 0; }
+.chat-live-chat { display: flex; flex-direction: column; gap: 4px; max-height: 168px; min-height: 44px; margin: 0; padding: 0 2px 0 0; overflow-y: auto; list-style: none; scrollbar-width: thin; }
+.chat-live-message { display: flex; flex-direction: column; gap: 1px; align-self: flex-start; max-width: 100%; padding: 4px 7px; border-radius: 8px; background: var(--bg-hover); color: var(--text-primary); font-size: 11.5px; line-height: 1.4; overflow-wrap: anywhere; }
+.chat-live-message strong { color: var(--text-secondary); font-size: 10px; font-weight: 600; }
+.chat-live-message[data-mine="true"] { align-self: flex-end; background: var(--surface-selected); }
+.chat-live-message[data-kind="agent"] { border: 1px solid var(--border-subtle); background: transparent; }
+.chat-live-message[data-kind="system"] { padding: 0 2px; background: transparent; color: var(--text-tertiary); font-size: 10px; }
+.chat-live-chat-form { display: flex; gap: 4px; }
+.chat-live-chat-input { flex: 1; min-width: 0; height: 26px; padding: 0 8px; border: 1px solid var(--border-subtle); border-radius: 7px; background: var(--surface-control); color: var(--text-primary); font: inherit; font-size: 11.5px; }
+.chat-live-chat-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.chat-live-chat-input:disabled { opacity: .6; }
+
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-reduced-motion="true"]) .chat-live-dock[data-working="true"] .chat-live-signal-run { animation: chat-live-trace 1.8s linear infinite; }
+  :root:not([data-reduced-motion="true"]) .chat-live-message[data-enter="true"] { animation: motion-rise var(--motion-enter) var(--motion-curve) backwards; }
+  :root:not([data-reduced-motion="true"]) .chat-live-person[data-tone="working"] .chat-live-mascot::after { animation: chat-live-ring 1.6s ease-out infinite; }
+}
+@keyframes chat-live-trace { from { stroke-dashoffset: 18; } to { stroke-dashoffset: -82; } }
+@keyframes chat-live-ring { from { transform: scale(.85); opacity: .6; } to { transform: scale(1.25); opacity: 0; } }

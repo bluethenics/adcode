@@ -1,5 +1,16 @@
 import type { AiEditorContextView } from "../shared/api.ts";
 
+/**
+ * What the conversation can draw beyond text, so the assistant uses it instead of describing it.
+ * The renderer (`renderer/ai/chatRich.ts`) refuses anything unsafe; this is not a permission.
+ */
+export const CHAT_FORMATS = [
+  "The chat renders more than text. A markdown link [label](https://example.com) is clickable and opens in the user's Browser panel.",
+  "To offer links as buttons, write a fenced block with the language buttons, one per line as: Label | https://example.com (at most 8).",
+  "To show a design idea, write a fenced block with the language mockup containing self-contained HTML and CSS: it is drawn as a live picture (no scripts run, only https images load). Use it for a quick layout or component sketch, not instead of building the real thing.",
+  "A markdown image with an https or data:image address is shown inline.",
+].join(" ");
+
 /** Host facts are separate from project content and remain current across turns. */
 export function aiWorkspaceContext(
   root: string | null,
@@ -24,6 +35,7 @@ export function aiWorkspaceContext(
     edits === "direct"
       ? "For a web app, view_page looks at a page in a real browser (text, console errors, failed requests, a screenshot) and open_preview shows a page to the user in the conversation; both take a path such as about.html and serve the project's files as they are on disk. Check a page with view_page before saying it works. Do not claim a desktop Python GUI can run inside a web preview."
       : "For a web app, view_page looks at a page in a real browser and open_preview shows a page to the user in the conversation; both take a path such as about.html and serve the applied project, so staged changes appear once the user applies them. Do not claim a desktop Python GUI can run inside a web preview.",
+    CHAT_FORMATS,
     ...editorContextLines(editor),
   ].join("\n");
 }

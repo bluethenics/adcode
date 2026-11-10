@@ -1,4 +1,6 @@
 import { createAgentBrowserPane } from "./preview/agentBrowserPane.ts";
+import { liveBrowserSupported } from "./preview/liveBrowserPane.ts";
+import { openMoveIn } from "./onboarding/moveIn.ts";
 /**
  * Workbench bootstrap: layout, file tree, tabs, editor, terminal, status bar.
  *
@@ -51,6 +53,10 @@ import "./styles/composer.css";
 // Last: its reduced-motion-guarded rules refine the entrances the sheets above declare.
 import "./styles/motion.css";
 import "./styles/workspacePolish.css";
+import "./styles/browser.css";
+import "./styles/chatRich.css";
+import "./styles/moveIn.css";
+import "./styles/liveDock.css";
 /*
  * The frame itself, and it has to be last.
  *
@@ -3430,6 +3436,7 @@ const onboarding = createOnboardingSheet({
   openFolder: () => void openFolder(),
   openAllProviders: () => openIndependentConnect("pointer"),
   openAdSettings: () => openSetting("adcode.ads.frequency"),
+  moveIn: () => commands.run("onboarding.moveIn"),
   complete: () => {
     window.adcode.onboarding.complete().catch(() => undefined);
     /*
@@ -4724,6 +4731,7 @@ const chat = createChatWidget({
   promptText: (title, body, value) =>
     promptDialog.ask({ title, body, value, confirmLabel: "Save" }),
   switchFolder: () => { void openFolder(); },
+  openFolderAt: (root) => openFolderAt(root),
   currentFolder: () => workspaceRoot,
   // What the user is looking at, sent with every message. Vibe hides the editor, so a
   // selection left behind there is stale and stays out; the file and tabs still orient.
@@ -4781,6 +4789,13 @@ const chat = createChatWidget({
  * be a drawer on the right of the chat, and nothing docks on the right any more.
  */
 const agentBrowserPane = createAgentBrowserPane();
+// A link in a chat reply: the Browser panel on the desktop; the web version has only snapshots, so a new tab.
+document.addEventListener("adcode:open-link", (event) => {
+  const url = (event as CustomEvent<{ url?: unknown }>).detail?.url;
+  if (typeof url !== "string" || !/^https?:\/\//i.test(url)) return;
+  if (liveBrowserSupported()) agentBrowserPane.open(url);
+  else window.open(url, "_blank", "noopener,noreferrer");
+});
 const activityPanel = createFloatingPanel({
   id: "activity",
   title: "Team, schedules and activity",
@@ -4866,6 +4881,7 @@ function markUnread(page: "plugins" | "artifacts", count: number): void {
 }
 const pluginsPage = createPluginsPage({
   askAssistant: (prompt) => { showChatSurface(); chat.ask(prompt); },
+  openTools: () => openTools("servers"),
   features: () => remixableFeatures(featureRecords(), settingsValues, SLASH_COMMANDS),
   builtInSlash: () => SLASH_COMMANDS.map((command) => command.id),
   signIn: () => accountMenu.open("free-ai"),
@@ -4879,6 +4895,14 @@ const artifactsPage = createArtifactsPage({
   signIn: () => accountMenu.open("free-ai"),
   onUnread: (count) => markUnread("artifacts", count),
   track: (event) => window.adcode.usageStats.record(`event:${event}`),
+  activeFile: () => {
+    if (activePath === null || isImagePath(activePath)) return null;
+    const text = editorHost.text(activePath);
+    return text === null ? null : { path: relativePath(activePath) ?? activePath, content: text };
+  },
+  openAt: (relative, line, column) => {
+    void openFile(absolutePath(relative)).then(() => editorHost.revealPosition(line, column));
+  },
 });
 const pluginsShell = windowIsIde
   ? createPopupShell({
@@ -5108,6 +5132,8 @@ function createConnectContent(requestOpen: () => void, requestClose: () => void)
     },
     requestOpen,
     requestClose,
+    runInTerminal: (command) => { void runInTerminal(command); },
+    refreshCliAgents: () => window.adcode.ai.refreshCliAgents(),
   });
 }
 
@@ -5361,6 +5387,10 @@ window.adcode.notices.onShow((notices) => {
       title: notice.title,
       body: notice.body,
       tone: notice.severity === "warning" ? "warning" : "info",
+      ...(notice.imageUrl === undefined ? {} : { image: { src: notice.imageUrl, alt: notice.imageAlt ?? "" } }),
+      ...(notice.buttons === undefined ? {} : {
+        actions: notice.buttons.map((label, index) => ({ label, run: () => void window.adcode.notices.open(notice.noticeId, index) })),
+      }),
     });
   }
 });
@@ -6160,6 +6190,28 @@ function registerCommands(): void {
   add("run.file", "Run Active File", () => runButton.activate());
   add("ai.toggle", "Assistant", () => chat.toggle());
   add("ai.connect", "Connect a Model", () => connectView.open());
+  add("ai.useCodingCli", "Use a Coding CLI (Claude Code, Codex, OpenCode)", async () => {
+    // The first CLI that can answer in the chat, else the first one found, else Claude Code's page.
+    const status = await window.adcode.ai.status().catch(() => null);
+    const clis = status?.providers.filter((provider) => provider.cli !== undefined) ?? [];
+    const best = clis.find((provider) => provider.cli?.installed === true && provider.cli.headless) ?? clis.find((provider) => provider.cli?.installed === true) ?? clis[0];
+    connectView.select(best?.id ?? "cli-claude");
+  });
+  add("onboarding.moveIn", "Move In: Bring Your AI Accounts and Conversations", () => openMoveIn({
+    selectProvider: (providerId) => connectView.select(providerId),
+    runInTerminal: (command) => { void runInTerminal(command); },
+    showConversations: () => chat.showConversations(),
+    openApps: () => openPlugins("apps"),
+  }));
+  add("ai.askMockup", "Ask the Assistant for a Mockup", () => { showChatSurface(); chat.draft("Sketch a mockup of "); });
+  add("tools.sortSkills", "Tools: Sort, Pin and Group Skills", () => openTools("skills"));
+  add("collab.liveRoom", "Live Room: Who Is Online and Room Chat", () => { showChatSurface(); chat.toggleLiveRoom(); });
+  add("ai.importChats", "Import Conversations from Claude Code, Codex and OpenCode", () => commands.run("onboarding.moveIn"));
+  add("ai.exportChat", "Export This Conversation as Markdown", () => chat.exportConversation("markdown"));
+  add("ai.exportChatJson", "Export This Conversation as JSON", () => chat.exportConversation("json"));
+  add("browser.clearData", "Browser: Sign Out of Everything and Clear Its Data", () => {
+    void window.adcode.browser.clearData().then(() => notifications.show({ title: "Browser", body: "The Browser's sign-ins, cookies and cache were cleared.", autoDismissMs: 8_000 }), () => notifications.show({ title: "Browser", body: "The Browser's data could not be cleared.", autoDismissMs: 8_000 }));
+  });
   add("ai.tagflow", "Choose Included Tagflow AI", () => connectView.open());
   add("ai.getFreeKey", "Get a Free AI Key", () => {
     connectView.showQuick();
@@ -6282,6 +6334,7 @@ function registerCommands(): void {
   add("tools.builtIn", "Tools: The Assistant's Built-in Tools", () => openTools("built-in"));
   add("community.plugins", "Plugins: Browse", () => openPlugins("discover"));
   add("community.installed", "Plugins: Installed", () => openPlugins("installed"));
+  add("community.apps", "Plugins: Connect Apps (Gmail, Supabase, Cloudflare and More)", () => openPlugins("apps"));
   add("community.addons", "Plugins: Add-ons for the Chat, Sidebar and Status Bar", () => { openPlugins(); pluginsPage.showAddons(); });
   add("community.studio", "Plugins: Build a Plugin", () => openPlugins("studio"));
   // From a Feature library card: the Studio on a copy of that feature. No id: the Studio's picker.

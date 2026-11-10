@@ -58,8 +58,8 @@ describe("MCP OAuth discovery", () => {
 });
 
 describe("MCP OAuth sign-in requests", () => {
-  const google = { issuer: "https://accounts.google.com", authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth", tokenEndpoint: "https://oauth2.googleapis.com/token", registrationEndpoint: null };
-  const other = { issuer: "https://auth.example.com", authorizationEndpoint: "https://auth.example.com/authorize", tokenEndpoint: "https://auth.example.com/token", registrationEndpoint: "https://auth.example.com/register" };
+  const google = { issuer: "https://accounts.google.com", authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth", tokenEndpoint: "https://oauth2.googleapis.com/token", registrationEndpoint: null, scopes: [] as string[] };
+  const other = { issuer: "https://auth.example.com", authorizationEndpoint: "https://auth.example.com/authorize", tokenEndpoint: "https://auth.example.com/token", registrationEndpoint: "https://auth.example.com/register", scopes: [] as string[] };
   const base = { clientId: "client", redirectUri: "http://127.0.0.1:5000/callback", scopes: ["a", "b"], challenge: "c", state: "s", resource: "https://mcp.example.com/mcp" };
 
   it("asks Google for offline access, so the sign-in outlives the hour", () => {
@@ -89,5 +89,27 @@ describe("MCP OAuth sign-in requests", () => {
     expect(grantFromValues(grantToValues(grant))).toEqual(grant);
     expect(refreshBody(grant)?.get("grant_type")).toBe("refresh_token");
     expect(refreshBody({ ...grant, refreshToken: null })).toBeNull();
+  });
+});
+
+describe("the scopes a sign-in asks for", () => {
+  const resource = (scopes: string[]) => ({ resource: "https://r.test/mcp", authorizationServers: ["https://a.test"], scopes });
+  const server = (scopes: string[]) => ({ issuer: "https://a.test", authorizationEndpoint: "https://a.test/authorize", tokenEndpoint: "https://a.test/token", registrationEndpoint: null, scopes });
+
+  it("uses the server's sign-in scopes when the resource names none, as Composio's does", async () => {
+    const { signInScopes, parseAuthorizationServer } = await import("../src/mcpOAuth.ts");
+    // Composio's own document, as it answered on 10 November 2026: endpoints on a second host, four scopes.
+    const composio = parseAuthorizationServer({ issuer: "https://connect.composio.dev", authorization_endpoint: "https://connect.composio.dev/oauth/authorize", token_endpoint: "https://login.composio.dev/oauth2/token", registration_endpoint: "https://login.composio.dev/oauth2/register", code_challenge_methods_supported: ["S256"], scopes_supported: ["openid", "profile", "email", "offline_access"] }, "https://connect.composio.dev")!;
+    expect(composio.registrationEndpoint).toBe("https://login.composio.dev/oauth2/register");
+    expect(signInScopes(resource([]), composio)).toEqual(["openid", "profile", "email", "offline_access"]);
+    expect(signInScopes(resource([]), server(["read", "offline_access"]))).toEqual(["offline_access"]);
+    expect(signInScopes(resource([]), server([]))).toEqual([]);
+  });
+
+  it("keeps a resource's own scopes, adding only what earns a refresh token", async () => {
+    const { signInScopes } = await import("../src/mcpOAuth.ts");
+    expect(signInScopes(resource(["mail.read"]), server(["mail.read", "offline_access"]))).toEqual(["mail.read", "offline_access"]);
+    expect(signInScopes(resource(["mail.read"]), server(["mail.read"]))).toEqual(["mail.read"]);
+    expect(signInScopes(resource(["a", "offline_access"]), server(["offline_access"]))).toEqual(["a", "offline_access"]);
   });
 });

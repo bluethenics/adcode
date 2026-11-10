@@ -39,6 +39,7 @@ import { disposeAllTerminals } from "./terminal.ts";
 import { shutdownAllServers } from "./lsp.ts";
 import { stopPreview } from "./preview.ts";
 import { closeAgentBrowserWithLastWindow, hardenAgentBrowser, isAgentBrowserContents } from "./agentBrowser.ts";
+import { allowLiveBrowserWebview, hardenLiveBrowser, isLiveBrowserContents } from "./liveBrowser.ts";
 import { aiStopToolProcesses, refreshModelLists } from "./ai.ts";
 import { flushModelOutcomes } from "./modelOutcomes.ts";
 import { flushAiUsage } from "./aiUsage.ts";
@@ -138,6 +139,11 @@ function hardenWebContents(contents: Electron.WebContents): void {
     hardenAgentBrowser(contents);
     return;
   }
+  // The shared browser's tabs: live web pages with their own, narrower rules.
+  if (isLiveBrowserContents(contents)) {
+    hardenLiveBrowser(contents);
+    return;
+  }
 
   // The renderer never opens a window. Anything that tries goes to the system browser,
   // which is also §1's rule for ad clicks: "never a webview, never in-editor navigation."
@@ -152,7 +158,10 @@ function hardenWebContents(contents: Electron.WebContents): void {
     if (allowed === undefined || !url.startsWith(allowed)) event.preventDefault();
   });
 
-  contents.on("will-attach-webview", (event) => event.preventDefault());
+  // One webview is allowed: the shared browser's, with its preferences overwritten here.
+  contents.on("will-attach-webview", (event, webPreferences, params) => {
+    if (!allowLiveBrowserWebview(webPreferences, params)) event.preventDefault();
+  });
 
   // No camera, microphone, geolocation, notifications, or anything else. An editor
   // needs none of it, and the renderer is hostile by assumption.
@@ -203,7 +212,8 @@ function createWindow(role: WindowRole = "vibe"): BrowserWindow {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      webviewTag: false,
+      // Only the shared browser's webview ever attaches; `will-attach-webview` refuses the rest.
+      webviewTag: true,
       spellcheck: false,
       // Active assistant streams keep arriving while another app has focus.
       // Keep rendering timers live so returning does not drain a stalled queue.

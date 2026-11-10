@@ -1093,6 +1093,156 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Trying another model normally means copying the prompt into another tool and comparing by eye. ADCode runs the lanes side by side in isolated copies, shows the proof for each, and applies only the one you keep.",
   },
 
+  "workbench-browser": {
+    steps: [
+      "Run Open Browser from the command palette (Ctrl+Shift+P), or choose Browser in the workspace menu. The panel floats over your work; drag it, resize it, or maximise it.",
+      "Type an address or a search into the bar and press Enter. Ctrl+T opens another tab, Ctrl+W closes one, Ctrl+L jumps to the address bar and Ctrl+R reloads.",
+      "Sign in to the sites you use, as you would in any browser. Sign-ins are remembered between launches and are kept apart from your everyday browser.",
+      "Hand a web task to the assistant in plain words: \"open the Cloudflare dashboard and find my zone ID\", \"read the Stripe webhook docs and summarise the signature check\".",
+      "Watch it work. The panel comes forward, a green outline and an Assistant is browsing label show while it acts, and every step appears in the chat.",
+      "Take over whenever you like: click into the page and carry on. Type any password or card number yourself; the assistant is told never to.",
+      "To sign out of everything at once, run Browser: Sign Out of Everything and Clear Its Data.",
+      "To keep the Browser to yourself, switch off Let the assistant use the Browser in Settings, under Assistant."
+    ],
+    benefits: [
+      "Docs, dashboards and your deployed site sit beside the code instead of in another window.",
+      "The assistant can finish tasks that need the web, in a tab you can see, rather than describing clicks for you to make.",
+      "It reads a page as its real buttons, links and fields, so it acts on what is there instead of guessing at selectors.",
+      "Downloads, pop-up windows, and camera, microphone and location requests are refused; pages can only be web addresses.",
+      "Links in chat replies open here, one click from the answer that mentioned them."
+    ],
+    betterThan: "Agent browsers usually run somewhere you cannot see, signed out, and report back a summary. Embedded browsers in editors are usually for people only. This is one tab for both: you are signed in, the assistant acts in front of you, and you can stop it by clicking. The trade-off is honest too - it is not a download manager or a replacement for your main browser, and it has no extensions.",
+  },
+
+  "browser-agent-control": {
+    steps: [
+      "Open Settings and choose Assistant.",
+      "Find Let the assistant use the Browser. It is on by default.",
+      "Switch it off to keep the Browser panel's tabs, and the sign-ins in them, to yourself.",
+      "With it off, the assistant tells you when a task needs the web and asks you to do that step. It can still check your own project's pages in its separate, signed-out browser."
+    ],
+    benefits: [
+      "One switch decides whether an assistant can act in tabs that hold your sign-ins.",
+      "Turning it off costs nothing else: page checks of your own app keep working."
+    ],
+    betterThan: "Most tools that let an AI browse give you a single on/off for the whole feature. Here checking your own app and acting on the open web are separate, so you can keep the first and refuse the second.",
+  },
+
+  "ai-move-in": {
+    steps: [
+      "Run Move In from the command palette, or choose Bring your accounts and chats on the welcome screen.",
+      "Under Your AI accounts, find the tools you already pay for: Claude Code, Codex (your ChatGPT account), OpenCode, Gemini CLI, Freebuff.",
+      "Press Use in ADCode on an installed one. It becomes a model in ADCode's chat, answering with its own subscription. Press Sign in or Install to open a terminal with the right command if it is not ready; then Check again.",
+      "Under Your conversations, press Scan this computer. ADCode looks only in the folders Claude Code, Codex and OpenCode keep their sessions in.",
+      "Read the list: conversations grouped by project, with titles, dates and message counts. Everything starts ticked; untick what you do not want.",
+      "Press Import. Each conversation is filed under the project it happened in. Tick the box first to put them all in the project open now instead.",
+      "Open that project and its conversation list: the imported chats are there, ready to continue.",
+      "For Claude Desktop or ChatGPT, export your data from that product, then press Import an exported file and choose the conversations.json it gave you."
+    ],
+    benefits: [
+      "Your existing subscription works on day one; there is nothing new to buy.",
+      "Months of project context arrive with you instead of being typed out again.",
+      "Only what was said is imported: no tool output, no system prompts.",
+      "Nothing is uploaded, and the other tools' files are never changed.",
+      "Importing twice replaces a conversation instead of duplicating it."
+    ],
+    betterThan: "Switching AI editors normally means a second subscription and an empty history. ADCode reads the session files the other tools already leave on your disk and runs their own command-line apps as models, so neither your money nor your context is stranded. What it cannot do, it says: apps that keep conversations on their servers need their own export first.",
+  },
+
+  "ai-export-chat": {
+    steps: [
+      "Open the conversation you want to keep.",
+      "Open the command palette (Ctrl+Shift+P) and run Export This Conversation as Markdown - or as JSON.",
+      "Choose where to save the file. It is named after the conversation and today's date.",
+      "Open the Markdown in any editor, paste it into a ticket, or commit it beside the change it produced.",
+      "To bring a JSON export back, run Move In and use Import an exported file."
+    ],
+    benefits: [
+      "A conversation becomes a file you own, readable without ADCode.",
+      "It holds what was said and nothing else, so it is safe to share without checking what a tool printed.",
+      "JSON exports move between computers and import cleanly."
+    ],
+    betterThan: "Many assistants keep conversations in an account you cannot export from, or export everything at once as a data request. This saves the one conversation in front of you, in two seconds, to a plain file.",
+  },
+
+  "ai-rich-replies": {
+    steps: [
+      "Ask for what you want to see: \"give me buttons for the Supabase dashboard and the docs\", \"sketch two layouts for the pricing section\".",
+      "Click a link or a button in the reply. The page opens in the Browser panel, beside the chat.",
+      "For a mockup, look at the live picture in the reply. Press Phone width to see it narrow.",
+      "Open Show the HTML under a mockup to read or copy its source.",
+      "Tell the assistant which one you like and ask it to build it for real.",
+      "Or run Ask the Assistant for a Mockup from the command palette to start the request."
+    ],
+    benefits: [
+      "A button is faster than instructions for finding a page.",
+      "You react to a design you can see instead of a description of one.",
+      "Mockups cannot run scripts, reach your files, or load anything but https images.",
+      "Only real web addresses become links, so a reply cannot point a button at something unsafe."
+    ],
+    betterThan: "Plain-text chat makes you copy URLs and imagine layouts. Assistants that render arbitrary HTML in the conversation trade that for risk. ADCode draws mockups in a frame with every permission removed - useful enough to judge a design, sealed enough that a reply cannot do anything to your machine.",
+  },
+
+  "ai-skill-order": {
+    steps: [
+      "Run Tools: Sort, Pin and Group Skills from the command palette.",
+      "Pick a sort: Pinned first, Name, Where it came from, Smallest first, or Enabled first.",
+      "Press a chip above the list - Claude, Codex, a plugin's name - to see only the skills that came from there. The chip shows how many are on.",
+      "Press Turn these off to switch that whole group off, or Turn these on to bring it back.",
+      "On the skills you actually use, press Pin. They move to the top and the assistant is offered them first.",
+      "On a skill that is occasionally right and usually in the way, press Last resort. It stays on, but is only offered when nothing else matches.",
+      "Type in the search box to narrow the list by name, description or source."
+    ],
+    benefits: [
+      "You find your three skills among eighty.",
+      "The assistant picks the right skill more often, because fewer irrelevant ones compete.",
+      "A whole tool's worth of skills goes off in one press instead of forty.",
+      "Nothing is deleted: every skill stays where its tool put it."
+    ],
+    betterThan: "Skill folders grow without limit and most tools give you a flat list with an on/off each. That leaves the assistant searching everything on every task. Ranking is the missing control: it changes what the assistant is offered first without making you delete or disable things you might want later.",
+  },
+
+  "community-apps": {
+    steps: [
+      "Run Plugins: Connect Apps from the command palette, or open Plugins and choose the Apps tab.",
+      "Press Connect Composio. Your browser opens Composio's sign-in; approve there and return to ADCode.",
+      "Wait for the banner to turn green and say Composio is connected.",
+      "Find an app - search by name, or pick a category such as Data or Code and deploy - and press Link.",
+      "The chat starts that app's sign-in and gives you a link. Approve it on the app's own page.",
+      "Now ask for work that uses it: \"email this summary to Sam\", \"create an orders table in Supabase\", \"add a CNAME on Cloudflare\".",
+      "A service that is not listed can still be linked: type its name in the search box and press Try linking.",
+      "To review or remove the connection, press Manage tools, or open Tools and find Composio under Connectors."
+    ],
+    benefits: [
+      "One sign-in reaches mail, databases, hosting, chat and trackers.",
+      "ADCode never holds a password or key for any of those apps.",
+      "The assistant does the cross-tool steps instead of listing them for you.",
+      "Each call can ask you first, with Ask before connector tools in Settings.",
+      "Sign-ins refresh themselves, so a connection does not drop after an hour."
+    ],
+    betterThan: "Wiring each service up as its own MCP server means a config file, a token and a restart per app. A hosted connector hub turns that into one approval. The honest trade-off: your app connections live with Composio, a third party, under its terms - if you would rather not, add individual connectors on the Tools page instead.",
+  },
+
+  "community-room-context": {
+    steps: [
+      "Share your project from Artifacts - public, or private with a code.",
+      "Press Live beside the chat's message box and start a session. Send teammates the invite.",
+      "Teammates open ADCode, press Live, and join from the open-session list or paste your code.",
+      "Look at the dock: everyone online has a mascot, and its face shows whether their assistant is working, waiting or idle. The line under the title pulses while any assistant is working.",
+      "Type in Room chat to talk to everyone. Say what you are taking, so nobody doubles up.",
+      "Work as usual. Each time you message your assistant, it already knows who is online, what the others' assistants are doing, the plan, the pinned notes and the recent chat.",
+      "Ask it to keep the room informed: \"tell the room the login page is done\", \"claim the checkout step\", \"pin a note that prices are stored in cents\".",
+      "For approvals, handoffs and comments on a file, open the full room in Artifacts."
+    ],
+    benefits: [
+      "Assistants stop redoing each other's work and stop editing a file a teammate reserved.",
+      "A newcomer's assistant is useful immediately, because the plan and decisions come with the room.",
+      "You talk to teammates where you already are, beside the message box.",
+      "What teammates write is treated as information, never as commands to your assistant."
+    ],
+    betterThan: "Sharing an editor session shares the files; it does not share what each person's AI knows. Everyone ends up pasting the same context into their own chat. Here the room is the context: one plan, one set of notes, one chat, given to every assistant on every turn.",
+  },
+
   "ai-agent-mascots": {
     steps: [
       "Open Agents. Every saved agent already has a look of its own.",
@@ -2432,23 +2582,37 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Write a title and a short description, and what you would like help with to be listed under Help wanted.",
       "Choose Public to list the artifact in Discover. Choose Private to keep it unlisted so only a signed-in person with its share code can open it.",
       "Open Sharing and live to copy the adartifact: share code or a ready invitation. Rotate the code there if it leaked, or switch between Public and Private later.",
+      "From any chat, press Live in the composer toolbar. The dock beside the message box is the session door: Start live session for a project you own, or press Join on an open session and paste the artifact code under Join with code.",
       "To open a code a friend sent, choose Open a shared artifact in Discover and paste the whole adartifact: code.",
       "To improve someone else's project, press Remix on its card in Discover. ADCode copies it into Documents › ADCode Projects and opens it.",
       "After changing it, open This project, check the changed files, and press Send improvement.",
       "As the owner, open Inbox, read each file's changes, optionally press Ask AI to review it, then Accept or Decline.",
       "Press Get version N on This project to bring accepted changes into your own folder.",
       "For live collaboration, open Live room on This project, or on a shared artifact you can access. The owner starts the room; everyone joins with the same code and sees who is present, each agent's lane, the shared plan, pinned notes, comments and chat.",
-      "Press Start live files on the owner side to share the collaborative file session, and Join live files on a teammate's side. Teammates can take over a lane or hand it back, and the owner can close the room when the session ends.",
+      "Press Share project live as the owner. This starts one shared copy of the project that everyone in the room can edit, with no GitHub checkout, branch or merge.",
+      "On a teammate's side, press Join live project. If no project is open, ADCode downloads the artifact to Documents › ADCode Projects, opens it and joins; if they already remixed it, the session uses that folder.",
+      "Watch the Live editors panel at the top of the room. It lists everyone online, their Can edit or View only role, the file and line they are in, and a Go to button that opens that exact place. The host can change anyone's access from the same row.",
+      "Edit normally. Keystrokes sync through the host's copy and every open file converges as people type. The host autosaves the shared documents every four minutes, so a crash costs little.",
+      "Press Stop live project, or Leave room, when the session ends. The artifact and its ordinary remix/improvement workflow are still there afterwards.",
+      "Before joining, read the four checks: your role, a free seat, push access and agent availability. Choose Watch only to follow along read-only, then Join as editor when you are ready to work.",
+      "Read the Coordination list before typing. It names a teammate editing the same file, a locked file, a plan step that expects the file, or a related task. Locks are advisory, so agree before editing a held file.",
+      "Use Approvals to name the exact push, command, network action or takeover. Another owner or editor answers, and the first answer wins.",
+      "Use Handoffs to offer the session to one teammate with a note. Accepting carries the branch, plan and fresh notes, so work continues instead of restarting.",
+      "Pin Brain notes with a commit reference. When the file changes, that note and any anchored comment are labelled as moved on, never deleted. A comment can become a plan step or a prompt to your agent.",
+      "Discover's Live now shows sessions with people and agents working right now, with plan progress, open files and waiting approvals.",
     ],
     benefits: [
       "Your .gitignore, hidden folders, .env files, keys, node_modules and build output are never uploaded.",
       "Strangers can improve your project without access to your repository or your computer.",
       "Private artifacts stay unlisted, and a leaked code can be rotated without republishing the project.",
-      "A live room shows the shared plan, comments and each agent's current lane, so parallel work does not drift apart.",
+      "The Live dock beside the chat composer shows who is online and which file each person is working in, and lets everyone edit the same project at once - the Team Create model, without a branch or pull request.",
+      "The host autosaves the shared documents every four minutes, so live work is not trapped in memory if the window closes.",
+      "Watch mode lets a reviewer follow without a seat, and the join checks name the one thing blocking a join.",
+      "Approvals and handoffs make the dangerous moments explicit without slowing the work: another person answers a push or takeover, and a lane can change hands with its branch, plan and notes intact.",
       "You see every changed line before anything is accepted, and accepted work credits its author.",
     ],
     betterThan:
-      "Getting outside help usually means a GitHub account, a fork, a branch and a pull request. Here, remixing is one click, a private share code replaces repository access, the improvement is computed for you, and review happens in the editor with the assistant's help. A live room adds the coordination a pull request never gives you: one plan, pinned notes, visible agent lanes and a shared file session while the work is happening.",
+      "Getting outside help usually means a GitHub account, a fork, a branch and a pull request. Here, remixing is one click, a private share code replaces repository access, the improvement is computed for you, and review happens in the editor with the assistant's help. A live room adds the coordination a pull request never gives you: one shared project open on every machine, live editors with file and line, one plan, pinned notes and visible agent lanes while the work is happening. It is the Roblox Studio Team Create model for code: join and start editing, with the host's copy as the shared truth. Watch mode, join checks, approval cards and handoffs keep that coordination honest without turning it into a meeting.",
   },
 
   "community-profile": {

@@ -133,6 +133,7 @@ import { agentRulesContext, agentSessionStart, agentStopHooks, withAgentRules } 
 import { currentWorkspace } from "./workspace.ts";
 import { projectInstructions } from "./projectInstructions.ts";
 import { aiWorkspaceContext } from "./aiWorkspaceContext.ts";
+import { liveRoomContext } from "./liveRoom.ts";
 import { aiPreviewUrl, describePreviewForAi, openAiPreview } from "./aiPreview.ts";
 import { createCommandRunner } from "./aiCommands.ts";
 import { closeAgentBrowser, viewPage } from "./agentBrowser.ts";
@@ -168,6 +169,8 @@ import { toAiTeamActivityView, toAiTeamTraceView, toAiTeamView } from "./aiTeamV
 import { createAiAutomationService, type AiAutomationService } from "./aiAutomationService.ts";
 import { toAiAutomationView } from "./aiAutomationViews.ts";
 import { askOllama, localModels, startOllama } from "./localModels.ts";
+import { cliModels, detectCliAgents, spawnCli } from "./cliAgents.ts";
+import { CLI_AGENTS, cliAgentFor, cliProviderId, createCliProvider } from "@adcode/ai";
 import { apiBaseUrl } from "./backend.ts";
 import { buildTagflowProvider, refreshTagflowModels, tagflowCatalogue, tagflowDefaultModel } from "./tagflowAi.ts";
 import { recordModelOutcome } from "./modelOutcomes.ts";
@@ -1043,6 +1046,14 @@ export async function buildProvider(
   onIncludedRequest?: (requestId: string) => void,
 ): Promise<Provider | null> {
   if (id === "tagflow") return buildTagflowProvider(source, source === "chat" ? onIncludedRequest : undefined, roleId);
+  const cli = cliAgentFor(id);
+  if (cli !== undefined) {
+    // A CLI on this computer: its own account and tools answer, in the open project.
+    if (!cli.headless || !(await detectCliAgents(homedir())).some((view) => view.id === cli.id && view.installed)) return null;
+    let sessions = cliSessions.get(cli.id);
+    if (sessions === undefined) cliSessions.set(cli.id, sessions = new Map());
+    return createCliProvider({ spec: cli, models: await cliModels(cli, homedir()), spawn: spawnCli, cwd: () => currentWorkspace()?.root ?? homedir(), sessions });
+  }
   const key = offeredKey ?? (KEYLESS.has(id) ? "" : ((await keys.get(id)) ?? ""));
   const paced = (provider: Provider) => requestScheduler.wrap(provider, id, () => connections().find(item => item.id === id)?.rpm ?? 6000);
   if (!KEYLESS.has(id) && key.length === 0 && id !== "custom") return null;
@@ -1243,6 +1254,28 @@ export async function aiStatus(): Promise<AiStatus> {
   });
 
   /*
+   * Coding CLIs on this computer: Claude Code, Codex, OpenCode, Gemini CLI answer in the chat
+   * through their own accounts; one with no headless mode (Freebuff) runs in a terminal tab.
+   * Listed whether or not installed, so the way to install one is one click away.
+   */
+  for (const view of await detectCliAgents(homedir())) {
+    const spec = CLI_AGENTS.find((agent) => agent.id === view.id);
+    if (spec === undefined) continue;
+    const usable = view.installed && spec.headless;
+    const models = usable ? await cliModels(spec, homedir()) : [];
+    providers.push({
+      id: cliProviderId(spec.id),
+      displayName: spec.headless ? `${spec.name} (CLI)` : `${spec.name} (terminal)`,
+      models: models.map((model) => ({ id: model, name: model === "default" ? `${spec.name}'s default model` : model, toolCall: true, reasoning: false, recommended: model === "default" })),
+      hasKey: usable,
+      needsKey: false,
+      cli: view,
+      transport: spec.headless ? "native" : "unsupported",
+      doc: spec.docs,
+    });
+  }
+
+  /*
    * The custom endpoint is always offered, and is not in the catalogue.
    *
    * It is the escape hatch that makes "any provider" true rather than aspirational: a
@@ -1403,6 +1436,15 @@ export async function aiQuickConnect(providerId: string, key: string, model: str
  */
 export function aiDetectOllama(): Promise<{ running: boolean; models: string[] }> {
   return askOllama();
+}
+
+/** Each CLI's conversations, kept across rebuilt providers so a chat resumes the CLI's session. */
+const cliSessions = new Map<string, Map<string, { id: string; messages: number }>>();
+
+/** Look for coding CLIs again - after the person installs one - and say how things are now. */
+export async function aiRefreshCliAgents(): Promise<AiStatus> {
+  await detectCliAgents(homedir(), true);
+  return aiStatus();
 }
 
 /** Start Ollama on the person's click, and say how it is afterwards. */
@@ -1618,6 +1660,8 @@ async function ensureChatAgent(thread: ChatThread, providerId: string, model: st
       return [
         collabIsJoined() ? "You are in a shared GitHub project. File tools run on the host workspace. Always use project-relative paths and read the current host file before editing. Other people and agents may edit concurrently. Commands, memory and external tools are unavailable to guests; ask the host to run checks and review commits." : null,
         aiWorkspaceContext(root, blocker, thread.editorContext, configuredEditPolicy() === "review" ? "review" : "direct"),
+        // In a live room, every member's assistant works from the same picture of it.
+        ...(liveRoomContext() === "" ? [] : [liveRoomContext()]),
         lean && root !== null ? await projectFilesHint(root) : null,
         root === null ? null : await projectInstructions(root, homedir(), lean),
         ...(root === null ? [] : [describePreviewForAi()]),

@@ -113,6 +113,23 @@ describe("notices", () => {
     expect(parseNotice({ ...notice, body: "x".repeat(501) })).toBeNull();
   });
 
+  it("keeps an https image and up to two link buttons", () => {
+    const rich = { ...notice, imageUrl: "https://adcode.bluethenics.com/i/post-1.webp", imageAlt: " The new picker ", buttons: [{ label: "Read more", url: "https://adcode.bluethenics.com/docs" }, { label: "Status", url: "https://adcode.bluethenics.com/status" }] };
+    expect(parseNotice(rich)).toEqual({ ...rich, imageAlt: "The new picker" });
+    // An empty image field from the form means no image.
+    expect(parseNotice({ ...notice, imageUrl: "", imageAlt: "unused", buttons: [] })).toEqual(notice);
+  });
+
+  it("refuses anything but https, a third button, or an unlabelled one", () => {
+    expect(parseNotice({ ...notice, imageUrl: "http://example.com/a.png" })).toBeNull();
+    expect(parseNotice({ ...notice, imageUrl: "javascript:alert(1)" })).toBeNull();
+    expect(parseNotice({ ...notice, buttons: [{ label: "Go", url: "file:///etc/passwd" }] })).toBeNull();
+    expect(parseNotice({ ...notice, buttons: [{ label: " ", url: "https://adcode.bluethenics.com" }] })).toBeNull();
+    expect(parseNotice({ ...notice, buttons: [{ label: "x".repeat(31), url: "https://adcode.bluethenics.com" }] })).toBeNull();
+    const button = { label: "Go", url: "https://adcode.bluethenics.com" };
+    expect(parseNotice({ ...notice, buttons: [button, button, button] })).toBeNull();
+  });
+
   it("publishes a notice that clients can see", async () => {
     await handlePublishNotice(withIds(), "admin-1", notice);
     const active = await store.listNotices({ activeOnly: true });
