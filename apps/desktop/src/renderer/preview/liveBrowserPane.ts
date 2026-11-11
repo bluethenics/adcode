@@ -19,7 +19,7 @@ import { createFloatingPanel } from "../workbench/floatingPanel.ts";
 import { createIcon } from "../workbench/icons.ts";
 import { reconcileTabs, tabMotionAllowed, updateTabStrip } from "../workbench/tabMotion.ts";
 import { setWorkspaceBrowserOpener } from "../workbench/workspacePanels.ts";
-import { createMascot } from "../ai/mascot.ts";
+import { createAdcodeMascot } from "../mascot/adcodeMascot.ts";
 
 /** Must match `LIVE_BROWSER_PARTITION` in the main process; anything else is refused there. */
 const PARTITION = "persist:adcode-browser";
@@ -142,8 +142,10 @@ export function createLiveBrowserPane() {
 
   /* The start page: a search box and where you have been. Ours, not a web page. */
   const start = el("div", "live-browser-start");
-  const mascot = createMascot({ mood: "idle", label: "ADCode mascot. Activate for a hello." });
-  mascot.setMood("idle");
+  // The pane lives as long as the window, so Buck is made once and never destroyed; off screen
+  // he stops blinking and watching the pointer on his own.
+  const mascot = createAdcodeMascot({ mood: "idle", interactive: true });
+  let startShown = false;
   const startTitle = el("h2", "", "Where to?");
   const startHint = el("p", "", "Browse like you would anywhere. Your assistant can use these same tabs when you ask it to.");
   const startForm = el("form", "live-browser-start-search");
@@ -173,7 +175,11 @@ export function createLiveBrowserPane() {
   status.hidden = true;
 
   content.append(tabStrip, toolbar, progress, stage, status);
-  const panel = createFloatingPanel({ id: "browser", title: "Browser", content, defaultSize: { width: 1040, height: 760 }, anchor: "bottom-right", className: "agent-browser-panel" });
+  const panel = createFloatingPanel({
+    id: "browser", title: "Browser", content, defaultSize: { width: 1040, height: 760 }, anchor: "bottom-right", className: "agent-browser-panel",
+    // Opening the pane on its start page is a hello, whichever button opened it.
+    onVisibilityChange: (open) => { if (open && !start.hidden) mascot.play("greeting"); },
+  });
 
   let serial = 0;
   let list: Tab[] = [];
@@ -213,8 +219,9 @@ export function createLiveBrowserPane() {
     driver.textContent = "Assistant is browsing";
     driver.hidden = false;
     content.dataset["driven"] = "true";
+    mascot.setMood("working");
     if (driverTimer !== null) clearTimeout(driverTimer);
-    driverTimer = setTimeout(() => { driver.hidden = true; delete content.dataset["driven"]; }, 4500);
+    driverTimer = setTimeout(() => { driver.hidden = true; delete content.dataset["driven"]; mascot.setMood("idle"); }, 4500);
   }
 
   function offer(tab: Tab): void {
@@ -368,6 +375,9 @@ export function createLiveBrowserPane() {
     for (const tab of list) if (tab.view !== null) tab.view.dataset["active"] = String(tab === active && tab.error === null);
     const blank = active.view === null;
     start.hidden = !blank;
+    // A wave each time the start page comes back into view, then he settles to his standing mood.
+    if (blank && !startShown) mascot.play("greeting");
+    startShown = blank;
     failure.hidden = active.error === null;
     failureText.textContent = active.error ?? "";
     if (document.activeElement !== address) address.value = active.url === "about:blank" ? "" : active.url;

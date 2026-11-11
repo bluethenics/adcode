@@ -12,7 +12,7 @@
  */
 import { CONTINUE_PROMPT } from "../../shared/continuePrompt.ts";
 
-export type AiFailureAction = "compact-continue" | "retry" | "models" | "usage" | "new-conversation" | "report" | "sign-in" | "buy-tokens" | "buy-model-credits" | "upgrade-plan" | "save-continue";
+export type AiFailureAction = "compact-continue" | "retry" | "models" | "usage" | "new-conversation" | "report" | "sign-in" | "buy-tokens" | "buy-model-credits" | "upgrade-plan" | "save-continue" | "open-folder";
 
 export interface AiFailure {
   readonly kind:
@@ -177,6 +177,11 @@ export function describeAiFailure(raw: string): AiFailure {
   if (/before AI file edits/i.test(detail)) {
     const files = /Save (.{1,160}?) before AI file edits/i.exec(detail)?.[1];
     return make("history", "Save your open files to let the assistant continue", `${files ? `${files} ${/ and \d+ more|, /.test(files) ? "have" : "has"} unsaved changes` : "Some open files have unsaved changes"}, and the assistant will not edit or run commands over work you have not saved. Save them and the task carries on where it stopped - nothing it did is lost.`, ["save-continue", "models"]);
+  }
+  // No project open. Reported (2.4.13): the model called list_files three times, each refused,
+  // and the card said "stopped with an error" - when the whole fix is opening a folder.
+  if (/Open a folder before using AI file tools|No folder is open, so there is nothing to work on/i.test(detail)) {
+    return make("history", "Open a folder to work on", "The assistant reads, writes and runs things inside a project folder, and none is open. Open one - or make a new, empty one - then try again. You can still chat without a folder.", ["open-folder", "retry"]);
   }
   if (/invalid JSON tool arguments|invalid tool arguments|cut off the tool arguments/i.test(detail)) {
     return make("tool-format", "The model could not finish an edit", "The failed call did not change your files. Earlier edits are still available below. Try again to continue with smaller edits, or switch model.", ["retry", "models", "report"]);

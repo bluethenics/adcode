@@ -134,6 +134,31 @@ describe("CLI agents", () => {
     expect(isSafeCliToken("\"x\"")).toBe(false);
   });
 
+  it("gives Claude Code ADCode's tool bridge as a config file, and nobody else", () => {
+    const mcp = { configPath: "C:/Users/me/AppData/Roaming/ADCode/tool-bridge-claude.json", server: "adcode" };
+    const base = ["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits"];
+    expect(cliArgs("claude", { model: "default" })).toEqual(base);
+    expect(cliArgs("claude", { model: "opus", session: "abc", mcp })).toEqual([...base, "--model", "opus", "--resume", "abc", "--mcp-config", mcp.configPath, "--allowedTools", "mcp__adcode"]);
+    expect(cliArgs("codex", { model: "default", mcp })).toEqual(cliArgs("codex", { model: "default" }));
+    expect(cliArgs("gemini", { model: "default", mcp })).toEqual(cliArgs("gemini", { model: "default" }));
+    // A path with a space, or a server name a shell could read, drops the bridge rather than the turn.
+    expect(cliArgs("claude", { model: "default", mcp: { ...mcp, configPath: "C:/Users/Jo Smith/x.json" } })).toEqual(base);
+    expect(cliArgs("claude", { model: "default", mcp: { ...mcp, server: "a&b" } })).toEqual(base);
+    expect(isSafeCliToken("mcp__adcode")).toBe(true);
+    expect(isSafeCliToken("/home/me/.adcode/tool-bridge-claude.json")).toBe(true);
+    expect(isSafeCliToken("--evil")).toBe(false);
+  });
+
+  it("asks for the bridge on each Claude Code turn", async () => {
+    const claude = CLI_AGENTS.find((agent) => agent.id === "claude")!;
+    const fake = fakeSpawn(['{"type":"result","usage":{}}']);
+    let asked = 0;
+    const provider = createCliProvider({ spec: claude, models: ["default"], spawn: fake.spawn, cwd: () => ".", mcp: () => { asked++; return { configPath: "/tmp/bridge.json", server: "adcode" }; } });
+    await collect(provider.stream(request(["hi"]), new AbortController().signal));
+    expect(asked).toBe(1);
+    expect(fake.calls[0]?.args.slice(-4)).toEqual(["--mcp-config", "/tmp/bridge.json", "--allowedTools", "mcp__adcode"]);
+  });
+
   it("reads a model list and maps provider ids back to their CLI", () => {
     expect(parseModelList("opencode/big-pickle\nnvidia/google/gemma-4-31b-it\n\nWARN something\nbad model\n")).toEqual(["opencode/big-pickle", "nvidia/google/gemma-4-31b-it"]);
     expect(cliAgentFor("cli-codex")?.name).toBe("Codex CLI");

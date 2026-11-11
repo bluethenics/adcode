@@ -13,7 +13,7 @@
  * The connector and skill state is the main process's (see `assistantControlsService.ts`);
  * this page renders it and sends actions, with no optimistic copy of its own.
  */
-import type { McpConnectionInfo, MemoryItemView } from "../../shared/api.ts";
+import type { McpConnectionInfo, MemoryItemView, ToolBridgeView } from "../../shared/api.ts";
 import type {
   AssistantConnectorKind,
   AssistantControlAction,
@@ -206,6 +206,8 @@ export function createToolsPage(deps: ToolsPageDeps): ToolsPage {
   let memories: readonly MemoryItemView[] = [];
   let agents: readonly AgentProfile[] = [];
   let memoryCommand: McpConnectionInfo | null = null;
+  let bridge: ToolBridgeView | null = null;
+  let bridgeEnabled = true;
   let skillScope: "all" | "workspace" | "system" = "all";
   let skillSort: SkillSort = storedSkillSort();
   /** One source ("Claude", "Plugin: x") to narrow the Skills tab to, or "" for all. */
@@ -599,6 +601,8 @@ export function createToolsPage(deps: ToolsPageDeps): ToolsPage {
       share.append(warning);
     }
     panel.append(share);
+    // The bridge lives in the desktop's main process; the web version has nothing to offer.
+    if (!isWebSurface()) panel.append(bridgeCard());
 
     const shown = memories.filter((memory) => matchesQuery(query, [memory.name, memory.description, memory.body, memory.type]));
     if (memories.length === 0) {
@@ -621,6 +625,71 @@ export function createToolsPage(deps: ToolsPageDeps): ToolsPage {
       section.append(head, grid);
       panel.append(section);
     }
+  }
+
+  /**
+   * The tool bridge: ADCode's own tools for Claude Code, Codex, Cursor and the rest. The
+   * switch is the setting itself, so this card and Settings can never disagree.
+   */
+  function bridgeCard(): HTMLElement {
+    const card = el("section", "tool-card tools-share");
+    const head = el("div", "tool-card-head");
+    const state = bridge?.running === true ? "On" : bridgeEnabled ? (bridge === null ? "Loading" : "Not running") : "Off";
+    head.append(
+      el("strong", "tool-card-name", "Let other AI tools use ADCode"),
+      el("span", "tools-badge", state),
+      toggle("Let other AI tools use ADCode", bridgeEnabled, (enabled) => void (async () => {
+        try {
+          await window.adcode.settings.write("adcode.ai.toolBridge", enabled);
+          bridgeEnabled = enabled;
+          await loadBridge();
+          say(enabled ? "Other AI tools can use ADCode." : "Other AI tools can no longer use ADCode.");
+        } catch (error) {
+          say(errorText(error, "Could not change that."));
+        }
+      })()),
+    );
+    card.append(head, el("p", "tool-card-text", "Claude Code, Codex, Cursor and other coding agents on this computer can use ADCode's own tools: its features, settings, connectors and Browser panel. Add ADCode to them once with one of these:"));
+    if (bridge !== null && bridge.running && bridge.url !== null) {
+      const url = el("code", "tools-share-command", bridge.url);
+      const urlRow = el("div", "tools-share-row");
+      urlRow.append(url);
+      card.append(urlRow);
+      for (const config of bridge.configs) {
+        card.append(el("p", "tool-card-users", config.client));
+        const multiLine = config.text.includes("\n");
+        const text = el(multiLine ? "pre" : "code", multiLine ? "agents-attachment-text" : "tools-share-command", config.text);
+        const copy = button("Copy", "agent-box-action", () => void (async () => {
+          await deps.copy(config.text);
+          say(`${config.client} config copied. It contains your key - paste it only into your own tools.`);
+        })());
+        copy.setAttribute("aria-label", `Copy the ${config.client} config`);
+        const row = el("div", "tools-share-row");
+        row.append(text, copy);
+        card.append(row);
+      }
+      card.append(el("p", "tool-card-text", "Only programs on this computer that have the key get in, and anything ADCode would ask you about still asks here first."));
+      const actions = el("div", "tool-card-actions");
+      const regenerate = button("Regenerate key", "agent-box-action", () => void (async () => {
+        if (!await askThemed({ title: "Make a new key?", body: "Every AI tool you added ADCode to stops reaching it until you copy a config from here again.", confirmLabel: "Make a new key", danger: true })) return;
+        try {
+          bridge = await window.adcode.ai.regenerateToolBridgeToken();
+          render();
+          say("New key made. Copy the config again into each tool.");
+        } catch (error) {
+          say(errorText(error, "Could not make a new key."));
+        }
+      })());
+      actions.append(regenerate);
+      card.append(actions);
+    } else if (bridge?.problem) {
+      const warning = el("p", "tool-card-problem", bridge.problem);
+      warning.setAttribute("role", "status");
+      card.append(warning);
+    } else if (!bridgeEnabled) {
+      card.append(el("p", "tool-card-text", "Off: no other program can reach ADCode's tools. Switch it on to see the configs."));
+    }
+    return card;
   }
 
   function memoryCard(memory: MemoryItemView): HTMLLIElement {
@@ -1270,7 +1339,23 @@ export function createToolsPage(deps: ToolsPageDeps): ToolsPage {
     ]);
     memories = list;
     memoryCommand = connection;
+    bridge = await fetchBridge();
     render();
+  }
+
+  /** Never throws: a bridge that cannot be read must not take the memory list down with it. */
+  async function fetchBridge(): Promise<ToolBridgeView | null> {
+    if (isWebSurface()) return null;
+    try {
+      return await window.adcode.ai.toolBridge();
+    } catch {
+      return null;
+    }
+  }
+
+  async function loadBridge(): Promise<void> {
+    bridge = await fetchBridge();
+    if (visible) render();
   }
 
   async function refresh(): Promise<void> {
@@ -1278,6 +1363,7 @@ export function createToolsPage(deps: ToolsPageDeps): ToolsPage {
       const [view, values] = await Promise.all([window.adcode.ai.controls(), window.adcode.settings.read()]);
       controls = view;
       agents = parseAgentProfiles(values[AGENT_PROFILES_SETTING]);
+      bridgeEnabled = values["adcode.ai.toolBridge"] !== false;
       if (view.notice) say(view.notice);
       await loadMemory();
     } catch (error) {
@@ -1287,7 +1373,13 @@ export function createToolsPage(deps: ToolsPageDeps): ToolsPage {
 
   search.addEventListener("input", () => render());
   window.adcode.ai.onControlsChanged(() => { if (visible) void window.adcode.ai.controls().then((view) => { controls = view; render(); }).catch(() => undefined); });
-  window.adcode.settings.onChanged((values) => { agents = parseAgentProfiles(values[AGENT_PROFILES_SETTING]); if (visible) render(); });
+  window.adcode.settings.onChanged((values) => {
+    agents = parseAgentProfiles(values[AGENT_PROFILES_SETTING]);
+    // Switched in Settings while this page is open: the bridge has started or stopped by now.
+    const enabled = values["adcode.ai.toolBridge"] !== false;
+    if (enabled !== bridgeEnabled) { bridgeEnabled = enabled; if (visible) void loadBridge(); }
+    if (visible) render();
+  });
   window.adcode.workspace.onChanged(() => { if (visible) void refresh(); });
 
   showTab("built-in");

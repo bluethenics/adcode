@@ -17,11 +17,16 @@
  */
 import type { AiProviderInfo, ChatImportEntry, ChatImportScan } from "../../shared/api.ts";
 import { button, el, openFormModal } from "../dialogs/formDialog.ts";
-import { createMascot } from "../ai/mascot.ts";
+import { cliConnectPlan, connectCli } from "../ai/cliConnect.ts";
+import { createAdcodeMascot } from "../mascot/adcodeMascot.ts";
 
 export interface MoveInDeps {
   /** Open the Connect screen on one provider, e.g. `cli-claude`. */
   readonly selectProvider: (providerId: string) => void;
+  /** Write a setting: connecting a CLI makes it the active model. */
+  readonly write: (id: string, value: string) => Promise<unknown>;
+  /** Open a project folder the scan found. */
+  readonly openFolder: (folder: string) => void;
   /** Run a command in a terminal tab: installing or signing in to a CLI. */
   readonly runInTerminal: (command: string) => void;
   /** Conversations were saved into the open project: refresh its list and show it. */
@@ -53,10 +58,11 @@ function when(at: number): string {
 }
 
 export function openMoveIn(deps: MoveInDeps): void {
-  const modal = openFormModal("move-in", "Move in", () => undefined);
+  const mascot = createAdcodeMascot({ mood: "idle", interactive: true });
+  // Settling is the dialog going away, however it went: that is when Buck stops for good.
+  const modal = openFormModal("move-in", "Move in", () => mascot.destroy());
   const { card } = modal;
   const lead = el("div", "move-in-lead");
-  const mascot = createMascot({ mood: "idle", label: "ADCode mascot" });
   lead.append(mascot.element, el("p", "result-summary", "Bring the AI accounts and conversations you already have. Nothing is connected, started or imported until you press its button."));
   card.append(lead);
 
@@ -73,6 +79,12 @@ export function openMoveIn(deps: MoveInDeps): void {
   accounts.append(accountActions);
   card.append(accounts);
 
+  /** The model in use now, so a CLI that already is says Connected. */
+  let active: string | null = null;
+  const accountStatus = el("p", "move-in-status");
+  accountStatus.setAttribute("role", "status");
+  accounts.append(accountStatus);
+
   function cliRow(provider: AiProviderInfo): HTMLElement {
     const cli = provider.cli!;
     const row = el("li", "move-in-cli");
@@ -80,14 +92,18 @@ export function openMoveIn(deps: MoveInDeps): void {
     const text = el("div", "move-in-cli-text");
     text.append(el("strong", "", cli.name), el("span", "", !cli.installed ? "Not installed" : cli.headless ? `Installed${cli.version ? ` · ${cli.version.slice(0, 40)}` : ""}` : "Installed · runs in a terminal tab"));
     const actions = el("div", "move-in-cli-actions");
-    if (!cli.installed) {
-      actions.append(button("Install", "ad-btn", () => { deps.runInTerminal(cli.install); modal.finish(); }));
-    } else {
-      actions.append(button("Sign in", "ad-btn", () => { deps.runInTerminal(cli.signIn); modal.finish(); }));
-      const use = button(cli.headless ? "Use in ADCode" : "Open", "ad-btn ad-btn-primary", () => { modal.finish(); deps.selectProvider(provider.id); });
-      use.setAttribute("aria-label", `${cli.headless ? "Use" : "Open"} ${cli.name}`);
-      actions.append(use);
-    }
+    // One button, doing whatever is next for this tool (cliConnect.ts).
+    const plan = cliConnectPlan(provider, active);
+    const connect = button(plan.label, "ad-btn ad-btn-primary", () => {
+      connect.disabled = true;
+      void connectCli(plan, cli.name, { write: deps.write, runInTerminal: deps.runInTerminal }).then((message) => {
+        accountStatus.textContent = message;
+        if (plan.kind === "terminal") modal.finish(); else void paintClis(false);
+      }, () => { accountStatus.textContent = `${cli.name} did not connect. Try again.`; connect.disabled = false; });
+    });
+    connect.disabled = plan.kind === "unavailable" || plan.label === "Connected";
+    connect.setAttribute("aria-label", `${plan.label} ${cli.name}`);
+    actions.append(connect);
     row.append(text, actions);
     return row;
   }
@@ -96,6 +112,7 @@ export function openMoveIn(deps: MoveInDeps): void {
     recheck.disabled = true;
     try {
       const status = await (fresh ? window.adcode.ai.refreshCliAgents() : window.adcode.ai.status());
+      active = status.activeProvider;
       const clis = status.providers.filter((provider) => provider.cli !== undefined)
         .sort((a, b) => Number(b.cli!.installed) - Number(a.cli!.installed));
       cliList.replaceChildren(...(clis.length > 0 ? clis.map(cliRow) : [el("li", "move-in-empty", "Coding CLIs run in the desktop app.")]));
@@ -125,7 +142,61 @@ export function openMoveIn(deps: MoveInDeps): void {
   const footer = el("div", "move-in-footer");
   footer.append(target, importButton);
   footer.hidden = true;
-  chats.append(chatActions, status, results, footer);
+  /*
+   * What the scan found, and where: one line per tool saying which folder on this computer
+   * was read and what was in it (or that it is not here), then the projects those
+   * conversations belong to, with the tools that worked in each and a way to open it.
+   */
+  const report = el("div", "move-in-report");
+  report.hidden = true;
+  chats.append(chatActions, status, report, results, footer);
+
+  function paintReport(found: ChatImportScan): void {
+    report.replaceChildren();
+    const sources = found.found ?? [];
+    const projects = found.projects ?? [];
+    report.hidden = sources.length === 0 && projects.length === 0;
+    if (sources.length > 0) {
+      const list = el("ul", "move-in-sources");
+      list.setAttribute("aria-label", "Where ADCode looked");
+      for (const source of sources) {
+        const row = el("li", "move-in-source");
+        row.dataset["present"] = String(source.present);
+        const text = el("div", "");
+        text.append(el("strong", "", source.name), el("code", "", source.location));
+        row.append(text, el("span", "move-in-source-count", !source.present ? "Not on this computer"
+          : source.conversations === 0 ? "No conversations"
+          : `${source.conversations.toString()} conversation${source.conversations === 1 ? "" : "s"} · ${source.projects.toString()} project${source.projects === 1 ? "" : "s"}`));
+        list.append(row);
+      }
+      report.append(el("h4", "move-in-subheading", "Where ADCode looked"), list);
+    }
+    if (projects.length > 0) {
+      const list = el("ul", "move-in-projects");
+      list.setAttribute("aria-label", "Projects found");
+      for (const project of projects.slice(0, 30)) {
+        const row = el("li", "move-in-project");
+        row.dataset["exists"] = String(project.exists);
+        const text = el("div", "move-in-project-text");
+        const name = el("strong", "", project.name);
+        const path = el("span", "move-in-project-path", project.folder);
+        path.title = project.folder;
+        const by = el("div", "move-in-project-by");
+        for (const source of project.sources) by.append(el("span", "move-in-chip", `${source.name} · ${source.conversations.toString()}`));
+        text.append(name, path, by);
+        const side = el("div", "move-in-project-side");
+        side.append(el("small", "", when(project.lastUsed)));
+        if (project.exists) {
+          const openIt = button("Open", "ad-btn", () => { modal.finish(); deps.openFolder(project.folder); });
+          openIt.setAttribute("aria-label", `Open ${project.name}`);
+          side.append(openIt);
+        } else side.append(el("small", "move-in-project-gone", "Moved or deleted"));
+        row.append(text, side);
+        list.append(row);
+      }
+      report.append(el("h4", "move-in-subheading", `${projects.length.toString()} project${projects.length === 1 ? "" : "s"} found`), list);
+    }
+  }
   card.append(chats);
 
   const close = el("div", "result-actions");
@@ -180,14 +251,15 @@ export function openMoveIn(deps: MoveInDeps): void {
     for (const entry of found.entries) chosen.add(entry.key);
     status.textContent = found.entries.length === 0 ? empty
       : `Found ${found.entries.length.toString()} conversation${found.entries.length === 1 ? "" : "s"} from ${found.sources.join(", ")}.${found.skipped > 0 ? ` ${found.skipped.toString()} very large session file${found.skipped === 1 ? " was" : "s were"} skipped.` : ""}`;
-    mascot.setMood(found.entries.length === 0 ? "idle" : "done");
+    mascot.setMood(found.entries.length === 0 ? "idle" : "proud");
+    paintReport(found);
     paintResults();
   }
 
   async function runScan(): Promise<void> {
     scan.disabled = true;
     status.textContent = "Looking in Claude Code, Codex and OpenCode…";
-    mascot.setMood("working");
+    mascot.setMood("searching");
     try {
       show(await window.adcode.ai.scanChatImports(), "No conversations from Claude Code, Codex or OpenCode were found on this computer. Claude Desktop and ChatGPT keep theirs online: export them there, then use Import an exported file.");
     } catch (error) {
@@ -211,12 +283,13 @@ export function openMoveIn(deps: MoveInDeps): void {
   async function runImport(): Promise<void> {
     if (chosen.size === 0) return;
     importButton.disabled = true;
-    mascot.setMood("working");
+    mascot.setMood("loading");
     try {
       const result = await window.adcode.ai.importChats([...chosen], here.checked ? "current" : "own-folder");
       const where = result.here ? " They are in this project's conversation list now." : result.folders.length > 0 ? ` Open ${result.folders.length === 1 ? folderName(result.folders[0]!) : "each project"} to see ${result.imported === 1 ? "it" : "them"} in its conversation list.` : " Open a project folder to see them.";
       status.textContent = `Imported ${result.imported.toString()} conversation${result.imported === 1 ? "" : "s"}.${result.failed > 0 ? ` ${result.failed.toString()} could not be read.` : ""}${where}`;
-      mascot.setMood(result.imported > 0 ? "done" : "error");
+      // A burst of celebration, then he stands proud: a loop of confetti for as long as the dialog stays open would wear thin.
+      if (result.imported > 0) { mascot.setMood("proud"); mascot.play("celebrating"); } else mascot.setMood("error");
       if (result.here) deps.showConversations();
     } catch {
       status.textContent = "The import did not finish. Try again.";

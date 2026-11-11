@@ -5,10 +5,9 @@ import type { AiEditorContextView } from "../shared/api.ts";
  * The renderer (`renderer/ai/chatRich.ts`) refuses anything unsafe; this is not a permission.
  */
 export const CHAT_FORMATS = [
-  "The chat renders more than text. A markdown link [label](https://example.com) is clickable and opens in the user's Browser panel.",
-  "To offer links as buttons, write a fenced block with the language buttons, one per line as: Label | https://example.com (at most 8).",
-  "To show a design idea, write a fenced block with the language mockup containing self-contained HTML and CSS: it is drawn as a live picture (no scripts run, only https images load). Use it for a quick layout or component sketch, not instead of building the real thing.",
-  "A markdown image with an https or data:image address is shown inline.",
+  "The chat renders markdown links (clickable, open in the user's Browser panel) and https images inline.",
+  "A fenced block with the language buttons, one `Label | https://…` per line, draws link buttons.",
+  "A fenced block with the language mockup holding self-contained HTML and CSS is drawn as a live sketch (no scripts) - for a quick design idea, not instead of building it.",
 ].join(" ");
 
 /** Host facts are separate from project content and remain current across turns. */

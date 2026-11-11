@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!--
+    The ADCode mark for small sizes: the taskbar, the title bar, Explorer's lists.
+
+    At 16 to 48 pixels the full icon (icon.svg) reads as a small grey smudge inside a black
+    square: its glow blurs into the plate, its fold shading is smaller than a pixel, and the
+    mark only fills about three quarters of the plate. This is the same mark drawn for those
+    sizes - the same paths, a third larger so it nearly reaches the plate's edges, heavier
+    strokes, pure white, and nothing that needs more pixels than there are.
+
+    `scripts/make-icons.mjs` uses this for every size up to 48 and icon.svg above that.
+    Only a viewBox, no width or height: the script stamps the size on.
+  -->
+  <rect width="1024" height="1024" rx="200" fill="#050505"/>
+  <g transform="translate(512 512) scale(1.3) translate(-512 -512)" fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M320 348L140 512L320 676" stroke-width="112"/>
+    <path d="M704 348L884 512L704 676" stroke-width="112"/>
+    <path d="M512 290V394" stroke-width="80"/>
+    <path d="M512 630V734" stroke-width="80"/>
+    <path d="M584 405C563 374 531 356 494 356C446 356 413 383 413 423C413 463 444 484 505 500C569 517 606 541 606 590C606 641 565 671 511 671C466 671 429 651 405 619" stroke-width="104"/>
+  </g>
+</svg>

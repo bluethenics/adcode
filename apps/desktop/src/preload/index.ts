@@ -172,6 +172,8 @@ const api: AdcodeApi = {
     detectOllama: () => ipcRenderer.invoke(CHANNELS.aiDetectOllama),
     startOllama: () => ipcRenderer.invoke(CHANNELS.aiStartOllama),
     refreshCliAgents: () => ipcRenderer.invoke(CHANNELS.aiRefreshCliAgents),
+    toolBridge: () => ipcRenderer.invoke(CHANNELS.aiToolBridge),
+    regenerateToolBridgeToken: () => ipcRenderer.invoke(CHANNELS.aiRegenerateToolBridgeToken),
     scanChatImports: () => ipcRenderer.invoke(CHANNELS.aiImportScan),
     pickChatImportFile: () => ipcRenderer.invoke(CHANNELS.aiImportFile),
     importChats: (keys, target) => ipcRenderer.invoke(CHANNELS.aiImportChats, keys, target),
@@ -374,6 +376,7 @@ const api: AdcodeApi = {
   onboarding: {
     completed: () => ipcRenderer.invoke(CHANNELS.onboardingState),
     complete: () => ipcRenderer.invoke(CHANNELS.onboardingComplete),
+    tour: () => ipcRenderer.invoke(CHANNELS.onboardingTour),
   },
   pinPrompt: {
     offer: () => ipcRenderer.invoke(CHANNELS.pinPromptOffer),

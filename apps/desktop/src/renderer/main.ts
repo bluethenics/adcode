@@ -1,6 +1,8 @@
 import { createAgentBrowserPane } from "./preview/agentBrowserPane.ts";
 import { liveBrowserSupported } from "./preview/liveBrowserPane.ts";
 import { openMoveIn } from "./onboarding/moveIn.ts";
+import { createWelcomeTour } from "./onboarding/welcomeTour.ts";
+import { installTooltips } from "./workbench/tooltip.ts";
 /**
  * Workbench bootstrap: layout, file tree, tabs, editor, terminal, status bar.
  *
@@ -57,6 +59,12 @@ import "./styles/browser.css";
 import "./styles/chatRich.css";
 import "./styles/moveIn.css";
 import "./styles/liveDock.css";
+import "./styles/usageCharts.css";
+import "./styles/welcomeTour.css";
+import "./styles/mascots.css";
+import "./styles/adcodeMascot.css";
+import "./styles/dotDetails.css";
+import "./styles/transitions.css";
 /*
  * The frame itself, and it has to be last.
  *
@@ -3478,8 +3486,28 @@ async function createProjectForIdea(idea: string): Promise<boolean> {
   }
 }
 
-void showFirstOnboarding(accountGate, { completed: () => window.adcode.onboarding.completed(), open: () => onboarding.open() }).then((shown) => {
+/** The welcome tour for whoever it is for; `after` runs once it ends, however it ends. */
+function openWelcomeTour(returning: boolean, after: () => void): void {
+  createWelcomeTour({
+    returning,
+    selectProvider: (providerId) => connectView.select(providerId),
+    runInTerminal: (command) => { void runInTerminal(command); },
+    write: (id, value) => window.adcode.settings.write(id, value),
+    openApps: () => openPlugins("apps"),
+    showConversations: () => chat.showConversations(),
+    done: after,
+  }).open();
+}
+// The web version has no CLIs or session files to bring in, so the tour is the desktop's.
+const tourFor = (): Promise<"new" | "returning" | "done"> => (isWebSurface() ? Promise.resolve("done" as const) : window.adcode.onboarding.tour().catch(() => "done" as const));
+void showFirstOnboarding(accountGate, {
+  completed: () => window.adcode.onboarding.completed(),
+  // Somebody new sees the tour, then "What do you want to build?" - which is what records the welcome.
+  open: () => { void tourFor().then((who) => { if (who === "new") openWelcomeTour(false, () => onboarding.open()); else onboarding.open(); }); },
+}).then((shown) => {
   if (!shown) {
+    // Welcomed before 2.6: the tour once, for what did not exist then. Ending it records that.
+    void tourFor().then((who) => { if (who === "returning") openWelcomeTour(true, () => { void window.adcode.onboarding.complete().catch(() => undefined); }); });
     // Already welcomed, so nothing is about to cover the corner. This is the path the
     // second ask arrives on; main decides whether this launch is one of the two.
     window.setTimeout(() => pinPromptCard.offer(), PIN_PROMPT_DELAY_MS);
@@ -4788,6 +4816,8 @@ const chat = createChatWidget({
  * Team setup, schedules and live agent activity: a floating panel over the work. It used to
  * be a drawer on the right of the chat, and nothing docks on the right any more.
  */
+// Every `title` in the app shows in the design system's tooltip box instead of the system's.
+installTooltips();
 const agentBrowserPane = createAgentBrowserPane();
 // A link in a chat reply: the Browser panel on the desktop; the web version has only snapshots, so a new tab.
 document.addEventListener("adcode:open-link", (event) => {
@@ -5144,7 +5174,7 @@ const dependentConnectView = createConnectContent(
 const connectShell = createPopupShell({
   id: "connect",
   title: "Connect a model",
-  size: "medium",
+  size: "large",
   modal: true,
   host: popupDependentHost,
   content: dependentConnectView.element,
@@ -5172,7 +5202,7 @@ const connectView = createConnectContent(
 const connectPrimaryShell = createPopupShell({
   id: "connect",
   title: "Connect a model",
-  size: "medium",
+  size: "large",
   modal: true,
   host: popupPrimaryHost,
   content: connectView.element,
@@ -6200,12 +6230,16 @@ function registerCommands(): void {
   add("onboarding.moveIn", "Move In: Bring Your AI Accounts and Conversations", () => openMoveIn({
     selectProvider: (providerId) => connectView.select(providerId),
     runInTerminal: (command) => { void runInTerminal(command); },
+    write: (id, value) => window.adcode.settings.write(id, value),
+    openFolder: (folder) => void openFolderAt(folder),
     showConversations: () => chat.showConversations(),
     openApps: () => openPlugins("apps"),
   }));
   add("ai.askMockup", "Ask the Assistant for a Mockup", () => { showChatSurface(); chat.draft("Sketch a mockup of "); });
   add("tools.sortSkills", "Tools: Sort, Pin and Group Skills", () => openTools("skills"));
   add("collab.liveRoom", "Live Room: Who Is Online and Room Chat", () => { showChatSurface(); chat.toggleLiveRoom(); });
+  // The welcome tour, on demand. It does not yet open by itself: see welcomeTour.ts.
+  add("onboarding.tour", "Show the Welcome Tour", () => openWelcomeTour(true, () => undefined));
   add("ai.importChats", "Import Conversations from Claude Code, Codex and OpenCode", () => commands.run("onboarding.moveIn"));
   add("ai.exportChat", "Export This Conversation as Markdown", () => chat.exportConversation("markdown"));
   add("ai.exportChatJson", "Export This Conversation as JSON", () => chat.exportConversation("json"));

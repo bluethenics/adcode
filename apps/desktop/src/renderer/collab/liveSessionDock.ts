@@ -482,7 +482,7 @@ export function createLiveSessionDock(deps: LiveSessionDockDeps): LiveSessionDoc
     avatar.style.setProperty("--lane-colour", person.colour);
     avatar.setAttribute("aria-hidden", "true");
     avatar.title = initials(person.name);
-    avatar.append(createAgentMascot({ look: defaultMascotFor(person.id), mood: laneMood(person.lane, person.path !== null), size: 26 }).element, node("span", "chat-live-avatar-dot"));
+    avatar.append(createAgentMascot({ look: defaultMascotFor(person.id), mood: laneMood(person.lane, person.path !== null), size: 34 }).element, node("span", "chat-live-avatar-dot"));
     const copy = node("span", "chat-live-person-copy");
     const top = node("span", "chat-live-person-top");
     top.append(node("strong", "", person.name));

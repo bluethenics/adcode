@@ -195,8 +195,8 @@ describe("Anthropic cache breakpoints", () => {
   it("reports what was read from cache as part of the input, not on top of it", async () => {
     const { events } = await twoSteps(() => "ctx");
     expect(events.filter((event) => event.kind === "usage")).toEqual([
-      { kind: "usage", inputTokens: 5012, outputTokens: 20, cachedTokens: 0, estimated: false },
-      { kind: "usage", inputTokens: 5070, outputTokens: 5, cachedTokens: 5000, estimated: false },
+      { kind: "usage", inputTokens: 5012, outputTokens: 20, cachedTokens: 0, estimated: false, durationMs: expect.any(Number), firstResponseMs: expect.any(Number) },
+      { kind: "usage", inputTokens: 5070, outputTokens: 5, cachedTokens: 5000, estimated: false, durationMs: expect.any(Number), firstResponseMs: expect.any(Number) },
     ]);
   });
 });
@@ -260,8 +260,8 @@ describe("OpenAI-compatible prefix stability", () => {
   it("reports the cached part of the prompt the provider says it served", async () => {
     const { events } = await twoSteps();
     expect(events.filter((event) => event.kind === "usage")).toEqual([
-      { kind: "usage", inputTokens: 1800, outputTokens: 12, cachedTokens: 0, estimated: false },
-      { kind: "usage", inputTokens: 2100, outputTokens: 3, cachedTokens: 1792, estimated: false },
+      { kind: "usage", inputTokens: 1800, outputTokens: 12, cachedTokens: 0, estimated: false, durationMs: expect.any(Number), firstResponseMs: expect.any(Number) },
+      { kind: "usage", inputTokens: 2100, outputTokens: 3, cachedTokens: 1792, estimated: false, durationMs: expect.any(Number), firstResponseMs: expect.any(Number) },
     ]);
   });
 
@@ -300,7 +300,7 @@ describe("agent usage events", () => {
     const provider = scripted([{ kind: "usage", inputTokens: 100, outputTokens: 2, cachedTokens: 400 }, { kind: "stop", reason: "end-turn" }]);
     const agent = createAgent({ provider, model: "test-model", tools: [], runner });
     const usage = (await collect(agent.send("hello"))).find((event) => event.kind === "usage");
-    expect(usage).toEqual({ kind: "usage", inputTokens: 100, outputTokens: 2, cachedTokens: 100, estimated: false });
+    expect(usage).toEqual({ kind: "usage", inputTokens: 100, outputTokens: 2, cachedTokens: 100, estimated: false, durationMs: expect.any(Number), firstResponseMs: expect.any(Number) });
   });
 
   it("claims no cached tokens for a count it estimated itself", async () => {

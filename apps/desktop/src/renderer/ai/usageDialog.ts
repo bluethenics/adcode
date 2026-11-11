@@ -20,6 +20,8 @@ import {
 import { askThemed } from "../dialogs/confirmDialog.ts";
 import { button, el, openFormModal } from "../dialogs/formDialog.ts";
 import { createUsageActivity } from "./usageActivityView.ts";
+import { usageAnalysis } from "./usageCharts.ts";
+import type { UsageInsights } from "../../shared/usageInsights.ts";
 import { allowanceSummary } from "./allowanceSummary.ts";
 import { BUY_TOKENS_URL, UNLIMITED_REQUESTS_PER_MINUTE, aiPlanName, isFairUsePlan, creditWindowSummary, percentLeft, untilText, type CreditsAllowance, type TagflowAllowanceView } from "../../shared/tagflow.ts";
 import { openAudienceProfile } from "./audienceProfile.ts";
@@ -78,6 +80,8 @@ function modelRow(model: UsageModelView): HTMLElement {
 export function openUsageDialog(): Promise<void> {
   return new Promise((resolve) => {
     let range = savedRange();
+    /** The range whose charts have already drawn themselves in. */
+    let analysedRange: UsageRange | null = null;
     let stop: (() => void) | null = null;
     let request = 0;
     let allowanceRequest = 0;
@@ -279,7 +283,7 @@ export function openUsageDialog(): Promise<void> {
       }
     }
 
-    function paint(view: AiUsageView): void {
+    function paint(view: AiUsageView & { readonly insights?: UsageInsights }): void {
       const focusedDay = body.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset["day"] : undefined;
       const focusedHelp = allowanceHelp.contains(document.activeElement) ? document.activeElement as HTMLElement : null;
       const day = body.querySelector<HTMLElement>('.usage-calendar-cell[tabindex="0"]')?.dataset["day"];
@@ -313,7 +317,11 @@ export function openUsageDialog(): Promise<void> {
       );
 
       const parts: HTMLElement[] = [stats, activity];
-      if (view.days.length > 1) {
+      if (view.insights !== undefined) {
+        const entering = analysedRange !== view.range;
+        analysedRange = view.range;
+        parts.push(usageAnalysis(view.insights, view.models, entering));
+      } else if (view.days.length > 1) {
         const most = Math.max(1, ...view.days.map((day) => day.tokens));
         const chart = el("div", "usage-days");
         chart.style.setProperty("--usage-day-count", String(view.days.length));

@@ -74,7 +74,8 @@ if (!portFree) {
 
 const userData = await mkdtemp(join(tmpdir(), "adcode-first-run-"));
 const projects = await mkdtemp(join(tmpdir(), "adcode-first-run-projects-"));
-const env = { ...process.env, ADCODE_AD_SERVER: "http://127.0.0.1:9", ADCODE_PROJECTS_HOME: projects };
+// No mock account here, so the required sign-in would cover the welcome; the gate has its own smoke.
+const env = { ...process.env, ADCODE_AD_SERVER: "http://127.0.0.1:9", ADCODE_PROJECTS_HOME: projects, ADCODE_ACCOUNT_GATE: "off" };
 delete env.ELECTRON_RUN_AS_NODE;
 const child = spawn(electronPath, [
   "apps/desktop",
@@ -131,6 +132,10 @@ async function shot(name) {
 
 const checks = {};
 try {
+  /* A first launch opens the welcome tour; skipping it leads to the question below. */
+  checks.tourOpensFirst = await waitFor("document.querySelector('dialog.welcome-tour[open]') !== null", 40_000);
+  checks.tourHasItsParts = await evaluate("(() => { const t = document.querySelector('dialog.welcome-tour'); return { dotField: !!t?.querySelector('canvas.dot-field'), headline: (t?.querySelector('.welcome-tour-headline')?.textContent ?? '').length > 10, mascots: (t?.querySelectorAll('.welcome-tour-mascots .agent-mascot').length ?? 0) >= 3, steps: t?.querySelectorAll('.welcome-tour-dots li').length === 4 }; })()");
+  await evaluate("document.querySelector('dialog.welcome-tour .welcome-tour-skip')?.click(); true");
   /* The welcome asks one question. */
   checks.welcomeOpens = await waitFor("document.querySelector('dialog.onboarding[open]') !== null", 40_000);
   await sleep(600);

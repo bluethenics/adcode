@@ -26,6 +26,8 @@ import { createTaskDetailsDialog } from "./taskDetailsDialog.ts";
 import { createTasksPopupDialog } from "./tasksPopupDialog.ts";
 import { SPONSORED_SETTING, createSponsorStrip } from "./sponsoredReply.ts";
 import { exportConversationText } from "./chatExport.ts";
+import { DONE_SOUND_SETTING, playDoneSound, shouldChime } from "./doneSound.ts";
+import { createDotField } from "../onboarding/dotField.ts";
 import { isWebSurface } from "../surface.ts";
 import type { PreviewStatus } from "../../shared/api.ts";
 import type {
@@ -304,12 +306,16 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   window.adcode.settings.onChanged(() => { if (open) void refreshModelStatus(); });
   // Sponsored cards under replies follow their setting: read now and whenever settings change.
   let sponsoredReplies = false;
+  let doneSound = false;
   const sponsorStrip = createSponsorStrip();
+  // ADCode's own advertisers come first: while a direct card shows, the partner strip stands down.
+  window.adcode.ads.onShow((toast) => sponsorStrip.yieldTo(toast.autoDismissMs + 2_000));
   const readSponsored = (): void => {
     void window.adcode.settings.read().then((values) => {
       const record = values as Record<string, unknown>;
       // Desktop only: the web workspace's own policy does not admit the sponsored frame yet.
       sponsoredReplies = !isWebSurface() && record[SPONSORED_SETTING] === true && record["adcode.ads.enabled"] !== false;
+      doneSound = record[DONE_SOUND_SETTING] === true;
       // Turning the setting off stops the cards already on screen, not just the next reply.
       if (!sponsoredReplies) sponsorStrip.clear();
     }, () => { sponsoredReplies = false; });
@@ -2719,7 +2725,23 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     }
   }
   paintSetup();
-  welcome.append(welcomeTitle, welcomeText, setupSteps);
+  /*
+   * The dot field, twice, and small both times. Behind an empty conversation it is a faint,
+   * slow backdrop, so a blank chat is a place rather than a void. Along the composer's top
+   * edge, while the assistant is generating, the same dots become a line with a light running
+   * through it: a second, quieter sign of work beside the "Thinking" line. The canvas draws
+   * only while it is on screen (dotField.ts), so it costs nothing once a conversation starts.
+   */
+  const welcomeField = createDotField({ pitch: 9, mood: "calm" });
+  welcomeField.element.classList.add("chat-welcome-field");
+  welcome.append(welcomeField.element, welcomeTitle, welcomeText, setupSteps);
+  // A canvas field is too short to show anything along a 12px edge, so this one is CSS:
+  // a dotted line with a bright band sweeping along it (dotDetails.css).
+  const busyDots = document.createElement("span");
+  busyDots.className = "chat-busy-dots";
+  busyDots.setAttribute("aria-hidden", "true");
+  busyDots.append(document.createElement("span"));
+  composer.prepend(busyDots);
   const refreshWelcome = (): void => {
     const empty = transcript.childElementCount === 0;
     if (empty) {
@@ -3595,6 +3617,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           // Saving is asynchronous in the editor; give it a moment before the task goes on.
           window.setTimeout(() => { if (!resend(CONTINUE_PROMPT)) save.disabled = false; }, 400);
         }, primary);
+      } else if (kind === "open-folder") {
+        action("Open a folder", () => openFolderDialog(), primary);
       } else if (kind === "usage") {
         action("View AI usage", () => void openUsageDialog(), primary);
       } else if (kind === "buy-model-credits") {
@@ -4954,6 +4978,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         const finished = streamingBubble;
         finished?.classList.remove("is-streaming");
         streamingBubble = null;
+        // The chime, for anyone who asked for one: a long task, or one that ended while they were elsewhere.
+        if (!replaying && shouldChime({ enabled: doneSound, elapsedMs: turnStartedAt === 0 ? 0 : Date.now() - turnStartedAt, windowFocused: document.hasFocus(), failed: finished === null })) playDoneSound();
         // Fold the timeline to "Worked for Ns", leaving the answer below it, before the actions row lands.
         finishTimeline();
         setSendMode("send");

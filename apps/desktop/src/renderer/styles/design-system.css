@@ -840,3 +840,17 @@ progress.ad-progress::-moz-progress-bar { background: var(--fill-primary); borde
   .ad-switch > input::before, .ad-check > input::after { display: none; }
   .ad-btn, .ad-dialog, .ad-menu { border: 1px solid ButtonText; }
 }
+
+/*
+ * The tooltip as a layer (workbench/tooltip.ts): the box above, placed by script beside the
+ * control it explains. It never takes the pointer, sits above every panel and popup, and
+ * arrives with a short rise from the side it hangs on.
+ */
+.ad-tooltip-layer { position: fixed; z-index: 2147483000; left: 0; top: 0; margin: 0; width: max-content; max-width: min(300px, calc(100vw - 12px)); pointer-events: none; overflow-wrap: anywhere; opacity: 0; }
+.ad-tooltip-layer[hidden] { display: none; }
+.ad-tooltip-layer[data-shown="true"] { opacity: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-reduced-motion="true"]) .ad-tooltip-layer { transition: opacity 120ms ease, translate 160ms cubic-bezier(0.22, 1, 0.36, 1); translate: 0 4px; }
+  :root:not([data-reduced-motion="true"]) .ad-tooltip-layer[data-side="above"] { translate: 0 -4px; }
+  :root:not([data-reduced-motion="true"]) .ad-tooltip-layer[data-shown="true"] { translate: 0 0; }
+}

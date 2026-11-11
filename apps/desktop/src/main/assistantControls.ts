@@ -2,7 +2,7 @@ import { app, BrowserWindow } from "electron";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { readFile } from "node:fs/promises";
-import type { ToolRunner } from "@adcode/ai";
+import type { ToolDefinition, ToolRunner } from "@adcode/ai";
 import { CHANNELS } from "../shared/api.ts";
 import { currentWorkspace, onWorkspaceRootChanged } from "./workspace.ts";
 import { connectAssistantMcp } from "./assistantMcp.ts";
@@ -15,11 +15,13 @@ import { extensionRoot, installArchive, installFolder, pluginRoot, removeInstall
 import { confirmInWindow } from "./themedConfirm.ts";
 import { forgetMcpSignIn, signInToMcp } from "./mcpOAuth.ts";
 import { setFeatureSurface } from "@adcode/help";
-import { ADCODE_APP_TOOLS, createAdcodeAppTools } from "./adcodeAppTools.ts";
+import { ADCODE_APP_TOOLS, adcodeAppToolsFor, createAdcodeAppTools } from "./adcodeAppTools.ts";
 import { currentSettings, writeSetting } from "./settings.ts";
 import { runRoomTool } from "./liveRoom.ts";
 
 export { ASSISTANT_EXTENSION_TOOLS, ADCODE_APP_TOOLS };
+/** The app tools this surface offers: no Browser panel or live rooms on the web, and no Browser tool when the person switched it off. */
+export const offeredAppTools = (): readonly ToolDefinition[] => adcodeAppToolsFor({ browser: !onWeb && currentSettings()["adcode.browser.agentControl"] !== false, rooms: !onWeb });
 /** The "Ask before connector tools" setting, read fresh so a change applies to the next call. */
 export const askBeforeConnectorTools = (): boolean => currentSettings()["adcode.ai.askBeforeConnectorTools"] === true;
 let service: ReturnType<typeof createAssistantControlsService> | null = null;
@@ -80,13 +82,38 @@ const onWeb = process.env["ADCODE_PLATFORM"] === "web";
 if (onWeb) setFeatureSurface("web");
 
 let appTools: ToolRunner | null = null;
+let bridgeTools: ToolRunner | null = null;
 /** ADCode itself as tools: its features, its settings, its connectors. */
 function adcodeAppTools(): ToolRunner {
-  appTools ??= createAdcodeAppTools({
+  appTools ??= buildAppTools((title, detail, signal) =>
+    confirmInWindow(BrowserWindow.getFocusedWindow(), { title, body: detail, confirmLabel: "Allow", cancelLabel: "Cancel" }, signal));
+  return appTools;
+}
+
+/**
+ * The same tools for the tool bridge (`toolBridge.ts`), with the same dialogs - but the call
+ * comes from another program while ADCode may be behind it, so the window is brought forward
+ * first and the dialog says who is asking.
+ */
+export function bridgeAppTools(): ToolRunner {
+  bridgeTools ??= buildAppTools((title, detail, signal) => {
+    const window = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows().find((item) => !item.isDestroyed()) ?? null;
+    if (window !== null && !window.isDestroyed()) {
+      if (window.isMinimized()) window.restore();
+      window.show();
+      window.flashFrame(true);
+      window.once("focus", () => window.flashFrame(false));
+    }
+    return confirmInWindow(window, { title: `Another AI tool asks: ${title}`, body: `${detail}\n\nThis request came from a coding agent using ADCode's tools from outside the app.`, confirmLabel: "Allow", cancelLabel: "Cancel" }, signal);
+  });
+  return bridgeTools;
+}
+
+function buildAppTools(confirm: (title: string, detail: string, signal?: AbortSignal) => Promise<boolean>): ToolRunner {
+  return createAdcodeAppTools({
     controls: assistantControls(),
     askBeforeConnectorTools,
-    confirm: (title, detail, signal) =>
-      confirmInWindow(BrowserWindow.getFocusedWindow(), { title, body: detail, confirmLabel: "Allow", cancelLabel: "Cancel" }, signal),
+    confirm,
     platform: onWeb ? "linux" : process.platform,
     settings: currentSettings,
     writeSetting,
@@ -100,7 +127,6 @@ function adcodeAppTools(): ToolRunner {
       return true;
     },
   });
-  return appTools;
 }
 
 export function withAssistantExtensions(base: ToolRunner): ToolRunner {

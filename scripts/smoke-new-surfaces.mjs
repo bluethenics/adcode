@@ -39,7 +39,7 @@ await mkdir(project, { recursive: true });
 await writeFile(join(project, "index.html"), "<h1>Project</h1>\n", "utf8");
 await writeFile(join(userData, "session.json"), JSON.stringify({ state: { root: project, openFiles: [], activeFile: null } }), "utf8");
 // Welcomed already, so the first-run sheet does not cover what is being checked.
-await writeFile(join(userData, "onboarding.json"), JSON.stringify({ completed: true, completedAt: 1 }), "utf8").catch(() => undefined);
+await writeFile(join(userData, "onboarding.json"), JSON.stringify({ tour: 2, completed: true, completedAt: 1 }), "utf8").catch(() => undefined);
 
 const backend = await startSmokeBackend();
 const env = { ...process.env, ...backend.env, ADCODE_USER_DATA_DIR: userData, ELECTRON_ENABLE_LOGGING: "1", ADCODE_ACCOUNT_GATE: "off" };
@@ -125,7 +125,7 @@ try {
   /* ── The live Browser ── */
   checks.openBrowserCommand = await runCommand("Open Browser");
   check("browserPanelIsLive", await waitFor(`!!document.querySelector('.live-browser') && !!document.querySelector('.live-browser-start-search input')`));
-  check("browserStartPage", await evaluate(`(() => { const s = document.querySelector('.live-browser-start'); return { shown: !s.hidden, hasMascot: !!s.querySelector('.chat-mascot'), hasSearch: !!s.querySelector('input') }; })()`));
+  check("browserStartPage", await evaluate(`(() => { const s = document.querySelector('.live-browser-start'); return { shown: !s.hidden, hasMascot: !!s.querySelector('.adcode-mascot'), hasSearch: !!s.querySelector('input') }; })()`));
   await evaluate(`(() => { const input = document.querySelector('.live-browser-start-search input'); input.value = ${JSON.stringify(siteUrl)}; input.closest('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); return true; })()`);
   check("webviewCreated", await waitFor(`!!document.querySelector('webview.live-browser-view')`));
   check("webviewLoadedThePage", await waitFor(`(() => { const v = document.querySelector('webview.live-browser-view'); try { return v.getTitle() === 'Smoke page' && v.getURL() === ${JSON.stringify(siteUrl)}; } catch { return false; } })()`, 30_000));

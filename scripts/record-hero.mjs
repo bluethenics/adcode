@@ -124,7 +124,7 @@ async function film(theme, take) {
   const userData = join(scratch, "profile");
   await Promise.all([mkdir(workspace), mkdir(userData)]);
   await writeFile(join(userData, "session.json"), JSON.stringify({ state: { root: workspace, openFiles: [], activeFile: null } }));
-  await writeFile(join(userData, "onboarding.json"), JSON.stringify({ completed: true, at: Date.now() }));
+  await writeFile(join(userData, "onboarding.json"), JSON.stringify({ tour: 2, completed: true, at: Date.now() }));
 
   const env = { ...process.env, ADCODE_AD_SERVER: "http://127.0.0.1:9" };
   delete env.ELECTRON_RUN_AS_NODE;

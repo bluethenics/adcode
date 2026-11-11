@@ -111,9 +111,22 @@ export function shellFor(command: string, platform: NodeJS.Platform = process.pl
   // Models write PowerShell on Windows as often as cmd. Reported 2026-10-27: "'Get-ChildItem' /
   // 'ForEach-Object' is not recognized as an internal or external command" ended whole tasks.
   if (looksLikePowerShell(command)) {
-    return { file: `${system}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`, args: ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", command], verbatim: false };
+    return { file: `${system}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`, args: ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", powerShellLine(command)], verbatim: false };
   }
   return { file: `${system}\\System32\\cmd.exe`, args: ["/d", "/s", "/c", `"${command}"`], verbatim: true };
+}
+
+/**
+ * The line PowerShell is given. Reported (2.4.0): `cargo check ... 2>&1 | Out-String` passed,
+ * and the task still stopped with "exit 1". Windows PowerShell turns every line a program
+ * writes to stderr into an error record once stderr is redirected, and an error record makes
+ * the shell exit 1 whatever the program itself returned - and cargo, npm, git and most
+ * compilers write their progress to stderr. So a line that redirects stderr ends by exiting
+ * with the program's own code. A line that does not redirect is passed through untouched.
+ */
+export function powerShellLine(command: string): string {
+  if (!/\d?>&1|\*>&1/.test(command)) return command;
+  return `${command}\nif ($null -ne $LASTEXITCODE) { exit $LASTEXITCODE }`;
 }
 
 /** A Verb-Noun cmdlet, a PowerShell variable or a PowerShell-only flag: cmd.exe could never run this line. */

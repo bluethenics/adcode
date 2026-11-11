@@ -208,7 +208,7 @@ describe("usage", () => {
     const agent = createAgent({ provider, model: "test-model", tools: [], runner: runner() });
     const events = await collect(agent.send("hi"));
     expect(events.filter((event) => event.kind === "usage")).toEqual([
-      { kind: "usage", inputTokens: 1200, outputTokens: 34, estimated: false },
+      { kind: "usage", inputTokens: 1200, outputTokens: 34, estimated: false, durationMs: expect.any(Number), firstResponseMs: expect.any(Number) },
     ]);
   });
 

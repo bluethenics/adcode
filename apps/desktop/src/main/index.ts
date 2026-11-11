@@ -15,11 +15,14 @@ import "./profileBootstrap.ts";
 // Install its ipcMain.handle wrapper before any module registers a handler.
 import { describeDebugContext, registerDebugLogIpc } from "./debugLog.ts";
 import { join } from "node:path";
+import { homedir } from "node:os";
+import { isSafeCliToken } from "@adcode/ai";
 import { BrowserWindow, app, ipcMain, shell } from "electron";
 import { registerAddonProtocol, registerAppProtocol, registerSchemePrivileges, RENDERER_ORIGIN } from "./protocol.ts";
 import { installedAddon } from "./community.ts";
 import { registerIpc } from "./ipc.ts";
-import { closeAssistantControls } from "./assistantControls.ts";
+import { bridgeAppTools, closeAssistantControls, offeredAppTools } from "./assistantControls.ts";
+import { configureToolBridge, stopToolBridge } from "./toolBridge.ts";
 import { registerSupportIpc } from "./supportIpc.ts";
 import { registerActivityIpc } from "./activity.ts";
 import { registerOnboardingIpc } from "./onboarding.ts";
@@ -44,7 +47,7 @@ import { aiStopToolProcesses, refreshModelLists } from "./ai.ts";
 import { flushModelOutcomes } from "./modelOutcomes.ts";
 import { flushAiUsage } from "./aiUsage.ts";
 import { getAdRuntime } from "./adRuntime.ts";
-import { currentSettings, loadSettings } from "./settings.ts";
+import { currentSettings, loadSettings, onSettingsChanged } from "./settings.ts";
 import { windowIconPath } from "./windowIcon.ts";
 import { CHANNELS } from "../shared/api.ts";
 import { launchSessionFromArguments } from "./launchIntent.ts";
@@ -370,6 +373,20 @@ void app.whenReady().then(() => {
     .then(() => getAdRuntime().start())
     .catch(() => undefined);
 
+  // Other agents' way into ADCode's tools, once the setting that governs it has been read.
+  // Off the critical path like the ads: a port that will not open must not delay the window.
+  void loadSettings()
+    .then(() => configureToolBridge({
+      directory: app.getPath("userData"),
+      enabled: () => currentSettings()["adcode.ai.toolBridge"] !== false,
+      onSettingsChanged: (listener) => onSettingsChanged(() => listener()),
+      tools: offeredAppTools,
+      runner: bridgeAppTools,
+      claudeDirectories: [app.getPath("userData"), join(homedir(), ".adcode")],
+      isCliSafe: isSafeCliToken,
+    }))
+    .catch(() => undefined);
+
   app.on("activate", () => {
     openWindow("vibe");
   });
@@ -387,6 +404,7 @@ app.on("before-quit", () => {
   void flushModelOutcomes();
   void flushAiUsage();
   void closeAssistantControls();
+  void stopToolBridge();
   disposeAllTerminals();
 
   // Language servers and a project's dev server are both children that outlive us if

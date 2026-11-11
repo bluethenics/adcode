@@ -1,0 +1,176 @@
+/*
+ * Micro-interactions: every control answers the pointer, quickly and quietly.
+ *
+ * Loaded last, so it only fills gaps the earlier sheets left and never restyles anything at
+ * rest. The ideas come from transitions.dev (Jakub Antalik): origin-aware menus, a modal that
+ * scales a hair, a check that pops in, an input that shakes once on a validation error, a
+ * hovered item that nudges its neighbours' attention. That catalogue's transitions are licensed
+ * for use and modification in products like this one, but not for redistribution as a library,
+ * and its README gives no timings. So no code is copied here: every rule below is written for
+ * ADCode's own class names, and the timings are ours (120-240ms, ease-out).
+ *
+ * Rules this file keeps, the same ones motion.css keeps:
+ *   - Only colour-ish properties and the individual `translate` / `scale` properties move.
+ *     Never `transform` on an element that is positioned with it, never layout properties.
+ *   - Every transition and animation sits behind both stillness switches (the operating
+ *     system's reduce-motion setting and ADCode's own), and every :hover behind a real pointer.
+ *   - Keyframes run from a start frame back to the natural style, so an animation that never
+ *     runs (a hidden window, the smoke harness) leaves everything exactly where it belongs.
+ *   - `:where()` keeps each rule at zero extra weight, so a component's own rule still wins.
+ *
+ * Left alone on purpose: the workspace and browser tab strips (workspacePolish.css switches
+ * their transitions off because tabMotion.ts animates them), the dialogs and popups that
+ * popupShell.ts opens with the Web Animations API, toasts (notifications.css owns their
+ * states), and lists walked with the arrow keys, where a fade on every keystroke reads as lag.
+ */
+
+@media (prefers-reduced-motion: no-preference) {
+  /*
+   * One transition list for every button-like control. motion.css gives plain buttons a list
+   * without box-shadow or the old `transform` press, so a tab whose selected state adds a
+   * shadow, or an icon button that presses, would snap. This restates it with both.
+   */
+  :root:not([data-reduced-motion="true"]) :where(.ad-btn, .btn, .ghost-button, .ad-icon-btn, .ad-tab, .connect-tab, .ad-nav-item, .ad-card-row, .welcome-action, .theme-card, .feature-library-category, .segment) {
+    transition:
+      background-color 140ms ease,
+      border-color 140ms ease,
+      color 140ms ease,
+      box-shadow 160ms ease,
+      opacity 140ms ease,
+      transform var(--duration-exit) var(--ease-sheet),
+      scale 120ms var(--motion-curve),
+      translate 160ms var(--motion-curve);
+  }
+
+  /* Tabs give a little under the finger, like buttons do. */
+  :root:not([data-reduced-motion="true"]) :where(.ad-tab, .connect-tab, .ad-card-row, .ad-nav-item, .feature-library-category):active:not(:disabled) {
+    scale: var(--motion-press);
+  }
+
+  /* Text fields: the border, ring and tint ease in on focus rather than snapping. */
+  :root:not([data-reduced-motion="true"]) :where(.ad-input, .ad-textarea, .ad-select, .settings-search, .settings-text, .search-input, .prompt-input, .report-textarea, .connect-input, .shortcuts-search, .structure-filter, .breadcrumb-search, .chat-history-search) {
+    transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 160ms ease, opacity 140ms ease;
+  }
+  :root:not([data-reduced-motion="true"]) :where(.ad-search) {
+    transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 160ms ease;
+  }
+
+  /* A field that has just been marked invalid shakes once, then rests where it was. */
+  :root:not([data-reduced-motion="true"]) :where(.ad-input, .ad-textarea, .ad-select, .prompt-input, .connect-input)[aria-invalid="true"] {
+    animation: tx-shake 240ms ease-out;
+  }
+
+  /* Checkboxes and radios: the fill eases, the tick pops in, and a press squeezes the box. */
+  :root:not([data-reduced-motion="true"]) :where(.ad-check, .ad-radio) > input {
+    transition: background-color 140ms ease, border-color 140ms ease, box-shadow 160ms ease, opacity 140ms ease, scale 120ms var(--motion-curve);
+  }
+  :root:not([data-reduced-motion="true"]) :where(.ad-check, .ad-radio):active > input:not(:disabled) {
+    scale: .92;
+  }
+  :root:not([data-reduced-motion="true"]) :where(.ad-check) > input:checked::after {
+    animation: tx-pop 160ms var(--motion-curve) backwards;
+  }
+
+  /*
+   * Switches: the track fades between its two colours, and the knob stretches a hair while it
+   * is held, the way a real one does. The knob is positioned with `transform`, so the
+   * stretch uses `scale`, which composes with it instead of replacing it.
+   */
+  :root:not([data-reduced-motion="true"]) :where(.ad-switch) > input {
+    transition: background-color 180ms ease, border-color 180ms ease, opacity 140ms ease;
+  }
+  :root:not([data-reduced-motion="true"]) :where(.ad-switch) > input::before {
+    transition: transform var(--duration-exit) var(--ease-sheet), scale 120ms var(--motion-curve);
+  }
+  :root:not([data-reduced-motion="true"]) :where(.ad-switch) > input:active:not(:disabled)::before {
+    scale: 1.1 1;
+  }
+  :root:not([data-reduced-motion="true"]) :where(.ios-switch-knob) {
+    transition: transform 220ms var(--ease-sheet), scale 120ms var(--motion-curve);
+  }
+  :root:not([data-reduced-motion="true"]) :where(.ios-switch):active input:not(:disabled) + .ios-switch-track .ios-switch-knob {
+    scale: 1.08 1;
+  }
+
+  /* Cards and rows that carry a chevron or an icon tile: those parts answer the pointer. */
+  :root:not([data-reduced-motion="true"]) :where(.ad-card-chevron) {
+    transition: translate 160ms var(--motion-curve), color 140ms ease;
+  }
+  :root:not([data-reduced-motion="true"]) :where(.ad-card-icon) {
+    transition: scale 160ms var(--motion-curve), background-color 140ms ease;
+  }
+
+  /* Small status parts: a change of tone fades instead of flipping. */
+  :root:not([data-reduced-motion="true"]) :where(.ad-progress > span, .ad-notif-dot, .feature-library-category-count, .assistant-skill-source-badge) {
+    transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease, opacity 200ms ease;
+  }
+
+  /*
+   * Disclosures: the chevron turns instead of jumping, and what was hidden rises in. Only the
+   * ones whose chevron is drawn with `transform` are listed; the others have no chevron to turn.
+   */
+  :root:not([data-reduced-motion="true"]) :where(.connect-key-section > summary)::after {
+    transition: transform 160ms var(--motion-curve);
+  }
+  :root:not([data-reduced-motion="true"]) :where(.chat-card .trace-summary)::after {
+    transition: transform 160ms var(--motion-curve);
+  }
+  :root:not([data-reduced-motion="true"]) :where(.connect-key-section, .trace-entry, .shared-project-group)[open] > :not(summary, .trace-summary) {
+    animation: tx-reveal 160ms var(--motion-curve) backwards;
+  }
+
+  /*
+   * Menus and dialogs that nothing else animates. Menus grow out of their top-left corner,
+   * where the control that opened them sits; a dialog fades in a hair larger than rest, with
+   * its backdrop fading under it. `scale`, never `transform`, so positioning is untouched.
+   */
+  :root:not([data-reduced-motion="true"]) :where(.ad-menu, .breadcrumb-popover, .feature-library-filter-menu):not([hidden]) {
+    transform-origin: top left;
+    animation: motion-grow 150ms var(--motion-curve) backwards;
+  }
+  :root:not([data-reduced-motion="true"]) :where(.ad-dialog)[open] {
+    animation: motion-dialog-in var(--motion-enter) var(--motion-curve) backwards;
+  }
+  :root:not([data-reduced-motion="true"]) :where(.ad-dialog)[open]::backdrop {
+    animation: motion-backdrop-in var(--motion-enter) ease-out backwards;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    /* Filled buttons lift a pixel. Flat ones (ghost, tertiary, icon) only tint, as they do now. */
+    :root:not([data-reduced-motion="true"]) :where(.ad-btn:not(.ad-btn-tertiary), .btn, .result-close, .confirm-cancel):hover:not(:disabled) {
+      translate: 0 -1px;
+    }
+
+    /* Launch cards and theme cards rise a pixel; list rows lean in. */
+    :root:not([data-reduced-motion="true"]) :where(.welcome-action, .theme-card):hover:not(:disabled) {
+      translate: 0 -1px;
+    }
+    :root:not([data-reduced-motion="true"]) :where(.feature-library-category, .ad-nav-item):hover:not(:disabled) {
+      translate: 1px 0;
+    }
+
+    /* A tappable row points the way: its chevron steps forward and its icon tile swells. */
+    :root:not([data-reduced-motion="true"]) :where(.ad-card-row):hover:not(:disabled) .ad-card-chevron {
+      translate: 2px 0;
+    }
+    :root:not([data-reduced-motion="true"]) :where(.ad-card-row):hover:not(:disabled) .ad-card-icon {
+      scale: 1.05;
+    }
+  }
+}
+
+/* Shakes from rest to rest: no end frame, so the field is never left off-centre. */
+@keyframes tx-shake {
+  20% { translate: -3px 0; }
+  40% { translate: 3px 0; }
+  60% { translate: -2px 0; }
+  80% { translate: 1px 0; }
+}
+
+@keyframes tx-pop {
+  from { opacity: 0; scale: .6; }
+}
+
+@keyframes tx-reveal {
+  from { opacity: 0; translate: 0 -4px; }
+}

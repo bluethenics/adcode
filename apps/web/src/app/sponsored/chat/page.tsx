@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Imprezia, { MonetizedContentWithCards } from "@adimpress/imprezia-sdk";
 import { hasCards } from "@adimpress/imprezia-sdk/utils/cardHelpers";
 import { Zeekend, type ZeekendClient, type ZeekendSlot } from "@zeekend/sdk";
-import { networksFor, parseNetworks, ZEEKEND_COLOURS, zeekendSessionId, zeekendTransport, type SponsoredNetwork } from "@/lib/sponsoredNetworks";
+import { networksFor, parseNetworks, withoutPrices, ZEEKEND_COLOURS, zeekendSessionId, zeekendTransport, type SponsoredNetwork } from "@/lib/sponsoredNetworks";
 import "./sponsored.css";
 
 /**
@@ -125,7 +125,8 @@ export default function SponsoredChat() {
   useEffect(() => {
     const mount = zeekendMount.current;
     if (mount === null || result?.network !== "zeekend" || exchange === null) return;
-    const unit = result.client.render(result.slot, mount, { theme: { ...ZEEKEND_COLOURS[exchange.theme] } });
+    // Drawn by Zeekend's own unit, minus the price (see withoutPrices): the card names the product, the page it opens prices it.
+    const unit = result.client.render(withoutPrices(result.slot), mount, { theme: { ...ZEEKEND_COLOURS[exchange.theme] } });
     return () => { unit?.remove(); };
   }, [result, exchange]);
 

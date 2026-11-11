@@ -46,7 +46,7 @@ git("add", ".");
 git("commit", "-q", "-m", "cart");
 await writeFile(join(workspace, "src/cart.js"), "export function subtotal(items) {\n  return items.reduce((sum, item) => sum + item.price * item.qty, 0);\n}\n\nexport function shipping(total) {\n  return total > 50 ? 0 : 4.99;\n}\n");
 await writeFile(join(userData, "session.json"), JSON.stringify({ state: { root: workspace, openFiles: [join(workspace, "src/cart.js")], activeFile: join(workspace, "src/cart.js") } }));
-await writeFile(join(userData, "onboarding.json"), JSON.stringify({ completed: true, at: Date.now() }));
+await writeFile(join(userData, "onboarding.json"), JSON.stringify({ tour: 2, completed: true, at: Date.now() }));
 
 /* ── The fake model: records every request, answers in one chunk ─────────── */
 

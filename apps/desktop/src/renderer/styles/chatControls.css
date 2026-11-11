@@ -323,7 +323,7 @@ body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-row {
 
 /* ── Usage ─────────────────────────────────────────────────────────────── */
 
-.ai-usage-dialog { width: min(920px, calc(100vw - 32px)); max-width: calc(100vw - 32px); }
+.ai-usage-dialog { width: min(1180px, calc(100vw - 32px)); max-width: calc(100vw - 32px); }
 .ai-usage-dialog .form-dialog-card { display: flex; flex-direction: column; gap: var(--space-4); max-height: calc(100dvh - 48px); overflow: hidden; padding: var(--space-5); }
 .ai-usage-dialog .form-dialog-card > :not(.usage-scroll) { flex-shrink: 0; }
 .usage-scroll { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: var(--space-4); flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 2px; margin: -2px; }

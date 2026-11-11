@@ -36,3 +36,26 @@
 @media (prefers-reduced-motion: no-preference) {
   :root:not([data-reduced-motion="true"]) .move-in-group { animation: motion-rise var(--motion-enter) var(--motion-curve) backwards; }
 }
+
+/* What the scan found and where (moveIn.ts, paintReport). */
+.move-in-report { display: grid; gap: var(--space-2); }
+.move-in-report[hidden] { display: none; }
+.move-in-subheading { margin: var(--space-2) 0 0; font-size: var(--text-xs); font-weight: 600; color: var(--text-secondary); }
+.move-in-sources, .move-in-projects { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.move-in-source { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); }
+.move-in-source > div { display: grid; gap: 1px; min-width: 0; }
+.move-in-source strong { font-size: var(--text-sm); }
+.move-in-source code { font: var(--text-xs) var(--font-mono); color: var(--text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.move-in-source-count { flex: none; font-size: var(--text-xs); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.move-in-source[data-present="false"] { opacity: .6; }
+.move-in-projects { max-height: 240px; overflow: auto; }
+.move-in-project { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--bg-elevated); }
+.move-in-project[data-exists="false"] { background: transparent; }
+.move-in-project-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.move-in-project-text strong { font-size: var(--text-sm); }
+.move-in-project-path { font: var(--text-xs) var(--font-mono); color: var(--text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.move-in-project-by { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.move-in-chip { padding: 1px 8px; border: 1px solid var(--border-subtle); border-radius: 999px; font-size: 10px; color: var(--text-secondary); }
+.move-in-project-side { display: grid; justify-items: end; gap: 4px; flex: none; }
+.move-in-project-side small { font-size: 10px; color: var(--text-tertiary); }
+.move-in-project-gone { color: var(--warning); }

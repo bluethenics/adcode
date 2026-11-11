@@ -16,7 +16,7 @@ import {
   searchComposioApps, type ComposioApp, type ComposioCategory,
 } from "../../shared/composioApps.ts";
 import { button, el } from "../dialogs/formDialog.ts";
-import { createMascot } from "../ai/mascot.ts";
+import { createAdcodeMascot, type AdcodeMascot } from "../mascot/adcodeMascot.ts";
 
 export interface ComposioAppsDeps {
   readonly query: () => string;
@@ -56,8 +56,12 @@ export function createComposioAppsView(deps: ComposioAppsDeps): { render(panel: 
   let controls: AssistantControlsView | null = null;
   let busy = false;
   let host: HTMLElement | null = null;
+  // One Buck for the life of the view, moved into each new banner: the banner is rebuilt on
+  // every keystroke in the search box, and a fresh mascot each time would restart his
+  // entrance and leave a set of observers behind for every letter typed.
+  let mascot: AdcodeMascot | null = null;
 
-  const server = (): AssistantServerView | undefined => controls?.servers.find((item) => item.id === COMPOSIO_CONNECTOR_ID);
+  const server =(): AssistantServerView | undefined => controls?.servers.find((item) => item.id === COMPOSIO_CONNECTOR_ID);
 
   async function act(action: AssistantControlAction): Promise<boolean> {
     try {
@@ -110,7 +114,9 @@ export function createComposioAppsView(deps: ComposioAppsDeps): { render(panel: 
     const state = busy ? "connecting" : composioState(server());
     const box = el("section", "composio-banner");
     box.dataset["state"] = state;
-    const mascot = createMascot({ mood: state === "connected" ? "done" : state === "connecting" ? "working" : state === "error" ? "error" : "idle", label: "ADCode mascot" });
+    const buck = mascot ?? createAdcodeMascot({ interactive: true });
+    mascot = buck;
+    buck.setMood(state === "connected" ? "proud" : state === "connecting" ? "connecting" : state === "error" ? "error" : "idle");
     const text = el("div", "composio-banner-text");
     const title = state === "connected" ? "Composio is connected"
       : state === "connecting" ? "Connecting to Composio…"
@@ -130,7 +136,7 @@ export function createComposioAppsView(deps: ComposioAppsDeps): { render(panel: 
       go.disabled = state === "connecting";
       actions.append(go);
     }
-    box.append(mascot.element, text, actions);
+    box.append(buck.element, text, actions);
     return box;
   }
 

@@ -449,6 +449,9 @@ export function createAgent(deps: AgentDeps): Agent {
       // What this request cost: the provider's count when it gives one, otherwise counted
       // here from what went out and what came back.
       let sent: ProviderRequest | null = null;
+      // For the usage page's speed figures: when the request went out, and when the first byte came back.
+      let requestStartedAt = 0;
+      let firstEventAt = 0;
       let reportedUsage: { inputTokens: number; outputTokens: number; cachedTokens?: number } | null = null;
       let outputChars = 0;
       let streamed = false;
@@ -508,11 +511,13 @@ export function createAgent(deps: AgentDeps): Agent {
         }
         const stream = deps.provider.stream(request, signal);
         sent = request;
+        requestStartedAt = Date.now();
         // One reader per streaming call, keyed by the provider's index: an OpenAI-compatible
         // stream may name the call's id only after its first fragment.
         const drafts = new Map<number, { readonly reader: ToolDraftReader | null; id: string }>();
 
         for await (const event of stream) {
+          if (firstEventAt === 0) firstEventAt = Date.now();
           if (signal.aborted) break;
 
           switch (event.kind) {
@@ -614,13 +619,18 @@ export function createAgent(deps: AgentDeps): Agent {
       // part, is counted. Estimates are rough (about three characters a token in, four out)
       // and say so, so the usage page never passes a guess off as the provider's bill.
       if (sent !== null && (reportedUsage !== null || streamed || outputChars > 0)) {
+        // Timed only when the stream really ran: a refused request has no speed to speak of.
+        const timing = requestStartedAt > 0 && firstEventAt > 0
+          ? { durationMs: Math.max(0, Date.now() - requestStartedAt), firstResponseMs: Math.max(0, firstEventAt - requestStartedAt) }
+          : {};
         yield reportedUsage !== null
-          ? { kind: "usage", ...reportedUsage, estimated: false }
+          ? { kind: "usage", ...reportedUsage, estimated: false, ...timing }
           : {
               kind: "usage",
               inputTokens: estimateTokens(sent.system, sent.messages, sent.tools),
               outputTokens: Math.ceil(outputChars / 4),
               estimated: true,
+              ...timing,
             };
       }
 

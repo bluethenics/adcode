@@ -23,6 +23,7 @@ import {
   type UsageRange,
   type UsageRow,
 } from "../shared/aiUsage.ts";
+import { usageInsights, type AnalysedUsageView } from "../shared/usageInsights.ts";
 import { atomicReplace } from "./atomicReplace.ts";
 
 const WRITE_AFTER_MS = 2_000;
@@ -113,10 +114,11 @@ export function recordAiUsage(entry: UsageEntry): void {
   });
 }
 
-export async function readAiUsage(range: unknown): Promise<AiUsageView> {
+export async function readAiUsage(range: unknown): Promise<AnalysedUsageView> {
   await load();
   const chosen: UsageRange = range === "today" || range === "7d" || range === "30d" || range === "all" ? range : "7d";
-  return summarizeUsage(rows, chosen, Date.now());
+  const now = Date.now();
+  return { ...summarizeUsage(rows, chosen, now), insights: usageInsights(rows, chosen, now) };
 }
 
 export async function clearAiUsage(): Promise<void> {

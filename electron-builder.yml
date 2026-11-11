@@ -41,6 +41,8 @@ files:
     to: .
     filter:
       - build/icon.png
+      # Windows windows use the .ico: it holds a drawing for each small size (see windowIcon.ts).
+      - build/icon.ico
   - from: ../../node_modules/node-pty
     to: node_modules/node-pty
     filter:

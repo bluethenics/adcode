@@ -26,3 +26,19 @@ it("writes completion atomically and remembers it if a disk write fails", async 
   await expect(completed()).resolves.toBe(true);
   expect(mocks.read).not.toHaveBeenCalled();
 });
+it("shows the tour to somebody new, once more to somebody welcomed before it existed, and then to nobody", async () => {
+  const { tourAudience, WELCOME_TOUR } = await import("../src/main/onboarding.ts");
+  expect(tourAudience(null)).toBe("new");
+  expect(tourAudience({ completed: false, tour: 1 })).toBe("new");
+  expect(tourAudience({ completed: true, tour: 1 })).toBe("returning");
+  expect(tourAudience({ completed: true, tour: WELCOME_TOUR })).toBe("done");
+  const tour = () => mocks.handlers.get(CHANNELS.onboardingTour)!();
+  mocks.read.mockResolvedValueOnce('{"completed":true}');
+  await expect(tour()).resolves.toBe("returning");
+  // An unreadable record never costs anybody a modal.
+  mocks.read.mockResolvedValueOnce("bad json");
+  await expect(tour()).resolves.toBe("done");
+  await complete();
+  expect(mocks.write).toHaveBeenCalledWith(expect.any(String), expect.stringContaining(`"tour":${WELCOME_TOUR}`), "utf8");
+  await expect(tour()).resolves.toBe("done");
+});

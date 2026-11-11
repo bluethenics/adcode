@@ -22,6 +22,13 @@ import process from "node:process";
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SOURCE = join(REPO, "build", "icon.svg");
+/**
+ * The same mark drawn for small sizes. Reported: in the taskbar the icon was a small grey
+ * mark lost in a black square - the full artwork's glow and shading do not survive 24 pixels.
+ */
+const SMALL_SOURCE = join(REPO, "build", "icon-small.svg");
+/** Up to and including this many pixels, the small drawing is used. */
+const SMALL_UP_TO = 48;
 const LOG = join(REPO, "build", "icons.log");
 
 /**
@@ -188,11 +195,13 @@ void app.whenReady().then(async () => {
   try {
     await window.loadURL("data:text/html,<!doctype html><html><body></body></html>");
     const svg = await readFile(SOURCE, "utf8");
+    const small = await readFile(SMALL_SOURCE, "utf8");
+    const artFor = (size) => (size <= SMALL_UP_TO ? small : svg);
 
     const images = [];
     for (const size of ICO_SIZES) {
-      images.push({ size, png: await render(window, svg, size) });
-      log(`  rendered ${size}x${size}`);
+      images.push({ size, png: await render(window, artFor(size), size) });
+      log(`  rendered ${size}x${size}${size <= SMALL_UP_TO ? " (small drawing)" : ""}`);
     }
 
     await writeFile(join(REPO, "build", "icon.ico"), buildIco(images));
@@ -205,7 +214,7 @@ void app.whenReady().then(async () => {
     const appx = join(REPO, "build", "appx");
     await mkdir(appx, { recursive: true });
     for (const tile of APPX_TILES) {
-      await writeFile(join(appx, tile.file), await renderTile(window, svg, tile.width, tile.height));
+      await writeFile(join(appx, tile.file), await renderTile(window, artFor(Math.min(tile.width, tile.height)), tile.width, tile.height));
       log(`build/appx/${tile.file}  ${tile.width}x${tile.height}`);
     }
 

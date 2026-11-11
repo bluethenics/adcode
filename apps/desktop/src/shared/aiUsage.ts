@@ -44,6 +44,15 @@ export interface UsageRow {
   /** Requests with a known price; their cost is in `costMicros`. */
   readonly pricedRequests: number;
   readonly costMicros: number;
+  /**
+   * Speed, kept from 2.6 on: how many of the day's requests were timed, their total time, the
+   * total wait for a first response, and the output tokens those timed requests produced.
+   * Absent in rows written before, which simply have no speed to show.
+   */
+  readonly timedRequests?: number;
+  readonly durationMs?: number;
+  readonly firstResponseMs?: number;
+  readonly timedOutputTokens?: number;
 }
 
 export interface UsagePrice {
@@ -63,6 +72,9 @@ export interface UsageEntry {
   readonly cachedTokens?: number;
   readonly estimated: boolean;
   readonly at: number;
+  /** Start to end of the provider's stream, when the request was timed. */
+  readonly durationMs?: number;
+  readonly firstResponseMs?: number;
   /** Null when the catalogue has no price for this model. */
   readonly price: UsagePrice | null;
 }
@@ -148,6 +160,9 @@ export function addUsage(rows: readonly UsageRow[], entry: UsageEntry): UsageRow
   const outputTokens = finite(entry.outputTokens);
   const cachedTokens = Math.min(finite(entry.cachedTokens ?? 0), inputTokens);
   const priced = entry.price !== null;
+  // A day-long or zero "duration" is a clock change or a bug, not a speed.
+  const duration = finite(entry.durationMs ?? 0);
+  const timed = duration > 0 && duration < 3_600_000;
   const cost = entry.price === null ? 0 : costOf(entry.price, inputTokens, outputTokens, cachedTokens);
   const index = rows.findIndex((row) => row.day === day && row.provider === entry.provider && row.model === entry.model && row.source === entry.source);
   const base: UsageRow = index === -1
@@ -162,6 +177,12 @@ export function addUsage(rows: readonly UsageRow[], entry: UsageEntry): UsageRow
     estimatedRequests: base.estimatedRequests + (entry.estimated ? 1 : 0),
     pricedRequests: base.pricedRequests + (priced ? 1 : 0),
     costMicros: base.costMicros + cost,
+    ...(timed ? {
+      timedRequests: (base.timedRequests ?? 0) + 1,
+      durationMs: (base.durationMs ?? 0) + duration,
+      firstResponseMs: (base.firstResponseMs ?? 0) + Math.min(duration, finite(entry.firstResponseMs ?? 0)),
+      timedOutputTokens: (base.timedOutputTokens ?? 0) + outputTokens,
+    } : {}),
   };
   if (index === -1) return [...rows, next];
   const copy = [...rows];
@@ -198,7 +219,9 @@ export function parseUsageRows(raw: unknown): UsageRow[] {
     const [requests, inputTokens, outputTokens, estimatedRequests, pricedRequests, costMicros] = numbers as number[];
     // Files written before cached counts were kept have none; that reads as nothing cached.
     const cachedTokens = Math.min(count(row["cachedTokens"]) ?? 0, inputTokens!);
-    rows.push({ day, provider, model, source, requests: requests!, inputTokens: inputTokens!, outputTokens: outputTokens!, cachedTokens, estimatedRequests: estimatedRequests!, pricedRequests: pricedRequests!, costMicros: costMicros! });
+    const timedRequests = Math.min(count(row["timedRequests"]) ?? 0, requests!);
+    rows.push({ day, provider, model, source, requests: requests!, inputTokens: inputTokens!, outputTokens: outputTokens!, cachedTokens, estimatedRequests: estimatedRequests!, pricedRequests: pricedRequests!, costMicros: costMicros!,
+      ...(timedRequests > 0 ? { timedRequests, durationMs: count(row["durationMs"]) ?? 0, firstResponseMs: count(row["firstResponseMs"]) ?? 0, timedOutputTokens: Math.min(count(row["timedOutputTokens"]) ?? 0, outputTokens!) } : {}) });
   }
   return rows;
 }

@@ -227,6 +227,10 @@ export type AgentEvent =
       readonly outputTokens: number;
       readonly cachedTokens?: number;
       readonly estimated: boolean;
+      /** How long the provider took to answer this request, start to end of stream, in milliseconds. */
+      readonly durationMs?: number;
+      /** How long until the provider sent anything at all. */
+      readonly firstResponseMs?: number;
     };
 
 export type StopReason = "end-turn" | "tool-use" | "max-tokens" | "refusal" | "cancelled";

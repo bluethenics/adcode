@@ -182,6 +182,10 @@ const transcript = "document.querySelector('.chat-conversation')?.textContent ??
 
 const checks = {};
 try {
+  /* A first launch opens the welcome tour; skipping it leads to the question below. */
+  checks.tourOpensFirst = await waitFor("document.querySelector('dialog.welcome-tour[open]') !== null", 40_000);
+  checks.tourHasItsParts = await evaluate("(() => { const t = document.querySelector('dialog.welcome-tour'); return { dotField: !!t?.querySelector('canvas.dot-field'), headline: (t?.querySelector('.welcome-tour-headline')?.textContent ?? '').length > 10, mascots: (t?.querySelectorAll('.welcome-tour-mascots .agent-mascot').length ?? 0) >= 3, steps: t?.querySelectorAll('.welcome-tour-dots li').length === 4 }; })()");
+  await evaluate("document.querySelector('dialog.welcome-tour .welcome-tour-skip')?.click(); true");
   /* The welcome: an idea, then the local model. */
   checks.welcomeOpens = await waitFor("document.querySelector('dialog.onboarding[open]') !== null", 40_000);
   await sleep(600);

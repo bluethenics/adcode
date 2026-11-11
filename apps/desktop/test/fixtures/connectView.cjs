@@ -29,6 +29,10 @@ app.whenReady().then(async () => {
       document.documentElement.dataset.theme = 'dark';
       const exports = {}; ${connections}
       const require = () => exports;
+      // The CLI tab's helpers: the desktop surface, and a plain element standing in for a mascot.
+      exports.isWebSurface = () => false;
+      exports.defaultMascotFor = () => ({ shape: 'circle', color: 'blue' });
+      exports.createAgentMascot = () => ({ element: document.createElement('span') });
       ${view}
       const make = (id, displayName, hasKey, needsKey, models) => ({ id, displayName, hasKey, needsKey, models, transport: 'native', doc: null });
       const model = (id, name, reasoning = false) => ({ id, name, reasoning, toolCall: true });
@@ -117,7 +121,7 @@ app.whenReady().then(async () => {
       result.selectedCardVisible = fixture.querySelector('.connect-free-model').dataset.current === 'true';
       const freeTab = fixture.querySelector('[role="tab"][aria-selected="true"]');
       freeTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
-      result.keyboardTabs = fixture.querySelector('[role="tab"][aria-selected="true"]').textContent === 'Your API key' && fixture.querySelector('.connect-free-panel').hidden;
+      result.keyboardTabs = fixture.querySelector('[role="tab"][aria-selected="true"]').textContent === 'Coding CLIs' && fixture.querySelector('.connect-free-panel').hidden && !fixture.querySelector('.connect-cli-panel').hidden;
       document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
       result.keyboardTabs &&= fixture.querySelector('[role="tab"][aria-selected="true"]').textContent === 'Free models';
       fixture.style.width = '360px'; await settle();

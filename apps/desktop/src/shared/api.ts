@@ -75,7 +75,8 @@ import type { MilestoneName } from "./milestones.ts";
 import type { AssistantControlAction, AssistantControlsView } from "./assistantControls.ts";
 import type { McpNodeCheck } from "./mcpNode.ts";
 import type { LiveAgentEventView } from "./liveAgents.ts";
-import type { AiUsageView, UsageRange } from "./aiUsage.ts";
+import type { UsageRange } from "./aiUsage.ts";
+import type { AnalysedUsageView } from "./usageInsights.ts";
 import type { TagflowAllowanceView } from "./tagflow.ts";
 
 export type { ActivityDelta };
@@ -686,6 +687,8 @@ export const CHANNELS = {
   aiDetectOllama: "ai:detect-ollama",
   aiStartOllama: "ai:start-ollama",
   aiRefreshCliAgents: "ai:refresh-cli-agents",
+  aiToolBridge: "ai:tool-bridge",
+  aiRegenerateToolBridgeToken: "ai:tool-bridge-regenerate",
   aiImportScan: "ai:import-scan",
   aiImportFile: "ai:import-file",
   aiImportChats: "ai:import-chats",
@@ -926,6 +929,7 @@ export const CHANNELS = {
   ratingOpen: "rating:open",
   onboardingState: "onboarding:state",
   onboardingComplete: "onboarding:complete",
+  onboardingTour: "onboarding:tour",
   pinPromptOffer: "pin:offer",
   pinPromptShown: "pin:shown",
   pinPromptSettle: "pin:settle",
@@ -1260,6 +1264,33 @@ export interface ChatImportScan {
   /** Session files too large to read. */
   readonly skipped: number;
   readonly sources: readonly string[];
+  /**
+   * The projects those conversations happened in: each folder once, with which tools worked
+   * there, how many conversations each had, when it was last used and whether it is still on
+   * this computer. Absent from file imports, which carry no folders.
+   */
+  readonly projects?: readonly ChatImportProject[];
+  /** Per tool: where on this computer it was read from, and what was found there. */
+  readonly found?: readonly ChatImportSourceReport[];
+}
+
+export interface ChatImportProject {
+  readonly folder: string;
+  readonly name: string;
+  readonly exists: boolean;
+  readonly sources: readonly { readonly name: string; readonly conversations: number }[];
+  readonly conversations: number;
+  readonly lastUsed: number;
+}
+
+export interface ChatImportSourceReport {
+  readonly name: string;
+  /** The folder ADCode looked in, as it would be typed (`~/.claude/projects`). */
+  readonly location: string;
+  /** False when the tool's folder does not exist here: not installed, or never used. */
+  readonly present: boolean;
+  readonly conversations: number;
+  readonly projects: number;
 }
 
 export interface ChatImportResult {
@@ -1337,6 +1368,18 @@ export interface LicenceDocuments {
   readonly thirdParty: string | null;
   /** `app.isPackaged`: an installed build, as opposed to a source checkout. */
   readonly packaged: boolean;
+}
+
+/**
+ * The tool bridge: ADCode's own tools offered to other agents over MCP on 127.0.0.1.
+ * `configs` carry the key, ready to paste; empty while the bridge is off.
+ */
+export interface ToolBridgeView {
+  readonly running: boolean;
+  readonly url: string | null;
+  readonly configs: readonly { readonly client: string; readonly text: string }[];
+  /** Why it is not running when it should be (the port could not be opened), or null. */
+  readonly problem: string | null;
 }
 
 export interface AiStatus {
@@ -2156,6 +2199,10 @@ export interface AdcodeApi {
     startOllama(): Promise<AiStatus>;
     /** Look again for coding CLIs on this computer (after installing one) and return the status. */
     refreshCliAgents(): Promise<AiStatus>;
+    /** Whether other AI tools can use ADCode's tools now, where, and configs to paste into them. */
+    toolBridge(): Promise<ToolBridgeView>;
+    /** A new key for the tool bridge; configs pasted before stop working. */
+    regenerateToolBridgeToken(): Promise<ToolBridgeView>;
     /**
      * Look for conversations Claude Code, Codex and OpenCode keep on this computer. Returns
      * titles, folders, dates and counts - no message text.
@@ -2251,7 +2298,7 @@ export interface AdcodeApi {
     audience(input?: import("./tagflow.ts").TagflowAudienceInput): Promise<import("./tagflow.ts").TagflowAudienceResult>;
     feedback(input: import("./tagflow.ts").TagflowFeedbackInput): Promise<import("./tagflow.ts").TagflowFeedbackResult>;
     allowance(): Promise<TagflowAllowanceView | null>;
-    read(range: UsageRange): Promise<AiUsageView>;
+    read(range: UsageRange): Promise<AnalysedUsageView>;
     clear(): Promise<void>;
     onChanged(listener: () => void): () => void;
   };
@@ -2525,6 +2572,8 @@ export interface AdcodeApi {
     completed(): Promise<boolean>;
     /** Records that it has. Never rejects - a failed write costs one repeat, not a crash. */
     complete(): Promise<void>;
+    /** Who the welcome tour is for now: somebody new, somebody welcomed before this tour existed, or nobody. */
+    tour(): Promise<"new" | "returning" | "done">;
   };
   readonly pinPrompt: {
     /**

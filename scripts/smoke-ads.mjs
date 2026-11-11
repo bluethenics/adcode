@@ -92,7 +92,7 @@ await writeFile(
 const longAgo = Date.now() - 86_400_000;
 await writeFile(join(userData, "milestones.json"), JSON.stringify({ firstLaunchAt: longAgo, firstValueAt: longAgo, pending: [] }), "utf8");
 // ...and has been welcomed, so the welcome sheet is not drawn over the card being checked.
-await writeFile(join(userData, "onboarding.json"), JSON.stringify({ completed: true, at: longAgo }), "utf8");
+await writeFile(join(userData, "onboarding.json"), JSON.stringify({ tour: 2, completed: true, at: longAgo }), "utf8");
 
 const child = spawn(
   electronPath,

@@ -24,6 +24,9 @@ import { pasteText } from "../clipboard.ts";
 import { createQuickConnect, type QuickConnect } from "./quickConnect.ts";
 import { localDescription as localDescriptionText, localLabel as localLabelText, WEB_LOCAL_MODELS } from "./localModelsText.ts";
 import { DESKTOP_DOWNLOAD_URL, isWebSurface } from "../surface.ts";
+import { createAgentMascot } from "../agents/agentMascot.ts";
+import { cliConnectPlan, connectCli } from "./cliConnect.ts";
+import { defaultMascotFor } from "../agents/mascotStyle.ts";
 
 export interface ConnectView {
   readonly element: HTMLElement;
@@ -57,6 +60,10 @@ export interface ConnectViewDeps {
   /** Looks for coding CLIs again after one is installed. */
   readonly refreshCliAgents?: () => Promise<AiStatus>;
 }
+
+/** The Connect screen's tabs, in order. */
+export const CONNECT_TABS = ["free", "cli", "all"] as const;
+export type ConnectTab = (typeof CONNECT_TABS)[number];
 
 /** A coding CLI's state in the provider list: what is true of this computer. */
 export function cliLabel(cli: CliAgentView): string {
@@ -118,7 +125,7 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
   let polling: ReturnType<typeof setInterval> | undefined;
   let activityPending = false;
   let unsubscribeStatus: (() => void) | undefined;
-  let activeTab: "free" | "all" = "free";
+  let activeTab: ConnectTab = "free";
   let freeSelecting = false;
   let freeError = "";
   const tabPrefix = `connect-models-${++connectViewSequence}`;
@@ -300,30 +307,40 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
   allPanel.setAttribute("role", "tabpanel");
   allPanel.setAttribute("aria-labelledby", `${tabPrefix}-all-tab`);
   allPanel.append(steps, progress, lede, quickHost, toolbar, body);
-  const tabButtons = (["free", "all"] as const).map((mode) => {
+  // The CLI finder: the coding tools on this computer, each with its one next step.
+  const cliPanel = document.createElement("section");
+  cliPanel.className = "connect-cli-panel";
+  cliPanel.id = `${tabPrefix}-cli-panel`;
+  cliPanel.setAttribute("role", "tabpanel");
+  cliPanel.setAttribute("aria-labelledby", `${tabPrefix}-cli-tab`);
+  const tabButtons = CONNECT_TABS.map((mode) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "connect-tab";
     button.id = `${tabPrefix}-${mode}-tab`;
-    button.textContent = mode === "free" ? "Free models" : "Your API key";
+    button.textContent = mode === "free" ? "Free models" : mode === "cli" ? "Coding CLIs" : "Your API key";
     button.setAttribute("role", "tab");
     button.setAttribute("aria-controls", `${tabPrefix}-${mode}-panel`);
     button.addEventListener("click", () => selectTab(mode));
     button.addEventListener("keydown", (event) => {
       if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
       event.preventDefault();
-      selectTab(event.key === "Home" ? "free" : event.key === "End" ? "all" : activeTab === "free" ? "all" : "free", true);
+      const at = CONNECT_TABS.indexOf(activeTab);
+      const step = event.key === "ArrowLeft" ? -1 : 1;
+      selectTab(event.key === "Home" ? CONNECT_TABS[0] : event.key === "End" ? CONNECT_TABS[CONNECT_TABS.length - 1]! : CONNECT_TABS[(at + step + CONNECT_TABS.length) % CONNECT_TABS.length]!, true);
     });
     tabs.append(button);
     return button;
   });
-  function selectTab(mode: "free" | "all", focus = false): void {
+  function selectTab(mode: ConnectTab, focus = false): void {
     activeTab = mode;
     element.dataset["tab"] = mode;
     freePanel.hidden = mode !== "free";
     allPanel.hidden = mode !== "all";
+    cliPanel.hidden = mode !== "cli";
+    if (mode === "cli") renderCliFinder();
     tabButtons.forEach((button, index) => {
-      const selected = mode === (index === 0 ? "free" : "all");
+      const selected = mode === CONNECT_TABS[index];
       button.setAttribute("aria-selected", String(selected));
       button.tabIndex = selected ? 0 : -1;
       if (selected && focus) button.focus();
@@ -443,7 +460,94 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
       group.append(title, help, localActions(local)); freePanel.append(group);
     }
   }
-  panel.append(header, tabs, freePanel, allPanel, footer);
+  /**
+   * Coding CLIs on their own tab. They used to sit at the bottom of the key-providers list,
+   * where nobody looking for "use my Claude subscription" would scroll to.
+   */
+  function renderCliFinder(): void {
+    const intro = document.createElement("p");
+    intro.className = "connect-free-intro";
+    intro.textContent = "Coding tools on this computer answer in ADCode's chat with their own account and models. ADCode never sees their password or key, and they bill you, not ADCode.";
+    const grid = document.createElement("ul");
+    grid.className = "connect-cli-grid";
+    grid.setAttribute("role", "list");
+    const clis = (status?.providers ?? []).filter((provider) => provider.cli !== undefined).sort((a, b) => Number(b.cli!.installed) - Number(a.cli!.installed));
+    for (const [index, provider] of clis.entries()) {
+      const cli = provider.cli!;
+      const card = document.createElement("li");
+      card.className = "connect-cli-card";
+      card.dataset["installed"] = String(cli.installed);
+      card.dataset["active"] = String(status?.activeProvider === provider.id);
+      card.style.setProperty("--order", String(index));
+      const head = document.createElement("div");
+      head.className = "connect-cli-card-head";
+      const names = document.createElement("div");
+      const name = document.createElement("strong");
+      name.textContent = cli.name;
+      const state = document.createElement("span");
+      state.className = "connect-cli-state";
+      state.textContent = status?.activeProvider === provider.id ? "In use" : cliLabel(cli);
+      names.append(name, state);
+      head.append(createAgentMascot({ look: defaultMascotFor(cli.id), mood: !cli.installed ? "sleepy" : status?.activeProvider === provider.id ? "proud" : "happy", size: 44 }).element, names);
+      const text = document.createElement("p");
+      text.textContent = cliDescription(cli);
+      const detail = document.createElement("p");
+      detail.className = "connect-cli-meta";
+      detail.textContent = cli.installed ? (cli.version ? cli.version.slice(0, 48) : `Found as ${cli.command}`) : cli.install;
+      // One button: whatever the next step is for this tool, it does it (cliConnect.ts).
+      const plan = cliConnectPlan(provider, status?.activeProvider ?? null);
+      const connect = document.createElement("button");
+      connect.type = "button";
+      connect.className = "btn btn-primary connect-cli-use";
+      connect.textContent = plan.label;
+      connect.disabled = plan.kind === "unavailable" || plan.label === "Connected" || (plan.kind === "terminal" && deps.runInTerminal === undefined) || isWebSurface();
+      connect.setAttribute("aria-label", `${plan.label} ${cli.name}`);
+      const said = document.createElement("p");
+      said.className = "connect-cli-meta";
+      said.setAttribute("role", "status");
+      connect.addEventListener("click", () => {
+        connect.disabled = true;
+        void connectCli(plan, cli.name, { write: deps.write, runInTerminal: (command) => deps.runInTerminal?.(command) }).then(async (message) => {
+          said.textContent = message;
+          if (plan.kind === "use") status = await deps.status();
+          if (activeTab === "cli") renderCliFinder();
+        }, (error: unknown) => { said.textContent = error instanceof Error ? error.message : "That did not work. Try again."; connect.disabled = false; });
+      });
+      const more = document.createElement("details");
+      more.className = "connect-cli-more";
+      const moreSummary = document.createElement("summary");
+      moreSummary.textContent = "More options";
+      more.append(moreSummary, cliActions(provider, cli));
+      card.append(head, text, detail, connect, said, more);
+      grid.append(card);
+    }
+    const again = document.createElement("button");
+    again.type = "button";
+    again.className = "ad-btn";
+    again.textContent = "Look again";
+    again.title = "Check this computer again, after installing or signing in to a tool";
+    again.addEventListener("click", () => {
+      if (deps.refreshCliAgents === undefined) return;
+      again.disabled = true;
+      again.textContent = "Looking…";
+      void deps.refreshCliAgents().then((next) => { status = next; }, () => undefined).finally(() => { if (activeTab === "cli") renderCliFinder(); });
+    });
+    const found = clis.filter((provider) => provider.cli!.installed).length;
+    const summary = document.createElement("p");
+    summary.className = "connect-cli-summary";
+    summary.setAttribute("role", "status");
+    summary.textContent = clis.length === 0 ? (isWebSurface() ? "Coding CLIs run on your own computer, in the desktop app." : "Looking for coding tools…") : `${String(found)} of ${String(clis.length)} found on this computer.`;
+    const bar = document.createElement("div");
+    bar.className = "connect-cli-bar";
+    bar.append(summary, again);
+    cliPanel.replaceChildren(intro, bar, grid);
+  }
+  // Back from a terminal where a CLI was installed or signed in: look again without being asked.
+  window.addEventListener("focus", () => {
+    if (!open || activeTab !== "cli" || deps.refreshCliAgents === undefined) return;
+    void deps.refreshCliAgents().then((next) => { status = next; if (activeTab === "cli") renderCliFinder(); }, () => undefined);
+  });
+  panel.append(header, tabs, freePanel, cliPanel, allPanel, footer);
   selectTab("free");
   renderFreeModels();
   element.append(panel);
@@ -1515,7 +1619,8 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
     select(providerId: string): void {
       selected = providerId;
       forceQuick = false;
-      selectTab("all");
+      // A coding CLI is found on its own tab; anything else lives with the key providers.
+      selectTab(providerId.startsWith("cli-") ? "cli" : "all");
       if (open) { renderProviders(); renderDetail(); } else deps.requestOpen();
     },
 

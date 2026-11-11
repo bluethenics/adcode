@@ -125,7 +125,7 @@ import { createChatRuns, KEEP_GOING_LIMIT, MAX_PARALLEL_CHATS, shouldKeepGoing }
 import { createChatForkService, MAX_FORKS_PER_CHAT, withChatForks, type ChatForkService } from "./aiChatForks.ts";
 import { CONTINUE_PROMPT } from "../shared/continuePrompt.ts";
 import { checkpointView, checkpointsForSession } from "./aiCheckpointView.ts";
-import { ADCODE_APP_TOOLS, ASSISTANT_EXTENSION_TOOLS, withAssistantExtensions } from "./assistantControls.ts";
+import { ASSISTANT_EXTENSION_TOOLS, offeredAppTools, withAssistantExtensions } from "./assistantControls.ts";
 import { memoryForWorkspace } from "./memory.ts";
 import { currentSettings, writeSetting } from "./settings.ts";
 import { describeDebugContext, recordDebug } from "./debugLog.ts";
@@ -134,6 +134,7 @@ import { currentWorkspace } from "./workspace.ts";
 import { projectInstructions } from "./projectInstructions.ts";
 import { aiWorkspaceContext } from "./aiWorkspaceContext.ts";
 import { liveRoomContext } from "./liveRoom.ts";
+import { base64ImageSize, tooSmallForModels } from "./imageSize.ts";
 import { aiPreviewUrl, describePreviewForAi, openAiPreview } from "./aiPreview.ts";
 import { createCommandRunner } from "./aiCommands.ts";
 import { closeAgentBrowser, viewPage } from "./agentBrowser.ts";
@@ -170,6 +171,7 @@ import { createAiAutomationService, type AiAutomationService } from "./aiAutomat
 import { toAiAutomationView } from "./aiAutomationViews.ts";
 import { askOllama, localModels, startOllama } from "./localModels.ts";
 import { cliModels, detectCliAgents, spawnCli } from "./cliAgents.ts";
+import { claudeToolBridge } from "./toolBridge.ts";
 import { CLI_AGENTS, cliAgentFor, cliProviderId, createCliProvider } from "@adcode/ai";
 import { apiBaseUrl } from "./backend.ts";
 import { buildTagflowProvider, refreshTagflowModels, tagflowCatalogue, tagflowDefaultModel } from "./tagflowAi.ts";
@@ -1052,7 +1054,7 @@ export async function buildProvider(
     if (!cli.headless || !(await detectCliAgents(homedir())).some((view) => view.id === cli.id && view.installed)) return null;
     let sessions = cliSessions.get(cli.id);
     if (sessions === undefined) cliSessions.set(cli.id, sessions = new Map());
-    return createCliProvider({ spec: cli, models: await cliModels(cli, homedir()), spawn: spawnCli, cwd: () => currentWorkspace()?.root ?? homedir(), sessions });
+    return createCliProvider({ spec: cli, models: await cliModels(cli, homedir()), spawn: spawnCli, cwd: () => currentWorkspace()?.root ?? homedir(), sessions, mcp: claudeToolBridge });
   }
   const key = offeredKey ?? (KEYLESS.has(id) ? "" : ((await keys.get(id)) ?? ""));
   const paced = (provider: Provider) => requestScheduler.wrap(provider, id, () => connections().find(item => item.id === id)?.rpm ?? 6000);
@@ -1512,6 +1514,12 @@ function splitAttachments(attachments: readonly AiAttachmentView[]): {
   for (const attachment of attachments) {
     names.push(attachment.name);
     if (attachment.kind === "image" && IMAGE_MEDIA_TYPES.has(attachment.mediaType)) {
+      // A picture under 64 pixels a side is refused by providers, and the refusal ends the task.
+      const small = tooSmallForModels(base64ImageSize(attachment.data));
+      if (small !== null) {
+        documents.push(`(The attached picture ${attachment.name} is ${small}, so it was not sent. Tell the user it was too small to look at, and ask for a larger one if you need to see it.)`);
+        continue;
+      }
       images.push({
         type: "image",
         mediaType: attachment.mediaType as ImageMediaType,
@@ -1531,7 +1539,7 @@ function splitAttachments(attachments: readonly AiAttachmentView[]): {
 /** The chat's tools: everything built in, minus memory when memory capture is off. */
 function chatTools() {
   const memoryEnabled = currentSettings()["adcode.ai.memoryCapture"] !== false;
-  return [...(memoryEnabled ? BUILT_IN_TOOLS : TOOLS_WITHOUT_MEMORY), ...ASSISTANT_EXTENSION_TOOLS, ...ADCODE_APP_TOOLS, BUILTIN_SKILL_TOOL];
+  return [...(memoryEnabled ? BUILT_IN_TOOLS : TOOLS_WITHOUT_MEMORY), ...ASSISTANT_EXTENSION_TOOLS, ...offeredAppTools(), BUILTIN_SKILL_TOOL];
 }
 
 /**
@@ -1550,11 +1558,13 @@ function usagePrice(providerId: string, model: string): UsagePrice | null {
 }
 
 /** Count one request on the usage page. */
-function noteUsage(source: UsageSource, providerId: string, model: string, event: { readonly inputTokens: number; readonly outputTokens: number; readonly cachedTokens?: number; readonly estimated: boolean }): void {
+function noteUsage(source: UsageSource, providerId: string, model: string, event: { readonly inputTokens: number; readonly outputTokens: number; readonly cachedTokens?: number; readonly estimated: boolean; readonly durationMs?: number; readonly firstResponseMs?: number }): void {
   recordAiUsage({
     source, provider: providerId, model, inputTokens: event.inputTokens, outputTokens: event.outputTokens,
     ...(event.cachedTokens === undefined ? {} : { cachedTokens: event.cachedTokens }),
     estimated: event.estimated, at: Date.now(), price: usagePrice(providerId, model),
+    ...(event.durationMs === undefined ? {} : { durationMs: event.durationMs }),
+    ...(event.firstResponseMs === undefined ? {} : { firstResponseMs: event.firstResponseMs }),
   });
 }
 

@@ -34,7 +34,7 @@ const artifacts = resolve(root, "artifacts/live-agents");
 await Promise.all([mkdir(workspace), mkdir(userData), mkdir(artifacts, { recursive: true })]);
 await writeFile(join(workspace, "package.json"), JSON.stringify({ name: "live-smoke", version: "1.0.0" }, null, 2));
 await writeFile(join(userData, "session.json"), JSON.stringify({ state: { root: workspace, openFiles: [], activeFile: null } }));
-await writeFile(join(userData, "onboarding.json"), JSON.stringify({ completed: true, at: Date.now() }));
+await writeFile(join(userData, "onboarding.json"), JSON.stringify({ tour: 2, completed: true, at: Date.now() }));
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 const record = process.argv.includes("--record");

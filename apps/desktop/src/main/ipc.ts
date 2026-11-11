@@ -1,6 +1,7 @@
 import { viewPage, readAgentBrowser, setAgentBrowserSink } from "./agentBrowser.ts";
 import { parseViewPageInput } from "./agentBrowserModel.ts";
 import { importChats, readChatExport, scanChatImports } from "./chatImport.ts";
+import { regenerateToolBridgeToken, toolBridgeView } from "./toolBridge.ts";
 import { clearLiveBrowserData, registerLiveTab, setLiveBrowserRequestSink, unregisterLiveTab } from "./liveBrowser.ts";
 /**
  * The only place the renderer can reach the main process.
@@ -691,6 +692,9 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
   // Start Ollama on the person's click: the executable is found here, never named by the renderer.
   ipcMain.handle(CHANNELS.aiStartOllama, () => aiStartOllama());
   ipcMain.handle(CHANNELS.aiRefreshCliAgents, () => aiRefreshCliAgents());
+  // No arguments: the key is made here, never chosen by the renderer.
+  ipcMain.handle(CHANNELS.aiToolBridge, () => toolBridgeView());
+  ipcMain.handle(CHANNELS.aiRegenerateToolBridgeToken, () => regenerateToolBridgeToken());
 
   /*
    * Where to get a key, by intent rather than by URL - the same rule as every other

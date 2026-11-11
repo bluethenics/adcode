@@ -570,6 +570,22 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     true,
   ),
   bool(
+    "adcode.ai.toolBridge",
+    "ai",
+    "Let other AI tools use ADCode",
+    "Claude Code, Codex, Cursor and other coding agents on this computer can use ADCode's own tools - its features, settings, connectors and Browser panel - once you paste the config from Tools > Memory. Only programs on this computer that have the key get in, and anything ADCode would ask you about still asks. Off closes it.",
+    true,
+    true,
+  ),
+  bool(
+    "adcode.ai.doneSound",
+    "ai",
+    "Play a sound when the assistant finishes",
+    "A short, soft chime when a task ends - for a task that took a while, or one that finished while you were in another window. Quick answers you are watching stay silent.",
+    false,
+    true,
+  ),
+  bool(
     "adcode.browser.agentControl",
     "ai",
     "Let the assistant use the Browser",

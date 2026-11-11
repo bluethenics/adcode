@@ -751,7 +751,7 @@
 
 /* ── Form dialogs (Agents and Tools pages): left-aligned fields in a centred card ── */
 .form-dialog { max-width: min(600px, calc(100vw - 48px)); width: 100%; }
-.form-dialog-card { justify-items: stretch; text-align: left; gap: 12px; padding: 22px 24px 18px; max-height: calc(100vh - 64px); overflow: auto; }
+.form-dialog-card { justify-items: stretch; text-align: left; gap: 16px; padding: 28px 32px 24px; max-height: calc(100vh - 64px); overflow: auto; }
 .form-dialog-form { display: grid; gap: 14px; }
 .form-dialog-form[hidden] { display: none; }
 /* Fields answer the pointer, and every control in a form dialog keeps the app's focus ring. */

@@ -1137,5 +1137,7 @@
 .chat-conversation > .chat-sponsor-strip { grid-row: 3; grid-column: 1; align-self: end; z-index: 1; }
 .chat-conversation > .chat-transcript::after { content: ""; display: block; flex: none; height: var(--sponsor-strip-height, 0px); }
 .chat-sponsor-strip[hidden] { display: none; }
+/* A direct ADCode card has the floor: the partner's card is out of sight, its room kept so nothing jumps. */
+.chat-sponsor-strip[data-yielding="true"] > .chat-sponsored-frame { visibility: hidden; }
 .chat-sponsor-strip > .chat-sponsored-frame { margin: 0; max-height: 180px; }
 .chat-sponsor-strip[data-filled="true"] { padding-bottom: var(--space-2); }

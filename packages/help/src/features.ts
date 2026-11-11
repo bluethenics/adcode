@@ -339,6 +339,9 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("workspace.browser", "Open Browser"), command("browser.clearData", "Sign out and clear its data")],
     keywords: ["browser", "web browser", "in-app browser", "built-in browser", "tabs", "address bar", "open a website", "google", "search the web", "agent browser", "agent-browser", "browse for me", "fill a form", "research", "sign in to a site", "cookies", "clear cookies", "webview", "docs", "dashboard"],
   },
+  "adcode.ai.doneSound": {
+    keywords: ["sound", "chime", "notification sound", "sound effect", "task finished sound", "done sound", "beep", "alert when done", "audio", "ding"],
+  },
   "adcode.browser.agentControl": {
     keywords: ["assistant browser", "ai controls browser", "let ai browse", "stop ai browsing", "browser permission", "agent control"],
   },
@@ -347,7 +350,7 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     keywords: ["export chat", "export conversation", "save chat", "download chat", "save conversation", "markdown", "json", "transcript", "share chat", "backup chat"],
   },
   "ai.moveIn": {
-    actions: [command("onboarding.moveIn", "Open Move in"), command("ai.importChats", "Import conversations")],
+    actions: [command("onboarding.moveIn", "Open Move in"), command("ai.importChats", "Import conversations"), command("onboarding.tour", "Show the welcome tour")],
     keywords: ["move in", "onboarding", "import chats", "import conversations", "import from claude", "import from codex", "import from chatgpt", "import from opencode", "claude desktop", "bring my chats", "migrate", "switch from cursor", "chat history", "conversations.json", "scan this computer", "connect chatgpt", "connect claude", "connect opencode", "freebuff", "use my subscription", "existing subscription"],
   },
   "ai.richReplies": {
@@ -480,6 +483,10 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   "adcode.ads.chatSponsored": {
     added: "2026-10-28",
     keywords: ["imprezia", "ads in chat", "sponsored reply", "ad under answer", "chat ads", "send my prompt to advertisers", "ad partner", "turn off chat ads"],
+  },
+  "ai.toolBridge": {
+    added: "2026-11-11",
+    keywords: ["tool bridge", "mcp server", "use adcode from claude code", "use adcode from codex", "use adcode from cursor", "adcode tools in other agents", "connect claude code to adcode", "claude mcp add", "mcp config", "codex config.toml", "mcp key", "regenerate key", "other ai tools", "streamable http", "localhost mcp"],
   },
   "adcode.ai.askBeforeConnectorTools": {
     added: "2026-10-27",
@@ -716,6 +723,8 @@ const DESKTOP_ONLY: ReadonlySet<string> = new Set([
   "adcode.session.autoSave", "adcode.session.localFileHistory", "adcode.session.crashRecovery",
   "adcode.updates.auto", "adcode.appearance.zoom", "adcode.ads.chatSponsored", "adcode.ads.partnerNotifications",
   "ai.inlineEdit", "adcode.ai.inlineCompletion", "adcode.ai.terminalAgentDetection", "ai.terminalTeam", "adcode.ai.autoContinue", "adcode.ai.mcpServer", "ai.agentRules",
+  // The tool bridge listens on this computer's loopback; the web version has no computer to listen on.
+  "ai.toolBridge",
   "workbench.modes", "workbench.openIde", "workbench.aiContext", "workbench.terminal", "workbench.run", "workbench.collab",
   "workbench.imagePreview", "workbench.webVersion", "gestures.multiSelect", "structure.popup", "structure.cssLinks",
 ]);

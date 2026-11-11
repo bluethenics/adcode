@@ -72,7 +72,7 @@ function main(input) {
 await writeFile(join(workspace, "keep.txt"), "do not delete\n");
 await writeFile(join(workspace, "index.html"), "<!doctype html><title>Rules smoke</title><h1>Rules</h1>");
 await writeFile(join(userData, "session.json"), JSON.stringify({ state: { root: workspace, openFiles: [join(workspace, "index.html")], activeFile: join(workspace, "index.html") } }));
-await writeFile(join(userData, "onboarding.json"), JSON.stringify({ completed: true, at: Date.now() }));
+await writeFile(join(userData, "onboarding.json"), JSON.stringify({ tour: 2, completed: true, at: Date.now() }));
 
 /* ── The fake model ───────────────────────────────────────────────────────── */
 

@@ -1,5 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
-import { networksFor, parseNetworks, zeekendSessionId, zeekendTransport } from "../src/lib/sponsoredNetworks";
+import { networksFor, parseNetworks, withoutPrices, zeekendSessionId, zeekendTransport } from "../src/lib/sponsoredNetworks";
+
+describe("a Zeekend card without prices", () => {
+  it("drops the price from the card and from every product, and nothing else", () => {
+    const slot = { id: "s1", headline: "Standing desk", body: "Solid oak", price: "$499", clickUrl: "https://z.example/c/1", disclosure: "Sponsored", items: [{ title: "Desk", price: "$499", clickUrl: "https://z.example/c/2" }, { title: "Lamp" }] };
+    expect(withoutPrices(slot)).toEqual({ id: "s1", headline: "Standing desk", body: "Solid oak", clickUrl: "https://z.example/c/1", disclosure: "Sponsored", items: [{ title: "Desk", clickUrl: "https://z.example/c/2" }, { title: "Lamp" }] });
+    // The slot the SDK measures is left as it was.
+    expect(slot.price).toBe("$499");
+    expect(slot.items[0]!.price).toBe("$499");
+  });
+
+  it("leaves a card that had no price or products alone", () => {
+    expect(withoutPrices({ id: "s2", headline: "A tool", clickUrl: "https://z.example/c/3", disclosure: "Sponsored" })).toEqual({ id: "s2", headline: "A tool", clickUrl: "https://z.example/c/3", disclosure: "Sponsored" });
+  });
+});
 
 describe("which partners the sponsored page asks", () => {
   it("reads the server's list in order and drops anything malformed", () => {

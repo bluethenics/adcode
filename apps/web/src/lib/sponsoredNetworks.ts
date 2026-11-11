@@ -81,3 +81,23 @@ export const ZEEKEND_COLOURS = {
   dark: { text: "#ebe8e1", muted: "#8f8c85", accent: "#ece9e2", border: "rgba(235, 232, 225, 0.16)" },
   light: { text: "#24231f", muted: "#69665f", accent: "#26241f", border: "rgba(36, 35, 31, 0.16)" },
 } as const;
+
+/**
+ * The slot as ADCode shows it: without prices. A price in a card beside somebody's code reads
+ * as a shop window, and it goes stale between the answer and the click; the product page the
+ * card opens is where a price belongs. Zeekend's rules for custom rendering ask for two things
+ * only - its `clickUrl` and its disclosure stay - and both are untouched here, as is the slot's
+ * identity, so its impression and click are counted exactly as before.
+ */
+export function withoutPrices<T extends object>(slot: T): T {
+  const { price: _price, ...rest } = slot as T & { price?: unknown };
+  const items = (rest as { items?: unknown }).items;
+  return {
+    ...rest,
+    ...(Array.isArray(items) ? { items: items.map((item: unknown) => {
+      if (typeof item !== "object" || item === null) return item;
+      const { price: _itemPrice, ...kept } = item as { price?: unknown };
+      return kept;
+    }) } : {}),
+  } as T;
+}

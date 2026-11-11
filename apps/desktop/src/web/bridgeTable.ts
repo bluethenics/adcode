@@ -166,6 +166,8 @@ export const BRIDGE = [
   { path: "ai.detectOllama", kind: "invoke", channel: CHANNELS.aiDetectOllama },
   { path: "ai.startOllama", kind: "invoke", channel: CHANNELS.aiStartOllama },
   { path: "ai.refreshCliAgents", kind: "invoke", channel: CHANNELS.aiRefreshCliAgents },
+  { path: "ai.toolBridge", kind: "invoke", channel: CHANNELS.aiToolBridge },
+  { path: "ai.regenerateToolBridgeToken", kind: "invoke", channel: CHANNELS.aiRegenerateToolBridgeToken },
   { path: "ai.scanChatImports", kind: "invoke", channel: CHANNELS.aiImportScan },
   { path: "ai.pickChatImportFile", kind: "invoke", channel: CHANNELS.aiImportFile },
   { path: "ai.importChats", kind: "invoke", channel: CHANNELS.aiImportChats },
@@ -362,6 +364,7 @@ export const BRIDGE = [
   // onboarding
   { path: "onboarding.completed", kind: "invoke", channel: CHANNELS.onboardingState },
   { path: "onboarding.complete", kind: "invoke", channel: CHANNELS.onboardingComplete },
+  { path: "onboarding.tour", kind: "invoke", channel: CHANNELS.onboardingTour },
 
   // pinPrompt
   { path: "pinPrompt.offer", kind: "invoke", channel: CHANNELS.pinPromptOffer },

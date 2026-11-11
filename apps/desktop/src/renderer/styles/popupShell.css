@@ -45,21 +45,22 @@
 }
 
 .popup-shell[data-popup-size="large"] .popup-shell-surface {
-  width: min(1120px, calc(100vw - 40px));
-  height: min(780px, calc(100vh - 56px));
+  /* Roomier than before, but clear of the 48px icon rail on both sides. */
+  width: min(1240px, calc(100vw - 112px));
+  height: min(880px, calc(100vh - 48px));
   inset: 50% auto auto 50%;
   transform: translate(-50%, -50%);
 }
 
 .popup-shell[data-popup-size="medium"] .popup-shell-surface {
-  width: min(760px, calc(100vw - 32px));
-  height: min(680px, calc(100vh - 48px));
+  width: min(960px, calc(100vw - 32px));
+  height: min(780px, calc(100vh - 40px));
   inset: 50% auto auto 50%;
   transform: translate(-50%, -50%);
 }
 
 .popup-shell[data-popup-size="anchored"] .popup-shell-surface {
-  width: min(420px, calc(100vw - 72px));
+  width: min(480px, calc(100vw - 72px));
   max-height: calc(100vh - 32px);
   left: var(--popup-anchor-x);
   top: clamp(12px, var(--popup-anchor-y), calc(100vh - 120px));

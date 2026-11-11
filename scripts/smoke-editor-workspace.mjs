@@ -27,7 +27,7 @@ if (process.argv.includes("--popups")) {
 await writeFile(join(userData, "session.json"), JSON.stringify({ state: {
   root: workspace, openFiles: files, activeFile: files[0],
 } }));
-await writeFile(join(userData, "onboarding.json"), JSON.stringify({ completed: !process.argv.includes("--onboarding"), at: Date.now() }));
+await writeFile(join(userData, "onboarding.json"), JSON.stringify({ tour: 2, completed: !process.argv.includes("--onboarding"), at: Date.now() }));
 // The mock, not production: the earnings popover reads its rows from the server, and an
 // unset backend signed up a new production account on every run.
 const backend = await startSmokeBackend();

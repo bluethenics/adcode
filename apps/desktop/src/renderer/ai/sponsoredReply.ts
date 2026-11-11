@@ -124,13 +124,16 @@ export function sponsoredReplyFrame(
  *
  * A waiting frame has no height, so neither partner can count it as seen before it is.
  */
-export function createSponsorStrip(origin = SPONSORED_ORIGIN): { readonly element: HTMLElement; show(exchange: SponsoredExchange): void; clear(): void } {
+export function createSponsorStrip(origin = SPONSORED_ORIGIN, now: () => number = Date.now): { readonly element: HTMLElement; show(exchange: SponsoredExchange): void; yieldTo(ms: number): void; clear(): void } {
   const element = document.createElement("aside");
   element.className = "chat-sponsor-strip";
   element.setAttribute("aria-label", "Sponsored");
   element.hidden = true;
   let current: HTMLIFrameElement | null = null;
   let waiting: HTMLIFrameElement | null = null;
+  /** Until when a direct ADCode card has the floor. */
+  let yieldingUntil = 0;
+  let yieldTimer: ReturnType<typeof setTimeout> | null = null;
   // The transcript leaves this much room at its foot (conversation.css), so the strip covers nothing.
   if (typeof ResizeObserver === "function") {
     new ResizeObserver(() => {
@@ -139,7 +142,20 @@ export function createSponsorStrip(origin = SPONSORED_ORIGIN): { readonly elemen
   }
   return {
     element,
+    /**
+     * A direct ADCode advertiser's card is on screen: it comes first. The partner's strip
+     * steps out of sight for as long as that card shows, and no partner card is asked for in
+     * that time - an ADCode advertiser never shares the moment with a partner's ad.
+     */
+    yieldTo(ms) {
+      const span = Math.max(0, Math.min(ms, 120_000));
+      yieldingUntil = Math.max(yieldingUntil, now() + span);
+      element.dataset["yielding"] = "true";
+      if (yieldTimer !== null) clearTimeout(yieldTimer);
+      yieldTimer = setTimeout(() => { yieldTimer = null; delete element.dataset["yielding"]; }, Math.max(0, yieldingUntil - now()));
+    },
     show(exchange) {
+      if (now() < yieldingUntil) return;
       // A newer reply replaces a card that was still on its way; the one on show is untouched.
       waiting?.remove();
       const next = sponsoredReplyFrame(exchange, origin, (outcome) => {

@@ -582,7 +582,7 @@ if (process.argv.includes("--visual-only")) {
    * opens it again on purpose before inspecting it - and let the dismissal settle.
    */
   await evaluate(
-    `(() => { const tour = document.querySelector('dialog.onboarding'); if (tour?.open === true) tour.close(); return true; })()`,
+    `(() => { document.querySelector('dialog.welcome-tour .welcome-tour-skip')?.click(); const tour = document.querySelector('dialog.onboarding'); if (tour?.open === true) tour.close(); return true; })()`,
   );
   await sleep(500);
   const response = await send("Page.captureScreenshot", { format: "png", fromSurface: true });
@@ -762,6 +762,31 @@ const checks = {
  * forty checks were quietly testing the onboarding dialog instead of the editor. The tour
  * is escapable, so escaping it here is also the honest way to reach the app behind it.
  */
+/*
+ * The welcome tour comes before that sheet on a first launch (2.6). Waited for, not raced: it
+ * opens after the account check and the sheet's own timer, which on a cold start can be well
+ * after the window paints - and a tour left open sits over every check after this one.
+ * Skipping it is what draws the sheet the next check inspects.
+ */
+checks.welcomeTourIsSkippable = await (async () => {
+  let open = false;
+  for (let attempt = 0; attempt < 120 && !open; attempt++) {
+    open = (await evaluate("document.querySelector('dialog.welcome-tour[open]') !== null")) === true;
+    if (!open) await sleep(250);
+  }
+  if (!open) return "the welcome tour never opened";
+  const parts = await evaluate("(() => { const t = document.querySelector('dialog.welcome-tour'); return { dotField: !!t.querySelector('canvas.dot-field'), skip: !!t.querySelector('.welcome-tour-skip'), steps: t.querySelectorAll('.welcome-tour-dots li').length }; })()");
+  await evaluate("document.querySelector('dialog.welcome-tour .welcome-tour-skip')?.click(); true");
+  let closed = false;
+  let sheet = false;
+  for (let attempt = 0; attempt < 40 && !(closed && sheet); attempt++) {
+    closed = (await evaluate("!document.querySelector('dialog.welcome-tour[open]')")) === true;
+    sheet = (await evaluate("document.querySelector('dialog.onboarding')?.open === true")) === true;
+    if (!(closed && sheet)) await sleep(125);
+  }
+  return { ...parts, closes: closed, leadsToTheSheet: sheet };
+})();
+
 checks.onboardingIsSkippable = await (async () => {
   const opened = await evaluate(
     `(() => {
@@ -5032,7 +5057,16 @@ try {
        return true;
      })()`,
   );
-  await sleep(3000);
+  /*
+   * Waited for, up to 10s, rather than a fixed 3s. The answer comes from a text search over
+   * the workspace, which here is this repository: on its FAT32 drive that search alone took
+   * 3.4-3.6s on 11 November 2026, so a fixed 3s wait failed on speed while testing content.
+   */
+  for (let waited = 0; waited < 10_000; waited += 250) {
+    const busy = await evaluate("(document.querySelector('.structure-popup .structure-drawer')?.textContent ?? '').includes('Looking')");
+    if (busy !== true) break;
+    await sleep(250);
+  }
 
   checks.selectorSaysWhatItStyles = await evaluate(
     `(() => {
@@ -5044,7 +5078,7 @@ try {
        }
 
        const text = drawer.textContent ?? '';
-       if (text.includes('Looking')) return 'still loading after 3s';
+       if (text.includes('Looking')) return 'still loading after 10s';
 
        const titles = [...drawer.querySelectorAll('.structure-section-title')]
          .map((t) => t.textContent);
@@ -7411,7 +7445,8 @@ async function auditRequiredClose(spec, open) {
            closeBox.top >= 0 && closeBox.bottom <= innerHeight,
          distinct:
            !close.matches('.earnings-refresh, .scm-drawer-toggle') &&
-           close.getAttribute('title') !== null,
+           // While the pointer rests on it, the tooltip layer holds the title in data-tip (workbench/tooltip.ts).
+           (close.getAttribute('title') ?? close.dataset.adTip ?? null) !== null,
        };
      })()`,
   );
@@ -7611,7 +7646,8 @@ checks.dialogCloseAudit.connect = await auditRequiredClose(
     surface: '#popup-dependent-host dialog[data-popup-id="connect"] .popup-shell-surface',
     close: '#popup-dependent-host dialog[data-popup-id="connect"] [aria-label="Close Connect a model"]',
     owner: '#popup-primary-host dialog[data-popup-id="chat"]',
-    restore: '#popup-primary-host dialog[data-popup-id="chat"] button[title="Choose a provider and model"]',
+    // The title, or the tooltip layer's copy of it while a tooltip shows (workbench/tooltip.ts).
+    restore: '#popup-primary-host dialog[data-popup-id="chat"] :is(button[title="Choose a provider and model"], button[data-ad-tip="Choose a provider and model"])',
   },
   async () => {
     await openExpandedAssistant();

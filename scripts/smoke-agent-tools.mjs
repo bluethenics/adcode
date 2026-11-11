@@ -42,7 +42,7 @@ await writeFile(join(workspace, "old-notes.txt"), "notes to delete\n");
 await writeFile(join(workspace, "package.json"), JSON.stringify({ name: "agent-quality-fixture", scripts: { "test:ci": "node checks.cjs", build: "node --check checks.cjs" } }));
 await writeFile(join(workspace, "checks.cjs"), "const fs = require('node:fs'); require('node:assert/strict')(fs.readFileSync('about.html', 'utf8').includes('About us')); console.log('fixture verified');\n");
 await writeFile(join(userData, "session.json"), JSON.stringify({ state: { root: workspace, openFiles: [join(workspace, "index.html")], activeFile: join(workspace, "index.html") } }));
-await writeFile(join(userData, "onboarding.json"), JSON.stringify({ completed: true, at: Date.now() }));
+await writeFile(join(userData, "onboarding.json"), JSON.stringify({ tour: 2, completed: true, at: Date.now() }));
 
 /* ── The fake model ───────────────────────────────────────────────────────── */
 

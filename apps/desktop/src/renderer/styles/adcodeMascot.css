@@ -1,0 +1,378 @@
+/*
+ * Buck, the ADCode mascot (mascot/adcodeMascot.ts): the `<$>` mark with a face.
+ *
+ * The drawing holds every eye, mouth, prop and effect at once; this sheet decides which of
+ * them a mood shows, and where its hands are. That is the first half of the file and it is
+ * plain transforms and opacity, so with Reduce motion on every mood is still its own picture.
+ *
+ * The second half is the motion, all of it behind both stillness switches. Each moving part
+ * is two nested groups - the inner one holds the pose above, the outer one plays the loop -
+ * because a keyframe that sets `transform` would otherwise replace the pose it plays over.
+ * Only transform, opacity and a drawn-on stroke ever animate.
+ *
+ * The body keeps the brand's near-black plate in every theme. A rim light keeps it visible on
+ * charcoal, and each bracket carries a dark edge so its light face still shows on paper.
+ * Marks drawn in the air around it (thought dots, z's, sound) take `--mascot-ink`, which is
+ * the text colour; a surface that is always dark sets it to a light value instead.
+ */
+.adcode-mascot {
+  --mascot-ink: var(--text-primary, #24231f);
+  --mascot-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --mascot-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --mascot-sine: cubic-bezier(0.37, 0, 0.63, 1);
+  --mascot-even: cubic-bezier(0, 0, 1, 1);
+  --mascot-rise: cubic-bezier(0.2, 0.7, 0.4, 1);
+  /* Something falling speeds up; this is gravity, not an interface easing. */
+  --mascot-fall: cubic-bezier(0.5, 0, 0.9, 0.55);
+  position: relative; display: inline-grid; place-items: center; flex: none; box-sizing: border-box;
+  width: var(--mascot-size, 96px); height: var(--mascot-size, 96px);
+  margin: 0; padding: 0; border: 0; border-radius: 22%; background: none; color: inherit; font: inherit; line-height: 0; vertical-align: middle;
+  user-select: none; -webkit-tap-highlight-color: transparent;
+}
+button.adcode-mascot { cursor: pointer; }
+button.adcode-mascot:focus-visible { outline: 2px solid var(--accent, #26241f); outline-offset: 3px; }
+.adcode-mascot-svg { display: block; width: 100%; height: 100%; overflow: visible; pointer-events: none; transform-box: fill-box; transform-origin: center; }
+
+/* Paint that follows the theme. Brand colours - the plate, the light features, the gold - are in the drawing. */
+.adcode-mascot-shadow { fill: #000; opacity: .3; }
+.adcode-mascot-ink { stroke: var(--mascot-ink); }
+.adcode-mascot-ink-fill { fill: var(--mascot-ink); }
+.adcode-mascot-cheek { fill: var(--mascot-pink, #e25c9f); }
+.adcode-mascot-sweat { fill: #9fd4ff; }
+.adcode-mascot-check-disc { fill: var(--success, #3f8f62); stroke: #0a0a0b; stroke-width: 1.4; }
+.adcode-mascot-check-mark { stroke-dasharray: 1; stroke-dashoffset: 0; }
+/* Green is spent on money and nothing else: the mark that pops when a coin is caught. */
+.adcode-mascot-plus { stroke: var(--success, #3f8f62); }
+.adcode-mascot-confetti-a { fill: var(--mascot-pink, #e25c9f); }
+.adcode-mascot-confetti-b { fill: var(--mascot-amber, #e09a22); }
+.adcode-mascot-confetti-c { fill: var(--mascot-teal, #25b5a5); }
+.adcode-mascot-confetti-d { fill: var(--mascot-violet, #9076ec); }
+.adcode-mascot-confetti-e { fill: var(--mascot-blue, #5a92f0); }
+
+/*
+ * Every part that moves turns about its own box, never the corner of the drawing. Named one
+ * by one on purpose: the coin's dollar sign is placed by a `transform` attribute, and a
+ * blanket rule would move its origin and throw it off the coin.
+ */
+.adcode-mascot :is(.adcode-mascot-shadow, .adcode-mascot-arm, .adcode-mascot-arm-pose, .adcode-mascot-face, .adcode-mascot-look, .adcode-mascot-gaze-move, .adcode-mascot-gaze, .adcode-mascot-eye, .adcode-mascot-eye-open, .adcode-mascot-mouth, .adcode-mascot-sweat, .adcode-mascot-coin, .adcode-mascot-coin-x, .adcode-mascot-coin-y, .adcode-mascot-coin-face, .adcode-mascot-dot, .adcode-mascot-z, .adcode-mascot-check, .adcode-mascot-check-mark, .adcode-mascot-confetti-piece, .adcode-mascot-glint, .adcode-mascot-wave, .adcode-mascot-ring, .adcode-mascot-plus) { transform-box: fill-box; transform-origin: 50% 50%; }
+/* The figure and its body squash, lean and hop from the ground up. */
+.adcode-mascot :is(.adcode-mascot-figure, .adcode-mascot-figure-pose, .adcode-mascot-body, .adcode-mascot-marks) { transform-box: fill-box; transform-origin: 50% 100%; }
+/* A wave swings from the wrist, which is the low inner corner of a raised bracket. */
+.adcode-mascot[data-mood="greeting"] .adcode-mascot-arm-r { transform-box: fill-box; transform-origin: 15% 95%; }
+.adcode-mascot-arm-l { --mascot-side: 1; }
+.adcode-mascot-arm-r { --mascot-side: -1; }
+
+/* The eyes drift towards a nearby pointer (set from the script, in the drawing's own units) and squash to blink. */
+.adcode-mascot-look { translate: var(--mascot-gaze-x, 0px) var(--mascot-gaze-y, 0px); }
+.adcode-mascot.is-blinking .adcode-mascot-eye { scale: 1 .1; }
+
+/* ── Which parts a mood shows ── */
+.adcode-mascot :is(.adcode-mascot-eye-happy, .adcode-mascot-eye-sleep, .adcode-mascot-eye-squint, .adcode-mascot-brow, .adcode-mascot-mouth-grin, .adcode-mascot-mouth-o, .adcode-mascot-mouth-wavy, .adcode-mascot-mouth-flat, .adcode-mascot-cheek, .adcode-mascot-sweat, .adcode-mascot-keys, .adcode-mascot-coin, .adcode-mascot-fx > *) { opacity: 0; }
+
+.adcode-mascot:is([data-mood="celebrating"], [data-mood="success"], [data-mood="proud"], [data-mood="dancing"], [data-mood="sleeping"], [data-mood="poked"]) .adcode-mascot-eye-open { opacity: 0; }
+.adcode-mascot:is([data-mood="celebrating"], [data-mood="success"], [data-mood="proud"], [data-mood="dancing"]) .adcode-mascot-eye-happy { opacity: 1; }
+.adcode-mascot[data-mood="sleeping"] .adcode-mascot-eye-sleep { opacity: 1; }
+.adcode-mascot[data-mood="poked"] .adcode-mascot-eye-squint { opacity: 1; }
+.adcode-mascot[data-mood="wink"] .adcode-mascot-eye-r .adcode-mascot-eye-open { opacity: 0; }
+.adcode-mascot[data-mood="wink"] .adcode-mascot-eye-r .adcode-mascot-eye-happy { opacity: 1; }
+.adcode-mascot[data-mood="error"] .adcode-mascot-brow { opacity: 1; }
+
+.adcode-mascot:is([data-mood="greeting"], [data-mood="thinking"], [data-mood="working"], [data-mood="searching"], [data-mood="celebrating"], [data-mood="error"], [data-mood="sleeping"], [data-mood="surprised"], [data-mood="dancing"], [data-mood="earning"], [data-mood="poked"]) .adcode-mascot-mouth-smile { opacity: 0; }
+.adcode-mascot:is([data-mood="greeting"], [data-mood="celebrating"], [data-mood="dancing"], [data-mood="earning"]) .adcode-mascot-mouth-grin { opacity: 1; }
+.adcode-mascot:is([data-mood="searching"], [data-mood="sleeping"], [data-mood="surprised"], [data-mood="poked"]) .adcode-mascot-mouth-o { opacity: 1; }
+.adcode-mascot[data-mood="error"] .adcode-mascot-mouth-wavy { opacity: 1; }
+.adcode-mascot:is([data-mood="thinking"], [data-mood="working"]) .adcode-mascot-mouth-flat { opacity: 1; }
+.adcode-mascot:is([data-mood="greeting"], [data-mood="celebrating"], [data-mood="success"], [data-mood="proud"], [data-mood="wink"], [data-mood="dancing"], [data-mood="earning"]) .adcode-mascot-cheek { opacity: .72; }
+.adcode-mascot[data-mood="error"] .adcode-mascot-sweat { opacity: 1; }
+.adcode-mascot[data-mood="working"] .adcode-mascot-keys { opacity: 1; }
+
+.adcode-mascot[data-mood="thinking"] .adcode-mascot-dots,
+.adcode-mascot[data-mood="sleeping"] .adcode-mascot-zs,
+.adcode-mascot[data-mood="success"] .adcode-mascot-check,
+.adcode-mascot[data-mood="celebrating"] .adcode-mascot-confetti,
+.adcode-mascot[data-mood="surprised"] .adcode-mascot-marks,
+.adcode-mascot[data-mood="wink"] .adcode-mascot-glint,
+.adcode-mascot[data-mood="listening"] .adcode-mascot-waves,
+.adcode-mascot[data-mood="earning"] .adcode-mascot-plus { opacity: 1; }
+.adcode-mascot[data-mood="connecting"] .adcode-mascot-ring { opacity: .5; }
+
+/* ── Where each mood stands ── */
+.adcode-mascot[data-mood="greeting"] .adcode-mascot-figure-pose { transform: rotate(2deg); }
+.adcode-mascot[data-mood="thinking"] .adcode-mascot-figure-pose { transform: rotate(-2deg); }
+.adcode-mascot[data-mood="searching"] .adcode-mascot-figure-pose { transform: rotate(-3deg); }
+.adcode-mascot[data-mood="listening"] .adcode-mascot-figure-pose { transform: translate(-3px, 0) rotate(4deg); }
+.adcode-mascot[data-mood="celebrating"] .adcode-mascot-figure-pose { transform: translateY(-6px); }
+.adcode-mascot[data-mood="error"] .adcode-mascot-figure-pose { transform: rotate(-2deg); }
+.adcode-mascot[data-mood="sleeping"] .adcode-mascot-figure-pose { transform: translateY(3px) rotate(-4deg); }
+.adcode-mascot[data-mood="surprised"] .adcode-mascot-figure-pose { transform: translateY(-5px) rotate(-4deg); }
+.adcode-mascot[data-mood="proud"] .adcode-mascot-figure-pose { transform: scale(1.05) rotate(-2deg); }
+.adcode-mascot[data-mood="wink"] .adcode-mascot-figure-pose { transform: rotate(4deg); }
+.adcode-mascot[data-mood="dancing"] .adcode-mascot-figure-pose { transform: translate(3px, 0) rotate(7deg); }
+.adcode-mascot[data-mood="poked"] .adcode-mascot-figure-pose { transform: scale(1.08, .9); }
+.adcode-mascot[data-mood="celebrating"] .adcode-mascot-shadow { opacity: .18; transform: scaleX(.78); }
+
+/* The hands. A bracket turned a quarter is a cupped palm or a pecking finger. */
+.adcode-mascot[data-mood="greeting"] .adcode-mascot-arm-l > .adcode-mascot-arm-pose { transform: translate(1px, 3px); }
+.adcode-mascot[data-mood="greeting"] .adcode-mascot-arm-r > .adcode-mascot-arm-pose { transform: translate(3px, -27px) rotate(-28deg); }
+/*
+ * A hand never crosses the face. The brackets are drawn in the same light paint as the eyes
+ * and mouth, so one laid over the face reads as a feature - a `<>` mouth, a pair of fangs -
+ * rather than a hand. Hands in front of the body stay below the mouth or above the brow.
+ */
+.adcode-mascot[data-mood="thinking"] .adcode-mascot-arm-l > .adcode-mascot-arm-pose { transform: translate(1px, 3px); }
+.adcode-mascot[data-mood="thinking"] .adcode-mascot-arm-r > .adcode-mascot-arm-pose { transform: translate(-31px, 24px) rotate(-72deg); }
+.adcode-mascot[data-mood="working"] .adcode-mascot-arm-l > .adcode-mascot-arm-pose { transform: translate(28px, 31px) rotate(-90deg); }
+.adcode-mascot[data-mood="working"] .adcode-mascot-arm-r > .adcode-mascot-arm-pose { transform: translate(-28px, 31px) rotate(90deg); }
+.adcode-mascot[data-mood="searching"] .adcode-mascot-arm-l > .adcode-mascot-arm-pose { transform: translate(32px, -25px) rotate(84deg); }
+.adcode-mascot[data-mood="searching"] .adcode-mascot-arm-r > .adcode-mascot-arm-pose { transform: translate(2px, 2px); }
+.adcode-mascot[data-mood="listening"] .adcode-mascot-arm-l > .adcode-mascot-arm-pose { transform: translate(3px, -17px) rotate(18deg) scale(1.08); }
+.adcode-mascot[data-mood="listening"] .adcode-mascot-arm-r > .adcode-mascot-arm-pose { transform: translate(-3px, -17px) rotate(-18deg) scale(1.08); }
+.adcode-mascot[data-mood="loading"] .adcode-mascot-arm-l > .adcode-mascot-arm-pose { transform: translate(-1.5px, 0); }
+.adcode-mascot[data-mood="loading"] .adcode-mascot-arm-r > .adcode-mascot-arm-pose { transform: translate(1.5px, 0); }
+.adcode-mascot[data-mood="celebrating"] .adcode-mascot-arm-l > .adcode-mascot-arm-pose { transform: translate(3px, -33px) rotate(38deg); }
+.adcode-mascot[data-mood="celebrating"] .adcode-mascot-arm-r > .adcode-mascot-arm-pose { transform: translate(-3px, -33px) rotate(-38deg); }
+.adcode-mascot[data-mood="success"] .adcode-mascot-arm-r > .adcode-mascot-arm-pose { transform: translate(0, -12px) rotate(-12deg); }
+.adcode-mascot[data-mood="error"] .adcode-mascot-arm-l > .adcode-mascot-arm-pose { transform: translate(7px, -6px) rotate(8deg); }
+.adcode-mascot[data-mood="error"] .adcode-mascot-arm-r > .adcode-mascot-arm-pose { transform: translate(-7px, -6px) rotate(-8deg); }
+.adcode-mascot[data-mood="sleeping"] .adcode-mascot-arm-l > .adcode-mascot-arm-pose { transform: translate(2px, 13px) rotate(-18deg); }
+.adcode-mascot[data-mood="sleeping"] .adcode-mascot-arm-r > .adcode-mascot-arm-pose { transform: translate(-2px, 13px) rotate(18deg); }
+.adcode-mascot[data-mood="surprised"] .adcode-mascot-arm-l > .adcode-mascot-arm-pose { transform: translate(-5px, -16px) rotate(24deg); }
+.adcode-mascot[data-mood="surprised"] .adcode-mascot-arm-r > .adcode-mascot-arm-pose { transform: translate(5px, -16px) rotate(-24deg); }
+.adcode-mascot[data-mood="proud"] .adcode-mascot-arm-l > .adcode-mascot-arm-pose { transform: translate(6px, 7px) scale(1.12); }
+.adcode-mascot[data-mood="proud"] .adcode-mascot-arm-r > .adcode-mascot-arm-pose { transform: translate(-6px, 7px) scale(1.12); }
+.adcode-mascot[data-mood="wink"] .adcode-mascot-arm-r > .adcode-mascot-arm-pose { transform: translate(-1px, -12px) rotate(-14deg); }
+.adcode-mascot[data-mood="dancing"] .adcode-mascot-arm-l > .adcode-mascot-arm-pose { transform: translate(0, -22px) rotate(30deg); }
+.adcode-mascot[data-mood="dancing"] .adcode-mascot-arm-r > .adcode-mascot-arm-pose { transform: translate(0, 8px) rotate(14deg); }
+.adcode-mascot[data-mood="earning"] .adcode-mascot-arm-l > .adcode-mascot-arm-pose { transform: translate(1px, -4px); }
+.adcode-mascot[data-mood="earning"] .adcode-mascot-arm-r > .adcode-mascot-arm-pose { transform: translate(2px, -14px) rotate(90deg); }
+/* Connecting: the two brackets meet overhead and close into one diamond, a link made. */
+.adcode-mascot[data-mood="connecting"] .adcode-mascot-arm-l > .adcode-mascot-arm-pose { transform: translate(40.5px, -50px); }
+.adcode-mascot[data-mood="connecting"] .adcode-mascot-arm-r > .adcode-mascot-arm-pose { transform: translate(-40.5px, -50px); }
+.adcode-mascot[data-mood="poked"] .adcode-mascot-arm-l > .adcode-mascot-arm-pose { transform: translate(-4px, -8px) rotate(14deg); }
+.adcode-mascot[data-mood="poked"] .adcode-mascot-arm-r > .adcode-mascot-arm-pose { transform: translate(4px, -8px) rotate(-14deg); }
+
+/* Where it is looking, and how wide. */
+.adcode-mascot[data-mood="greeting"] .adcode-mascot-gaze { transform: translate(1px, -.5px); }
+.adcode-mascot[data-mood="thinking"] .adcode-mascot-gaze { transform: translate(2.5px, -4px); }
+.adcode-mascot[data-mood="working"] .adcode-mascot-gaze { transform: translate(0, 3px); }
+.adcode-mascot[data-mood="searching"] .adcode-mascot-gaze { transform: translate(-4px, 0); }
+.adcode-mascot[data-mood="listening"] .adcode-mascot-gaze { transform: translate(3px, 0); }
+.adcode-mascot[data-mood="error"] .adcode-mascot-gaze { transform: translate(0, 1px); }
+.adcode-mascot[data-mood="sleeping"] .adcode-mascot-gaze { transform: translate(0, 2px); }
+.adcode-mascot[data-mood="surprised"] .adcode-mascot-gaze { transform: translate(0, -1.5px); }
+.adcode-mascot[data-mood="earning"] .adcode-mascot-gaze { transform: translate(3.5px, -2.5px); }
+.adcode-mascot[data-mood="connecting"] .adcode-mascot-gaze { transform: translate(0, -3.5px); }
+.adcode-mascot[data-mood="thinking"] .adcode-mascot-eye-open { transform: scale(1, .9); }
+.adcode-mascot[data-mood="working"] .adcode-mascot-eye-open { transform: scale(1, .72); }
+.adcode-mascot[data-mood="searching"] .adcode-mascot-eye-open { transform: scale(1, .86); }
+.adcode-mascot[data-mood="surprised"] .adcode-mascot-eye-open { transform: scale(1.16); }
+.adcode-mascot[data-mood="sleeping"] .adcode-mascot-mouth-o { transform: scale(.62); }
+
+/* Props and marks, as they rest when nothing is moving. */
+.adcode-mascot:is([data-mood="loading"], [data-mood="celebrating"], [data-mood="earning"]) .adcode-mascot-coin-front { opacity: 1; }
+.adcode-mascot[data-mood="loading"] .adcode-mascot-coin-front { transform: translate(44px, 10px); }
+.adcode-mascot[data-mood="celebrating"] .adcode-mascot-coin-front { transform: translate(0, -49px); }
+.adcode-mascot[data-mood="earning"] .adcode-mascot-coin-front { transform: translate(48px, -20.5px); }
+.adcode-mascot-confetti-piece { transform: translate(var(--dx, 0px), var(--dy, 0px)) rotate(var(--turn, 0deg)); }
+
+/* Small: the mouth and the fine detail go, the eyes and hands grow. Readable at 32px. */
+.adcode-mascot[data-compact="true"] :is(.adcode-mascot-mouth, .adcode-mascot-cheek, .adcode-mascot-highlight, .adcode-mascot-keys, .adcode-mascot-sweat) { display: none; }
+.adcode-mascot[data-compact="true"] .adcode-mascot-face { transform: translateY(2px) scale(1.2); }
+.adcode-mascot[data-compact="true"] .adcode-mascot-arm-light { stroke-width: 7; }
+.adcode-mascot[data-compact="true"] .adcode-mascot-arm-fold { stroke-width: 7; }
+.adcode-mascot[data-compact="true"] .adcode-mascot-arm-edge { stroke-width: 12; }
+
+button.adcode-mascot:active .adcode-mascot-svg { scale: .96; }
+@media (hover: hover) and (pointer: fine) {
+  button.adcode-mascot:hover .adcode-mascot-svg { scale: 1.05; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* A mood change glides: hands swing to their new place with a little overshoot, faces cross-fade. */
+  :root:not([data-reduced-motion="true"]) .adcode-mascot :is(.adcode-mascot-figure-pose, .adcode-mascot-arm-pose, .adcode-mascot-gaze, .adcode-mascot-eye-open, .adcode-mascot-coin) { transition: transform 420ms var(--mascot-spring), opacity 180ms ease-out; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot :is(.adcode-mascot-eye-happy, .adcode-mascot-eye-sleep, .adcode-mascot-eye-squint, .adcode-mascot-brow, .adcode-mascot-mouth, .adcode-mascot-cheek, .adcode-mascot-sweat, .adcode-mascot-keys, .adcode-mascot-fx > *) { transition: opacity 160ms ease-out; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot .adcode-mascot-look { transition: translate 180ms ease-out; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot .adcode-mascot-eye { transition: scale 70ms ease-out; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot .adcode-mascot-svg { transition: scale 220ms var(--mascot-spring); }
+
+  /* Alive in every mood: it floats a little, breathes, and its hands drift. Moods below replace what they need to. */
+  :root:not([data-reduced-motion="true"]) .adcode-mascot .adcode-mascot-figure { animation: adcode-mascot-float 4.6s ease-in-out var(--mascot-phase, 0s) infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot .adcode-mascot-body { animation: adcode-mascot-breathe 4.6s ease-in-out var(--mascot-phase, 0s) infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot .adcode-mascot-shadow { animation: adcode-mascot-shadow 4.6s ease-in-out var(--mascot-phase, 0s) infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot .adcode-mascot-arm { animation: adcode-mascot-sway 4.6s ease-in-out var(--mascot-phase, 0s) infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="idle"] .adcode-mascot-gaze-move { animation: adcode-mascot-glance 9s ease-in-out var(--mascot-phase, 0s) infinite; }
+
+  /* Greeting: three waves, a rest, three more. */
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="greeting"] .adcode-mascot-arm-r { animation: adcode-mascot-wave 2.8s ease-in-out infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="greeting"] .adcode-mascot-figure { animation: adcode-mascot-greet 2.8s ease-in-out infinite; }
+
+  /* Thinking: eyes wander overhead, fingertips tap, three dots take turns. */
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="thinking"] .adcode-mascot-arm-r { animation: adcode-mascot-chin 1.9s ease-in-out infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="thinking"] .adcode-mascot-gaze-move { animation: adcode-mascot-ponder 3.6s ease-in-out infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="thinking"] .adcode-mascot-dot { animation: adcode-mascot-dot 1.5s ease-in-out infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="thinking"] .adcode-mascot-dot:nth-child(2) { animation-delay: .22s; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="thinking"] .adcode-mascot-dot:nth-child(3) { animation-delay: .44s; }
+
+  /* Working: two fingers peck at a keyboard, one after the other. */
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="working"] .adcode-mascot-arm { animation: adcode-mascot-type .46s ease-in-out infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="working"] .adcode-mascot-arm-r { animation-delay: -.23s; }
+
+  /* Searching: a hand over the eyes, which sweep one way and then the other. */
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="searching"] .adcode-mascot-figure-pose { transform: none; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="searching"] .adcode-mascot-gaze { transform: none; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="searching"] .adcode-mascot-figure { animation: adcode-mascot-peer 2.8s ease-in-out infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="searching"] .adcode-mascot-gaze-move { animation: adcode-mascot-scan 2.8s ease-in-out infinite; }
+
+  /* Listening: leaning towards the sound, which arrives in two arcs. */
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="listening"] .adcode-mascot-figure { animation: adcode-mascot-lean 2.4s ease-in-out infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="listening"] .adcode-mascot-arm { animation: adcode-mascot-cup 2.4s ease-in-out infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="listening"] .adcode-mascot-wave { animation: adcode-mascot-sound 1.6s ease-out infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="listening"] .adcode-mascot-wave:nth-child(1) { animation-delay: .28s; }
+
+  /*
+   * Loading: the coin circles the body. One coin is drawn behind the plate and one in front;
+   * each is shown for the half of the lap it belongs to, so the coin passes behind and comes
+   * round. Across and up-and-down are the same swing a quarter-lap apart, which is a circle.
+   */
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="loading"] .adcode-mascot-coin { opacity: 1; transform: translate(0, 6px); }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="loading"] .adcode-mascot-coin-front > .adcode-mascot-coin-x { animation: adcode-mascot-orbit-x 1.3s var(--mascot-sine) infinite alternate, adcode-mascot-orbit-near 2.6s var(--mascot-even) infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="loading"] .adcode-mascot-coin-back > .adcode-mascot-coin-x { animation: adcode-mascot-orbit-x 1.3s var(--mascot-sine) infinite alternate, adcode-mascot-orbit-far 2.6s var(--mascot-even) infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="loading"] .adcode-mascot-coin-y { animation: adcode-mascot-orbit-y 1.3s var(--mascot-sine) -1.95s infinite alternate; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="loading"] .adcode-mascot-coin-face { animation: adcode-mascot-orbit-depth 1.3s var(--mascot-sine) -1.95s infinite alternate; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="loading"] .adcode-mascot-gaze-move { animation: adcode-mascot-follow 1.3s var(--mascot-sine) infinite alternate; }
+
+  /* Celebrating: a crouch, a hop, both hands up, the coin spinning overhead and a burst of paper. */
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="celebrating"] .adcode-mascot-figure-pose { transform: none; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="celebrating"] .adcode-mascot-figure { animation: adcode-mascot-hop 1.1s var(--mascot-even) infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="celebrating"] .adcode-mascot-shadow { animation: adcode-mascot-hop-shadow 1.1s ease-in-out infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="celebrating"] .adcode-mascot-arm { animation: adcode-mascot-cheer 1.1s ease-in-out infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="celebrating"] .adcode-mascot-coin-y { animation: adcode-mascot-toss 1.1s ease-in-out infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="celebrating"] .adcode-mascot-coin-face { animation: adcode-mascot-flip .55s var(--mascot-even) infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="celebrating"] .adcode-mascot-confetti-piece { animation: adcode-mascot-confetti 1.65s var(--mascot-out) infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="celebrating"] .adcode-mascot-confetti-piece:nth-child(even) { animation-delay: .14s; }
+
+  /* Success: two nods, and a tick that draws itself. */
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="success"] .adcode-mascot-figure { animation: adcode-mascot-nod .52s ease-in-out 2, adcode-mascot-float 4.6s ease-in-out 1.1s infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="success"] .adcode-mascot-check { animation: adcode-mascot-pop 340ms var(--mascot-spring) backwards; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="success"] .adcode-mascot-check-mark { animation: adcode-mascot-draw 380ms ease-out 220ms backwards; }
+
+  /* Error: a short, gentle shake and then stillness - worried, never alarming. */
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="error"] .adcode-mascot-figure { animation: adcode-mascot-shake 2.8s ease-in-out infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="error"] .adcode-mascot-sweat { animation: adcode-mascot-sweat 2.8s ease-in-out infinite; }
+
+  /* Sleeping: nothing but slow breath, and z's that drift up and away. */
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="sleeping"] .adcode-mascot-figure { animation: none; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="sleeping"] .adcode-mascot-arm { animation: none; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="sleeping"] .adcode-mascot-body { animation: adcode-mascot-doze 3.8s ease-in-out infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="sleeping"] .adcode-mascot-z { animation: adcode-mascot-z 3.3s ease-out infinite backwards; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="sleeping"] .adcode-mascot-z:nth-child(2) { animation-delay: .8s; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="sleeping"] .adcode-mascot-z:nth-child(3) { animation-delay: 1.6s; }
+
+  /* Surprised: one jump back, and it stays up there with its hands out. */
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="surprised"] .adcode-mascot-figure { animation: adcode-mascot-startle 520ms var(--mascot-out) backwards; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="surprised"] .adcode-mascot-marks { animation: adcode-mascot-pop 300ms var(--mascot-spring) 80ms backwards; }
+
+  /* Proud: chest out, a slow swell. */
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="proud"] .adcode-mascot-body { animation: adcode-mascot-swell 2.6s ease-in-out infinite; }
+
+  /* Wink: a tilt, and three short lines that flash beside the closed eye. */
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="wink"] .adcode-mascot-figure { animation: adcode-mascot-tilt 440ms var(--mascot-spring) backwards, adcode-mascot-float 4.6s ease-in-out 440ms infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="wink"] .adcode-mascot-glint { animation: adcode-mascot-pop 300ms var(--mascot-spring) 120ms backwards; }
+
+  /* Dancing: side to side with a bounce in the middle, hands swinging opposite each other. */
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="dancing"] :is(.adcode-mascot-figure-pose, .adcode-mascot-arm-pose) { transform: none; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="dancing"] .adcode-mascot-figure { animation: adcode-mascot-dance 1.2s ease-in-out infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="dancing"] .adcode-mascot-arm { animation: adcode-mascot-swing 1.2s ease-in-out infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="dancing"] .adcode-mascot-arm-r { animation-delay: -.6s; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="dancing"] .adcode-mascot-shadow { animation: adcode-mascot-hop-shadow .6s ease-in-out infinite; }
+
+  /* Earning: a coin pops out of its head, turns over in the air and lands in a cupped hand. */
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="earning"] .adcode-mascot-coin-front > .adcode-mascot-coin-x { animation: adcode-mascot-earn-x 2.8s var(--mascot-even) infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="earning"] .adcode-mascot-coin-front .adcode-mascot-coin-y { animation: adcode-mascot-earn-y 2.8s var(--mascot-even) infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="earning"] .adcode-mascot-coin-front .adcode-mascot-coin-face { animation: adcode-mascot-earn-flip 2.8s var(--mascot-even) infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="earning"] .adcode-mascot-arm-r { animation: adcode-mascot-catch 2.8s ease-out infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="earning"] .adcode-mascot-gaze-move { animation: adcode-mascot-earn-watch 2.8s ease-in-out infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="earning"] .adcode-mascot-plus { animation: adcode-mascot-earn-plus 2.8s ease-out infinite; }
+
+  /* Connecting: both hands reach out, come together into one closed shape, and a ring spreads from the join. */
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="connecting"] .adcode-mascot-arm { animation: adcode-mascot-reach 2.6s var(--mascot-out) infinite; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="connecting"] .adcode-mascot-ring { animation: adcode-mascot-ring 2.6s ease-out infinite; }
+
+  /* Poked: squash, stretch, settle. */
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="poked"] .adcode-mascot-figure-pose { transform: none; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-mood="poked"] .adcode-mascot-figure { animation: adcode-mascot-squash 620ms var(--mascot-out) backwards; }
+
+  /* Off screen or in a hidden window the loops hold their frame; on a low-end machine they do not run at all. */
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-paused="true"] .adcode-mascot-svg * { animation-play-state: paused; }
+  :root:not([data-reduced-motion="true"]) .adcode-mascot[data-still="true"] .adcode-mascot-svg * { animation: none; }
+}
+
+@keyframes adcode-mascot-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2.5px); } }
+@keyframes adcode-mascot-breathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.014, .982); } }
+@keyframes adcode-mascot-shadow { 0%, 100% { opacity: .3; transform: scaleX(1); } 50% { opacity: .2; transform: scaleX(.9); } }
+@keyframes adcode-mascot-sway { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(1.6px); } }
+@keyframes adcode-mascot-glance { 0%, 30%, 46%, 62%, 78%, 100% { transform: translate(0, 0); } 34%, 42% { transform: translate(-3.5px, .5px); } 66%, 74% { transform: translate(3.5px, -1px); } }
+@keyframes adcode-mascot-wave { 0%, 60%, 100% { transform: rotate(0deg); } 8%, 28%, 48% { transform: rotate(-16deg); } 18%, 38% { transform: rotate(14deg); } }
+@keyframes adcode-mascot-greet { 0%, 100% { transform: rotate(0deg) translateY(0); } 50% { transform: rotate(2.5deg) translateY(-1.5px); } }
+@keyframes adcode-mascot-chin { 0%, 40%, 100% { transform: translate(0, 0); } 12%, 28% { transform: translate(-2.5px, -1.5px); } 20% { transform: translate(-1px, -.5px); } }
+@keyframes adcode-mascot-ponder { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-5px); } }
+@keyframes adcode-mascot-dot { 0%, 60%, 100% { opacity: .22; transform: translateY(0) scale(.85); } 30% { opacity: 1; transform: translateY(-1.5px) scale(1.12); } }
+@keyframes adcode-mascot-type { 0%, 50%, 100% { transform: translateY(0); } 25% { transform: translateY(-4.5px); } }
+@keyframes adcode-mascot-peer { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+@keyframes adcode-mascot-scan { 0%, 100% { transform: translateX(-4.5px); } 50% { transform: translateX(4.5px); } }
+@keyframes adcode-mascot-lean { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(1.8deg); } }
+@keyframes adcode-mascot-cup { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
+@keyframes adcode-mascot-sound { 0% { opacity: 0; transform: translateX(3px) scale(.8); } 35% { opacity: 1; transform: translateX(0) scale(1); } 80%, 100% { opacity: 0; transform: translateX(-1px) scale(1); } }
+@keyframes adcode-mascot-orbit-x { from { transform: translateX(50px); } to { transform: translateX(-50px); } }
+@keyframes adcode-mascot-orbit-y { from { transform: translateY(10px); } to { transform: translateY(-10px); } }
+@keyframes adcode-mascot-orbit-depth { from { transform: scale(1.1); } to { transform: scale(.78); } }
+@keyframes adcode-mascot-orbit-near { 0%, 49% { opacity: 1; } 50%, 99% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes adcode-mascot-orbit-far { 0%, 49% { opacity: 0; } 50%, 99% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes adcode-mascot-follow { from { transform: translateX(3px); } to { transform: translateX(-3px); } }
+@keyframes adcode-mascot-hop {
+  0% { transform: translateY(0) scale(1.06, .92); animation-timing-function: var(--mascot-rise); }
+  36% { transform: translateY(-13px) scale(.97, 1.04); animation-timing-function: var(--mascot-fall); }
+  66% { transform: translateY(0) scale(1, 1); animation-timing-function: var(--mascot-out); }
+  80%, 100% { transform: translateY(0) scale(1.06, .92); }
+}
+@keyframes adcode-mascot-hop-shadow { 0%, 66%, 100% { opacity: .3; transform: scaleX(1); } 36% { opacity: .14; transform: scaleX(.7); } }
+@keyframes adcode-mascot-cheer { 0%, 100% { transform: rotate(calc(var(--mascot-side) * -8deg)) translateY(0); } 36% { transform: rotate(calc(var(--mascot-side) * 10deg)) translateY(-3px); } }
+@keyframes adcode-mascot-toss { 0%, 100% { transform: translateY(5px); } 36% { transform: translateY(-4px); } }
+@keyframes adcode-mascot-flip { 0%, 50%, 100% { transform: scale(1, 1); } 25%, 75% { transform: scale(.14, 1); } }
+@keyframes adcode-mascot-confetti {
+  0% { opacity: 0; transform: translate(0, 0) scale(.4); }
+  10% { opacity: 1; }
+  55% { opacity: 1; transform: translate(var(--dx), var(--dy)) rotate(var(--turn)) scale(1); }
+  100% { opacity: 0; transform: translate(var(--dx), calc(var(--dy) + 12px)) rotate(calc(var(--turn) * 1.4)) scale(1); }
+}
+@keyframes adcode-mascot-nod { 0%, 100% { transform: rotate(0deg) translateY(0); } 42% { transform: rotate(4deg) translateY(2.5px); } }
+@keyframes adcode-mascot-pop { from { opacity: 0; transform: scale(.4); } }
+@keyframes adcode-mascot-draw { from { stroke-dashoffset: 1; } }
+@keyframes adcode-mascot-shake { 0%, 22%, 100% { transform: translateX(0) rotate(0deg); } 3% { transform: translateX(-2.6px) rotate(-1.5deg); } 7% { transform: translateX(2.6px) rotate(1.5deg); } 11% { transform: translateX(-2px) rotate(-1deg); } 15% { transform: translateX(2px) rotate(1deg); } 19% { transform: translateX(-1px) rotate(0deg); } }
+@keyframes adcode-mascot-sweat { 0% { opacity: 0; transform: translateY(-2px); } 20% { opacity: 1; } 78% { opacity: 1; transform: translateY(5px); } 100% { opacity: 0; transform: translateY(7px); } }
+@keyframes adcode-mascot-doze { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.03, .96); } }
+@keyframes adcode-mascot-z { 0% { opacity: 0; transform: translate(-3px, 5px) scale(.7); } 25%, 70% { opacity: 1; } 100% { opacity: 0; transform: translate(4px, -8px) scale(1.1); } }
+@keyframes adcode-mascot-startle { 0% { transform: translateY(6px) scale(1.06, .92); } 45% { transform: translateY(-9px) scale(.97, 1.05); } 100% { transform: translateY(0) scale(1, 1); } }
+@keyframes adcode-mascot-swell { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.03, 1.012); } }
+@keyframes adcode-mascot-tilt { from { transform: rotate(-5deg); } }
+@keyframes adcode-mascot-dance { 0%, 100% { transform: translateX(-4px) translateY(0) rotate(-7deg); } 25%, 75% { transform: translateX(0) translateY(-6px) rotate(0deg); } 50% { transform: translateX(4px) translateY(0) rotate(7deg); } }
+@keyframes adcode-mascot-swing { 0%, 100% { transform: translateY(-20px) rotate(calc(var(--mascot-side) * 28deg)); } 50% { transform: translateY(6px) rotate(calc(var(--mascot-side) * -10deg)); } }
+@keyframes adcode-mascot-earn-x { 0%, 14% { transform: translateX(-48px); } 58%, 100% { transform: translateX(0); } }
+@keyframes adcode-mascot-earn-y {
+  0% { opacity: 0; transform: translateY(-14px); }
+  9% { opacity: 1; }
+  14% { transform: translateY(-14px); animation-timing-function: var(--mascot-rise); }
+  36% { transform: translateY(-36px); animation-timing-function: var(--mascot-fall); }
+  58% { transform: translateY(0); animation-timing-function: var(--mascot-out); }
+  64% { transform: translateY(2.5px); }
+  70% { transform: translateY(0); }
+  92% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(0); }
+}
+@keyframes adcode-mascot-earn-flip { 0%, 14%, 25%, 36%, 47%, 58%, 100% { transform: scale(1, 1); } 19.5%, 30.5%, 41.5%, 52.5% { transform: scale(.14, 1); } }
+@keyframes adcode-mascot-catch { 0%, 56%, 72%, 100% { transform: translateY(0); } 63% { transform: translateY(3px); } }
+@keyframes adcode-mascot-earn-watch { 0%, 14% { transform: translate(-3.5px, -1px); } 36% { transform: translate(-1.5px, -2px); } 58%, 100% { transform: translate(0, 0); } }
+@keyframes adcode-mascot-earn-plus { 0%, 58% { opacity: 0; transform: translateY(4px) scale(.6); } 68% { opacity: 1; transform: translateY(0) scale(1.1); } 90% { opacity: 1; transform: translateY(-2px) scale(1); } 100% { opacity: 0; transform: translateY(-5px) scale(1); } }
+@keyframes adcode-mascot-reach { 0%, 16%, 100% { transform: translate(calc(var(--mascot-side) * -34px), 30px); } 44% { transform: translate(calc(var(--mascot-side) * 1.5px), 0); } 52%, 84% { transform: translate(0, 0); } }
+@keyframes adcode-mascot-ring { 0%, 44% { opacity: 0; transform: scale(.5); } 52% { opacity: .9; } 84%, 100% { opacity: 0; transform: scale(1.55); } }
+@keyframes adcode-mascot-squash { 0%, 100% { transform: scale(1, 1); } 22% { transform: scale(1.14, .84); } 48% { transform: scale(.93, 1.09); } 72% { transform: scale(1.03, .97); } }

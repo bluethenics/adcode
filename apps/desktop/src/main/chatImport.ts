@@ -17,8 +17,8 @@
  */
 import { createHash } from "node:crypto";
 import { readdir, readFile, stat } from "node:fs/promises";
-import { join } from "node:path";
-import type { ChatImportEntry, ChatImportResult, ChatImportScan } from "../shared/api.ts";
+import { basename, join } from "node:path";
+import type { ChatImportEntry, ChatImportProject, ChatImportResult, ChatImportScan, ChatImportSourceReport } from "../shared/api.ts";
 import { writeSession } from "./aiSessions.ts";
 import {
   CHAT_IMPORT_SOURCES,
@@ -157,7 +157,48 @@ export async function scanChatImports(home: string): Promise<ChatImportScan> {
     if (storage !== undefined) await take("opencode", file.path, () => loadOpenCode(file.path, storage));
   }
   entries.sort((a, b) => b.updatedAt - a.updatedAt);
-  return { entries, skipped, sources: [...new Set(entries.map((entry) => entry.sourceName))] };
+  const locations: readonly { readonly source: ChatImportSource; readonly location: string; readonly path: string }[] = [
+    { source: "claude-code", location: "~/.claude/projects", path: join(home, ".claude", "projects") },
+    { source: "codex", location: "~/.codex/sessions", path: join(home, ".codex", "sessions") },
+    { source: "opencode", location: "~/.local/share/opencode/storage", path: join(home, ".local", "share", "opencode", "storage") },
+  ];
+  const present = await Promise.all(locations.map((place) => stat(place.path).then((info) => info.isDirectory(), () => false)));
+  const projects = await projectsOf(entries);
+  const reports: ChatImportSourceReport[] = locations.map((place, index) => {
+    const mine = entries.filter((entry) => entry.source === place.source);
+    return { name: CHAT_IMPORT_SOURCES[place.source], location: place.location, present: present[index] === true, conversations: mine.length, projects: new Set(mine.map((entry) => entry.folder ?? "")).size };
+  });
+  return { entries, skipped, sources: [...new Set(entries.map((entry) => entry.sourceName))], projects, found: reports };
+}
+
+/**
+ * The folders the conversations happened in, each once: which tools worked there, how much,
+ * when last, and whether the folder is still on this computer (a project may have moved).
+ */
+export async function projectsOf(entries: readonly ChatImportEntry[]): Promise<ChatImportProject[]> {
+  const byFolder = new Map<string, { folder: string; sources: Map<string, number>; conversations: number; lastUsed: number }>();
+  for (const entry of entries) {
+    if (entry.folder === null) continue;
+    const key = process.platform === "win32" ? entry.folder.toLowerCase() : entry.folder;
+    const project = byFolder.get(key) ?? { sources: new Map<string, number>(), conversations: 0, lastUsed: 0, folder: entry.folder };
+    project.sources.set(entry.sourceName, (project.sources.get(entry.sourceName) ?? 0) + 1);
+    project.conversations += 1;
+    project.lastUsed = Math.max(project.lastUsed, entry.updatedAt);
+    byFolder.set(key, project);
+  }
+  const projects = await Promise.all([...byFolder.values()].slice(0, 200).map(async (project) => {
+    const folder = project.folder;
+    const exists = await stat(folder).then((info) => info.isDirectory(), () => false);
+    return {
+      folder,
+      name: basename(folder.replace(/[\\/]+$/, "")) || folder,
+      exists,
+      sources: [...project.sources].map(([name, conversations]) => ({ name, conversations })).sort((a, b) => b.conversations - a.conversations),
+      conversations: project.conversations,
+      lastUsed: project.lastUsed,
+    };
+  }));
+  return projects.sort((a, b) => Number(b.exists) - Number(a.exists) || b.lastUsed - a.lastUsed);
 }
 
 /** Read a chosen export file and list what is in it. Nothing is saved yet. */

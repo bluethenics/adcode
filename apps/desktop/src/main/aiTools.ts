@@ -20,6 +20,7 @@ import type { NodeMemory } from "@adcode/memory";
 import { isBinaryByName, loadDirectoryFilter, type DirectoryFilter } from "@adcode/search";
 import { resolveSandboxPath } from "./aiSandbox.ts";
 import { clipOutput, createCommandRunner, looksLikeServer, timeoutFrom, MAX_TIMEOUT_SECONDS, type CommandReading, type CommandRunner } from "./aiCommands.ts";
+import { imageSize, tooSmallForModels } from "./imageSize.ts";
 import { parseAuditPageInput, parseViewPageInput, type ViewPageRequest } from "./agentBrowserModel.ts";
 import { inspectProject, runProjectChecks } from "./projectChecks.ts";
 import { htmlToText, looksLikeHtml } from "./htmlText.ts";
@@ -778,10 +779,16 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
             const imageType = IMAGE_TYPES[extname(path).toLowerCase()];
             if (imageType !== undefined) {
               if (info.size > MAX_IMAGE_BYTES) return fail(`That image is ${info.size.toLocaleString("en-US")} bytes, too large to look at (the limit is ${MAX_IMAGE_BYTES.toLocaleString("en-US")}).`);
+              const bytes = await readFile(path);
+              // Reported: a 90x30 icon sent as a picture made the provider refuse the whole request.
+              const small = tooSmallForModels(imageSize(bytes));
+              if (small !== null) {
+                return { content: `${relativeTo(workspace, path)}: ${imageType.slice(6).toUpperCase()} image, ${info.size.toLocaleString("en-US")} bytes. It is ${small}, so the picture is not attached. Say what you can from its name and where it is used.`, isError: false };
+              }
               return {
                 content: `${relativeTo(workspace, path)}: ${imageType.slice(6).toUpperCase()} image, ${info.size.toLocaleString("en-US")} bytes. The picture is attached.`,
                 isError: false,
-                images: [{ type: "image", mediaType: imageType, data: (await readFile(path)).toString("base64") }],
+                images: [{ type: "image", mediaType: imageType, data: bytes.toString("base64") }],
               };
             }
             if (info.size > MAX_PAGED_BYTES) {

@@ -55,18 +55,35 @@ export function cliAgentFor(providerId: string): CliAgentSpec | undefined {
  * specially. The prompt never does: it goes on stdin.
  */
 export function isSafeCliToken(value: string): boolean {
-  return /^[A-Za-z0-9][A-Za-z0-9._:/@+=-]{0,199}$/.test(value);
+  // `_` is inert in cmd.exe and POSIX shells alike; it is here for `mcp__adcode`. A leading
+  // `/` lets an absolute POSIX path through (the tool bridge's config file); a leading `-`
+  // stays out, since that would be read as an option.
+  return /^[A-Za-z0-9/][\w.:/@+=-]{0,199}$/.test(value);
+}
+
+/**
+ * An MCP server for the CLI to load for one turn: ADCode's tool bridge. `configPath` is a
+ * file in the CLI's own config format (JSON cannot pass `isSafeCliToken`, a path can), and
+ * `server` is the name inside it, which the CLI uses to name the server's tools.
+ */
+export interface CliMcpServer {
+  readonly configPath: string;
+  readonly server: string;
 }
 
 /** The arguments for one headless turn. `session` resumes the CLI's own conversation. */
-export function cliArgs(id: CliAgentId, options: { readonly model: string; readonly session?: string }): string[] {
+export function cliArgs(id: CliAgentId, options: { readonly model: string; readonly session?: string; readonly mcp?: CliMcpServer | null }): string[] {
   const model = options.model !== "default" && isSafeCliToken(options.model) ? options.model : null;
   const session = options.session !== undefined && isSafeCliToken(options.session) ? options.session : null;
+  const mcp = options.mcp !== undefined && options.mcp !== null && isSafeCliToken(options.mcp.configPath) && /^[a-z][a-z0-9-]{0,40}$/.test(options.mcp.server) ? options.mcp : null;
   switch (id) {
     case "claude":
       // acceptEdits: it may edit files in the project, but shell commands still need the
-      // person's own allow-list, as they would at its prompt.
-      return ["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits", ...(model ? ["--model", model] : []), ...(session ? ["--resume", session] : [])];
+      // person's own allow-list, as they would at its prompt. `--allowedTools mcp__<server>`
+      // allows every tool of that one server (Claude Code's permissions docs); ADCode's own
+      // confirmation dialogs still stand in front of anything guarded. Both flags take
+      // several values, so they go last, where only options can follow them.
+      return ["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits", ...(model ? ["--model", model] : []), ...(session ? ["--resume", session] : []), ...(mcp ? ["--mcp-config", mcp.configPath, "--allowedTools", `mcp__${mcp.server}`] : [])];
     case "codex":
       // `-` reads the prompt from stdin. workspace-write: edits inside the project, no network.
       return ["exec", ...(session ? ["resume", session] : []), "--json", "--skip-git-repo-check", ...(session ? [] : ["--sandbox", "workspace-write"]), ...(model ? ["-m", model] : []), "-"];
@@ -306,6 +323,17 @@ export interface CliProviderOptions {
   readonly cwd: () => string;
   /** Shared across providers built for the same CLI, so a rebuilt provider still resumes. */
   readonly sessions?: Map<string, { readonly id: string; readonly messages: number }>;
+  /**
+   * ADCode's tool bridge, resolved per turn because it can be switched off or move port
+   * while a provider lives. Null: not running, or its config path cannot pass the shell.
+   *
+   * Only Claude Code receives it. Codex could take the server as `-c mcp_servers.…` overrides,
+   * but the key would have to travel as `-c …http_headers` (a space and quotes, refused by
+   * `isSafeCliToken`) or through an environment variable the spawn does not set per run;
+   * OpenCode and Gemini CLI read MCP servers from their own config files, with no per-run flag
+   * to add one. Those agents get the bridge when the person adds it with the copied config.
+   */
+  readonly mcp?: () => CliMcpServer | null;
 }
 
 const SIGNED_OUT = /not logged in|please run \/login|not authenticated|unauthori[sz]ed|login required|sign in|api key/i;
@@ -321,7 +349,8 @@ export function createCliProvider(options: CliProviderOptions): Provider {
       const key = conversationKey(spec.id, request.model, request);
       const prior = sessions.get(key);
       const resume = prior !== undefined && request.messages.length > prior.messages;
-      const process = options.spawn(spec.command, cliArgs(spec.id, { model: request.model, ...(resume ? { session: prior.id } : {}) }), { cwd: options.cwd(), input: cliPrompt(request, resume) });
+      const mcp = spec.id === "claude" ? options.mcp?.() ?? null : null;
+      const process = options.spawn(spec.command, cliArgs(spec.id, { model: request.model, ...(resume ? { session: prior.id } : {}), mcp }), { cwd: options.cwd(), input: cliPrompt(request, resume) });
       const stop = (): void => process.kill();
       signal.addEventListener("abort", stop, { once: true });
       const parse = createCliLineParser(spec.id);
