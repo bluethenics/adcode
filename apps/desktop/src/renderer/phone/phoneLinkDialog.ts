@@ -60,19 +60,28 @@ export async function openPhoneLinkDialog(): Promise<void> {
     head.append(buck.element, copy);
 
     const scan = el("div", "phone-scan");
+    /* The code opens the page pointed at this computer: scan, sign in, chat - no list to pick from. */
+    const qrFigure = el("figure", "phone-qr-figure");
     const qr = el("div", "phone-qr");
-    const code = encodeQr(state.pageUrl);
-    if (code !== null) qr.innerHTML = qrSvg(code, { dark: "#111110", light: "#ffffff", label: `QR code for ${state.pageUrl}` });
+    let drawn = "";
+    const drawQr = (): void => {
+      const target = state.pairUrl || state.pageUrl;
+      if (target === drawn) return;
+      drawn = target;
+      const code = encodeQr(target);
+      qr.innerHTML = code === null ? "" : qrSvg(code, { dark: "#111110", light: "#ffffff", label: "QR code: open Phone link on your phone" });
+    };
+    qrFigure.append(qr, el("figcaption", "phone-qr-caption", "Point your phone's camera here"));
     const steps = el("ol", "phone-steps");
     for (const text of [
-      "Scan the code with your phone's camera, or open the link below.",
+      "Scan the code with your phone's camera, or open the link below. It opens this computer.",
       "Sign in with the same account you use here.",
-      "Pick this computer, then chat. Add it to your home screen to use it like an app.",
+      "Chat. Add the page to your home screen to use it like an app.",
     ]) steps.append(el("li", "", text));
     const link = el("div", "phone-link-row");
     const url = el("code", "phone-url", state.pageUrl.replace(/^https:\/\//, ""));
     const copyButton = button("Copy link", "ghost-button", () => {
-      void navigator.clipboard.writeText(state.pageUrl).then(() => {
+      void navigator.clipboard.writeText(state.pairUrl || state.pageUrl).then(() => {
         copyButton.textContent = "Copied";
         window.setTimeout(() => { copyButton.textContent = "Copy link"; }, 1400);
       });
@@ -80,7 +89,7 @@ export async function openPhoneLinkDialog(): Promise<void> {
     link.append(url, copyButton);
     const stepsColumn = el("div", "phone-steps-column");
     stepsColumn.append(steps, link);
-    scan.append(qr, stepsColumn);
+    scan.append(qrFigure, stepsColumn);
 
     const phonesTitle = el("h3", "phone-subtitle", "Connected phones");
     const phones = el("ul", "phone-list");
@@ -97,6 +106,7 @@ export async function openPhoneLinkDialog(): Promise<void> {
       card.dataset["status"] = state.status;
       status.textContent = state.status === "off" ? "Off. Nothing can reach this computer." : `${STATUS_WORDS[state.status]}. ${state.detail}`;
       buck.setMood(MOOD[state.status]);
+      if (state.enabled) drawQr();
       scan.hidden = !state.enabled;
       phonesTitle.hidden = !state.enabled;
       phones.hidden = !state.enabled;
@@ -115,7 +125,11 @@ export async function openPhoneLinkDialog(): Promise<void> {
       void window.adcode.phone.setEnabled(input.checked).then((next) => {
         state = next;
         paint();
-        if (next.enabled) buck.play("celebrating", 1400);
+        if (next.enabled) {
+          buck.play("celebrating", 1400);
+          // The code is the next thing to do: bring it into view in a short window.
+          requestAnimationFrame(() => scan.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+        }
       }).finally(() => { input.disabled = state.status === "unsupported"; });
     });
     const stop = window.adcode.phone.onChanged((next) => {

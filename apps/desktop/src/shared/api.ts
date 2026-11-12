@@ -261,6 +261,8 @@ export interface PhoneLinkStateView {
   readonly phones: readonly PhoneLinkPhoneView[];
   /** The page to open on the phone. */
   readonly pageUrl: string;
+  /** pageUrl pointing at this computer: what the QR code opens. */
+  readonly pairUrl: string;
   readonly deviceName: string;
 }
 

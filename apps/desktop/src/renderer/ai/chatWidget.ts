@@ -47,6 +47,7 @@ import type {
   AiWorkspaceChangeView,
   AiWorkspaceTaskView,
   ChatSessionView,
+  PhoneLinkStateView,
   PowerStateView,
 } from "../../shared/api.ts";
 import {
@@ -122,7 +123,8 @@ import { firstBuildPrompt, looksLikeBuildRequest } from "../../shared/firstBuild
 import { BUY_TOKENS_URL } from "../../shared/tagflow.ts";
 import { createLimitPauseCard, parseLimitPause } from "./limitPause.ts";
 import { createLiveSessionDock } from "../collab/liveSessionDock.ts";
-import { AppWindow, ArrowDown, ArrowRight, CalendarClock, CircleAlert, Folder, Maximize2, Mic, Moon, Users, type IconNode } from "lucide";
+import { AppWindow, ArrowDown, ArrowRight, CalendarClock, CircleAlert, Folder, Maximize2, Mic, Moon, Smartphone, Users, type IconNode } from "lucide";
+import { openPhoneLinkDialog, phoneChipText } from "../phone/phoneLinkDialog.ts";
 import { openPowerDialog, powerChipText } from "../power/powerUi.ts";
 
 export interface ChatWidget {
@@ -2252,6 +2254,22 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     powerButton.classList.toggle("composer-tools-item-armed", state.action !== "nothing");
   };
   toolsMenu.append(powerButton);
+  /* Phone link (main/phoneLink.ts): chat with this computer from a phone. The hint is its status. */
+  const phoneButton = document.createElement("button");
+  phoneButton.type = "button";
+  phoneButton.className = "chat-team-button";
+  phoneButton.title = "Chat with this computer from your phone";
+  phoneButton.addEventListener("click", () => { void openPhoneLinkDialog(); });
+  const paintPhone = (state: PhoneLinkStateView | null | undefined): void => {
+    if (!state) return;
+    phoneButton.hidden = state.status === "unsupported";
+    toolRow(phoneButton, Smartphone, "Phone link", phoneChipText(state) ?? "Chat from your phone");
+    phoneButton.classList.toggle("composer-tools-item-armed", state.enabled);
+  };
+  toolsMenu.append(phoneButton);
+  paintPhone({ enabled: false, status: isWebSurface() ? "unsupported" : "off", detail: "", phones: [], pageUrl: "", pairUrl: "", deviceName: "" });
+  void window.adcode.phone?.state().then(paintPhone, () => undefined);
+  window.adcode.phone?.onChanged(paintPhone);
   paintPower({ supported: !isWebSurface(), platform: "", action: "nothing", repeat: "once", graceSeconds: 60, actions: [], countdown: null, lastOutcome: null });
   const paintIfState = (state: PowerStateView | null | undefined): void => { if (state) paintPower(state); };
   void window.adcode.power?.state().then(paintIfState, () => undefined);
@@ -2403,6 +2421,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       case "team": api.openTeamSetup(); return;
       case "schedule": api.openScheduleComposer(); return;
       case "compact": void compactNow(rest.length > 0 ? rest : undefined); return;
+      case "sleep": void openPowerDialog(); return;
+      case "phone": void openPhoneLinkDialog(); return;
     }
   }
 

@@ -5467,11 +5467,15 @@ const paintPhoneChip = (state: Awaited<ReturnType<typeof window.adcode.phone.sta
 powerChip.addEventListener("click", () => void openPowerDialog());
 phoneChip.addEventListener("click", () => void openPhoneLinkDialog());
 void window.adcode.power.state().then(paintPowerChip, () => undefined);
-void window.adcode.phone.state().then((state) => { knownPhones = new Set(state.phones.map((phone) => phone.id)); paintPhoneChip(state); }, () => undefined);
+void window.adcode.phone.state().then((state) => { phoneWasOn = state.enabled; knownPhones = new Set(state.phones.map((phone) => phone.id)); paintPhoneChip(state); }, () => undefined);
 window.adcode.power.onChanged(paintPowerChip);
 let knownPhones = new Set<string>();
+let phoneWasOn: boolean | null = null;
 window.adcode.phone.onChanged((state) => {
   paintPhoneChip(state);
+  // Switched on somewhere else (Settings, the phone chip): show the QR code to scan next.
+  if (phoneWasOn === false && state.enabled && document.querySelector(".phone-link-dialog[open]") === null) void openPhoneLinkDialog();
+  phoneWasOn = state.enabled;
   // A phone joining is said once, with the way to send it away.
   for (const phone of state.phones) {
     if (knownPhones.has(phone.id)) continue;

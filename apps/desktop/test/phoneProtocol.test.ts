@@ -89,3 +89,23 @@ describe("phone markdown", () => {
     expect(parseInline("**bold** and `code`")).toEqual([{ kind: "strong", text: "bold" }, { kind: "text", text: " and " }, { kind: "code", text: "code" }]);
   });
 });
+
+describe("the pairing link in the QR code", () => {
+  const id = "0f8e2c1a-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
+  it("points the phone page at one computer, and still fits a small QR code", async () => {
+    const { phonePairUrl, pairedComputerFrom } = await import("../src/shared/phoneProtocol.ts");
+    const { encodeQr } = await import("../src/shared/qrCode.ts");
+    const url = phonePairUrl("https://web.bluethenics.com/phone/", id);
+    expect(url).toBe(`https://web.bluethenics.com/phone/?pc=${id}`);
+    expect(pairedComputerFrom(new URL(url).search)).toBe(id);
+    expect(encodeQr(url)).not.toBeNull();
+  });
+
+  it("falls back to the plain page, and ignores anything that is not a computer id", async () => {
+    const { phonePairUrl, pairedComputerFrom } = await import("../src/shared/phoneProtocol.ts");
+    expect(phonePairUrl("https://web.bluethenics.com/phone/", null)).toBe("https://web.bluethenics.com/phone/");
+    expect(phonePairUrl("https://web.bluethenics.com/phone/", "../../x")).toBe("https://web.bluethenics.com/phone/");
+    expect(pairedComputerFrom("?pc=<script>")).toBeNull();
+    expect(pairedComputerFrom("")).toBeNull();
+  });
+});

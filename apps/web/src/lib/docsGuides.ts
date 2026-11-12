@@ -23,10 +23,10 @@ interface DocGuide {
 export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
   "phone-link": {
     steps: [
-      "On your computer, open ADCode and sign in. Run Phone Link: Chat From Your Phone from the command palette, or find Phone link in the Feature library.",
-      "Switch on Let my phone chat with this computer. The status line reads Ready once this computer is connected.",
-      "Scan the QR code with your phone's camera, or open web.bluethenics.com/phone on it.",
-      "Sign in with the same account you use in ADCode on the computer. Your computer appears in the list by itself; tap it.",
+      "On your computer, open ADCode and sign in. In the chat box, open Tools (the sliders button) and choose Phone link, or type /phone. The command palette has it too: Phone Link: Chat From Your Phone.",
+      "Switch on Let my phone chat with this computer. A QR code appears straight away, and the status line reads Ready once this computer is connected.",
+      "Scan the QR code with your phone's camera. The code points at this computer, so there is nothing to pick later. You can also open web.bluethenics.com/phone on the phone by hand.",
+      "Sign in with the same account you use in ADCode on the computer. After a scan, the phone opens this computer's chats directly; opened by hand, it lists your computers to tap.",
       "Open a chat to read it and watch replies arrive, or press New chat and type what you want built. Stop works from the phone too.",
       "Optional: under When everything's done, choose Sleep, Shut down or Lock so the computer turns in once the job is finished.",
       "To keep it one tap away, add the page to your home screen: Share, then Add to Home Screen on an iPhone, or the Install button on Android.",
@@ -41,7 +41,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
   },
   "power-when-done": {
     steps: [
-      "In the chat box, open Tools (the sliders button) and choose When done. The command palette has it too: AI: When the Assistant Finishes.",
+      "In the chat box, open Tools (the sliders button) and choose When done, or type /sleep. The command palette has it too: AI: When the Assistant Finishes.",
       "Pick what the computer should do: Sleep, Hibernate (Windows and Linux), Shut down, or Lock the screen.",
       "Choose Only the next time (recommended) or Every time, then Save. A reminder appears in the status bar while it is on.",
       "Hand the assistant its job and walk away. When the last working chat finishes, a countdown appears over the window and as a system notification.",

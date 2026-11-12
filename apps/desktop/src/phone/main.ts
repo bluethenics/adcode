@@ -20,6 +20,7 @@ import {
   PHONE_PROTOCOL,
   applyPhoneEvent,
   describeUserAgent,
+  pairedComputerFrom,
   timelineFromChat,
   withUserMessage,
   type HostMessage,
@@ -107,6 +108,19 @@ const buzz = (pattern: number | number[]): void => { try { navigator.vibrate?.(p
 interface HostInfo { readonly id: string; readonly name: string; readonly platform: string; readonly since: number }
 type View = "loading" | "signin" | "computers" | "chats" | "chat";
 
+/*
+ * Scanned from a computer's Phone link QR code: that computer is the one to open, so the
+ * phone goes from sign-in straight to its chats. The id leaves the address bar at once, so a
+ * home-screen shortcut saved later opens the plain page.
+ */
+const pairedComputer = pairedComputerFrom(location.search);
+if (pairedComputer !== null) {
+  remember.set("host", pairedComputer);
+  const clean = new URL(location.href);
+  clean.searchParams.delete("pc");
+  history.replaceState(null, "", clean.pathname + clean.search + clean.hash);
+}
+
 const state: {
   user: User | null;
   link: "idle" | "connecting" | "open" | "closed";
@@ -126,7 +140,7 @@ const state: {
   link: "idle",
   linkNote: "",
   hosts: [],
-  hostId: remember.get("host"),
+  hostId: pairedComputer ?? remember.get("host"),
   device: null,
   chats: [],
   power: null,

@@ -253,6 +253,27 @@ export function applyPhoneEvent(timeline: PhoneTimeline, event: PhoneEvent): Pho
 }
 
 /** "iPhone · Safari" from a user agent: what the computer shows as the connected phone. */
+/*
+ * The QR code carries the computer's id (?pc=), so a phone that scans it goes straight to this
+ * computer's chats after signing in instead of a list to pick from. The id is not a secret:
+ * the relay only lets the same signed-in account reach it.
+ */
+const COMPUTER_ID = /^[a-f0-9-]{36}$/;
+
+/** The page to open on the phone, pointing at one computer when its id is known. */
+export function phonePairUrl(page: string, deviceId: string | null): string {
+  if (deviceId === null || !COMPUTER_ID.test(deviceId)) return page;
+  const url = new URL(page);
+  url.searchParams.set("pc", deviceId);
+  return url.toString();
+}
+
+/** The computer a scanned link points at, or null. */
+export function pairedComputerFrom(search: string): string | null {
+  const id = new URLSearchParams(search).get("pc");
+  return id !== null && COMPUTER_ID.test(id) ? id : null;
+}
+
 export function describeUserAgent(agent: string): string {
   const device = /iPhone/.test(agent) ? "iPhone" : /iPad/.test(agent) ? "iPad" : /Android/.test(agent) ? "Android phone" : /Macintosh/.test(agent) ? "Mac" : /Windows/.test(agent) ? "Windows PC" : /Linux/.test(agent) ? "Linux" : "Browser";
   const browser = /EdgA?\//.test(agent) ? "Edge" : /SamsungBrowser/.test(agent) ? "Samsung Internet" : /Firefox|FxiOS/.test(agent) ? "Firefox" : /CriOS|Chrome/.test(agent) ? "Chrome" : /Safari/.test(agent) ? "Safari" : "";

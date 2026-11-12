@@ -27,6 +27,7 @@ import {
   parsePhoneRequest,
   phoneEventFor,
   phoneMessages,
+  phonePairUrl,
   type HostMessage,
   type PhoneChatSummary,
   type PhonePowerState,
@@ -59,7 +60,7 @@ const enabled = (): boolean => currentSettings()[PHONE_LINK_SETTING] === true;
 const deviceName = (): string => hostname().replace(/\.local$/, "").slice(0, 60) || "My computer";
 
 export function phoneLinkState(): PhoneLinkStateView {
-  return { enabled: enabled(), status: enabled() ? status : "off", detail: enabled() ? detail : "", phones, pageUrl: PHONE_PAGE_URL, deviceName: deviceName() };
+  return { enabled: enabled(), status: enabled() ? status : "off", detail: enabled() ? detail : "", phones, pageUrl: PHONE_PAGE_URL, pairUrl: phonePairUrl(PHONE_PAGE_URL, deviceId), deviceName: deviceName() };
 }
 
 function announce(): void {
@@ -186,7 +187,7 @@ function scheduleRetry(): void {
 
 async function connect(): Promise<void> {
   if (!enabled() || socket !== null) return;
-  setStatus("connecting", "Connecting…");
+  setStatus("connecting", "Reaching ADCode's relay…");
   let token: string;
   try {
     token = await projectToken();
@@ -202,7 +203,7 @@ async function connect(): Promise<void> {
   socket = next;
   next.on("open", () => {
     attempt = 0;
-    setStatus("online", "Ready. Open the phone page signed in to the same account.");
+    setStatus("online", "Scan the code with your phone to start.");
     heartbeat = setInterval(() => { if (next.readyState === WebSocket.OPEN) next.send(JSON.stringify({ type: "ping" })); }, HEARTBEAT_MS);
   });
   next.on("message", (raw) => {
@@ -215,7 +216,7 @@ async function connect(): Promise<void> {
         .map((one) => ({ id: one.id, label: String(one.label ?? "Phone").slice(0, 60), since: Number(one.since) || Date.now() }));
       const joined = phones.filter((phone) => !before.has(phone.id));
       if (joined.length > 0) recordDebug("info", "phone", `${joined.map((phone) => phone.label).join(", ")} connected`);
-      setStatus("online", phones.length === 0 ? "Ready. Open the phone page signed in to the same account." : `${phones.length} phone${phones.length === 1 ? "" : "s"} connected.`);
+      setStatus("online", phones.length === 0 ? "Scan the code with your phone to start." : `${phones.length} phone${phones.length === 1 ? "" : "s"} connected.`);
       return;
     }
     if (frame.type !== "from" || typeof frame.phone !== "string" || typeof frame.data !== "string") return;
@@ -267,7 +268,9 @@ function sync(): void {
 }
 
 export function startPhoneLink(): void {
-  ipcMain.handle(CHANNELS.phoneState, () => phoneLinkState());
+  // Known before the dialog first asks, so its QR code points at this computer.
+  void ensureDeviceId();
+  ipcMain.handle(CHANNELS.phoneState, async () => { await ensureDeviceId(); return phoneLinkState(); });
   ipcMain.handle(CHANNELS.phoneSetEnabled, async (_event, on: unknown) => {
     await writeSetting(PHONE_LINK_SETTING, on === true);
     sync();
@@ -290,7 +293,7 @@ export function startPhoneLink(): void {
 
 /** The web version's sandbox: there is no computer of the person's here to link to. */
 export function registerPhoneLinkUnsupported(): void {
-  const state = (): PhoneLinkStateView => ({ enabled: false, status: "unsupported", detail: "Phone link connects your phone to ADCode on your own computer. Turn it on in the desktop app.", phones: [], pageUrl: PHONE_PAGE_URL, deviceName: "" });
+  const state = (): PhoneLinkStateView => ({ enabled: false, status: "unsupported", detail: "Phone link connects your phone to ADCode on your own computer. Turn it on in the desktop app.", phones: [], pageUrl: PHONE_PAGE_URL, pairUrl: PHONE_PAGE_URL, deviceName: "" });
   ipcMain.handle(CHANNELS.phoneState, state);
   ipcMain.handle(CHANNELS.phoneSetEnabled, state);
   ipcMain.handle(CHANNELS.phoneDisconnect, state);
