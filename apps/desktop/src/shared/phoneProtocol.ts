@@ -2,7 +2,7 @@
  * Phone link: what a phone and the person's own computer say to each other.
  *
  * The computer is the host. The phone page (`src/phone/`) is a remote for its chat: it lists
- * the conversations, opens one, sends a message, stops a turn, and arms "sleep when done". It
+ * the conversations, opens one, sends a message, stops a turn, picks one of the models the computer offers, and arms "sleep when done". It
  * never sees a file, a terminal or a setting beyond that - the relay in between forwards these
  * messages and nothing else, and the computer checks every request it is sent, because the
  * relay and the network are not trusted with more than "this came from the same account".
@@ -10,6 +10,8 @@
  * Kept small and pure: no DOM, no Node, no Electron. The desktop's main process and the phone
  * page both import it, and `test/phoneProtocol.test.ts` checks both directions.
  */
+
+import type { AiStatus } from "./api.ts";
 
 export const PHONE_PROTOCOL = "adcode.phone.v1";
 
@@ -33,9 +35,15 @@ export type PhoneRequest =
   | { readonly t: "send"; readonly text: string; readonly sessionId: string | null; readonly nonce: string }
   | { readonly t: "stop"; readonly sessionId: string }
   | { readonly t: "power"; readonly action: PowerActionName; readonly repeat: "once" | "always" }
-  | { readonly t: "power-cancel" };
+  | { readonly t: "power-cancel" }
+  /** The models this computer can answer with, and the one in use. */
+  | { readonly t: "models" }
+  /** Answer with this model from now on. The computer checks it is one it offered. */
+  | { readonly t: "model"; readonly provider: string; readonly model: string };
 
 const SESSION_ID = /^[A-Za-z0-9_-]{1,80}$/;
+/** A provider id: lowercase letters, digits and dashes, as the catalogue writes them. */
+const MODEL_PART = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 const NONCE = /^[A-Za-z0-9_-]{1,40}$/;
 
 /** The computer's check on everything a phone sends. Anything unexpected is null. */
@@ -66,6 +74,15 @@ export function parsePhoneRequest(raw: unknown): PhoneRequest | null {
       if (sessionId !== null && (typeof sessionId !== "string" || !SESSION_ID.test(sessionId))) return null;
       if (typeof nonce !== "string" || !NONCE.test(nonce)) return null;
       return { t: "send", text: text.trim(), sessionId, nonce };
+    }
+    case "models":
+      return { t: "models" };
+    case "model": {
+      const provider = r["provider"];
+      const model = r["model"];
+      if (typeof provider !== "string" || !MODEL_PART.test(provider)) return null;
+      if (typeof model !== "string" || model.length === 0 || model.length > 200 || /[\u0000-\u001f]/.test(model)) return null;
+      return { t: "model", provider, model };
     }
     case "power": {
       const action = r["action"];
@@ -108,6 +125,61 @@ export interface PhoneDevice {
   readonly model: string | null;
 }
 
+/** A model the phone may pick, as its model picker shows it. */
+export interface PhoneModel {
+  readonly provider: string;
+  readonly providerName: string;
+  readonly id: string;
+  readonly name: string;
+  /** "Free", "Recommended", or a provider's own note. Empty when there is nothing to say. */
+  readonly note: string;
+}
+
+export interface PhoneModels {
+  readonly current: { readonly provider: string; readonly model: string } | null;
+  readonly models: readonly PhoneModel[];
+}
+
+/** Per provider, so one provider with hundreds of models does not bury the rest. */
+export const MAX_PHONE_MODELS_PER_PROVIDER = 12;
+
+/**
+ * The models a phone may switch to: those of every provider that would answer a message sent
+ * now (the desktop picker's own test), the provider in use first, the model in use always
+ * included. A phone may only pick from this list - the computer checks.
+ */
+export function phoneModelChoices(status: AiStatus): PhoneModels {
+  const answers = status.providers.filter((provider) => {
+    if (provider.transport === "unsupported") return false;
+    if (provider.local !== undefined) return provider.local.running && provider.models.length > 0;
+    return provider.needsKey ? provider.hasKey : true;
+  });
+  const ordered = answers
+    .map((provider, index) => ({ provider, index }))
+    .sort((a, b) => Number(b.provider.id === status.activeProvider) - Number(a.provider.id === status.activeProvider) || a.index - b.index)
+    .map(({ provider }) => provider);
+  const models: PhoneModel[] = [];
+  for (const provider of ordered) {
+    const providerName = provider.displayName.replace(/\s*\(.*\)\s*$/, "").trim() || provider.displayName;
+    const listed = provider.models.slice(0, MAX_PHONE_MODELS_PER_PROVIDER).map((info) => ({
+      provider: provider.id, providerName, id: info.id, name: info.name || info.id,
+      note: info.free === true ? "Free" : info.recommended === true ? "Recommended" : "",
+    }));
+    if (provider.id === status.activeProvider && status.activeModel !== "" && !listed.some((one) => one.id === status.activeModel)) {
+      const known = provider.models.find((one) => one.id === status.activeModel);
+      listed.unshift({ provider: provider.id, providerName, id: status.activeModel, name: known?.name || status.activeModel, note: "" });
+    }
+    models.push(...listed);
+  }
+  const current = status.activeModel !== "" ? { provider: status.activeProvider, model: status.activeModel } : null;
+  return { current, models };
+}
+
+/** True when the phone asked for a model this computer actually offered it. */
+export function isOfferedModel(choices: PhoneModels, provider: string, model: string): boolean {
+  return choices.models.some((one) => one.provider === provider && one.id === model);
+}
+
 /** One thing the assistant did, reduced to what a phone screen can show. */
 export type PhoneEvent =
   | { readonly k: "text"; readonly text: string }
@@ -125,6 +197,7 @@ export type HostMessage =
   | { readonly t: "event"; readonly sessionId: string; readonly event: PhoneEvent }
   | { readonly t: "sent"; readonly nonce: string; readonly sessionId: string }
   | { readonly t: "power"; readonly power: PhonePowerState }
+  | { readonly t: "models"; readonly models: PhoneModels }
   | { readonly t: "error"; readonly message: string; readonly nonce?: string };
 
 /** The last `MAX_SENT_MESSAGES` messages, each cut to a size a phone can draw. */

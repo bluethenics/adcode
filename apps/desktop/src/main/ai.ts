@@ -998,6 +998,16 @@ export function aiPhoneSummary(): { readonly project: string | null; readonly mo
   return { project: root === null ? null : root.split(/[\\/]/).filter(Boolean).pop() ?? root, model: activeModel(provider) || null };
 }
 
+/**
+ * Switch the model the way the desktop's picker does (the same two settings), for a phone
+ * that picked one through Phone link. The next turn uses it; a running turn carries on.
+ */
+export async function aiUseModelFromPhone(provider: string, model: string): Promise<void> {
+  await writeSetting("adcode.ai.provider", provider);
+  await writeSetting("adcode.ai.model", model);
+  invalidateChatAgents();
+}
+
 /** About one frame: code drafts arriving faster than this are merged into one message. */
 const LIVE_FRAME_MS = 33;
 

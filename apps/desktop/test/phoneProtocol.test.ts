@@ -109,3 +109,41 @@ describe("the pairing link in the QR code", () => {
     expect(pairedComputerFrom("")).toBeNull();
   });
 });
+
+describe("switching the model from the phone", () => {
+  const model = (id: string, extra: Record<string, unknown> = {}) => ({ id, name: id.toUpperCase(), toolCall: true, reasoning: false, ...extra });
+  const provider = (id: string, models: ReturnType<typeof model>[], extra: Record<string, unknown> = {}) => ({
+    id, displayName: `${id} (on this computer)`, models, hasKey: true, needsKey: true, transport: "native", doc: null, ...extra,
+  });
+  const status = (providers: unknown[], activeProvider: string, activeModel: string) => ({
+    providers, activeProvider, activeModel, ready: true, customBaseUrl: "", catalogueTakenOn: "", catalogueIsLive: false,
+  }) as never;
+
+  it("offers only providers that would answer, the one in use first, with the model in use always listed", async () => {
+    const { phoneModelChoices, MAX_PHONE_MODELS_PER_PROVIDER } = await import("../src/shared/phoneProtocol.ts");
+    const many = Array.from({ length: 30 }, (_, i) => model(`m${i}`));
+    const choices = phoneModelChoices(status([
+      provider("openai", [model("gpt", { recommended: true })]),
+      provider("nokey", [model("x")], { hasKey: false }),
+      provider("dead", [model("y")], { transport: "unsupported" }),
+      provider("anthropic", many),
+    ], "anthropic", "custom-model"));
+    expect(choices.current).toEqual({ provider: "anthropic", model: "custom-model" });
+    expect(choices.models[0]).toMatchObject({ provider: "anthropic", id: "custom-model", providerName: "anthropic" });
+    expect(choices.models.filter((one) => one.provider === "anthropic")).toHaveLength(MAX_PHONE_MODELS_PER_PROVIDER + 1);
+    expect(choices.models.some((one) => one.provider === "nokey" || one.provider === "dead")).toBe(false);
+    expect(choices.models.find((one) => one.id === "gpt")?.note).toBe("Recommended");
+  });
+
+  it("accepts only a model the computer offered, and refuses malformed requests", async () => {
+    const { isOfferedModel, parsePhoneRequest, phoneModelChoices } = await import("../src/shared/phoneProtocol.ts");
+    const choices = phoneModelChoices(status([provider("openai", [model("gpt")])], "openai", "gpt"));
+    expect(isOfferedModel(choices, "openai", "gpt")).toBe(true);
+    expect(isOfferedModel(choices, "openai", "gpt-secret")).toBe(false);
+    expect(parsePhoneRequest({ t: "models" })).toEqual({ t: "models" });
+    expect(parsePhoneRequest({ t: "model", provider: "openai", model: "gpt" })).toEqual({ t: "model", provider: "openai", model: "gpt" });
+    expect(parsePhoneRequest({ t: "model", provider: "../x", model: "gpt" })).toBeNull();
+    expect(parsePhoneRequest({ t: "model", provider: "openai", model: "" })).toBeNull();
+    expect(parsePhoneRequest({ t: "model", provider: "openai", model: "a\nb" })).toBeNull();
+  });
+});

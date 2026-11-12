@@ -6,7 +6,7 @@
  * smoke-tested without an account or a running desktop. Production builds never include it:
  * `main.ts` reaches it only behind `__ADCODE_WEB_DEV__`.
  */
-import { parsePhoneRequest, type HostMessage, type PhoneChatSummary, type PhonePowerState } from "../shared/phoneProtocol.ts";
+import { parsePhoneRequest, type HostMessage, type PhoneChatSummary, type PhoneModels, type PhonePowerState } from "../shared/phoneProtocol.ts";
 
 type Listener = (event: { data?: string; code?: number }) => void;
 
@@ -14,6 +14,16 @@ export class DemoSocket {
   readyState = 0;
   private readonly listeners = new Map<string, Listener[]>();
   private power: PhonePowerState = { supported: true, action: "nothing", repeat: "once", actions: ["nothing", "sleep", "hibernate", "shutdown", "lock"], countdown: null };
+  private models: PhoneModels = {
+    current: { provider: "anthropic", model: "claude-sonnet-5-5" },
+    models: [
+      { provider: "anthropic", providerName: "Anthropic", id: "claude-sonnet-5-5", name: "Claude Sonnet 5.5", note: "Recommended" },
+      { provider: "anthropic", providerName: "Anthropic", id: "claude-opus-5-5", name: "Claude Opus 5.5", note: "" },
+      { provider: "anthropic", providerName: "Anthropic", id: "claude-haiku-5-5", name: "Claude Haiku 5.5", note: "" },
+      { provider: "tagflow", providerName: "Tagflow AI", id: "tagflow-code-flash-1", name: "Tagflow Code Flash 1", note: "Free" },
+      { provider: "ollama", providerName: "Ollama", id: "qwen3-coder:30b", name: "qwen3-coder:30b", note: "" },
+    ],
+  };
   private chats: PhoneChatSummary[] = [
     { id: "s1", title: "Add a dark mode toggle to the settings page", updatedAt: Date.now() - 4 * 60_000, running: false },
     { id: "s2", title: "Why does the build fail on CI?", updatedAt: Date.now() - 3 * 3_600_000, running: false },
@@ -88,6 +98,13 @@ export class DemoSocket {
       case "power-cancel":
         this.power = { ...this.power, countdown: null };
         this.reply({ t: "power", power: this.power }, 120);
+        return;
+      case "models":
+        this.reply({ t: "models", models: this.models }, 160);
+        return;
+      case "model":
+        this.models = { ...this.models, current: { provider: request.provider, model: request.model } };
+        this.reply({ t: "models", models: this.models }, 220);
         return;
     }
   }

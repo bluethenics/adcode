@@ -28,12 +28,14 @@ import {
   phoneEventFor,
   phoneMessages,
   phonePairUrl,
+  phoneModelChoices,
+  isOfferedModel,
   type HostMessage,
   type PhoneChatSummary,
   type PhonePowerState,
   type PhoneRequest,
 } from "../shared/phoneProtocol.ts";
-import { aiCancel, aiLiveTurn, aiPhoneSummary, aiRuns, aiSendFromPhone, aiSessions, onChatEvent } from "./ai.ts";
+import { aiCancel, aiLiveTurn, aiPhoneSummary, aiRuns, aiSendFromPhone, aiSessions, aiStatus, aiUseModelFromPhone, onChatEvent } from "./ai.ts";
 import { onPowerChanged, powerState, setPowerPreference, cancel as cancelPower } from "./powerAfterTasks.ts";
 import { projectServiceOrigin, projectToken } from "./sharedProjects.ts";
 import { currentSettings, onSettingsChanged, writeSetting } from "./settings.ts";
@@ -160,7 +162,28 @@ async function answer(phone: string, request: PhoneRequest): Promise<void> {
     case "power-cancel":
       cancelPower("Cancelled from your phone");
       return;
+    case "models":
+      sendTo(phone, { t: "models", models: phoneModelChoices(await aiStatus()) });
+      return;
+    case "model": {
+      // Only a model this computer offered: the phone is a remote, not a way to name anything.
+      if (!isOfferedModel(phoneModelChoices(await aiStatus()), request.provider, request.model)) {
+        sendTo(phone, { t: "error", message: "That model isn't available on this computer any more." });
+        sendTo(phone, { t: "models", models: phoneModelChoices(await aiStatus()) });
+        return;
+      }
+      await aiUseModelFromPhone(request.provider, request.model);
+      recordDebug("info", "phone", "A phone switched the model");
+      // Every phone hears it, through the settings listener below.
+      return;
+    }
   }
+}
+
+/** Tell every phone which model is in use now: the desktop or another phone changed it. */
+async function announceModels(): Promise<void> {
+  if (socket === null || socket.readyState !== WebSocket.OPEN) return;
+  sendTo(null, { t: "models", models: phoneModelChoices(await aiStatus()) });
 }
 
 /* ── The connection ──────────────────────────────────────────────────────── */
@@ -281,7 +304,10 @@ export function startPhoneLink(): void {
     return phoneLinkState();
   });
   let was = enabled();
+  let modelWas = `${String(currentSettings()["adcode.ai.provider"] ?? "")}/${String(currentSettings()["adcode.ai.model"] ?? "")}`;
   onSettingsChanged((values) => {
+    const modelNow = `${String(values["adcode.ai.provider"] ?? "")}/${String(values["adcode.ai.model"] ?? "")}`;
+    if (modelNow !== modelWas) { modelWas = modelNow; void announceModels().catch(() => undefined); }
     const now = values[PHONE_LINK_SETTING] === true;
     if (now === was) return;
     was = now;

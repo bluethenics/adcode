@@ -27,7 +27,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Switch on Let my phone chat with this computer. A QR code appears straight away, and the status line reads Ready once this computer is connected.",
       "Scan the QR code with your phone's camera. The code points at this computer, so there is nothing to pick later. You can also open web.bluethenics.com/phone on the phone by hand.",
       "Sign in with the same account you use in ADCode on the computer. After a scan, the phone opens this computer's chats directly; opened by hand, it lists your computers to tap.",
-      "Open a chat to read it and watch replies arrive, or press New chat and type what you want built. Stop works from the phone too.",
+      "Open a chat to read it and watch replies arrive, or press New chat and type what you want built. Stop works from the phone too. Tap the model chip to switch to any model this computer has connected; the next message uses it.",
       "Optional: under When everything's done, choose Sleep, Shut down or Lock so the computer turns in once the job is finished.",
       "To keep it one tap away, add the page to your home screen: Share, then Add to Home Screen on an iPhone, or the Install button on Android.",
     ],

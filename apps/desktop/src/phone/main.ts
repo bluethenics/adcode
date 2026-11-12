@@ -26,6 +26,7 @@ import {
   type HostMessage,
   type PhoneChatSummary,
   type PhoneDevice,
+  type PhoneModels,
   type PhonePowerState,
   type PhoneRequest,
   type PhoneTimeline,
@@ -68,6 +69,9 @@ const ICONS = {
   download: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
   out: '<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/>',
   refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/>',
+  chevron: '<path d="M6 9l6 6 6-6"/>',
+  check: '<path d="M5 12l5 5 9-10"/>',
+  spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6"/>',
 } as const;
 
 function icon(name: keyof typeof ICONS): SVGSVGElement {
@@ -130,6 +134,7 @@ const state: {
   device: PhoneDevice | null;
   chats: PhoneChatSummary[];
   power: PhonePowerState | null;
+  models: PhoneModels | null;
   sessionId: string | null;
   title: string;
   timeline: PhoneTimeline | null;
@@ -144,6 +149,7 @@ const state: {
   device: null,
   chats: [],
   power: null,
+  models: null,
   sessionId: null,
   title: "",
   timeline: null,
@@ -307,6 +313,7 @@ function onHost(message: HostMessage): void {
       state.power = message.power;
       if (state.view === "chats") paintChats();
       paintPower();
+      send({ t: "models" });
       return;
     case "chats":
       state.chats = [...message.chats];
@@ -351,6 +358,12 @@ function onHost(message: HostMessage): void {
       state.power = message.power;
       paintPower();
       return;
+    case "models":
+      state.models = message.models;
+      if (state.device !== null) state.device = { ...state.device, model: currentModelName() ?? state.device.model };
+      paintModels();
+      if (state.view === "chats") paintChats();
+      return;
     case "error":
       if (message.nonce !== undefined) state.pending.delete(message.nonce);
       toast(message.message, "warn");
@@ -364,6 +377,7 @@ function onHost(message: HostMessage): void {
 let linkBadge: HTMLElement | null = null;
 let offlineBanner: HTMLElement | null = null;
 let powerSlot: HTMLElement | null = null;
+let modelSlot: HTMLElement | null = null;
 let chatList: HTMLElement | null = null;
 let headerBuck: AdcodeMascot | null = null;
 let headerTitle: HTMLElement | null = null;
@@ -551,16 +565,18 @@ function showChats(): void {
     teardown.push(() => { headerBuck = null; headerTitle = null; headerSub = null; });
 
     powerSlot = h("div", "power-slot");
-    teardown.push(() => { powerSlot = null; });
+    modelSlot = h("div", "model-slot");
+    teardown.push(() => { powerSlot = null; modelSlot = null; });
     chatList = h("div", "chat-list");
     teardown.push(() => { chatList = null; });
     const fab = tap("", "fab", () => openChat(null));
     fab.append(icon("plus"), h("span", "", "New chat"));
-    page.append(bar, offlineNotice(), powerSlot, chatList, fab);
+    page.append(bar, offlineNotice(), powerSlot, modelSlot, chatList, fab);
     return page;
   });
   paintChats();
   paintPower();
+  paintModels();
   paintOffline(!state.hosts.some((one) => one.id === state.hostId));
 }
 
@@ -693,6 +709,7 @@ function openChat(sessionId: string | null, title = "New chat"): void {
     scroller.append(timelineList);
     activityLine = h("div", "activity");
     activityLine.hidden = true;
+    modelSlot = h("div", "model-slot model-slot-chat");
 
     const composer = h("form", "composer");
     const input = h("textarea", "composer-input");
@@ -744,15 +761,99 @@ function openChat(sessionId: string | null, title = "New chat"): void {
     paintComposerRef = paintComposer;
     paintComposer();
 
-    teardown.push(() => { timelineList = null; activityLine = null; composerButton = null; headerBuck = null; headerTitle = null; headerSub = null; paintComposerRef = null; });
-    page.append(bar, offlineNotice(), scroller, activityLine, composer);
+    teardown.push(() => { timelineList = null; activityLine = null; composerButton = null; headerBuck = null; headerTitle = null; headerSub = null; paintComposerRef = null; modelSlot = null; });
+    page.append(bar, offlineNotice(), scroller, activityLine, modelSlot, composer);
     return page;
   });
+  paintModels();
   paintOffline(!state.hosts.some((one) => one.id === state.hostId));
   if (sessionId !== null) send({ t: "open", sessionId });
 }
 
 let paintComposerRef: (() => void) | null = null;
+
+/* ── Model ───────────────────────────────────────────────────────────────── */
+
+function currentModelName(): string | null {
+  const models = state.models;
+  if (models === null || models.current === null) return null;
+  const { provider, model } = models.current;
+  return models.models.find((one) => one.provider === provider && one.id === model)?.name ?? model;
+}
+
+/** The chip that says which model answers, and opens the list to change it. */
+function paintModels(): void {
+  if (modelSlot === null) return;
+  modelSlot.replaceChildren();
+  const models = state.models;
+  if (models === null || models.models.length === 0) return;
+  const name = currentModelName() ?? "Choose a model";
+  const chip = tap("", "model-chip", () => openModelSheet());
+  chip.setAttribute("aria-haspopup", "dialog");
+  chip.setAttribute("aria-label", `Model: ${name}. Change model`);
+  chip.append(icon("spark"), h("span", "model-chip-name", name), icon("chevron"));
+  modelSlot.append(chip);
+}
+
+function openModelSheet(): void {
+  const models = state.models;
+  if (models === null) return;
+  document.querySelector(".sheet-backdrop")?.remove();
+  const backdrop = h("div", "sheet-backdrop");
+  const sheet = h("div", "sheet");
+  sheet.setAttribute("role", "dialog");
+  sheet.setAttribute("aria-modal", "true");
+  sheet.setAttribute("aria-label", "Choose a model");
+  const grip = h("span", "sheet-grip");
+  const head = h("div", "sheet-head");
+  head.append(h("h2", "", "Model"), h("p", "", "Your computer answers with this from the next message. Only models it has connected are listed."));
+  const list = h("div", "sheet-list");
+  let lastProvider = "";
+  let index = 0;
+  for (const model of models.models) {
+    if (model.provider !== lastProvider) {
+      lastProvider = model.provider;
+      list.append(h("h3", "sheet-group", model.providerName));
+    }
+    const current = models.current?.provider === model.provider && models.current.model === model.id;
+    const row = tap("", "sheet-row", () => {
+      close();
+      if (current) return;
+      if (!send({ t: "model", provider: model.provider, model: model.id })) { toast("Your computer isn't reachable right now.", "warn"); return; }
+      // Shown at once; the computer confirms with the list it now has.
+      state.models = { ...models, current: { provider: model.provider, model: model.id } };
+      if (state.device !== null) state.device = { ...state.device, model: model.name };
+      paintModels();
+      if (state.view === "chats") paintChats();
+      buzz(12);
+      toast(`Now using ${model.name}`, "ok");
+    });
+    row.style.setProperty("--i", String(Math.min(index++, 14)));
+    row.setAttribute("aria-current", String(current));
+    const copy = h("span", "sheet-row-copy");
+    copy.append(h("strong", "", model.name));
+    if (model.note !== "") copy.append(h("small", "", model.note));
+    row.append(copy);
+    if (current) row.append(icon("check"));
+    list.append(row);
+  }
+  sheet.append(grip, head, list);
+  backdrop.append(sheet);
+  const previous = document.activeElement as HTMLElement | null;
+  const close = (): void => {
+    if (backdrop.dataset["leave"] === "true") return;
+    backdrop.dataset["leave"] = "true";
+    document.removeEventListener("keydown", onKey);
+    window.setTimeout(() => backdrop.remove(), 220);
+    previous?.focus?.();
+  };
+  const onKey = (event: KeyboardEvent): void => { if (event.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey);
+  backdrop.addEventListener("click", (event) => { if (event.target === backdrop) close(); });
+  document.body.append(backdrop);
+  (list.querySelector('[aria-current="true"]') as HTMLElement | null ?? list.querySelector(".sheet-row") as HTMLElement | null)?.focus();
+  send({ t: "models" });
+}
 
 function paintChatHeader(): void {
   if (state.view !== "chat") return;
