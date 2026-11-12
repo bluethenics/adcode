@@ -183,7 +183,7 @@ export function pricingOffers(packs: readonly PaidPack[]): Node {
         description: "The free editor and Tagflow AI, free for every signed-in account." },
       ...WALLET_TOPUPS_CENTS.map((cents) => ({
         "@type": "Offer", name: `$${cents / 100} of AI credits`, price: dollars(cents), priceCurrency: "USD", url: url("/ai-tokens#wallet"),
-        description: "USD credits for any paid model in ADCode at its provider's price plus 35%. One-time; never expire.",
+        description: "USD credits for any paid model in ADCode at the price listed for it. One-time; never expire.",
       })),
     ],
   };
@@ -323,7 +323,7 @@ export const FAQ: readonly { q: string; a: string }[] = [
   },
   {
     q: "Is the AI in ADCode free?",
-    a: `Tagflow AI is free for every signed-in account, with no API key. Every other model is paid from USD credits at its provider's price plus 35%, with no subscription. Provider availability and context limits still apply. You can also connect your own provider or local model.`,
+    a: `Tagflow AI is free for every signed-in account, with no API key. Every other model is paid from USD credits at the price listed for it, with no subscription. Provider availability and context limits still apply. You can also connect your own provider or local model.`,
   },
   {
     q: "How much can you earn using ADCode?",

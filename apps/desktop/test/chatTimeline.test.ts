@@ -197,7 +197,9 @@ describe("the timeline in the chat", () => {
   });
 
   it("keeps one face at work: the mascot in the heading, pixel spinners on live rows", () => {
-    expect(timelineSource).toContain("createMascot(");
+    // The face is Buck now (mascot/adcodeMascot.ts), behind the same small handle.
+    expect(timelineSource).toContain("createAdcodeMascot(");
+    expect(timelineSource).toContain("const mascot = buckForTurn();");
     expect(timelineSource).toContain("createPixelSpinner(");
     const finish = timelineSource.slice(timelineSource.indexOf("finish(outcome"), timelineSource.indexOf("destroy(): void {"));
     expect(finish).toContain("mascot.destroy()");

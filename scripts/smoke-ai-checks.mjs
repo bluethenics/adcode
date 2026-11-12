@@ -372,7 +372,7 @@ export async function checkAi({ evaluate, send, waitFor, sleep, artifacts }) {
     let mostMascots = 0;
     assert.equal(await evaluate("window.adcode.ai.send('view-page-smoke')"), true);
     for (let attempt = 0; attempt < 240; attempt++) {
-      mostMascots = Math.max(mostMascots, await evaluate("document.querySelectorAll('.chat-transcript .chat-mascot').length"));
+      mostMascots = Math.max(mostMascots, await evaluate("document.querySelectorAll('.chat-transcript :is(.chat-mascot, .adcode-mascot)').length"));
       if (await evaluate("[...document.querySelectorAll('.chat-bubble-assistant')].some(node => node.textContent.includes('opened it for you')) && document.querySelector('.chat-card')?.dataset.working !== 'true'")) break;
       await sleep(250);
     }
@@ -390,7 +390,7 @@ export async function checkAi({ evaluate, send, waitFor, sleep, artifacts }) {
       agentViewCard: await evaluate("document.querySelector('.chat-agent-view-image')?.src.startsWith('data:image/jpeg;base64,') === true && /problem/.test(document.querySelector('.chat-agent-view-verdict')?.textContent ?? '')"),
       planCard: await evaluate("document.querySelector('.chat-plan-summary')?.textContent === 'All 2 steps done' && document.querySelectorAll('.chat-plan').length === 1"),
       mostMascotsDuringTurn: mostMascots,
-      mascotsAfterTurn: await evaluate("document.querySelectorAll('.chat-transcript .chat-mascot').length"),
+      mascotsAfterTurn: await evaluate("document.querySelectorAll('.chat-transcript :is(.chat-mascot, .adcode-mascot)').length"),
       finishedTurns: await evaluate("document.querySelectorAll('.chat-transcript .chat-turn[data-state=done]').length"),
     };
     process.stdout.write('viewPageEvidence: ' + JSON.stringify(viewPageEvidence) + '\n');

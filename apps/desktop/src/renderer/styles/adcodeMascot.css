@@ -31,7 +31,12 @@
 }
 button.adcode-mascot { cursor: pointer; }
 button.adcode-mascot:focus-visible { outline: 2px solid var(--accent, #26241f); outline-offset: 3px; }
-.adcode-mascot-svg { display: block; width: 100%; height: 100%; overflow: visible; pointer-events: none; transform-box: fill-box; transform-origin: center; }
+/*
+ * Two classes, so the drawing fills Buck's box even inside containers that size every icon
+ * they hold (`.agent-browser button svg`, `.chat-failure-icon svg`): a single class lost to
+ * those, and Buck drew as a 15px speck in a 184px frame.
+ */
+.adcode-mascot .adcode-mascot-svg { display: block; width: 100%; height: 100%; overflow: visible; pointer-events: none; transform-box: fill-box; transform-origin: center; }
 
 /* Paint that follows the theme. Brand colours - the plate, the light features, the gold - are in the drawing. */
 .adcode-mascot-shadow { fill: #000; opacity: .3; }

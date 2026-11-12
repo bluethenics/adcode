@@ -970,7 +970,7 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
         await finishMetric("rejected","wallet-client-update");
         // Only releases before 2.4.12 land here, and they show this text as it is: without a link,
         // 61 people who chose a paid model in one evening had no way to the update.
-        return fail(402,"wallet-client-update",`This model uses purchased USD credits at provider cost plus 35%, and this version of ADCode cannot use them. Download the latest version at ${DOWNLOAD_URL}, then try again. Manage credits at ${WALLET_URL}.`,{},{retryable:false,buyUrl:DOWNLOAD_URL});
+        return fail(402,"wallet-client-update",`This model uses purchased USD credits, and this version of ADCode cannot use them. Download the latest version at ${DOWNLOAD_URL}, then try again. Manage credits at ${WALLET_URL}.`,{},{retryable:false,buyUrl:DOWNLOAD_URL});
       }
       const paidModel = !walletModel && isPaidModel(parsed.model, config.paid) && !hasUnlimitedPlan(accountPlan, deps.clock.now(), costCredits) && activeCampaign(config.campaign, deps.clock.now()) === null;
       // The week's free allowance: the account's plan or boost when better than everyone's. Cached per isolate.

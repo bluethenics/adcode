@@ -112,6 +112,8 @@ const api: AdcodeApi = {
     detachTab: (tabId) => ipcRenderer.invoke(CHANNELS.browserDetachTab, tabId),
     onRequest: (listener) => subscribe(CHANNELS.browserRequest, listener),
     clearData: () => ipcRenderer.invoke(CHANNELS.browserClearData),
+    annotate: (target, probe) => ipcRenderer.invoke(CHANNELS.browserAnnotate, target, probe),
+    captureForAnnotate: (target) => ipcRenderer.invoke(CHANNELS.browserAnnotateCapture, target),
   },
   preview: {
     start: (mode) => ipcRenderer.invoke(CHANNELS.previewStart, mode),
@@ -231,7 +233,7 @@ const api: AdcodeApi = {
     audience: (input) => ipcRenderer.invoke(CHANNELS.aiAudience,input),
     feedback: (input) => ipcRenderer.invoke(CHANNELS.aiModelFeedback,input),
     allowance: () => ipcRenderer.invoke(CHANNELS.aiUsageAllowance),
-    read: (range) => ipcRenderer.invoke(CHANNELS.aiUsageRead, range),
+    read: (range, filter) => ipcRenderer.invoke(CHANNELS.aiUsageRead, range, filter),
     clear: () => ipcRenderer.invoke(CHANNELS.aiUsageClear),
     onChanged: (listener) => subscribe(CHANNELS.aiUsageChanged, listener),
   },
@@ -408,6 +410,20 @@ const api: AdcodeApi = {
   rating: {
     onAsk: (listener) => subscribe(CHANNELS.ratingAsk, listener),
     open: () => ipcRenderer.invoke(CHANNELS.ratingOpen),
+  },
+  power: {
+    state: () => ipcRenderer.invoke(CHANNELS.powerState),
+    set: (action, repeat) => ipcRenderer.invoke(CHANNELS.powerSet, action, repeat),
+    cancel: () => ipcRenderer.invoke(CHANNELS.powerCancel),
+    now: () => ipcRenderer.invoke(CHANNELS.powerNow),
+    onChanged: (listener) => subscribe(CHANNELS.powerChanged, listener),
+    onSaveFiles: (listener) => subscribe(CHANNELS.powerSaveFiles, listener),
+  },
+  phone: {
+    state: () => ipcRenderer.invoke(CHANNELS.phoneState),
+    setEnabled: (enabled) => ipcRenderer.invoke(CHANNELS.phoneSetEnabled, enabled),
+    disconnect: (phoneId) => ipcRenderer.invoke(CHANNELS.phoneDisconnect, phoneId),
+    onChanged: (listener) => subscribe(CHANNELS.phoneChanged, listener),
   },
   ads: {
     onShow: (listener) => subscribe(CHANNELS.adShow, listener),

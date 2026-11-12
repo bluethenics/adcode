@@ -311,7 +311,7 @@ export default function AiTokens() {
   return (
     <>
       {/* Signed in and free to buy, the chosen card is outlined and badged; a sentence on top would only repeat it. */}
-      {(selectedPlan !== null || intent?.pack) && <p className="notice" role="status">Plans and credit packs are no longer sold. Every model is now paid from the USD credits below, at its provider&apos;s price plus 35%, and Tagflow AI stays free.</p>}
+      {(selectedPlan !== null || intent?.pack) && <p className="notice" role="status">Plans and credit packs are no longer sold. Every model is now paid from the USD credits below, at the price listed for it, and Tagflow AI stays free.</p>}
           {error !== null && <div className="notice" data-tone="error" role="alert">{error}</div>}
           {arrival !== null && (
             <div className="notice" data-tone={arrival === "added" ? "success" : undefined} role="status">

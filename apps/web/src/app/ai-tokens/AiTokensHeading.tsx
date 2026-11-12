@@ -1,4 +1,4 @@
-import { WALLET_MARKUP_PERCENT, WALLET_TOPUPS_CENTS } from "@adcode/api/src/modelWallet.ts";
+import { WALLET_TOPUPS_CENTS } from "@adcode/api/src/modelWallet.ts";
 
 /**
  * Rendered on the server, so the heading and the offer are there before anyone signs in.
@@ -7,7 +7,7 @@ import { WALLET_MARKUP_PERCENT, WALLET_TOPUPS_CENTS } from "@adcode/api/src/mode
 export function AiTokensHeading() {
   const tiers = [
     { name: "Tagflow AI", value: "Free", note: "every signed-in account" },
-    { name: "Every other model", value: `+${WALLET_MARKUP_PERCENT}%`, note: "on the provider's own price" },
+    { name: "Every other model", value: "Pay per use", note: "each model's price is listed below" },
     { name: "Credits", value: `$${WALLET_TOPUPS_CENTS[0] / 100}+`, note: "once, never expire" },
   ];
   return (

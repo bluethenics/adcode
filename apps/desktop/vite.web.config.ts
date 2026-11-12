@@ -29,7 +29,7 @@ interface FirebaseWebConfig {
 }
 
 /** Public by design - these identify the Firebase project, they authorise nothing. */
-function firebaseConfig(): FirebaseWebConfig {
+export function firebaseConfig(): FirebaseWebConfig {
   const fromFile: Record<string, string> = {};
   for (const file of [resolve(REPO, "apps/web/.env.production"), resolve(REPO, "apps/web/.env.local")]) {
     if (!existsSync(file)) continue;
@@ -108,7 +108,9 @@ function webEntry(paused: boolean): Plugin {
       handler(html) {
         const script = '<script type="module" src="./main.ts"></script>';
         if (!html.includes(script)) throw new Error("adcode-web-entry: the renderer's module script moved; update vite.web.config.ts");
-        const head = `${paused ? webPausedHead() : webAppHead()}\n    <meta name="theme-color" content="#111110" />\n    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />\n${FONT_PRELOADS}\n    <style id="web-critical">${CRITICAL_CSS}</style>`;
+        // Installable as an app (manifest.webmanifest); the paused notice is not something to install.
+        const install = paused ? "" : `\n    <link rel="manifest" href="/manifest.webmanifest" />\n    <link rel="apple-touch-icon" href="/phone/icon-180.png" />`;
+        const head = `${paused ? webPausedHead() : webAppHead()}\n    <meta name="theme-color" content="#111110" />\n    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />${install}\n${FONT_PRELOADS}\n    <style id="web-critical">${CRITICAL_CSS}</style>`;
         if (paused) {
           // The paused notice is the whole document: no entry, no workbench, no scripts.
           return html

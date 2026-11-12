@@ -65,16 +65,41 @@ export function decodeArtifactShare(text: string): ArtifactShareCode | null {
   return match === null ? null : { id: match[1]!, key: match[2]! };
 }
 
+/**
+ * Find an invite code in whatever a person pasted: the bare code, the code without its
+ * `adartifact:` prefix, a code a chat app wrapped across lines or padded with spaces, or the
+ * whole invitation message with the code somewhere inside it. People copy what they were
+ * sent, not the one line we hoped they would pick out, so the page has to do the picking.
+ */
+export function findArtifactShare(text: string): ArtifactShareCode | null {
+  if (typeof text !== "string") return null;
+  const exact = decodeArtifactShare(text);
+  if (exact !== null) return exact;
+  const lower = text.toLowerCase();
+  // The prefix wins when it is there, so a stray "word:hex" earlier in a message cannot.
+  const prefixed = /adartifact\s*:\s*([a-z0-9]{12,40})\s*:\s*([a-f0-9]{32,64})(?![a-z0-9])/.exec(lower);
+  if (prefixed !== null) return { id: prefixed[1]!, key: prefixed[2]! };
+  const bare = /(?<![a-z0-9:/])([a-z0-9]{12,40})\s*:\s*([a-f0-9]{32,64})(?![a-z0-9])/.exec(lower);
+  if (bare !== null) return { id: bare[1]!, key: bare[2]! };
+  // Last, a code broken across lines: squeeze out the spaces just after the prefix. A key is
+  // 32 or 64 characters, so the hex-looking word that follows it is not swallowed.
+  const at = lower.indexOf("adartifact");
+  if (at < 0) return null;
+  const squeezed = lower.slice(at, at + 200).replace(/\s+/g, "");
+  const wrapped = /^adartifact:([a-z0-9]{12,40}):([a-f0-9]{64}|[a-f0-9]{32})/.exec(squeezed);
+  return wrapped === null ? null : { id: wrapped[1]!, key: wrapped[2]! };
+}
+
 export function artifactShareMessage(title: string, id: string, key: string): string {
   return [
-    `Open "${title}" in ADCode.`,
+    `Come and build "${title}" with me in ADCode.`,
     "",
     "1. Install ADCode (free): https://adcode.bluethenics.com",
-    "2. Open Artifacts, choose Open a shared artifact, and paste:",
+    "2. Open Artifacts, find Join a friend, paste this invite code and press Join:",
     "",
     encodeArtifactShare(id, key),
     "",
-    "A private artifact is unlisted. Only people with this code can see or remix it.",
+    "A private project is unlisted. Only people with this code can see it, join it or make a copy.",
   ].join("\n");
 }
 

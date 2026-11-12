@@ -2,7 +2,8 @@ import { viewPage, readAgentBrowser, setAgentBrowserSink } from "./agentBrowser.
 import { parseViewPageInput } from "./agentBrowserModel.ts";
 import { importChats, readChatExport, scanChatImports } from "./chatImport.ts";
 import { regenerateToolBridgeToken, toolBridgeView } from "./toolBridge.ts";
-import { clearLiveBrowserData, registerLiveTab, setLiveBrowserRequestSink, unregisterLiveTab } from "./liveBrowser.ts";
+import { annotateLiveTab, annotatePreviewFrame, captureHostForAnnotate, captureLiveTabForAnnotate, clearLiveBrowserData, registerLiveTab, setLiveBrowserRequestSink, unregisterLiveTab } from "./liveBrowser.ts";
+import { parseAnnotateProbe, parseAnnotateTarget } from "./liveBrowserModel.ts";
 /**
  * The only place the renderer can reach the main process.
  *
@@ -485,7 +486,7 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
     event.sender.setZoomFactor(Math.max(0.5, Math.min(3, factor)));
   });
 
-  ipcMain.handle(CHANNELS.aiUsageRead, (_event, range: unknown) => readAiUsage(range));
+  ipcMain.handle(CHANNELS.aiUsageRead, (_event, range: unknown, filter: unknown) => readAiUsage(range, filter));
   ipcMain.handle(CHANNELS.aiUsageAllowance, () => readTagflowAllowance());
   ipcMain.handle(CHANNELS.aiModelFeedback, (_event, input: unknown) => submitTagflowFeedback(input));
   ipcMain.handle(CHANNELS.aiAudience, (_event, input: unknown) => tagflowAudience(input));
@@ -851,6 +852,23 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
   });
   ipcMain.handle(CHANNELS.browserDetachTab, (event, tabId: unknown) => { unregisterLiveTab(event.sender, Number(tabId)); });
   ipcMain.handle(CHANNELS.browserClearData, () => clearLiveBrowserData());
+  // Annotate: pins on a Browser tab of the asking window, or on its Preview frame.
+  ipcMain.handle(CHANNELS.browserAnnotate, (event, rawTarget: unknown, rawProbe: unknown) => {
+    const target = parseAnnotateTarget(rawTarget);
+    if (typeof target === "string") throw new Error(target);
+    const probe = parseAnnotateProbe(rawProbe);
+    if (typeof probe === "string") throw new Error(probe);
+    return target.surface === "browser"
+      ? annotateLiveTab(event.sender, target.tab, probe)
+      : annotatePreviewFrame(event.sender, previewStatus().url, probe);
+  });
+  ipcMain.handle(CHANNELS.browserAnnotateCapture, (event, rawTarget: unknown) => {
+    const target = parseAnnotateTarget(rawTarget);
+    if (typeof target === "string") throw new Error(target);
+    if (target.surface === "browser") return captureLiveTabForAnnotate(event.sender, target.tab);
+    if (target.rect === undefined) throw new Error("The preview's box is missing.");
+    return captureHostForAnnotate(event.sender, target.rect);
+  });
   ipcMain.handle(CHANNELS.browserView, async (_event, input: unknown) => {
     if (input === null || typeof input !== "object" || Array.isArray(input)) throw new Error("Invalid browser request");
     const request = parseViewPageInput(input as Record<string, unknown>);

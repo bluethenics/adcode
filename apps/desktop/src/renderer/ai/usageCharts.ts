@@ -1,20 +1,18 @@
 /**
- * The Usage dialog's charts, drawn as SVG by hand.
+ * The Usage page's charts, drawn as SVG and plain HTML by hand.
  *
- * Five views of the same rows, each answering one question:
- *   - the trend area: how use moved day by day, input and output stacked, with a readout
- *     that follows the pointer or the arrow keys;
- *   - the model ring: who the tokens went to;
- *   - the weekday bars: when the work happens;
- *   - the split bar: the chat against the agents;
- *   - the efficiency table: what a request costs on each model.
+ *   - the provider area: each provider's daily tokens or cost, stacked and smoothed, with a
+ *     tooltip that follows the pointer or the arrow keys;
+ *   - the type bar: one bar split into fresh input, cache reads and output;
+ *   - the hour map: requests by weekday and hour of day.
  *
- * No chart library: a few hundred paths do not need one, and every colour here is a token
- * so the charts follow the theme. Each chart is a labelled image with its figures also in
- * text, so nothing is only readable by eye. Motion is one draw-in on arrival, gated in CSS.
+ * No chart library: a few paths do not need one. Colours are series classes defined once in
+ * usageCharts.css for both themes, and a series keeps its colour when a filter hides others.
+ * Every chart is a labelled image whose figures are also in text nearby, so nothing is only
+ * readable by eye. Motion is one draw-in on arrival, gated in CSS.
  */
 import { formatTokens, formatUsageCost, type UsageModelView } from "../../shared/aiUsage.ts";
-import { formatDuration, trendText, usagePayer, type UsageDayDetail, type UsageInsights, type UsagePayer, type UsagePayerTotal } from "../../shared/usageInsights.ts";
+import { hourLabel, smoothLine, WEEKDAY_NAMES, type UsagePageDay } from "../../shared/usagePage.ts";
 
 const NS = "http://www.w3.org/2000/svg";
 
@@ -24,27 +22,27 @@ function svg<K extends keyof SVGElementTagNameMap>(tag: K, attributes: Readonly<
   return node;
 }
 
-function html<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
+export function html<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
   node.className = className;
   if (text !== undefined) node.textContent = text;
   return node;
 }
 
-function shortDay(day: string): string {
+/** Six categorical slots, then everything else in one quiet grey. */
+export const seriesClass = (index: number): string => (index >= 0 && index < 6 ? `usage-series-${index.toString()}` : "usage-series-other");
+
+export function shortDay(day: string): string {
   const [year, month, date] = day.split("-").map(Number);
   return new Date(year!, (month ?? 1) - 1, date ?? 1).toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
-function panel(title: string, note: string, ...content: (HTMLElement | SVGElement)[]): HTMLElement {
-  const box = html("section", "usage-chart");
-  const head = html("header", "usage-chart-head");
-  head.append(html("h3", "usage-chart-title", title), html("p", "usage-chart-note", note));
-  box.append(head, ...content);
-  return box;
+export function longDay(day: string): string {
+  const [year, month, date] = day.split("-").map(Number);
+  return new Date(year!, (month ?? 1) - 1, date ?? 1).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
 }
 
-/** Points for a smooth-enough area: straight segments, which stay honest about daily totals. */
+/** Points for a straight-segment area. Kept for the tests and anything that wants exact daily totals. */
 export function areaPath(values: readonly number[], width: number, height: number, max: number, base: readonly number[] = []): string {
   if (values.length === 0) return "";
   const step = values.length === 1 ? 0 : width / (values.length - 1);
@@ -52,66 +50,6 @@ export function areaPath(values: readonly number[], width: number, height: numbe
   const top = values.map((value, index) => `${index === 0 ? "M" : "L"}${(index * step).toFixed(1)} ${y(value + (base[index] ?? 0)).toFixed(1)}`).join(" ");
   const bottom = values.map((_value, index) => `L${((values.length - 1 - index) * step).toFixed(1)} ${y(base[values.length - 1 - index] ?? 0).toFixed(1)}`).join(" ");
   return `${top} ${bottom} Z`;
-}
-
-function trendChart(days: readonly UsageDayDetail[]): HTMLElement {
-  const width = 640;
-  const height = 160;
-  const input = days.map((day) => day.inputTokens);
-  const output = days.map((day) => day.outputTokens);
-  const max = Math.max(1, ...days.map((day) => day.inputTokens + day.outputTokens));
-  const chart = svg("svg", { viewBox: `0 0 ${width} ${height}`, preserveAspectRatio: "none", class: "usage-trend", role: "img", "aria-label": `Tokens per day from ${shortDay(days[0]!.day)} to ${shortDay(days[days.length - 1]!.day)}: input and output stacked` });
-  for (const fraction of [0.25, 0.5, 0.75]) chart.append(svg("line", { x1: 0, x2: width, y1: height * fraction, y2: height * fraction, class: "usage-trend-grid" }));
-  chart.append(
-    svg("path", { d: areaPath(input, width, height, max), class: "usage-trend-input" }),
-    svg("path", { d: areaPath(output, width, height, max, input), class: "usage-trend-output" }),
-  );
-  const cursor = svg("line", { x1: 0, x2: 0, y1: 0, y2: height, class: "usage-trend-cursor" });
-  cursor.style.opacity = "0";
-  chart.append(cursor);
-
-  const readout = html("p", "usage-trend-readout");
-  readout.setAttribute("aria-live", "polite");
-  const wrap = html("div", "usage-trend-wrap");
-  wrap.tabIndex = 0;
-  wrap.setAttribute("role", "group");
-  wrap.setAttribute("aria-label", "Daily tokens. Use the left and right arrow keys to read each day.");
-  wrap.append(chart);
-  let at = days.length - 1;
-  const show = (index: number, visible: boolean): void => {
-    at = Math.max(0, Math.min(days.length - 1, index));
-    const day = days[at]!;
-    const x = days.length === 1 ? 0 : (at / (days.length - 1)) * width;
-    cursor.setAttribute("x1", x.toFixed(1));
-    cursor.setAttribute("x2", x.toFixed(1));
-    cursor.style.opacity = visible ? "1" : "0";
-    readout.textContent = `${shortDay(day.day)} · ${formatTokens(day.inputTokens)} in · ${formatTokens(day.outputTokens)} out · ${day.requests.toLocaleString()} ${day.requests === 1 ? "request" : "requests"}${day.costMicros > 0 ? ` · ${formatUsageCost(day.costMicros)}` : ""}`;
-  };
-  wrap.addEventListener("pointermove", (event) => {
-    const box = chart.getBoundingClientRect();
-    show(Math.round(((event.clientX - box.left) / Math.max(1, box.width)) * (days.length - 1)), true);
-  });
-  wrap.addEventListener("pointerleave", () => show(at, false));
-  wrap.addEventListener("keydown", (event) => {
-    const move = event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : event.key === "Home" ? -days.length : event.key === "End" ? days.length : 0;
-    if (move === 0) return;
-    event.preventDefault();
-    show(at + move, true);
-  });
-  wrap.addEventListener("blur", () => show(at, false));
-  show(at, false);
-
-  const legend = html("div", "usage-legend");
-  legend.append(key("usage-key-input", "Input"), key("usage-key-output", "Output"));
-  const axis = html("div", "usage-trend-axis");
-  axis.append(html("span", "", shortDay(days[0]!.day)), html("span", "", `peak ${formatTokens(max)}`), html("span", "", shortDay(days[days.length - 1]!.day)));
-  return panel("Tokens over time", "What the model read and wrote each day", wrap, axis, readout, legend);
-}
-
-function key(className: string, label: string): HTMLElement {
-  const item = html("span", "usage-key");
-  item.append(html("i", className), document.createTextNode(label));
-  return item;
 }
 
 /** Up to five models and "Others", as arcs of one ring. Returns each slice's start and length in turns. */
@@ -127,190 +65,266 @@ export function ringSlices(models: readonly UsageModelView[], limit = 5): { read
   });
 }
 
-function modelRing(models: readonly UsageModelView[]): HTMLElement {
-  const slices = ringSlices(models);
-  const radius = 42;
-  const around = 2 * Math.PI * radius;
-  const ring = svg("svg", { viewBox: "0 0 120 120", class: "usage-ring", role: "img", "aria-label": `Tokens by model: ${slices.map((slice) => `${slice.label} ${Math.round(slice.share * 100).toString()}%`).join(", ")}` });
-  ring.append(svg("circle", { cx: 60, cy: 60, r: radius, class: "usage-ring-track" }));
-  slices.forEach((slice, index) => {
-    // A hair's gap between slices; one slice alone is a whole, unbroken ring.
-    const length = Math.max(0, slice.share * around - (slices.length > 1 ? 2 : 0));
-    const arc = svg("circle", { cx: 60, cy: 60, r: radius, class: `usage-ring-slice usage-series-${(index % 6).toString()}`, "stroke-dasharray": `${length.toFixed(2)} ${(around - length).toFixed(2)}`, "stroke-dashoffset": (-slice.start * around).toFixed(2), transform: "rotate(-90 60 60)" });
-    arc.style.setProperty("--slice", index.toString());
-    ring.append(arc);
-  });
-  const centre = svg("text", { x: 60, y: 58, class: "usage-ring-value", "text-anchor": "middle" });
-  centre.textContent = models.length.toString();
-  const centreLabel = svg("text", { x: 60, y: 72, class: "usage-ring-label", "text-anchor": "middle" });
-  centreLabel.textContent = models.length === 1 ? "model" : "models";
-  ring.append(centre, centreLabel);
-  const list = html("ul", "usage-ring-list");
-  slices.forEach((slice, index) => {
-    const row = html("li", "");
-    const name = html("span", "usage-ring-name", slice.label);
-    name.title = slice.label;
-    row.append(html("i", `usage-series-${(index % 6).toString()}`), name, html("b", "", `${Math.max(1, Math.round(slice.share * 100)).toString()}%`));
-    list.append(row);
-  });
-  const body = html("div", "usage-ring-body");
-  body.append(ring, list);
-  return panel("By model", "Share of all tokens", body);
+/** A smoothed band between `top` and `base`, both already in chart coordinates. */
+function bandPath(top: readonly (readonly [number, number])[], base: readonly (readonly [number, number])[]): string {
+  const back = smoothLine([...base].reverse());
+  return `${smoothLine(top)} L${back.slice(1)} Z`;
 }
 
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-function weekdayBars(weekdays: readonly number[]): HTMLElement {
-  const most = Math.max(1, ...weekdays);
-  const best = weekdays.indexOf(Math.max(...weekdays));
-  const bars = html("div", "usage-weekdays");
-  bars.setAttribute("role", "img");
-  bars.setAttribute("aria-label", `Tokens by day of the week: ${weekdays.map((value, index) => `${WEEKDAYS[index]!} ${formatTokens(value)}`).join(", ")}`);
-  weekdays.forEach((value, index) => {
-    const column = html("div", "usage-weekday");
-    if (index === best && value > 0) column.dataset["peak"] = "true";
-    const bar = html("span", "usage-weekday-bar");
-    bar.style.setProperty("--height", `${value === 0 ? 0 : Math.max(4, Math.round((value / most) * 100)).toString()}%`);
-    bar.style.setProperty("--order", index.toString());
-    column.title = `${WEEKDAYS[index]!}: ${formatTokens(value)} tokens`;
-    column.append(bar, html("span", "usage-weekday-label", WEEKDAYS[index]!));
-    bars.append(column);
-  });
-  return panel("When you work", most <= 1 ? "No use in this period" : `Busiest on ${["Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays", "Sundays"][best]!}`, bars);
+export interface ProviderChartInput {
+  readonly days: readonly UsagePageDay[];
+  /** Provider ids in the order of `days[].tokensBy`. */
+  readonly series: readonly string[];
+  readonly metric: "cost" | "tokens";
+  readonly nameOf: (provider: string) => string;
+  /** The provider's colour class, the same everywhere on the page. */
+  readonly colourOf: (provider: string) => string;
 }
 
-function meter(label: string, share: number, left: string, right: string, className: string): HTMLElement {
-  const box = html("div", "usage-meter");
-  const head = html("div", "usage-meter-head");
-  head.append(html("span", "", label), html("b", "", `${Math.round(share * 100).toString()}%`));
-  const track = html("div", `usage-meter-track ${className}`);
-  track.setAttribute("role", "img");
-  track.setAttribute("aria-label", `${label}: ${Math.round(share * 100).toString()}%`);
-  const fill = html("span", "");
-  fill.style.setProperty("--share", `${Math.round(share * 100).toString()}%`);
-  track.append(fill);
-  const foot = html("div", "usage-meter-foot");
-  foot.append(html("span", "", left), html("span", "", right));
-  box.append(head, track, foot);
+/** Each provider's day, stacked and smoothed, with a tooltip for the day under the pointer. */
+export function providerChart(input: ProviderChartInput): HTMLElement {
+  const { days, series, metric } = input;
+  const width = 640;
+  const height = 180;
+  const valuesOf = (day: UsagePageDay): readonly number[] => (metric === "cost" ? day.costBy : day.tokensBy);
+  const totalOf = (day: UsagePageDay): number => valuesOf(day).reduce((sum, value) => sum + value, 0);
+  const format = (value: number): string => (metric === "cost" ? formatUsageCost(value) : formatTokens(value));
+  const max = Math.max(1, ...days.map(totalOf)) * 1.08;
+  const x = (index: number): number => (days.length === 1 ? width / 2 : (index / (days.length - 1)) * width);
+  const y = (value: number): number => height - (value / max) * height;
+
+  const chart = svg("svg", { viewBox: `0 0 ${width.toString()} ${height.toString()}`, preserveAspectRatio: "none", class: "usage-area", role: "img",
+    "aria-label": `${metric === "cost" ? "Cost" : "Tokens"} per day by provider, ${shortDay(days[0]!.day)} to ${shortDay(days[days.length - 1]!.day)}` });
+  for (const fraction of [0.25, 0.5, 0.75]) chart.append(svg("line", { x1: 0, x2: width, y1: height * fraction, y2: height * fraction, class: "usage-area-grid" }));
+  chart.append(svg("line", { x1: 0, x2: width, y1: height, y2: height, class: "usage-area-base" }));
+
+  // Stack from the biggest provider at the bottom; a filter that hides one keeps the others' colours.
+  let below = days.map(() => 0);
+  series.forEach((provider, at) => {
+    const above = days.map((day, index) => below[index]! + (valuesOf(day)[at] ?? 0));
+    if (above.every((value, index) => value === below[index])) { below = above; return; }
+    const top = above.map((value, index) => [x(index), y(value)] as const);
+    const base = below.map((value, index) => [x(index), y(value)] as const);
+    const layer = svg("g", { class: `usage-area-layer ${input.colourOf(provider)}`, "data-provider": provider });
+    layer.style.setProperty("--layer", at.toString());
+    layer.append(svg("path", { d: bandPath(top, base), class: "usage-area-fill" }), svg("path", { d: smoothLine(top), class: "usage-area-line" }));
+    chart.append(layer);
+    below = above;
+  });
+
+  const yAxis = html("div", "usage-area-y");
+  yAxis.setAttribute("aria-hidden", "true");
+  for (const fraction of [0.75, 0.5, 0.25]) {
+    const label = html("span", "", format(Math.round(max * (1 - fraction))));
+    label.style.top = `${(fraction * 100).toString()}%`;
+    yAxis.append(label);
+  }
+
+  const tip = html("div", "usage-tip");
+  tip.setAttribute("role", "status");
+  const wrap = html("div", "usage-area-wrap");
+  wrap.tabIndex = 0;
+  wrap.setAttribute("role", "group");
+  wrap.setAttribute("aria-label", "Daily chart. Use the left and right arrow keys to read each day.");
+  // The crosshair and tooltip are HTML placed with transforms, so they glide after the pointer.
+  const cursor = html("span", "usage-area-cursor");
+  cursor.setAttribute("aria-hidden", "true");
+  wrap.append(chart, yAxis, cursor, tip);
+
+  let at = days.length - 1;
+  const show = (index: number, visible: boolean): void => {
+    at = Math.max(0, Math.min(days.length - 1, index));
+    const day = days[at]!;
+    const left = days.length === 1 ? 50 : (at / (days.length - 1)) * 100;
+    const px = (left / 100) * wrap.clientWidth;
+    cursor.style.transform = `translateX(${px.toFixed(1)}px)`;
+    wrap.dataset["active"] = String(visible);
+    const side = left > 60 ? "left" : "right";
+    tip.dataset["side"] = side;
+    const head = html("div", "usage-tip-head");
+    head.append(html("strong", "", longDay(day.day)), html("span", "", format(totalOf(day))));
+    const list = html("ul", "usage-tip-rows");
+    series.forEach((provider, index) => {
+      const value = valuesOf(day)[index] ?? 0;
+      if (value === 0 && series.length > 4) return;
+      const item = html("li", input.colourOf(provider));
+      item.append(html("i", "usage-swatch"), html("span", "usage-tip-name", input.nameOf(provider)), html("b", "", format(value)));
+      list.append(item);
+    });
+    if (list.childElementCount === 0) list.append(html("li", "usage-tip-none", "Nothing used"));
+    tip.replaceChildren(head, list);
+    tip.style.setProperty("--tip-x", `${(side === "left" ? px - 10 - tip.offsetWidth : px + 10).toFixed(1)}px`);
+  };
+  wrap.addEventListener("pointermove", (event) => {
+    const box = chart.getBoundingClientRect();
+    show(Math.round(((event.clientX - box.left) / Math.max(1, box.width)) * (days.length - 1)), true);
+  });
+  wrap.addEventListener("pointerleave", () => show(at, false));
+  wrap.addEventListener("keydown", (event) => {
+    const move = event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : event.key === "Home" ? -days.length : event.key === "End" ? days.length : 0;
+    if (move === 0) return;
+    event.preventDefault();
+    show(at + move, true);
+  });
+  wrap.addEventListener("focus", () => show(at, true));
+  wrap.addEventListener("blur", () => show(at, false));
+  show(at, false);
+
+  const axis = html("div", "usage-area-axis");
+  axis.setAttribute("aria-hidden", "true");
+  const middle = days[Math.floor((days.length - 1) / 2)]!;
+  axis.append(html("span", "", shortDay(days[0]!.day)), html("span", "", days.length > 2 ? shortDay(middle.day) : ""), html("span", "", shortDay(days[days.length - 1]!.day)));
+
+  const legend = html("div", "usage-legend");
+  // Only providers that drew something get a key; one with nothing to draw would point at no colour.
+  for (const provider of series.filter((_id, index) => days.some((day) => (valuesOf(day)[index] ?? 0) > 0))) {
+    const item = html("span", `usage-key ${input.colourOf(provider)}`);
+    item.dataset["provider"] = provider;
+    item.append(html("i", "usage-swatch"), document.createTextNode(input.nameOf(provider)));
+    legend.append(item);
+  }
+  const box = html("div", "usage-area-box");
+  box.append(wrap, axis, legend);
   return box;
 }
 
-/** One row per model: what it was sent, what it wrote, what it cost and how fast it answered. */
-function modelReport(insights: UsageInsights): HTMLElement {
-  const table = html("table", "usage-efficiency");
-  const head = html("thead", "");
-  const headRow = html("tr", "");
-  for (const [label, hint] of [
-    ["Model", ""], ["Requests", ""], ["Read", "Input tokens, cached included"], ["Written", "Output tokens"], ["From cache", "Share of input read from the provider's cache"],
-    ["Per request", "Average tokens in one request"], ["Spent", "At list price"], ["Per request", "Average cost of one request"],
-    ["Answer time", "Average, start to finish"], ["First response", "Average wait before anything arrived"], ["Speed", "Output tokens per second"],
-  ] as const) {
-    const cell = html("th", "", label);
-    cell.scope = "col";
-    if (hint !== "") cell.title = hint;
-    headRow.append(cell);
-  }
-  head.append(headRow);
-  const body = html("tbody", "");
-  for (const model of insights.efficiency.slice(0, 12)) {
-    const row = html("tr", "");
-    const name = html("th", "");
-    name.scope = "row";
-    name.title = `${model.provider} · ${model.model}`;
-    const payer = usagePayer(model.provider);
-    name.append(html("span", "usage-efficiency-model", model.model), html("span", "usage-efficiency-payer", payer === "included" ? "Included AI" : payer === "cli" ? "CLI subscription" : "Your key"));
-    const speed = model.timedRequests === 0;
-    row.append(
-      name,
-      html("td", "", model.requests.toLocaleString()),
-      html("td", "", formatTokens(model.inputTokens)),
-      html("td", "", formatTokens(model.outputTokens)),
-      html("td", "", `${Math.round(model.cacheShare * 100).toString()}%`),
-      html("td", "", formatTokens(model.tokensPerRequest)),
-      html("td", "", model.costMicros === null ? "no price" : formatUsageCost(model.costMicros)),
-      html("td", "", model.costPerRequestMicros === null ? "—" : formatUsageCost(model.costPerRequestMicros)),
-      html("td", "", speed ? "—" : formatDuration(model.averageResponseMs)),
-      html("td", "", speed ? "—" : formatDuration(model.averageFirstResponseMs)),
-      html("td", "", speed || model.tokensPerSecond === null ? "—" : `${model.tokensPerSecond.toLocaleString()} tok/s`),
-    );
-    body.append(row);
-  }
-  table.append(head, body);
-  const scroll = html("div", "usage-efficiency-scroll");
-  scroll.tabIndex = 0;
-  scroll.setAttribute("role", "region");
-  scroll.setAttribute("aria-label", "Report by model. Scroll sideways for more columns.");
-  scroll.append(table);
-  const timed = insights.speed.timedRequests;
-  return panel("Report by model", timed === 0
-    ? "Speed is measured from ADCode 2.6 on, so it fills in as you use each model"
-    : `Speed from ${timed.toLocaleString()} timed ${timed === 1 ? "request" : "requests"}; a long conversation costs more per request, because each one re-reads the history`, scroll);
+export interface TypePart {
+  readonly key: string;
+  readonly label: string;
+  readonly value: number | null;
+  /** Shown in place of a value that is not known. */
+  readonly missing?: string;
+  readonly hint: string;
 }
 
-const PAYER_TEXT: Readonly<Record<UsagePayer, readonly [string, string]>> = {
-  included: ["Included with ADCode", "Paid for by your plan or the free allowance"],
-  cli: ["On your CLI subscriptions", "Claude Code, Codex and the like, billed by them"],
-  own: ["On your own keys", "Billed to you by each provider"],
-};
-
-/** Who paid for the period's use, and what it would have cost at list price. */
-function payerCards(payers: readonly UsagePayerTotal[]): HTMLElement {
-  const grid = html("div", "usage-payers");
-  for (const total of payers) {
-    const [title, note] = PAYER_TEXT[total.payer];
-    const card = html("div", "usage-payer");
-    card.dataset["payer"] = total.payer;
-    if (total.requests === 0) card.dataset["empty"] = "true";
-    const value = total.requests === 0 ? "—"
-      : total.costMicros === null ? formatTokens(total.tokens)
-      : formatUsageCost(total.costMicros);
-    const detail = total.requests === 0 ? "Not used in this period"
-      : total.costMicros === null ? `tokens · ${total.requests.toLocaleString()} requests · no list price`
-      : total.payer === "included" ? `of AI at list price · ${formatTokens(total.tokens)} tokens · ${total.requests.toLocaleString()} requests`
-      : `estimated · ${formatTokens(total.tokens)} tokens · ${total.requests.toLocaleString()} requests`;
-    card.append(html("span", "usage-payer-title", title), html("strong", "usage-payer-value", value), html("span", "usage-payer-detail", detail), html("span", "usage-payer-note", note));
-    grid.append(card);
+/** One bar split into parts, with a legend that says each part's size in words. */
+export function typeBar(parts: readonly TypePart[], format: (value: number) => string, label: string): HTMLElement {
+  const known = parts.filter((part) => part.value !== null && part.value > 0);
+  const total = known.reduce((sum, part) => sum + (part.value ?? 0), 0);
+  const bar = html("div", "usage-typebar");
+  bar.setAttribute("role", "img");
+  bar.setAttribute("aria-label", `${label}: ${parts.map((part) => `${part.label} ${part.value === null ? part.missing ?? "not known" : format(part.value)}`).join(", ")}`);
+  for (const part of known) {
+    const segment = html("span", `usage-typebar-part usage-type-${part.key}`);
+    segment.style.setProperty("--share", `${((part.value! / Math.max(1, total)) * 100).toFixed(2)}%`);
+    segment.title = `${part.label}: ${format(part.value!)} (${Math.round((part.value! / Math.max(1, total)) * 100).toString()}%)`;
+    bar.append(segment);
   }
-  return panel("What you got, and who paid", "The same use, split by whose account it ran on. Included AI is shown at what the same tokens cost at list price.", grid);
+  const legend = html("ul", "usage-typelegend");
+  for (const part of parts) {
+    const item = html("li", `usage-type-${part.key}`);
+    if (part.value === null || part.value === 0) item.dataset["empty"] = "true";
+    const share = part.value === null || total === 0 ? "" : `${Math.round((part.value / total) * 100).toString()}%`;
+    const text = html("div", "usage-typelegend-text");
+    text.append(html("span", "usage-typelegend-label", part.label), html("span", "usage-typelegend-hint", part.hint));
+    const value = html("div", "usage-typelegend-value");
+    value.append(html("b", "", part.value === null ? part.missing ?? "Not known" : format(part.value)), html("span", "", share));
+    item.append(html("i", "usage-swatch"), text, value);
+    legend.append(item);
+  }
+  const box = html("div", "usage-typebox");
+  box.append(bar, legend);
+  return box;
 }
 
-function fact(label: string, value: string, detail: string, tone = ""): HTMLElement {
-  const tile = html("div", "usage-fact");
-  if (tone !== "") tile.dataset["tone"] = tone;
-  tile.append(html("span", "usage-fact-label", label), html("strong", "usage-fact-value", value), html("span", "usage-fact-detail", detail));
-  return tile;
+/** One day's requests per hour, as 24 thin bars. */
+export function hourBars(hours: readonly number[]): HTMLElement {
+  const max = Math.max(1, ...hours);
+  const busiest = hours.indexOf(Math.max(...hours));
+  const bars = html("div", "usage-hourbars");
+  bars.setAttribute("role", "img");
+  bars.setAttribute("aria-label", `Requests by hour today. Busiest: ${hourLabel(busiest)}, ${(hours[busiest] ?? 0).toLocaleString()} requests.`);
+  hours.forEach((count, hour) => {
+    const bar = html("span", "usage-hourbar");
+    bar.style.setProperty("--height", `${count === 0 ? 0 : Math.max(4, Math.round((count / max) * 100)).toString()}%`);
+    bar.title = `${hourLabel(hour)}: ${count.toLocaleString()} ${count === 1 ? "request" : "requests"}`;
+    if (hour === busiest && count > 0) bar.dataset["peak"] = "true";
+    bars.append(bar);
+  });
+  const axis = html("div", "usage-hours-axis usage-hourbars-axis");
+  axis.setAttribute("aria-hidden", "true");
+  for (const hour of [0, 6, 12, 18]) {
+    const label = html("span", "", hourLabel(hour));
+    label.style.setProperty("--hour", hour.toString());
+    axis.append(label);
+  }
+  const box = html("div", "usage-area-box");
+  box.append(bars, axis, html("p", "usage-hours-readout", `Busiest at ${hourLabel(busiest)}: ${(hours[busiest] ?? 0).toLocaleString()} ${hours[busiest] === 1 ? "request" : "requests"}`));
+  return box;
 }
 
-/** Everything the analysis shows, for the dialog to place under its totals. */
-export function usageAnalysis(insights: UsageInsights, models: readonly UsageModelView[], enter = false): HTMLElement {
-  const root = html("div", "usage-analysis");
-  // Drawn in once, when the dialog opens or the range changes - not on every live update.
-  if (enter) root.dataset["enter"] = "true";
-  const trend = insights.trend;
-  const tokensTrend = trendText(trend?.tokens);
-  const facts = html("div", "usage-facts");
-  facts.append(
-    fact("Against the period before", tokensTrend === "" ? "—" : tokensTrend, tokensTrend === "" ? "Nothing earlier to compare with" : `tokens · requests ${trendText(trend?.requests) || "—"}`, trend?.tokens == null ? "" : trend.tokens > 0 ? "up" : trend.tokens < 0 ? "down" : ""),
-    fact("Per request", formatTokens(insights.tokensPerRequest), `${insights.requestsPerActiveDay.toLocaleString()} requests on a day you used it`),
-    fact("Busiest day", insights.busiest === null ? "—" : shortDay(insights.busiest.day), insights.busiest === null ? "No use yet" : `${formatTokens(insights.busiest.inputTokens + insights.busiest.outputTokens)} tokens · ${insights.busiest.requests.toLocaleString()} requests`),
-    fact("Answer time", insights.speed.averageResponseMs === null ? "—" : formatDuration(insights.speed.averageResponseMs), insights.speed.tokensPerSecond === null ? "Measured from 2.6 on" : `${insights.speed.tokensPerSecond.toLocaleString()} tokens a second · first response in ${formatDuration(insights.speed.averageFirstResponseMs)}`),
-    fact("Streak", `${insights.streak.toLocaleString()} ${insights.streak === 1 ? "day" : "days"}`, `${insights.activeDays.toLocaleString()} active ${insights.activeDays === 1 ? "day" : "days"} in this period`),
-  );
-  root.append(facts);
+const SHORT_WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-  const grid = html("div", "usage-chart-grid");
-  if (insights.days.length > 1) grid.append(trendChart(insights.days));
-  if (models.length > 0) grid.append(modelRing(models));
-  grid.append(weekdayBars(insights.weekdays));
-  const meters = html("div", "usage-meters");
-  meters.append(
-    meter("Input read from cache", insights.cacheShare, insights.cacheSavedMicros === null ? "Cached input is billed at a fraction" : `Saved about ${formatUsageCost(insights.cacheSavedMicros)}`, "of all input", "usage-meter-cache"),
-    meter("Requests from agents", insights.agentShare, "Chat", "Agents", "usage-meter-agents"),
-    meter("Tokens the model wrote", insights.outputShare, "Read", "Written", "usage-meter-output"),
-  );
-  grid.append(panel("Where it goes", "Three ways to split the same use", meters));
-  root.append(grid);
-  root.append(payerCards(insights.payers));
-  if (insights.efficiency.length > 0) root.append(modelReport(insights));
-  return root;
+/** Requests by weekday and hour: a 7 by 24 grid in one hue, darker for busier. */
+export function hourMap(grid: readonly (readonly number[])[]): HTMLElement {
+  const max = Math.max(1, ...grid.flat());
+  const box = html("div", "usage-hours");
+  const map = html("div", "usage-hours-grid");
+  map.tabIndex = 0;
+  map.setAttribute("role", "group");
+  map.setAttribute("aria-label", "Requests by day of the week and hour. Use the arrow keys to read each hour.");
+  const readout = html("p", "usage-hours-readout");
+  readout.setAttribute("role", "status");
+  const cells: HTMLElement[][] = [];
+  grid.forEach((hours, weekday) => {
+    map.append(html("span", "usage-hours-day", SHORT_WEEKDAYS[weekday]!));
+    cells.push(hours.map((count, hour) => {
+      const cell = html("span", "usage-hours-cell");
+      cell.dataset["level"] = count === 0 ? "0" : String(Math.min(4, Math.ceil((count / max) * 4)));
+      cell.dataset["weekday"] = weekday.toString();
+      cell.dataset["hour"] = hour.toString();
+      map.append(cell);
+      return cell;
+    }));
+  });
+  const axis = html("div", "usage-hours-axis");
+  axis.setAttribute("aria-hidden", "true");
+  for (const hour of [0, 6, 12, 18]) {
+    const label = html("span", "", hourLabel(hour));
+    label.style.setProperty("--hour", hour.toString());
+    axis.append(label);
+  }
+  let focus: [number, number] = [0, 0];
+  let best = -1;
+  grid.forEach((hours, weekday) => hours.forEach((count, hour) => { if (count > best) { best = count; focus = [weekday, hour]; } }));
+  const say = (weekday: number, hour: number): void => {
+    const count = grid[weekday]?.[hour] ?? 0;
+    readout.textContent = `${WEEKDAY_NAMES[weekday]!}s, ${hourLabel(hour)} to ${hourLabel(hour + 1)}: ${count.toLocaleString()} ${count === 1 ? "request" : "requests"}`;
+  };
+  const mark = (weekday: number, hour: number): void => {
+    for (const row of cells) for (const cell of row) delete cell.dataset["current"];
+    cells[weekday]![hour]!.dataset["current"] = "true";
+    focus = [weekday, hour];
+    say(weekday, hour);
+  };
+  map.addEventListener("pointerover", (event) => {
+    const cell = (event.target as HTMLElement).closest<HTMLElement>(".usage-hours-cell");
+    if (cell !== null) say(Number(cell.dataset["weekday"]), Number(cell.dataset["hour"]));
+  });
+  map.addEventListener("keydown", (event) => {
+    const [weekday, hour] = focus;
+    const next: [number, number] | null = event.key === "ArrowLeft" ? [weekday, (hour + 23) % 24] : event.key === "ArrowRight" ? [weekday, (hour + 1) % 24]
+      : event.key === "ArrowUp" ? [(weekday + 6) % 7, hour] : event.key === "ArrowDown" ? [(weekday + 1) % 7, hour] : null;
+    if (next === null) return;
+    event.preventDefault();
+    mark(...next);
+  });
+  map.addEventListener("focus", () => mark(...focus));
+  map.addEventListener("blur", () => { for (const row of cells) for (const cell of row) delete cell.dataset["current"]; });
+  say(...focus);
+  const scale = html("div", "usage-hours-scale");
+  scale.setAttribute("aria-hidden", "true");
+  scale.append(html("span", "", "Quiet"));
+  for (const level of [0, 1, 2, 3, 4]) {
+    const swatch = html("span", "usage-hours-cell");
+    swatch.dataset["level"] = level.toString();
+    scale.append(swatch);
+  }
+  scale.append(html("span", "", "Busy"));
+  const scroll = html("div", "usage-hours-scroll");
+  const inner = html("div", "usage-hours-inner");
+  inner.append(map, axis);
+  scroll.append(inner);
+  box.append(scroll, readout, scale);
+  return box;
 }

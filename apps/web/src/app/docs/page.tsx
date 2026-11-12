@@ -3,6 +3,7 @@ import Link from "@/components/IntentLink";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { DocsFrameTopbar } from "@/components/DocsFrameTopbar";
 import { DocsSearch } from "@/components/DocsSearch";
+import { Buck } from "@/components/buck/Buck";
 import { DocsSidebar } from "@/components/DocsSidebar";
 import { JsonLd } from "@/components/JsonLd";
 import { docsBySection, recentDocs } from "@/lib/docs";
@@ -104,6 +105,7 @@ export default async function DocsIndex({ searchParams }: Props) {
                   <i className="docs-hero-sheen" />
                 </div>
                 <div className="docs-hero-copy">
+                  <Buck mood="searching" size={72} interactive greet="greeting" label="Buck, reading the docs with you. Tap him." />
                   <p className="docs-hero-eyebrow">ADCode Docs · {total} pages</p>
                   <h1>
                     Every feature,

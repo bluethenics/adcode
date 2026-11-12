@@ -21,7 +21,7 @@ import { BrowserWindow, app, ipcMain, shell } from "electron";
 import { registerAddonProtocol, registerAppProtocol, registerSchemePrivileges, RENDERER_ORIGIN } from "./protocol.ts";
 import { installedAddon } from "./community.ts";
 import { registerIpc } from "./ipc.ts";
-import { bridgeAppTools, closeAssistantControls, offeredAppTools } from "./assistantControls.ts";
+import { closeAssistantControls } from "./assistantControls.ts";
 import { configureToolBridge, stopToolBridge } from "./toolBridge.ts";
 import { registerSupportIpc } from "./supportIpc.ts";
 import { registerActivityIpc } from "./activity.ts";
@@ -29,6 +29,8 @@ import { registerOnboardingIpc } from "./onboarding.ts";
 import { registerMilestoneIpc } from "./milestones.ts";
 import { registerReferralIpc } from "./referrals.ts";
 import { registerRatingIpc } from "./ratingAsk.ts";
+import { registerPowerIpc } from "./powerAfterTasks.ts";
+import { startPhoneLink } from "./phoneLink.ts";
 import { registerPinPromptIpc } from "./pinPrompt.ts";
 import { onUpdateStatus, registerUpdateIpc, startAutoUpdate } from "./autoUpdate.ts";
 import { startNoticePolling } from "./notices.ts";
@@ -43,7 +45,7 @@ import { shutdownAllServers } from "./lsp.ts";
 import { stopPreview } from "./preview.ts";
 import { closeAgentBrowserWithLastWindow, hardenAgentBrowser, isAgentBrowserContents } from "./agentBrowser.ts";
 import { allowLiveBrowserWebview, hardenLiveBrowser, isLiveBrowserContents } from "./liveBrowser.ts";
-import { aiStopToolProcesses, refreshModelLists } from "./ai.ts";
+import { aiStopToolProcesses, bridgeToolDefinitions, bridgeToolRunner, refreshModelLists } from "./ai.ts";
 import { flushModelOutcomes } from "./modelOutcomes.ts";
 import { flushAiUsage } from "./aiUsage.ts";
 import { getAdRuntime } from "./adRuntime.ts";
@@ -327,6 +329,8 @@ void app.whenReady().then(() => {
   registerMilestoneIpc();
   registerReferralIpc();
   registerRatingIpc();
+  registerPowerIpc();
+  startPhoneLink();
   registerPinPromptIpc();
   registerUpdateIpc(() => Object.values(windows).filter(window => !window.isDestroyed()).map(window => window.webContents));
   registerAccountIpc();
@@ -380,8 +384,9 @@ void app.whenReady().then(() => {
       directory: app.getPath("userData"),
       enabled: () => currentSettings()["adcode.ai.toolBridge"] !== false,
       onSettingsChanged: (listener) => onSettingsChanged(() => listener()),
-      tools: offeredAppTools,
-      runner: bridgeAppTools,
+      // The app's tools plus preview, page viewer, audit, skills and connectors (ai.ts).
+      tools: bridgeToolDefinitions,
+      runner: bridgeToolRunner,
       claudeDirectories: [app.getPath("userData"), join(homedir(), ".adcode")],
       isCliSafe: isSafeCliToken,
     }))

@@ -35,6 +35,8 @@ export const BRIDGE = [
   { path: "browser.detachTab", kind: "invoke", channel: CHANNELS.browserDetachTab },
   { path: "browser.onRequest", kind: "subscribe", channel: CHANNELS.browserRequest },
   { path: "browser.clearData", kind: "invoke", channel: CHANNELS.browserClearData },
+  { path: "browser.annotate", kind: "invoke", channel: CHANNELS.browserAnnotate },
+  { path: "browser.captureForAnnotate", kind: "invoke", channel: CHANNELS.browserAnnotateCapture },
   // workspace
   { path: "workspace.open", kind: "invoke", channel: CHANNELS.workspaceOpen },
   { path: "workspace.openPath", kind: "invoke", channel: CHANNELS.workspaceOpenPath },
@@ -389,6 +391,18 @@ export const BRIDGE = [
   // rating
   { path: "rating.onAsk", kind: "subscribe", channel: CHANNELS.ratingAsk },
   { path: "rating.open", kind: "invoke", channel: CHANNELS.ratingOpen },
+
+  // power (reports itself unsupported in the sandbox) and phone link (desktop only)
+  { path: "power.state", kind: "invoke", channel: CHANNELS.powerState },
+  { path: "power.set", kind: "invoke", channel: CHANNELS.powerSet },
+  { path: "power.cancel", kind: "invoke", channel: CHANNELS.powerCancel },
+  { path: "power.now", kind: "invoke", channel: CHANNELS.powerNow },
+  { path: "power.onChanged", kind: "subscribe", channel: CHANNELS.powerChanged },
+  { path: "power.onSaveFiles", kind: "subscribe", channel: CHANNELS.powerSaveFiles },
+  { path: "phone.state", kind: "invoke", channel: CHANNELS.phoneState },
+  { path: "phone.setEnabled", kind: "invoke", channel: CHANNELS.phoneSetEnabled },
+  { path: "phone.disconnect", kind: "invoke", channel: CHANNELS.phoneDisconnect },
+  { path: "phone.onChanged", kind: "subscribe", channel: CHANNELS.phoneChanged },
 
   // ads
   { path: "ads.onShow", kind: "subscribe", channel: CHANNELS.adShow },

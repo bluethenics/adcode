@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+    <title>ADCode Remote</title>
+    <meta name="description" content="Chat with ADCode on your own computer from your phone." />
+    <meta name="robots" content="noindex" />
+    <meta name="theme-color" content="#111110" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ADCode" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icon-180.png" />
+    <style>
+      /* First paint, before the stylesheet: the ground colour and Buck's spot, so nothing flashes white. */
+      html, body { margin: 0; height: 100%; background: #111110; color: #ebe8e1; }
+      #app:empty::before { content: ""; position: fixed; inset: 0; margin: auto; width: 56px; height: 56px; border-radius: 13px; background: #0a0a0b; box-shadow: 0 0 0 1px #2d2b28; }
+    </style>
+  </head>
+  <body>
+    <main id="app" aria-live="polite"></main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

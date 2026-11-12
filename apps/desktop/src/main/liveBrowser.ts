@@ -24,7 +24,9 @@
  */
 import { BrowserWindow, session, webContents, type WebContents } from "electron";
 import type { ImageBlock, ToolRunResult } from "@adcode/ai";
+import type { AnnotateProbe } from "../shared/api.ts";
 import {
+  annotateProbeScript,
   buildRefSnapshot,
   formatRefSnapshot,
   isLiveBrowserUrl,
@@ -380,4 +382,68 @@ export function runLiveBrowser(input: Record<string, unknown>, signal: AbortSign
   const next = queue.then(() => run(command, signal)).catch((error: unknown) => fail(`The browser could not do that: ${error instanceof Error ? error.message : String(error)}`));
   queue = next;
   return next;
+}
+
+/* ── Annotate: pins on a Browser tab or the Preview frame ────────────────────────────────── */
+
+/** An isolated world of its own: the page's scripts cannot see or tamper with the probe. */
+const ANNOTATE_WORLD = 1047;
+const ANNOTATE_TIMEOUT = 5_000;
+
+function withTimeout<T>(work: Promise<T>, what: string): Promise<T> {
+  return Promise.race([work, delay(ANNOTATE_TIMEOUT).then(() => { throw new Error(`${what} took too long.`); })]);
+}
+
+function hostTab(host: WebContents, tabId: number): LiveTab {
+  const tab = tabs.get(tabId);
+  if (tab === undefined || tab.host !== host || tab.contents.isDestroyed()) throw new Error("That Browser tab is not open in this window.");
+  return tab;
+}
+
+/** Ask a Browser tab one annotate question. The tab must be this window's. */
+export async function annotateLiveTab(host: WebContents, tabId: number, probe: AnnotateProbe): Promise<unknown> {
+  const tab = hostTab(host, tabId);
+  return withTimeout(tab.contents.executeJavaScriptInIsolatedWorld(ANNOTATE_WORLD, [{ code: annotateProbeScript(probe) }]), "The page");
+}
+
+/**
+ * Ask the Preview frame one annotate question. The frame is found in the asking window only,
+ * as a direct child of it on the preview server's own origin; it runs as one expression in the
+ * page that leaves nothing behind.
+ */
+export async function annotatePreviewFrame(host: WebContents, previewUrl: string | null, probe: AnnotateProbe): Promise<unknown> {
+  const frame = previewFrame(host, previewUrl);
+  if (frame === null) throw new Error("The preview is not showing a page.");
+  return withTimeout(frame.executeJavaScript(annotateProbeScript(probe)), "The preview");
+}
+
+function previewFrame(host: WebContents, previewUrl: string | null): Electron.WebFrameMain | null {
+  if (previewUrl === null) return null;
+  let origin: string;
+  try { origin = new URL(previewUrl).origin; } catch { return null; }
+  const root = host.mainFrame;
+  return root.frames.find((frame) => !frame.isDestroyed() && frame.origin === origin) ?? null;
+}
+
+/** A PNG data URL of a Browser tab as it shows now, at most 1600 pixels wide. */
+export async function captureLiveTabForAnnotate(host: WebContents, tabId: number): Promise<string | null> {
+  const tab = hostTab(host, tabId);
+  const image = await withTimeout(tab.contents.capturePage(), "The screenshot");
+  if (image.isEmpty()) return null;
+  const scaled = image.getSize().width > 1600 ? image.resize({ width: 1600, quality: "good" }) : image;
+  return scaled.toDataURL();
+}
+
+/**
+ * A PNG data URL of a box of the asking window: the Preview frame, whose page is another
+ * origin's and cannot be painted from the renderer. The box is in the renderer's CSS pixels,
+ * so the window's zoom turns it into the window's own.
+ */
+export async function captureHostForAnnotate(host: WebContents, rect: { x: number; y: number; width: number; height: number }): Promise<string | null> {
+  const zoom = host.getZoomFactor();
+  const scaled = { x: Math.max(0, Math.round(rect.x * zoom)), y: Math.max(0, Math.round(rect.y * zoom)), width: Math.round(rect.width * zoom), height: Math.round(rect.height * zoom) };
+  const image = await withTimeout(host.capturePage(scaled), "The screenshot");
+  if (image.isEmpty()) return null;
+  const sized = image.getSize().width > 1600 ? image.resize({ width: 1600, quality: "good" }) : image;
+  return sized.toDataURL();
 }

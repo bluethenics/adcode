@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { allReleases } from "@/lib/releases";
 import { GITHUB_REPO, SITE, url } from "@/lib/site";
 import { InstallCommand } from "@/components/InstallCommand";
+import { Buck } from "@/components/buck/Buck";
 import { HeroInstall } from "@/components/HeroInstall";
 import { LINUX_DOWNLOADS, MICROSOFT_STORE } from "@/lib/platform";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
@@ -94,6 +95,7 @@ export default async function VersionsPage() {
       <div className="marketplace-wrap">
         <Breadcrumbs items={[{ name: "Home", href: "/" }, { name: "Download" }]} />
         <header className="public-glass-hero">
+          <Buck mood="greeting" size={80} interactive greet="dancing" hoverMood="proud" reactTo=".public-glass-hero" label="Buck, ready to be installed. Tap him." />
           <span className="glass-kicker">ADCode desktop · free AI code editor</span>
           <h1>Download ADCode</h1>
           <p>The editor is free, with no account needed to start. Paid AI models are pay as you go, with no subscription. Windows installs from the Microsoft Store; Linux has a .deb and an AppImage.</p>

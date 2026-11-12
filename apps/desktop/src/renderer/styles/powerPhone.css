@@ -1,0 +1,148 @@
+/*
+ * "When the assistant finishes" and Phone link (power/powerUi.ts, phone/phoneLinkDialog.ts).
+ *
+ * Tokens only. Motion is transform and opacity, behind both stillness switches, and the
+ * countdown ring is the one thing that moves continuously - a stroke drawn off, nothing else.
+ */
+
+/* ── Status bar chips ────────────────────────────────────────────────────── */
+.status-power,
+.status-phone {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+.status-power:hover,
+.status-phone:hover { color: var(--text-primary); }
+.status-power::before,
+.status-phone::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+}
+.status-power::before { background: var(--warning); }
+.status-phone[data-status="online"]::before { background: var(--success); }
+.status-phone[data-status="signed-out"]::before { background: var(--danger); }
+
+/* ── Shared dialog pieces ────────────────────────────────────────────────── */
+:is(.power-dialog, .phone-link-dialog) { max-width: min(560px, calc(100vw - 48px)); }
+:is(.power-dialog, .phone-link-dialog) .form-dialog-card { display: grid; gap: var(--space-4); padding: var(--space-5); max-height: calc(100dvh - 48px); overflow: auto; }
+.power-actions { display: flex; justify-content: flex-end; gap: var(--space-2); }
+.power-note,
+.phone-note { margin: 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.5; }
+
+/* ── The picker ──────────────────────────────────────────────────────────── */
+.power-hero { display: grid; place-items: center; padding: var(--space-2) 0; }
+.power-choices { display: grid; gap: 6px; }
+.power-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-control);
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease, transform 140ms var(--ease-toast);
+}
+.power-choice:hover { border-color: var(--border-strong); }
+.power-choice:active { transform: scale(0.99); }
+.power-choice:has(input:checked) { border-color: var(--accent); background: var(--surface-selected); }
+.power-choice-copy { display: grid; gap: 2px; }
+.power-choice-copy strong { font-weight: 600; color: var(--text-primary); }
+.power-choice-copy small { color: var(--text-secondary); font-size: var(--text-xs); line-height: 1.4; }
+.power-repeat { display: flex; flex-wrap: wrap; gap: var(--space-4); }
+
+/* ── The countdown ───────────────────────────────────────────────────────── */
+.power-countdown {
+  --mascot-ink: #ebe8e1;
+  position: fixed;
+  inset: 0;
+  z-index: 2147482000;
+  display: grid;
+  place-items: center;
+  background: rgb(10 10 11 / 0.62);
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  transition: opacity 200ms var(--ease-toast);
+}
+.power-countdown[data-state="open"] { opacity: 1; }
+.power-countdown[data-state="leaving"] { opacity: 0; transition-duration: 160ms; }
+.power-countdown-card {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  width: min(380px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 28px 24px 22px;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 18px;
+  background: #171615;
+  color: #ebe8e1;
+  text-align: center;
+  box-shadow: 0 24px 64px rgb(0 0 0 / 0.45);
+  transform: translateY(8px) scale(0.97);
+  transition: transform 260ms var(--ease-toast);
+}
+.power-countdown[data-state="open"] .power-countdown-card { transform: none; }
+.power-countdown-dial { position: relative; display: grid; place-items: center; width: 132px; height: 132px; }
+.power-countdown-dial svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.power-ring-track { fill: none; stroke: rgb(255 255 255 / 0.08); stroke-width: 4; }
+.power-ring { fill: none; stroke: #e0b25c; stroke-width: 4; stroke-linecap: round; }
+.power-countdown[data-urgent="true"] .power-ring { stroke: #e2765c; }
+.power-countdown-seconds { font: 600 32px/1 var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.power-countdown-title { margin: 0; font-size: var(--text-lg); font-weight: 600; }
+.power-countdown-detail { margin: 0; color: #a7a39b; font-size: var(--text-sm); }
+.power-countdown-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.power-countdown-actions { display: flex; gap: var(--space-2); margin-top: 8px; }
+.power-countdown-actions button { min-width: 112px; }
+.power-countdown .confirm-cancel { color: #ebe8e1; }
+.power-countdown .ad-btn-primary { background: #ebe8e1; color: #111110; }
+
+/* ── Phone link ──────────────────────────────────────────────────────────── */
+.phone-head { display: flex; align-items: center; gap: var(--space-4); }
+.phone-head-copy { display: grid; gap: 4px; min-width: 0; }
+.phone-toggle { font-weight: 600; }
+.phone-status { margin: 0; color: var(--text-secondary); font-size: var(--text-sm); }
+.phone-link-dialog [data-status="online"] .phone-status { color: var(--success); }
+.phone-scan {
+  display: grid;
+  grid-template-columns: 148px 1fr;
+  gap: var(--space-4);
+  align-items: center;
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--surface-control);
+  animation: phone-rise 260ms var(--ease-toast) both;
+}
+.phone-qr { width: 148px; height: 148px; padding: 6px; box-sizing: border-box; border-radius: 10px; background: #fff; }
+.phone-qr svg { display: block; width: 100%; height: 100%; }
+.phone-steps-column { display: grid; gap: var(--space-3); min-width: 0; }
+.phone-steps { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: var(--text-sm); line-height: 1.45; }
+.phone-link-row { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.phone-url { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-xs); color: var(--text-secondary); }
+.phone-subtitle { margin: 0; font-size: var(--text-sm); font-weight: 600; }
+.phone-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.phone-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: 8px 12px; border-radius: var(--radius-lg); background: var(--surface-control); animation: phone-rise 220ms var(--ease-toast) both; }
+.phone-row-copy { display: grid; gap: 2px; }
+.phone-row-copy small, .phone-empty { color: var(--text-secondary); font-size: var(--text-xs); }
+
+@keyframes phone-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+@media (max-width: 520px) {
+  .phone-scan { grid-template-columns: 1fr; justify-items: center; }
+}
+
+:root[data-reduced-motion="true"] :is(.phone-scan, .phone-row),
+:root[data-reduced-motion="true"] :is(.power-countdown, .power-countdown-card, .power-choice) { animation: none; transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  :is(.phone-scan, .phone-row, .power-countdown, .power-countdown-card, .power-choice) { animation: none; transition: none; }
+}

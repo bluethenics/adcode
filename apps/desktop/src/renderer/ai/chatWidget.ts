@@ -17,7 +17,9 @@ import { CONTINUE_PROMPT, describeAiFailure, OUTPUT_LIMIT_AGAIN, resumeAfterMode
 import { createChatQueue, type QueuedMessage } from "./chatQueue.ts";
 import { sendWhenConversationIdle } from "./conversationSend.ts";
 import { createEditSummary } from "./editSummary.ts";
-import { chipLabel, modelChoices, rememberModel, switchedFrom, type ModelChoice, type ModelInUse } from "./modelSwitch.ts";
+import { chipLabel, rememberModel, switchedFrom, type ModelChoice, type ModelInUse } from "./modelSwitch.ts";
+import { createModelPicker } from "./modelPicker.ts";
+import { composerChipLabel } from "./modelPickerModel.ts";
 import { askThemed } from "../dialogs/confirmDialog.ts";
 import { createChatPreview } from "./chatPreview.ts";
 import { createAgentViewCard, createPlanCard, planStepsFrom, type AgentViewCard, type PlanCard } from "./chatAgentCards.ts";
@@ -28,6 +30,7 @@ import { SPONSORED_SETTING, createSponsorStrip } from "./sponsoredReply.ts";
 import { exportConversationText } from "./chatExport.ts";
 import { DONE_SOUND_SETTING, playDoneSound, shouldChime } from "./doneSound.ts";
 import { createDotField } from "../onboarding/dotField.ts";
+import { createAdcodeMascot } from "../mascot/adcodeMascot.ts";
 import { isWebSurface } from "../surface.ts";
 import type { PreviewStatus } from "../../shared/api.ts";
 import type {
@@ -44,6 +47,7 @@ import type {
   AiWorkspaceChangeView,
   AiWorkspaceTaskView,
   ChatSessionView,
+  PowerStateView,
 } from "../../shared/api.ts";
 import {
   admitFiles,
@@ -67,7 +71,7 @@ import {
 import { runChatWidgetIntent } from "./chatWidgetIntents.ts";
 import { createIcon, ICON, type IconSource } from "../workbench/icons.ts";
 import { WEB_ICON } from "../workbench/webIcons.ts";
-import { createContextMenu, attachContextMenuDismissal, type ContextMenuNode } from "../workbench/contextMenu.ts";
+import { createContextMenu, attachContextMenuDismissal } from "../workbench/contextMenu.ts";
 import { contextMeterModel, createContextMeter } from "./contextMeter.ts";
 import { openModelFeedback } from "./modelFeedback.ts";
 import { markFor } from "../motionFlip.ts";
@@ -118,7 +122,8 @@ import { firstBuildPrompt, looksLikeBuildRequest } from "../../shared/firstBuild
 import { BUY_TOKENS_URL } from "../../shared/tagflow.ts";
 import { createLimitPauseCard, parseLimitPause } from "./limitPause.ts";
 import { createLiveSessionDock } from "../collab/liveSessionDock.ts";
-import { AppWindow, ArrowDown, ArrowRight, CalendarClock, CircleAlert, Folder, Maximize2, Mic, Users, type IconNode } from "lucide";
+import { AppWindow, ArrowDown, ArrowRight, CalendarClock, CircleAlert, Folder, Maximize2, Mic, Moon, Users, type IconNode } from "lucide";
+import { openPowerDialog, powerChipText } from "../power/powerUi.ts";
 
 export interface ChatWidget {
   readonly element: HTMLElement;
@@ -129,8 +134,14 @@ export interface ChatWidget {
   openTasksPopup(): void;
   /** Prepare editable instructions; never sends or interrupts a running turn. */
   draft(question: string): void;
+  /** Open one of this project's conversations, as choosing it in the conversation list does. */
+  openConversation(id: string): void;
+  /** Attach files to the next message, through the same checks and resizing as a paste or drop; never sends. */
+  addAttachments(files: readonly AttachmentSource[]): void;
   /** Connect a model closed: a turn waiting on a model switch can go now. */
   modelPickerClosed(): void;
+  /** Bring chat forward with the model picker open above the composer's model chip. */
+  openModelPicker(): void;
   setDocked(docked: boolean, historyHost?: HTMLElement): void;
   shown(focus?: boolean): void;
   hidden(): void;
@@ -461,19 +472,16 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   modelLabel.className = "chat-model";
   modelLabel.title = "Choose a provider and model (Connect)";
   modelLabel.setAttribute("aria-label", "Choose a provider and model");
-  modelLabel.setAttribute("aria-haspopup", "menu");
+  modelLabel.setAttribute("aria-haspopup", "dialog");
   modelLabel.setAttribute("aria-expanded", "false");
   const modelName = document.createElement("span");
   modelName.className = "chat-model-name";
   modelLabel.append(modelName);
 
   /*
-   * The chip switches model from a small menu, as Claude, Codex and Cursor do: what can
-   * answer now - the model in use, each connected provider's recommended model, the ones
-   * used recently - with everything else under "More models and providers".
+   * The chip opens the model picker (modelPicker.ts): every connected provider in a rail,
+   * a searchable list with favourites and Ctrl+1-9, and how hard the model thinks.
    */
-  const modelMenu = createContextMenu(document.body);
-  attachContextMenuDismissal(modelMenu, () => modelLabel.focus(), false);
   const RECENT_MODELS = "adcode.chat.recentModels";
   const readRecentModels = (): string[] => {
     try {
@@ -514,41 +522,27 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     if (await resumeIfSwitched()) return;
     modeNote(`Now using ${choice.modelName} on ${choice.providerName}. The conversation carries on.`);
   }
-  async function openModelMenu(): Promise<void> {
-    const status = await window.adcode.ai.status().catch(() => null);
-    const choices = status === null ? [] : modelChoices(status, readRecentModels());
-    if (choices.length === 0) {
-      deps.openConnect();
-      return;
-    }
-    const nodes: ContextMenuNode[] = [];
-    let lastProvider = "";
-    for (const choice of choices) {
-      if (choice.provider !== lastProvider) {
-        nodes.push({ kind: "heading", label: choice.providerName });
-        lastProvider = choice.provider;
-      }
-      nodes.push({
-        label: choice.modelName,
-        accelerator: choice.current ? "✓" : choice.isNew ? "New" : choice.recommended ? "Recommended" : choice.free ? "Free" : "",
-        run: () => void switchModel(choice).catch(() => deps.openConnect()),
-      });
-    }
-    nodes.push({ kind: "separator" }, { label: "More models and providers…", run: () => deps.openConnect() });
-    const rect = modelLabel.getBoundingClientRect();
-    modelLabel.setAttribute("aria-expanded", "true");
-    modelMenu.open(rect.left, rect.top - 6, nodes, () => modelLabel.setAttribute("aria-expanded", "false"), { prefer: "above" });
-  }
-  let modelMenuWasOpen = false;
-  modelLabel.addEventListener("pointerdown", () => { modelMenuWasOpen = modelMenu.isOpen(); });
+  const modelPicker = createModelPicker({
+    anchor: modelLabel,
+    status: () => window.adcode.ai.status(),
+    readSettings: () => window.adcode.settings.read(),
+    writeSetting: (id, value) => window.adcode.settings.write(id, value),
+    onSettingsChanged: (listener) => { window.adcode.settings.onChanged(listener); },
+    chooseModel: (row) => switchModel({
+      provider: row.provider, providerName: row.providerName, model: row.model, modelName: row.modelName,
+      current: row.current, recommended: row.info?.recommended === true, free: row.info?.free === true, isNew: row.info?.isNew === true,
+    }).catch(() => deps.openConnect()),
+    openConnect: () => deps.openConnect(),
+    changed: () => void refreshModelStatus(),
+    isMac: navigator.userAgent.includes("Mac"),
+  });
   modelLabel.addEventListener("click", () => {
-    if (modelMenuWasOpen) { modelMenuWasOpen = false; return; }
     // Not connected yet: the chip is the way to connect, so it opens Connect itself.
-    if (modelLabel.dataset["ready"] !== "true") {
+    if (modelLabel.dataset["ready"] !== "true" && !modelPicker.isOpen()) {
       deps.openConnect();
       return;
     }
-    void openModelMenu();
+    modelPicker.toggle();
   });
   const queueLabel = document.createElement("span");
   queueLabel.className = "chat-queue-status";
@@ -573,8 +567,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       const status = await window.adcode.ai.status();
       const active = status.providers.find((provider) => provider.id === status.activeProvider);
       const saved = status.providers.some((provider) => provider.hasKey && provider.needsKey);
+      modelPicker.noteStatus(status);
       const label = status.ready
-        ? chipLabel(status)
+        ? composerChipLabel(status)
         : saved ? "Select a saved connection" : "Connect a model to begin";
       // No flicker: only touch the DOM when the label actually changed.
       if (modelName.textContent !== label) {
@@ -584,10 +579,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       connectButton.textContent = status.ready || saved ? "Models" : "Connect";
       modelLabel.dataset["ready"] = String(status.ready);
       modelLabel.title = status.ready
-        ? `${active?.displayName ?? status.activeProvider} / ${status.activeModel} — switch model`
+        ? `${active?.displayName ?? status.activeProvider} / ${status.activeModel} — change the model or how hard it thinks`
         : "Choose a provider and model (Connect)";
       modelLabel.setAttribute("aria-label", status.ready
-        ? `Model: ${status.activeModel}. Change provider or model`
+        ? `Model: ${label}. Change the model or how hard it thinks`
         : "Choose a provider and model");
       setupStatus.dataset["state"] = status.ready ? "ready" : "idle";
       modelReady = status.ready;
@@ -2241,6 +2236,26 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     toolRow(scheduleMessage, CalendarClock, "Schedule", "Send this message later"),
     toolRow(voiceButton, Mic, "Dictate", "Speak instead of typing"),
   );
+  /*
+   * Sleep or shut down once every chat has finished (main/powerAfterTasks.ts). It lives here,
+   * next to the other things you set up before handing over a job, and its hint says what
+   * is armed so the menu doubles as the status. Hidden where there is no computer to sleep.
+   */
+  const powerButton = document.createElement("button");
+  powerButton.type = "button";
+  powerButton.className = "chat-team-button";
+  powerButton.title = "Sleep, lock or shut down the computer when the assistant finishes";
+  powerButton.addEventListener("click", () => { void openPowerDialog(); });
+  const paintPower = (state: PowerStateView): void => {
+    powerButton.hidden = !state.supported;
+    toolRow(powerButton, Moon, "When done", powerChipText(state) ?? "Sleep or shut down after the task");
+    powerButton.classList.toggle("composer-tools-item-armed", state.action !== "nothing");
+  };
+  toolsMenu.append(powerButton);
+  paintPower({ supported: !isWebSurface(), platform: "", action: "nothing", repeat: "once", graceSeconds: 60, actions: [], countdown: null, lastOutcome: null });
+  const paintIfState = (state: PowerStateView | null | undefined): void => { if (state) paintPower(state); };
+  void window.adcode.power?.state().then(paintIfState, () => undefined);
+  window.adcode.power?.onChanged(paintIfState);
   composerTools.append(toolsLabel, toolsMenu);
   toolsMenu.addEventListener("click", () => { composerTools.open = false; });
   document.addEventListener("pointerdown", event => {
@@ -2552,6 +2567,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   };
   paintGreeting();
   welcomeTitle.append(welcomeMark, welcomeGreeting);
+  // Buck says hello when a conversation is empty, then settles; click him for a reaction.
+  const welcomeBuck = createAdcodeMascot({ mood: "greeting", size: 96, interactive: true, label: "Buck, the ADCode mascot. Activate for a reaction." });
+  welcomeBuck.element.classList.add("chat-welcome-buck");
+  window.setTimeout(() => welcomeBuck.setMood("idle"), 2600);
   const welcomeText = document.createElement("p");
   welcomeText.textContent = "What can I help you build or change in this project?";
 
@@ -2734,7 +2753,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
    */
   const welcomeField = createDotField({ pitch: 9, mood: "calm" });
   welcomeField.element.classList.add("chat-welcome-field");
-  welcome.append(welcomeField.element, welcomeTitle, welcomeText, setupSteps);
+  welcome.append(welcomeField.element, welcomeBuck.element, welcomeTitle, welcomeText, setupSteps);
   // A canvas field is too short to show anything along a 12px edge, so this one is CSS:
   // a dotted line with a bright band sweeping along it (dotDetails.css).
   const busyDots = document.createElement("span");
@@ -3577,7 +3596,11 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
     const icon = document.createElement("span");
     icon.className = "chat-failure-icon";
-    icon.append(createIcon(failure.kind === "sign-in" ? ArrowRight : CircleAlert));
+    if (failure.kind === "sign-in") icon.append(createIcon(ArrowRight));
+    else {
+      icon.append(createAdcodeMascot({ mood: "error", size: 36 }).element);
+      icon.dataset["buck"] = "true";
+    }
     icon.setAttribute("aria-hidden", "true");
 
     const body = document.createElement("div");
@@ -5242,6 +5265,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   input.addEventListener("keydown", (event) => {
     // A key that finishes an IME composition belongs to the IME, not to send.
     if (event.isComposing) return;
+    // Ctrl+1-9 (Cmd on a Mac) switches to that favourite model.
+    if (modelPicker.handleShortcut(event)) return;
     // An open `/` or `@` menu owns arrows, Enter, Tab and Escape.
     if (composerMenu.handleKey(event)) {
       event.preventDefault();
@@ -5430,8 +5455,21 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       autogrowComposer();
       input.focus();
     },
+    openConversation(id): void {
+      api.open();
+      void resume(id);
+    },
+    addAttachments(files): void {
+      api.open();
+      void addFiles(files);
+    },
     modelPickerClosed(): void {
       scheduleResume();
+    },
+    openModelPicker(): void {
+      api.open();
+      // After the card has laid out, so the popover finds the chip where it will stay.
+      requestAnimationFrame(() => requestAnimationFrame(() => void modelPicker.open()));
     },
     reviewTask(task): void {
       api.open();

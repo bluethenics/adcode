@@ -1,5 +1,6 @@
 import Link from "@/components/IntentLink";
 import type { Metadata } from "next";
+import { Buck } from "@/components/buck/Buck";
 
 /**
  * The 404.
@@ -22,6 +23,7 @@ export default function NotFound() {
   return (
     <section className="notfound band">
       <div className="wrap notfound-wrap">
+        <div className="notfound-buck"><Buck mood="searching" size={112} interactive greet="surprised" label="Buck is looking for the page too. Tap him." /></div>
         <p className="notfound-code">404</p>
         <h1>That page is not here.</h1>
         <p className="notfound-lead">

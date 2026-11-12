@@ -64,7 +64,7 @@ export function ModelWallet({ country }: { country: string }) {
     } catch(e) {if(account.current===uid) setError(e instanceof Error?e.message:"Checkout could not be opened.");} finally {if(account.current===uid)setBusy(false);}
   };
   return <section id="wallet" className="ai-wallet-section" aria-labelledby="wallet-title">
-    <div className="ai-section-heading"><div><p className="ai-eyebrow">Paid models</p><h2 id="wallet-title">Pay only for what you use</h2><p className="ai-section-lead">Every model other than Tagflow AI is paid from this balance, at its provider's price plus 35%. No API key and no subscription.</p></div></div>
+    <div className="ai-section-heading"><div><p className="ai-eyebrow">Paid models</p><h2 id="wallet-title">Pay only for what you use</h2><p className="ai-section-lead">Every model other than Tagflow AI is paid from this balance, at the price listed for it below. No API key and no subscription.</p></div></div>
     <p className="field-hint ai-wallet-fineprint">Tagflow AI never uses them. A maximum charge is held during a request; unused credit is released when it finishes. Provider token counts are used when available; an estimated charge is marked in your history.</p>
     {!user && <p className="field-hint">Sign in below to see your balance and the models you can use.</p>}
     {error && <p className="notice" role="alert">{error}</p>}{notice && <p className="notice" role="status">{notice}</p>}
@@ -73,7 +73,7 @@ export function ModelWallet({ country }: { country: string }) {
       <div className="stats"><div className="stat"><span className="stat-label">Available paid credits</span><strong className="stat-value">{dollars(wallet.availableMicros)}</strong><span className="stat-hint">USD · no expiry</span></div>{wallet.reservedMicros>0 && <div className="stat"><span className="stat-label">Held for running requests</span><strong className="stat-value">{dollars(wallet.reservedMicros)}</strong></div>}</div>
       <div className="admin-models-actions" style={{display:"flex",flexWrap:"wrap",gap:"0.75rem",marginBlock:"1.25rem"}}>{wallet.topupsCents.map(cents=><button type="button" className="btn btn-outline" key={cents} disabled={busy || !wallet.checkoutEnabled} onClick={()=>void buy(cents)}>Add ${cents/100}</button>)}</div>
       {!wallet.checkoutEnabled && <p className="field-hint">Paid model purchases are not available yet. Your existing credits are unchanged.</p>}
-      <ModelPrices models={wallet.models} markupPercent={wallet.markupPercent} />
+      <ModelPrices models={wallet.models} />
       {wallet.activity.length>0 && <><h3>Paid credit activity</h3><div className="ai-token-table-scroll" role="region" aria-label="Paid credit activity" tabIndex={0}><table className="table"><thead><tr><th>Date</th><th>Activity</th><th>Amount</th><th>Model</th></tr></thead><tbody>{wallet.activity.slice(0,30).map(a=><tr key={a.id}><td>{new Date(a.createdAt).toLocaleString()}</td><td>{a.kind}{a.estimated?" (estimated)":""}</td><td>{a.deltaMicros>0?"+":"−"}{dollars(Math.abs(a.deltaMicros))}</td><td>{wallet.models.find(m=>m.id===a.model)?.name ?? a.model}</td></tr>)}</tbody></table></div></>}
     </>}
   </section>;

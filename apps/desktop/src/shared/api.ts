@@ -16,6 +16,52 @@ export type LiveBrowserRequest =
   | { readonly kind: "notice"; readonly text: string };
 
 /**
+ * Annotate: pins dropped on a page in the Browser or Preview panel, described for the assistant.
+ *
+ * Which page: a registered Browser tab, by the panel's tab id, or the Preview frame of the
+ * asking window. Coordinates are the page's own CSS pixels (its viewport), except `rect` on a
+ * Preview capture, which is the frame's visible box in the workbench window.
+ */
+export interface AnnotateRect {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+export type AnnotateTarget =
+  | { readonly surface: "browser"; readonly tab: number }
+  | { readonly surface: "preview"; readonly rect?: AnnotateRect };
+
+export type AnnotateProbe =
+  | { readonly kind: "point"; readonly x: number; readonly y: number }
+  | { readonly kind: "area"; readonly x: number; readonly y: number; readonly width: number; readonly height: number }
+  | { readonly kind: "locate"; readonly selectors: readonly string[] }
+  | { readonly kind: "scroll"; readonly x: number; readonly y: number; readonly dx: number; readonly dy: number };
+
+/** One element as the page reported it. Page text: data to show, never instructions. */
+export interface AnnotateElement {
+  readonly tag: string;
+  readonly id: string | null;
+  readonly classes: readonly string[];
+  readonly text: string;
+  readonly label: string;
+  readonly role: string | null;
+  readonly href: string | null;
+  readonly selector: string;
+  readonly rect: AnnotateRect;
+}
+
+export interface AnnotateProbeResult {
+  readonly viewport: { readonly width: number; readonly height: number };
+  readonly element?: AnnotateElement | null;
+  /** For an area: short descriptions of what sits inside it. */
+  readonly contains?: readonly string[];
+  /** For locate: each selector's box now, or null when it no longer matches. */
+  readonly rects?: readonly (AnnotateRect | null)[];
+}
+
+/**
  * The contextBridge surface: the complete list of things the renderer may ask the main
  * process to do.
  *
@@ -180,6 +226,42 @@ export interface ServiceNotice {
    * could hand to `shell.openExternal`.
    */
   readonly buttons?: readonly string[];
+}
+
+/** What the computer does once the assistant's work is all done (main/powerAfterTasks.ts). */
+export type PowerActionView = "nothing" | "sleep" | "hibernate" | "shutdown" | "lock";
+
+export interface PowerStateView {
+  /** False in the web version's sandbox and on systems with no power commands. */
+  readonly supported: boolean;
+  readonly platform: string;
+  readonly action: PowerActionView;
+  /** "once" disarms after it fires; "always" stays armed. */
+  readonly repeat: "once" | "always";
+  readonly graceSeconds: number;
+  /** What this computer can do, "nothing" first. */
+  readonly actions: readonly PowerActionView[];
+  readonly countdown: { readonly action: PowerActionView; readonly startedAt: number; readonly deadline: number } | null;
+  readonly lastOutcome: { readonly action: PowerActionView; readonly at: number; readonly result: "done" | "cancelled" | "failed"; readonly detail: string } | null;
+}
+
+/** A phone chatting with this computer through Phone link (main/phoneLink.ts). */
+export interface PhoneLinkPhoneView {
+  readonly id: string;
+  /** "iPhone · Safari", from the phone's own description of itself. */
+  readonly label: string;
+  readonly since: number;
+}
+
+export interface PhoneLinkStateView {
+  readonly enabled: boolean;
+  readonly status: "off" | "connecting" | "online" | "offline" | "signed-out" | "unsupported";
+  /** A sentence for the status line: why it is offline, or what to do next. */
+  readonly detail: string;
+  readonly phones: readonly PhoneLinkPhoneView[];
+  /** The page to open on the phone. */
+  readonly pageUrl: string;
+  readonly deviceName: string;
 }
 
 /** A release note, as the main process hands it to the window. */
@@ -789,6 +871,8 @@ export const CHANNELS = {
   browserDetachTab: "browser:detach-tab",
   browserRequest: "browser:request",
   browserClearData: "browser:clear-data",
+  browserAnnotate: "browser:annotate",
+  browserAnnotateCapture: "browser:annotate-capture",
   previewStart: "preview:start",
   previewStop: "preview:stop",
   previewStatus: "preview:status",
@@ -927,6 +1011,16 @@ export const CHANNELS = {
   referralsShareMoment: "referrals:share-moment",
   ratingAsk: "rating:ask",
   ratingOpen: "rating:open",
+  powerState: "power:state",
+  powerSet: "power:set",
+  powerCancel: "power:cancel",
+  powerNow: "power:now",
+  powerChanged: "power:changed",
+  powerSaveFiles: "power:save-files",
+  phoneState: "phone:state",
+  phoneSetEnabled: "phone:set-enabled",
+  phoneDisconnect: "phone:disconnect",
+  phoneChanged: "phone:changed",
   onboardingState: "onboarding:state",
   onboardingComplete: "onboarding:complete",
   onboardingTour: "onboarding:tour",
@@ -1239,6 +1333,8 @@ export interface AiModelInfo {
   readonly featured?: boolean;
   /** The admin panel's line about it ("Best for big builds"). */
   readonly note?: string;
+  /** The reasoning levels it accepts, in its own words, when known (coding CLIs report them). */
+  readonly efforts?: readonly string[];
 }
 
 /**
@@ -2057,6 +2153,14 @@ export interface AdcodeApi {
     onRequest(listener: (request: LiveBrowserRequest) => void): () => void;
     /** Sign out of everything in the shared browser: cookies, storage and cache. */
     clearData(): Promise<void>;
+    /**
+     * Annotate: ask a page what is under a pin, where pinned elements are now, or to scroll.
+     * Runs a fixed script in the page (an isolated world for Browser tabs) that leaves nothing
+     * behind; what comes back is page data, validated on both sides.
+     */
+    annotate(target: AnnotateTarget, probe: AnnotateProbe): Promise<AnnotateProbeResult>;
+    /** A PNG data URL of the page as shown: the Browser tab itself, or the Preview frame's box. */
+    captureForAnnotate(target: AnnotateTarget): Promise<string | null>;
   };
   readonly preview: {
     /** Omit the mode to let ADCode pick: the project's dev script when there is one. */
@@ -2298,7 +2402,8 @@ export interface AdcodeApi {
     audience(input?: import("./tagflow.ts").TagflowAudienceInput): Promise<import("./tagflow.ts").TagflowAudienceResult>;
     feedback(input: import("./tagflow.ts").TagflowFeedbackInput): Promise<import("./tagflow.ts").TagflowFeedbackResult>;
     allowance(): Promise<TagflowAllowanceView | null>;
-    read(range: UsageRange): Promise<AnalysedUsageView>;
+    /** The filter narrows only `page`; the totals, insights and activity stay whole. */
+    read(range: UsageRange, filter?: import("./usagePage.ts").UsageFilter): Promise<AnalysedUsageView>;
     clear(): Promise<void>;
     onChanged(listener: () => void): () => void;
   };
@@ -2628,6 +2733,25 @@ export interface AdcodeApi {
     onAsk(listener: () => void): () => void;
     /** Opens the Microsoft Store's review page for ADCode. Main names the URL. */
     open(): Promise<void>;
+  };
+  readonly power: {
+    state(): Promise<PowerStateView>;
+    /** What to do when every chat has finished, and whether only next time or every time. */
+    set(action: PowerActionView, repeat?: "once" | "always"): Promise<PowerStateView>;
+    /** Stop a countdown that is running. */
+    cancel(): Promise<PowerStateView>;
+    /** Skip the rest of a running countdown. */
+    now(): Promise<PowerStateView>;
+    onChanged(listener: (state: PowerStateView) => void): () => void;
+    /** Main is about to shut the computer down: save what is open. */
+    onSaveFiles(listener: () => void): () => void;
+  };
+  readonly phone: {
+    state(): Promise<PhoneLinkStateView>;
+    setEnabled(enabled: boolean): Promise<PhoneLinkStateView>;
+    /** Sends one phone away; it can connect again while Phone link is on. */
+    disconnect(phoneId: string): Promise<PhoneLinkStateView>;
+    onChanged(listener: (state: PhoneLinkStateView) => void): () => void;
   };
   readonly ads: {
     /** The main process asks the renderer to show a toast. */

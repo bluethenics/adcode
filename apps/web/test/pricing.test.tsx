@@ -19,7 +19,8 @@ describe("public pricing and existing checkout", () => {
     vi.mocked(readApi).mockRejectedValue(new Error("offline"));
     const html = renderToStaticMarkup(await PricingPage());
     expect(metadata.alternates?.canonical).toBe(url("/pricing"));
-    for (const amount of ["$10", "$20", "$50", "$100", "35%"]) expect(html).toContain(amount);
+    for (const amount of ["$10", "$20", "$50", "$100"]) expect(html).toContain(amount);
+    expect(html).not.toContain("35%");
     expect(html).toContain("Pay only for the models you use");
     expect(html).toContain("The live price list could not be loaded");
     expect(html).toContain("Plans ended on 6 November 2026");
@@ -83,11 +84,11 @@ describe("public pricing and existing checkout", () => {
 
   it("keeps homepage and search answers honest about free access and paid models", () => {
     const html = renderToStaticMarkup(<FreePlan />);
-    expect(html).toContain("Tagflow AI"); expect(html).toContain("35%"); expect(html).toContain('href="/pricing"');
+    expect(html).toContain("Tagflow AI"); expect(html).not.toContain("35%"); expect(html).toContain('href="/pricing"');
     expect(html).not.toContain("Start with unlimited included AI");
     const facts = FAQ.map(item => item.a).join("\n");
     expect(facts).toContain("pay as you go");
-    expect(facts).toContain("provider's price plus 35%");
+    expect(facts).toContain("at the price listed for it"); expect(facts).not.toContain("35%");
     for (const gone of ["Builder $9/month", "Pro $29/month", "Max $59/month", "credit pack"]) expect(facts).not.toContain(gone);
     expect(facts).not.toContain("no paid tier");
   });

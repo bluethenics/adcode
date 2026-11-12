@@ -4,6 +4,7 @@ import { SITE, VERIFICATION } from "@/lib/site";
 import { ALTERNATE_TYPES, SHARE_IMAGE } from "@/lib/seo";
 import { Nav } from "@/components/Nav";
 import { Footer } from "@/components/Footer";
+import { BuckGuide } from "@/components/buck/BuckGuide";
 import { JsonLd } from "@/components/JsonLd";
 import { AuthProvider } from "@/components/AuthProvider";
 import { CodeboxCopy } from "@/components/CodeboxCopy";
@@ -136,6 +137,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Nav />
           <main id="main">{children}</main>
           <Footer />
+          <BuckGuide />
         </AuthProvider></ThemeProvider>
       </body>
     </html>

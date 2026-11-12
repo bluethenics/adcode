@@ -1,7 +1,7 @@
 import { Icon } from "@/components/Icon";
 import { ArrowUpRight } from "lucide";
 import Link from "next/link";
-import { WALLET_MARKUP_PERCENT, WALLET_TOPUPS_CENTS } from "@adcode/api/src/modelWallet.ts";
+import { WALLET_TOPUPS_CENTS } from "@adcode/api/src/modelWallet.ts";
 
 export function FreePlan() {
   return (
@@ -9,7 +9,7 @@ export function FreePlan() {
       <header className="free-plan-head">
         <p className="marketplace-eyebrow">FREE TO START</p>
         <h2 id="free-plan-heading">Free editor. Pay only for the models you use.</h2>
-        <p className="free-plan-intro">Start without a subscription or credit card. Tagflow AI is free for every signed-in account. Every other model is paid from USD credits at its provider&apos;s price plus {WALLET_MARKUP_PERCENT}%.</p>
+        <p className="free-plan-intro">Start without a subscription or credit card. Tagflow AI is free for every signed-in account. Every other model is paid from USD credits at the price listed for it.</p>
       </header>
       <dl className="free-plan-grid">
         <div>
@@ -18,7 +18,7 @@ export function FreePlan() {
         </div>
         <div>
           <dt>Every other model</dt>
-          <dd><strong>Provider price + {WALLET_MARKUP_PERCENT}%</strong>, per million tokens</dd>
+          <dd><strong>Each model&apos;s listed price</strong>, per million tokens</dd>
         </div>
         <div>
           <dt>Credits</dt>

@@ -21,6 +21,41 @@ interface DocGuide {
 }
 
 export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
+  "phone-link": {
+    steps: [
+      "On your computer, open ADCode and sign in. Run Phone Link: Chat From Your Phone from the command palette, or find Phone link in the Feature library.",
+      "Switch on Let my phone chat with this computer. The status line reads Ready once this computer is connected.",
+      "Scan the QR code with your phone's camera, or open web.bluethenics.com/phone on it.",
+      "Sign in with the same account you use in ADCode on the computer. Your computer appears in the list by itself; tap it.",
+      "Open a chat to read it and watch replies arrive, or press New chat and type what you want built. Stop works from the phone too.",
+      "Optional: under When everything's done, choose Sleep, Shut down or Lock so the computer turns in once the job is finished.",
+      "To keep it one tap away, add the page to your home screen: Share, then Add to Home Screen on an iPhone, or the Install button on Android.",
+    ],
+    benefits: [
+      "Long jobs keep moving while you are away from the desk, and you see each step as it happens.",
+      "Your code, model keys and tools never leave your computer. The phone only sends words and sees replies.",
+      "Nothing to open on your router or firewall: the computer makes an outgoing connection to ADCode's relay, which forwards messages and stores none.",
+      "It installs like an app, opens instantly, and tells you plainly when your computer is offline.",
+    ],
+    betterThan: "Remote desktop apps stream a whole screen built for a mouse onto a phone, need a port or a separate account, and keep working only while both ends are perfect. Phone link sends just the conversation, so it is readable on a small screen and light on data, and it uses the account you already have. The trade-off is honest: your computer is the host, so if it sleeps or loses power there is nothing to talk to, and Phone link cannot wake it.",
+  },
+  "power-when-done": {
+    steps: [
+      "In the chat box, open Tools (the sliders button) and choose When done. The command palette has it too: AI: When the Assistant Finishes.",
+      "Pick what the computer should do: Sleep, Hibernate (Windows and Linux), Shut down, or Lock the screen.",
+      "Choose Only the next time (recommended) or Every time, then Save. A reminder appears in the status bar while it is on.",
+      "Hand the assistant its job and walk away. When the last working chat finishes, a countdown appears over the window and as a system notification.",
+      "Cancel it with the button, Escape or Enter if you are still there. Otherwise, when it reaches zero, ADCode saves your open files (before a shutdown or hibernate) and the computer does what you chose.",
+      "To change the countdown length, open Settings, then AI, then Countdown before it happens.",
+    ],
+    benefits: [
+      "No more laptops draining overnight or desktops running for hours after the work is done.",
+      "It waits for every chat, so one finishing early does not cut off another.",
+      "It never acts when you pressed Stop, because then you are at the computer.",
+      "Open files are saved first, so a shutdown cannot be blocked or lose work.",
+    ],
+    betterThan: "A scheduled shutdown has to guess how long the job takes: too early and it cuts the work off, too late and the computer sits on for hours. ADCode knows the moment the last chat is finished, and still gives you a countdown to change your mind.",
+  },
   "ads-networks": {
     steps: [
       "Open Ad network settings from the Feature library, or visit /admin/ad-networks on the ADCode website. Sign in with an administrator account.",
@@ -33,6 +68,71 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     ],
     benefits: ["Provider credentials stay on the server and are encrypted in storage.", "Payout amounts are fixed when an ad is served, and duplicate provider events cannot pay twice.", "Existing sponsored-message preferences and direct campaigns still control delivery."],
     betterThan: "A configurable JSON connection lets administrators integrate compatible providers without changing the app for each response format. It still requires the provider's real API contract; an arbitrary API key cannot make incompatible services work.",
+  },
+  "workbench-annotate": {
+    steps: [
+      "Open the page in the Browser panel, or start the Preview.",
+      "Press Annotate in its toolbar (the arrow with a sparkle), or run Annotate a Page.",
+      "Click the first thing you want changed. A numbered pin drops on it; type the change and press Enter.",
+      "Do the same for everything else. Drag to draw a box around an area instead of one element. Scroll as usual - pins stay on their element.",
+      "Hover a note in the list to find its pin. Click a pin to edit or delete it; Clear all removes every pin.",
+      "Press Send to chat. The marked-up screenshot and the numbered list go into the chat box, not sent yet - add anything else, then send.",
+    ],
+    benefits: [
+      "No guessing which button you meant: each note carries the element's tag, its words and a selector.",
+      "The screenshot shows the same numbers as the list, so the picture and the words agree.",
+      "One message covers many changes.",
+      "Annotating never presses the page's own buttons or follows its links.",
+    ],
+    betterThan: "A screenshot pasted into a chat leaves the assistant guessing which of three blue buttons you meant, and copying selectors out of devtools is expert work. Annotate gives the assistant both the picture and the exact element for every note, in a few clicks.",
+  },
+  "ai-model": {
+    steps: [
+      "Click the model name under the chat box (or run AI: Choose Model and Reasoning).",
+      "Pick a provider on the left, or type part of a model's name in Search models.",
+      "Click the model you want. The chip under the chat box shows it right away, and your next message uses it.",
+      "Press the star next to models you use often. They move to Favourites, at the top of the left side.",
+      "Press Ctrl+1 to Ctrl+9 (Cmd on a Mac) while typing to jump between your first nine favourites.",
+      "Under Reasoning, choose how hard it thinks. Auto lets the model decide; higher levels think longer and cost more.",
+      "At the bottom, choose whether file changes happen right away or wait for you to look at them.",
+    ],
+    benefits: [
+      "Switch models in the middle of a conversation without losing your place.",
+      "Your favourite models are one key away.",
+      "You only ever see thinking levels the model really accepts, so nothing fails for asking the wrong one.",
+    ],
+    betterThan: "Most editors put the model choice in settings or a long dropdown, and the thinking level somewhere else again. Here every connected provider - including coding CLIs like Claude Code and Codex, with the models they offer your account today - your starred models, the thinking level and the edit-approval choice sit in one popover, all usable from the keyboard.",
+  },
+  "ai-coding-cli": {
+    steps: [
+      "Open Connect a model from the model name under the chat box, and choose the Coding CLIs tab.",
+      "Find the tool you already use - Claude Code, Codex, OpenCode or Gemini CLI. Its card says whether ADCode found it on this computer.",
+      "Press Connect. If it is installed, it becomes ADCode's model straight away. If not, a terminal opens that installs it and signs you in; come back to ADCode and it looks again by itself.",
+      "Under the card, pick a model from the list. These are the models that CLI offers your account right now, with its own names and descriptions. Show all lists every one.",
+      "Pick a reasoning level in the model picker if you want one (Auto, Low, Medium, High, Max). ADCode passes the nearest level that model has; Auto leaves it to the CLI.",
+      "Type your message as usual. The CLI works in your open project, and what it ran or changed appears above its answer. Your next message continues the same CLI session.",
+    ],
+    benefits: [
+      "You use the subscription you already pay for. ADCode bills nothing and never sees a password or key.",
+      "The model list is live: new models appear the day the CLI offers them, without waiting for an ADCode update.",
+      "Claude Code, Codex and OpenCode get ADCode's own tools on every message - the live preview, page viewer, page audit, skills, connectors and the Browser - so they can check what they built.",
+    ],
+    betterThan: "Running a CLI in a terminal gives you its model but none of your editor: no open file, no selection, no preview to check its work, and a model list you have to remember by name. Other editors that wrap a CLI usually hard-code a few model names. ADCode asks the CLI itself for its models - the same list its own picker shows - and gives the CLI ADCode's preview, page checks and connectors, so the agent you already pay for can see and test the app it is building.",
+  },
+  "ai-tool-bridge": {
+    steps: [
+      "Leave Let other AI tools use ADCode on (it is on by default; Settings, under Assistant).",
+      "Using Claude Code, Codex or OpenCode as ADCode's chat model? There is nothing else to do: ADCode hands it the tools on every message.",
+      "Using an agent in its own terminal or another editor? Open Tools, choose Memory, find Let other AI tools use ADCode, and press Copy on the config for that tool.",
+      "Paste it once: run the command for Claude Code, add the JSON to Cursor's mcpServers file, or add the lines to ~/.codex/config.toml.",
+      "Ask your agent to do something only ADCode can - open the preview and check the page, run a connector, use the Browser with your sign-ins. If ADCode needs your OK, a dialog opens in ADCode saying another AI tool is asking.",
+    ],
+    benefits: [
+      "The agent you already talk to can open and check your app in ADCode's preview, audit the page at phone and desktop sizes, load skills and call your connectors.",
+      "It only listens on this computer and needs a key; requests from web pages are refused.",
+      "Anything ADCode would ask you about still asks you, in ADCode, and says who is asking.",
+    ],
+    betterThan: "Most coding agents cannot see the app they are building or reach your signed-in accounts, so you end up checking pages and running steps by hand. The bridge lends them ADCode's preview, page checks, Browser and connectors through the standard MCP protocol, without giving any of them a way past ADCode's own permission dialogs.",
   },
   /* ── Editing ─────────────────────────────────────────────────────────── */
 
@@ -1225,14 +1325,14 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "community-room-context": {
     steps: [
-      "Share your project from Artifacts - public, or private with a code.",
-      "Press Live beside the chat's message box and start a session. Send teammates the invite.",
-      "Teammates open ADCode, press Live, and join from the open-session list or paste your code.",
-      "Look at the dock: everyone online has a mascot, and its face shows whether their assistant is working, waiting or idle. The line under the title pulses while any assistant is working.",
-      "Type in Room chat to talk to everyone. Say what you are taking, so nobody doubles up.",
+      "Open your project, choose Artifacts in the sidebar, and press Start working together. Check what will be shared and press Share and start - it starts private.",
+      "Press Copy code and send the invite code to your teammates (Copy a ready-made message adds how to install ADCode).",
+      "Teammates open Artifacts, paste the code - or your whole message - under Join a friend, and press Join. ADCode downloads the project once and joins them. From a chat, Live › Join with code does the same.",
+      "Look at the Live dock beside the chat's message box: everyone online has a mascot, and its face shows whether their assistant is working, waiting or idle. The line under the title pulses while any assistant is working.",
+      "Type in Room chat, or under Talk to everyone in the team room's Right now panel, to talk to everyone. Say what you are taking, so nobody doubles up.",
       "Work as usual. Each time you message your assistant, it already knows who is online, what the others' assistants are doing, the plan, the pinned notes and the recent chat.",
       "Ask it to keep the room informed: \"tell the room the login page is done\", \"claim the checkout step\", \"pin a note that prices are stored in cents\".",
-      "For approvals, handoffs and comments on a file, open the full room in Artifacts."
+      "For approvals, handoffs, file locks, pinned notes and comments, open Team room on Artifacts › This project and unfold More team tools."
     ],
     benefits: [
       "Assistants stop redoing each other's work and stop editing a file a teammate reserved.",
@@ -1441,20 +1541,6 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Opaque assistant memory is un-auditable and prevents teammates from seeing what the tool thinks the project is. Markdown in the repo is memory you can own.",
   },
 
-  "ai-model": {
-    steps: [
-      "Open the model picker in the Assistant or in Settings.",
-      "The list shows the models your key can actually reach - not a hard-coded set.",
-      "Pick one; the next message uses it. The conversation does not restart.",
-    ],
-    benefits: [
-      "Swap lighter/heavier models per question instead of per product.",
-      "The list reflects your account - no feature-choice marketing between you and the answer.",
-    ],
-    betterThan:
-      "Bundled-model editors pick the default that makes their economics work, not yours. Showing what your key can actually call and letting you choose per task keeps that decision where it belongs.",
-  },
-
   "ai-credits": {
     steps: [
       "Sign in with a verified email to use included AI without an API key.",
@@ -1566,7 +1652,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "One balance for every paid model, Heabsy's included, with no provider account or API key.",
       "Tagflow AI stays free, so credits are only ever for the models you choose.",
     ],
-    betterThan: "Buying from each model company means a separate account, a card on file and an API key to paste per provider. Here one balance covers every paid model in the editor you already use, at the provider's own price plus 35%, listed model by model before you spend anything.",
+    betterThan: "Buying from each model company means a separate account, a card on file and an API key to paste per provider. Here one balance covers every paid model in the editor you already use, each at its own price, listed model by model before you spend anything.",
   },
   "ai-plans": {
     steps: [
@@ -2271,26 +2357,26 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "ai-usage": {
     steps: [
-      "Select Usage in the chat's header, or Usage by model in the context meter's menu, or run AI: Show Usage.",
-      "Pick a range: Today, 7 days, 30 days or All time.",
-      "Read the totals - tokens in and out, requests, and the estimated cost - and the bar per day underneath.",
-      "Activity shows the past year independently of the totals range: your current streak, longest streak and active days. A day is active when the chat or an agent makes an AI request on this computer.",
-      "Hover, click or focus a calendar square for its date, requests and tokens. Arrow keys inspect neighbouring days; Home and End go to the oldest and newest day. Small windows scroll the calendar horizontally, starting at the recent days.",
-      "Streaks follow local calendar days. Yesterday keeps a streak alive while today is still empty; the longest streak is measured within the displayed year.",
-      "Look down the list of models: each shows its share of tokens, its requests from the chat and from agents, and its cost at the catalogue's price.",
-      "A ≈ marks counts ADCode estimated because the provider did not report them. Clear usage removes this machine's history, activity and streaks.",
-      "Under Tokens, cached is the input the provider read back from its prompt cache instead of charging full price; hover a model for its own cached share.",
-      "Tagflow AI and all other included models share the daily allowance and purchased balance. Usage history helps you understand activity; clearing it only removes local records.",
+      "Run AI: Show Usage, or select Usage in the chat's header.",
+      "At the top, choose a project and a provider - or leave both on All.",
+      "Pick a range: Today, 7 days, 30 days or 90 days, and Cost or Tokens.",
+      "Read In short first: a few plain sentences about where the money went, what caching saved and when you use AI most.",
+      "On Overview, point at a provider's row to light up its colour in the chart, and move along the chart to read any day.",
+      "Open Details for the split by type and a breakdown by model or by day.",
+      "Open Your models for a card per model you used - cost, cost per request, cache share and speed. Select a card for its details.",
+      "Open When and where for your busiest hours and most expensive chats; press a chat from this project to open it.",
+      "Under Compare your models, pick another model you have used to see what the same work would have cost there.",
+      "Choose Limits for the included AI allowance, paid credits and when they refill.",
     ],
     benefits: [
-      "See where the money goes, model by model, before your provider's bill arrives.",
-      "Spot the agent run or long chat that used far more than you expected.",
-      "See your real pattern of AI use without collecting new activity data or sending local history to a server.",
-      "Honest numbers: estimates are marked, and a model with no known price says No price instead of showing $0.",
-      "Your own provider history stays local. Free AI usage counts are stored on the server to keep your credits the same on every device.",
+      "See spending per project, per provider and per chat, not just one total.",
+      "Know what the prompt cache actually saved you, in money.",
+      "Catch the long chat or agent run that got expensive, and when in the week you use AI most.",
+      "Honest numbers: estimates are marked, a model with no list price says No price, and anything recorded before ADCode 2.6 says Not yet instead of a guess.",
+      "Your history stays on this computer.",
     ],
     betterThan:
-      "Provider dashboards show one total a day late and cannot tell your chat from your agents. ADCode counts every request as it happens, split by model and by where it came from, right inside the editor.",
+      "Provider dashboards show one provider at a time, a day late, and cannot tell one chat or project from another. ADCode counts every request as it happens, across every provider and coding CLI you use, splits it by project, model, day and chat, shows what caching saved and what another model would have cost, and says plainly what it does not know.",
   },
 
   "ai-prompt-caching": {
@@ -2577,34 +2663,29 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "community-artifacts": {
     steps: [
-      "Open the project you want to share, choose Artifacts in the sidebar, then This project › Share this project.",
-      "Read anything flagged at the top first. A file that looks like it holds a key is listed with Leave these files out; a folder that is not a project is refused.",
-      "Write a title and a short description, and what you would like help with to be listed under Help wanted.",
-      "Choose Public to list the artifact in Discover. Choose Private to keep it unlisted so only a signed-in person with its share code can open it.",
-      "Open Sharing and live to copy the adartifact: share code or a ready invitation. Rotate the code there if it leaked, or switch between Public and Private later.",
-      "From any chat, press Live in the composer toolbar. The dock beside the message box is the session door: Start live session for a project you own, or press Join on an open session and paste the artifact code under Join with code.",
-      "To open a code a friend sent, choose Open a shared artifact in Discover and paste the whole adartifact: code.",
-      "To improve someone else's project, press Remix on its card in Discover. ADCode copies it into Documents › ADCode Projects and opens it.",
-      "After changing it, open This project, check the changed files, and press Send improvement.",
-      "As the owner, open Inbox, read each file's changes, optionally press Ask AI to review it, then Accept or Decline.",
-      "Press Get version N on This project to bring accepted changes into your own folder.",
-      "For live collaboration, open Live room on This project, or on a shared artifact you can access. The owner starts the room; everyone joins with the same code and sees who is present, each agent's lane, the shared plan, pinned notes, comments and chat.",
-      "Press Share project live as the owner. This starts one shared copy of the project that everyone in the room can edit, with no GitHub checkout, branch or merge.",
-      "On a teammate's side, press Join live project. If no project is open, ADCode downloads the artifact to Documents › ADCode Projects, opens it and joins; if they already remixed it, the session uses that folder.",
-      "Watch the Live editors panel at the top of the room. It lists everyone online, their Can edit or View only role, the file and line they are in, and a Go to button that opens that exact place. The host can change anyone's access from the same row.",
-      "Edit normally. Keystrokes sync through the host's copy and every open file converges as people type. The host autosaves the shared documents every four minutes, so a crash costs little.",
-      "Press Stop live project, or Leave room, when the session ends. The artifact and its ordinary remix/improvement workflow are still there afterwards.",
-      "Before joining, read the four checks: your role, a free seat, push access and agent availability. Choose Watch only to follow along read-only, then Join as editor when you are ready to work.",
-      "Read the Coordination list before typing. It names a teammate editing the same file, a locked file, a plan step that expects the file, or a related task. Locks are advisory, so agree before editing a held file.",
-      "Use Approvals to name the exact push, command, network action or takeover. Another owner or editor answers, and the first answer wins.",
-      "Use Handoffs to offer the session to one teammate with a note. Accepting carries the branch, plan and fresh notes, so work continues instead of restarting.",
-      "Pin Brain notes with a commit reference. When the file changes, that note and any anchored comment are labelled as moved on, never deleted. A comment can become a plan step or a prompt to your agent.",
-      "Discover's Live now shows sessions with people and agents working right now, with plan progress, open files and waiting approvals.",
+      "Choose Artifacts in the sidebar. The Start tab asks what you want to do, with three choices: Work together on this project, Join a friend, and Find a project to copy.",
+      "To build with friends, open your project folder and press Start working together. The first time, a short dialog shows what will be shared and starts it as Private. Read anything flagged at the top - a file that looks like it holds a key is listed with Leave these files out - then press Share and start.",
+      "ADCode opens a team room, starts live editing and shows your invite code. Press Copy code and send it to your friends, or Copy a ready-made message for one that also explains how to install ADCode.",
+      "Your friends open Artifacts, paste what you sent into the box under Join a friend and press Join. The code alone, the code without its adartifact: start, or your whole message all work. The first time, ADCode downloads the project to Documents › ADCode Projects, opens it and joins, then says You joined ... Your changes sync live.",
+      "Open Team room on This project (or from the result on Start). Right now at the top shows who is here, the invite code with Copy code, the plan's next step - press I will do it to take it - and a box to talk to everyone.",
+      "Under Right now: the owner's Start live editing or Stop live editing, a guest's Join live editing, and the live editors list with each person's file and line. Go to opens that exact place; the host switches anyone between Can edit and View only.",
+      "Use The plan for the one list of steps everyone - and everyone's AI - works from, and People and their AI to see each person's AI and the four join checks: your role, a free seat, push access and an available AI. Watch only follows along read-only; Join as editor switches back.",
+      "Unfold More team tools for the rest, each with a one-line explanation: Session (branch and task), Coordination (overlap warnings and file locks), Approvals (ask before a push, command, network use or takeover - the first answer wins), Handoffs (pass your work with its plan and notes), Shared Brain (notes pinned to files), Comments (which can become a plan step or a prompt to your AI) and Activity.",
+      "Edit normally. Keystrokes sync through the host's copy and every open file converges as people type. The host autosaves every four minutes, so a crash costs little. Press Stop live editing, or Leave room, when you are done.",
+      "To share without working live, press Share this project on This project and choose Public (anyone can find it on Start) or Private (only people with the invite code). Invite code on This project copies the code again, Make a new code stops an old one working, and Who can open it switches visibility later.",
+      "To improve someone else's project, press Find a project to copy, then Make my copy on its card. ADCode copies it into Documents › ADCode Projects and opens it.",
+      "After changing it, open This project, check the changed files, and press Send your changes back. Ask AI to describe it writes the message.",
+      "As the owner, open Sent to you, press Look and decide, read each file's changes, optionally press Ask AI to review it, then Accept or Decline.",
+      "Press Get version N on This project to bring accepted changes into your own folder; files you edited meanwhile are left alone.",
+      "From any chat, the Live button beside the message box is the same session: Start live session for a project you own, Join on an open session, or paste the invite code under Join with code.",
+      "Start also lists Live now - sessions with people and their AI working right now - and projects Asking for help.",
     ],
     benefits: [
+      "Working together is one button for you and one pasted code for each friend - no accounts to add, no repository to invite people to.",
+      "Everyone's AI works from the same plan and chat, so nobody's assistant redoes what another just finished.",
       "Your .gitignore, hidden folders, .env files, keys, node_modules and build output are never uploaded.",
       "Strangers can improve your project without access to your repository or your computer.",
-      "Private artifacts stay unlisted, and a leaked code can be rotated without republishing the project.",
+      "Private projects stay unlisted, and a leaked invite code can be replaced without sharing the project again.",
       "The Live dock beside the chat composer shows who is online and which file each person is working in, and lets everyone edit the same project at once - the Team Create model, without a branch or pull request.",
       "The host autosaves the shared documents every four minutes, so live work is not trapped in memory if the window closes.",
       "Watch mode lets a reviewer follow without a seat, and the join checks name the one thing blocking a join.",
@@ -2612,12 +2693,12 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "You see every changed line before anything is accepted, and accepted work credits its author.",
     ],
     betterThan:
-      "Getting outside help usually means a GitHub account, a fork, a branch and a pull request. Here, remixing is one click, a private share code replaces repository access, the improvement is computed for you, and review happens in the editor with the assistant's help. A live room adds the coordination a pull request never gives you: one shared project open on every machine, live editors with file and line, one plan, pinned notes and visible agent lanes while the work is happening. It is the Roblox Studio Team Create model for code: join and start editing, with the host's copy as the shared truth. Watch mode, join checks, approval cards and handoffs keep that coordination honest without turning it into a meeting.",
+      "Getting outside help usually means a GitHub account, a fork, a branch and a pull request. Here, making your own copy is one click, a private invite code replaces repository access, your changes are worked out for you, and review happens in the editor with the assistant's help. A live room adds the coordination a pull request never gives you: one shared project open on every machine, live editors with file and line, one plan, pinned notes and visible agent lanes while the work is happening. It is the Roblox Studio Team Create model for code: join and start editing, with the host's copy as the shared truth. Watch mode, join checks, approval cards and handoffs keep that coordination honest without turning it into a meeting.",
   },
 
   "community-profile": {
     steps: [
-      "Open Plugins › Your plugins or Artifacts › Your artifacts, or click the level chip beside the search box.",
+      "Open Plugins › Your plugins or Artifacts › Your shared projects, or click the level chip beside the search box.",
       "Read your level and how many points the next one needs.",
       "Check the activity list for installs, stars, remixes, accepted improvements and new badges.",
       "Open one of your plugins to edit it as its next version, or unpublish it.",

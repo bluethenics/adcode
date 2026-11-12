@@ -6,7 +6,7 @@
  * the project they shared, friends join from the open-session list or an artifact code, and
  * everyone sees the same online/working roster while the editor syncs their files.
  */
-import { artifactShareMessage, decodeArtifactShare } from "@adcode/community";
+import { artifactShareMessage, decodeArtifactShare, findArtifactShare } from "@adcode/community";
 import type { ArtifactRoomCard, ArtifactRoomSnapshot, ProjectLinkView } from "../../shared/community.ts";
 import type { CollabStatusView } from "../../shared/api.ts";
 import { copyText } from "../clipboard.ts";
@@ -377,7 +377,7 @@ export function createLiveSessionDock(deps: LiveSessionDockDeps): LiveSessionDoc
       dismissed = null;
       setOpen(true);
       void sayHi().then(() => refresh(true));
-      say("Session live. Share the artifact code and friends can join from their chat.", "success");
+      say("Session live. Copy the invite and send it to your friends.", "success");
     } catch (failure) {
       say(errorText(failure, "The live session could not start."), "error");
     } finally {
@@ -435,8 +435,9 @@ export function createLiveSessionDock(deps: LiveSessionDockDeps): LiveSessionDoc
   }
 
   async function joinCode(): Promise<void> {
-    const parsed = decodeArtifactShare(code);
-    if (parsed === null) { say("Paste the whole artifact code that starts with adartifact:.", "error"); render(); return; }
+    // Whatever the friend pasted: the code, the code without its prefix, or the whole message.
+    const parsed = findArtifactShare(code);
+    if (parsed === null) { say("That is not an invite code. Paste the whole message your friend sent and ADCode will find the code in it.", "error"); render(); return; }
     await join(parsed.id, parsed.key);
   }
 
@@ -466,7 +467,7 @@ export function createLiveSessionDock(deps: LiveSessionDockDeps): LiveSessionDoc
       const key = decodeArtifactShare(share.shareCode)?.key;
       if (key === undefined) throw new Error("The code could not be read.");
       const ok = await copyText(artifactShareMessage(session.title, session.id, key));
-      say(ok ? "Invitation copied. Friends paste it under Join with code." : "The invitation could not be copied.", ok ? "success" : "error");
+      say(ok ? "Invitation copied. Friends paste it under Join with code, or under Join a friend in Artifacts." : "The invitation could not be copied.", ok ? "success" : "error");
     } catch (failure) {
       say(errorText(failure, "The invitation could not be copied."), "error");
     }
@@ -670,8 +671,8 @@ export function createLiveSessionDock(deps: LiveSessionDockDeps): LiveSessionDoc
     const form = node("div", "chat-live-code");
     const input = node("input", "chat-live-code-input");
     input.value = code;
-    input.placeholder = "adartifact:…";
-    input.setAttribute("aria-label", "Artifact code to join");
+    input.placeholder = "Paste an invite code";
+    input.setAttribute("aria-label", "Invite code to join");
     input.addEventListener("input", () => { code = input.value; });
     input.addEventListener("keydown", (event) => {
       if (event.key !== "Enter") return;

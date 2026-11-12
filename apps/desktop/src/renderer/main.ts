@@ -52,10 +52,12 @@ import "./styles/conversation.css";
 // Stop controls, who is replying, reply styles, text size, menus, usage and Customise chat.
 import "./styles/chatControls.css";
 import "./styles/composer.css";
+import "./styles/modelPicker.css";
 // Last: its reduced-motion-guarded rules refine the entrances the sheets above declare.
 import "./styles/motion.css";
 import "./styles/workspacePolish.css";
 import "./styles/browser.css";
+import "./styles/annotate.css";
 import "./styles/chatRich.css";
 import "./styles/moveIn.css";
 import "./styles/liveDock.css";
@@ -63,6 +65,7 @@ import "./styles/usageCharts.css";
 import "./styles/welcomeTour.css";
 import "./styles/mascots.css";
 import "./styles/adcodeMascot.css";
+import "./styles/powerPhone.css";
 import "./styles/dotDetails.css";
 import "./styles/transitions.css";
 /*
@@ -152,6 +155,7 @@ import "./styles/projects.css";
 import "./styles/accountJourney.css";
 import { createCollabSession } from "./collab/collabSession.ts";
 import { createPreviewPane } from "./preview/previewPane.ts";
+import { annotateCurrentPage, setAnnotationSink, type AnnotationMessage } from "./preview/annotate.ts";
 import { elementAttachment } from "./preview/elementInspector.ts";
 import { createRunButton } from "./run/runButton.ts";
 import { createDiagnosticsHost } from "./diagnostics/diagnosticsHost.ts";
@@ -234,6 +238,8 @@ import {
 import { createInlineEditor } from "./workbench/inlineEdit.ts";
 import { reconcileTreeChildren } from "./workbench/treeRefresh.ts";
 import { BUY_TOKENS_URL } from "../shared/tagflow.ts";
+import { createPowerCountdown, openPowerDialog, powerChipText } from "./power/powerUi.ts";
+import { openPhoneLinkDialog, phoneChipText } from "./phone/phoneLinkDialog.ts";
 import { ChevronRight, CircleArrowDown } from "lucide";
 import type {
   AdcodeApi,
@@ -453,6 +459,8 @@ function syncMotion(): void {
   document.documentElement.dataset["reducedMotion"] = String(
     reduceMotion(settingsValues[MOTION_SETTING], systemReducedMotion.matches),
   );
+  // Read with motion because both are about how lively the window is; styles/mascots.css hides them.
+  document.documentElement.dataset["mascots"] = settingsValues["adcode.appearance.mascots"] === false ? "off" : "on";
 }
 
 systemReducedMotion.addEventListener("change", syncMotion);
@@ -4811,6 +4819,12 @@ const chat = createChatWidget({
     return diff.trim().length === 0 && extra.length === 0 ? "" : `${diff}${extra}`;
   },
 });
+// Annotate (Browser and Preview): the notes go in the composer as text, the marked-up
+// screenshot as an attachment - neither is sent until the person presses Send.
+setAnnotationSink((message: AnnotationMessage) => {
+  chat.draft(message.text);
+  if (message.image !== null) chat.addAttachments([message.image]);
+});
 
 /*
  * Team setup, schedules and live agent activity: a floating panel over the work. It used to
@@ -5424,6 +5438,54 @@ window.adcode.notices.onShow((notices) => {
     });
   }
 });
+
+/* ── When the assistant finishes, and Phone link ──────────────────────────── */
+
+/*
+ * Two things that reach past this window: the computer going to sleep once the work is done
+ * (main/powerAfterTasks.ts) and a phone chatting with it (main/phoneLink.ts). Each has a chip in
+ * the status bar while it is on, so neither is ever a surprise; the countdown takes over the
+ * window, because "your computer is about to shut down" is not a toast.
+ */
+const powerCountdown = createPowerCountdown(document.body);
+const powerChip = document.getElementById("status-power") as HTMLButtonElement;
+const phoneChip = document.getElementById("status-phone") as HTMLButtonElement;
+const paintPowerChip = (state: Awaited<ReturnType<typeof window.adcode.power.state>>): void => {
+  const text = powerChipText(state);
+  powerChip.hidden = text === null;
+  powerChip.textContent = text ?? "";
+  powerChip.title = "What this computer does when the assistant finishes. Click to change.";
+  powerCountdown.update(state);
+};
+const paintPhoneChip = (state: Awaited<ReturnType<typeof window.adcode.phone.state>>): void => {
+  const text = phoneChipText(state);
+  phoneChip.hidden = text === null;
+  phoneChip.textContent = text ?? "";
+  phoneChip.dataset["status"] = state.status;
+  phoneChip.title = "Phone link: chat with this computer from your phone. Click to manage.";
+};
+powerChip.addEventListener("click", () => void openPowerDialog());
+phoneChip.addEventListener("click", () => void openPhoneLinkDialog());
+void window.adcode.power.state().then(paintPowerChip, () => undefined);
+void window.adcode.phone.state().then((state) => { knownPhones = new Set(state.phones.map((phone) => phone.id)); paintPhoneChip(state); }, () => undefined);
+window.adcode.power.onChanged(paintPowerChip);
+let knownPhones = new Set<string>();
+window.adcode.phone.onChanged((state) => {
+  paintPhoneChip(state);
+  // A phone joining is said once, with the way to send it away.
+  for (const phone of state.phones) {
+    if (knownPhones.has(phone.id)) continue;
+    notifications.show({
+      title: "A phone is connected",
+      body: `${phone.label} can now chat with ADCode on this computer.`,
+      tone: "info",
+      actions: [{ label: "Disconnect", run: () => void window.adcode.phone.disconnect(phone.id) }, { label: "OK", run: () => undefined }],
+    });
+  }
+  knownPhones = new Set(state.phones.map((phone) => phone.id));
+});
+// Before a shutdown or hibernate, everything open is saved: an unsaved tab would block it.
+window.adcode.power.onSaveFiles(() => { void commands.run("file.saveAll"); });
 
 /* ── Live collaboration ───────────────────────────────────────────────────── */
 
@@ -6220,6 +6282,7 @@ function registerCommands(): void {
   add("run.file", "Run Active File", () => runButton.activate());
   add("ai.toggle", "Assistant", () => chat.toggle());
   add("ai.connect", "Connect a Model", () => connectView.open());
+  add("ai.chooseModel", "AI: Choose Model and Reasoning", () => { showChatSurface(); chat.openModelPicker(); });
   add("ai.useCodingCli", "Use a Coding CLI (Claude Code, Codex, OpenCode)", async () => {
     // The first CLI that can answer in the chat, else the first one found, else Claude Code's page.
     const status = await window.adcode.ai.status().catch(() => null);
@@ -6245,6 +6308,9 @@ function registerCommands(): void {
   add("ai.exportChatJson", "Export This Conversation as JSON", () => chat.exportConversation("json"));
   add("browser.clearData", "Browser: Sign Out of Everything and Clear Its Data", () => {
     void window.adcode.browser.clearData().then(() => notifications.show({ title: "Browser", body: "The Browser's sign-ins, cookies and cache were cleared.", autoDismissMs: 8_000 }), () => notifications.show({ title: "Browser", body: "The Browser's data could not be cleared.", autoDismissMs: 8_000 }));
+  });
+  add("browser.annotate", "Annotate a Page: Pin What to Change and Send It to Chat", () => {
+    if (!annotateCurrentPage()) notifications.show({ title: "Annotate", body: "Open a page in the Browser, or start the Preview, then press Annotate in its toolbar.", autoDismissMs: 8_000 });
   });
   add("ai.tagflow", "Choose Included Tagflow AI", () => connectView.open());
   add("ai.getFreeKey", "Get a Free AI Key", () => {
@@ -6274,12 +6340,15 @@ function registerCommands(): void {
   add("ai.team", "Set Up AI Team", () => chat.openTeamSetup());
   add("ai.schedule", "Schedule an AI Message", () => chat.openScheduleComposer());
   add("ai.compactConversation", "AI: Compact Conversation", () => chat.compactConversation());
-  add("ai.showUsage", "AI: Show Usage", () => void openUsageDialog());
-  add("ai.showCredits", "AI: Show Free AI Credits", () => void openUsageDialog());
+  add("power.whenDone", "AI: When the Assistant Finishes…", () => void openPowerDialog());
+  add("power.cancel", "AI: Cancel Sleep or Shutdown", () => void window.adcode.power.cancel());
+  add("phone.link", "Phone Link: Chat From Your Phone", () => void openPhoneLinkDialog());
+  add("ai.showUsage", "AI: Show Usage", () => void openUsageDialog({ showConversations: () => chat.showConversations(), openChat: (id) => chat.openConversation(id) }));
+  add("ai.showCredits", "AI: Show Free AI Credits", () => void openUsageDialog({ view: "limits" }));
   add("ai.buyTokens", "AI: Buy AI Credits", () => void window.open(BUY_TOKENS_URL, "_blank", "noopener"));
   add("ai.upgradePlan", "AI: Upgrade Plan", () => void window.open(BUY_TOKENS_URL, "_blank", "noopener"));
   add("ads.openNetworks", "Ads: Open Network Settings", () => void window.open("https://adcode.bluethenics.com/admin/ad-networks", "_blank", "noopener"));
-  add("ai.showCacheSavings", "AI: Show Prompt Cache Savings", () => void openUsageDialog());
+  add("ai.showCacheSavings", "AI: Show Prompt Cache Savings", () => void openUsageDialog({ view: "tokens", showConversations: () => chat.showConversations(), openChat: (id) => chat.openConversation(id) }));
   add("ai.delegate", "AI: Split a Task Across Helpers", () => { showChatSurface(); chat.draft("/helpers "); });
   add("ai.initInstructions", "AI: Write Project Instructions (AGENTS.md)", () => { showChatSurface(); chat.ask("/init"); });
   // The agents' rules and hooks: opened in the editor, created with a commented starter if missing.
@@ -6380,7 +6449,7 @@ function registerCommands(): void {
   add("community.monetize", "Plugins: Sell My Plugins (Coming Soon)", () => { openPlugins(); pluginsPage.showMonetize(); });
   add("community.artifacts", "Artifacts: Browse Shared Projects", () => openArtifacts("discover"));
   add("community.shareProject", "Artifacts: Share This Project", () => { openArtifacts("project"); artifactsPage.shareProject(); });
-  add("community.inbox", "Artifacts: Improvements Inbox", () => openArtifacts("inbox"));
+  add("community.inbox", "Artifacts: Changes Sent to You", () => openArtifacts("inbox"));
   add("workspace.browser", "Open Browser", () => agentBrowserPane.open());
   add("workspace.preview", "Open Project Preview", () => { if (!previewPane.isOpen()) void previewPane.toggle(); });
   add("ai.terminalTeam", "Start an AI Team in the Terminal", () => void openTerminalTeamSetup());

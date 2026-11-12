@@ -38,7 +38,7 @@ describe("browser app search discovery", () => {
       expect(text).toContain(url("/online-ai-code-editor"));
       expect(text).toContain(WEB_VERSION_URL);
       expect(text).toContain("Tagflow AI is free for every signed-in account");
-      expect(text).toContain("provider's price plus 35%");
+      expect(text).toContain("at the price listed for it"); expect(text).not.toContain("35%");
       expect(text).not.toContain("Builder $9");
       expect(text).toContain(url("/pricing"));
     }

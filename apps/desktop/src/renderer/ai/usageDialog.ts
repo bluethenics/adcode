@@ -1,50 +1,75 @@
 /**
- * AI usage: tokens and an estimated cost per model, for a range you pick.
+ * Usage: what the AI used and cost, laid out like T3 Code's Usage page and then some.
  *
- * A dialog rather than a page because the question it answers is quick - "how much have I
- * used, and on what?" - and the answer should be one shortcut away from wherever you are.
+ * "Usage / All projects / All providers" across the top, a range and a Cost / Tokens /
+ * Limits switch under it, and one scrolling page below: a plain-words summary, the big
+ * total, a row per provider, a smoothed chart, totals, a split by type, a breakdown table,
+ * and the questions T3 leaves open - cost per request and per chat, busiest hours, the
+ * costliest chats, the quickest model, and what the same work would cost elsewhere.
+ * Limits is the included-AI allowance and paid credits, as before.
+ *
+ * A dialog rather than a page because the question is quick and should be one shortcut away.
  * It stays live while open: an agent working in the background moves the numbers.
  *
- * The numbers come from `shared/aiUsage.ts`, which says what it does not know. This view
- * repeats that out loud: an estimate is marked as one, and a model with no catalogue price
- * says so instead of showing $0.00.
+ * The numbers come from `shared/usagePage.ts`, which says what it does not know; this view
+ * repeats that out loud instead of drawing a zero.
  */
-import {
-  formatTokens,
-  formatUsageCost,
-  USAGE_RANGES,
-  type AiUsageView,
-  type UsageModelView,
-  type UsageRange,
-} from "../../shared/aiUsage.ts";
+import { USAGE_RANGES, formatUsageCost, type UsageRange } from "../../shared/aiUsage.ts";
+import type { AnalysedUsageView } from "../../shared/usageInsights.ts";
+import { usagePage, type UsageFilter, type UsagePageView } from "../../shared/usagePage.ts";
 import { askThemed } from "../dialogs/confirmDialog.ts";
 import { button, el, openFormModal } from "../dialogs/formDialog.ts";
 import { createUsageActivity } from "./usageActivityView.ts";
-import { usageAnalysis } from "./usageCharts.ts";
-import type { UsageInsights } from "../../shared/usageInsights.ts";
+import { segmentIndicator } from "./usageMotion.ts";
+import { USAGE_SECTIONS, usagePageTabs, type PricedModel, type UsageMetric, type UsagePageState, type UsageSection } from "./usagePageView.ts";
 import { allowanceSummary } from "./allowanceSummary.ts";
 import { BUY_TOKENS_URL, UNLIMITED_REQUESTS_PER_MINUTE, aiPlanName, isFairUsePlan, creditWindowSummary, percentLeft, untilText, type CreditsAllowance, type TagflowAllowanceView } from "../../shared/tagflow.ts";
 import { openAudienceProfile } from "./audienceProfile.ts";
+import { formatTokens } from "../../shared/aiUsage.ts";
+
+export type UsageView = UsageMetric | "limits";
+
+export interface UsageDialogOptions {
+  /** Which view to open on; the last one used otherwise. */
+  readonly view?: UsageView;
+  /** Opens the chat's conversation list, for the costliest-chats section. */
+  readonly showConversations?: () => void;
+  /** Opens one conversation by id, for a row in the costliest-chats section. */
+  readonly openChat?: (id: string) => void;
+}
 
 const RANGE_KEY = "adcode.usage.range";
+const VIEW_KEY = "adcode.usage.view";
+const SECTION_KEY = "adcode.usage.section";
 
-function savedRange(): UsageRange {
+function saved<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
   try {
-    const saved = localStorage.getItem(RANGE_KEY);
-    if (saved === "today" || saved === "7d" || saved === "30d" || saved === "all") return saved;
+    const value = localStorage.getItem(key);
+    if (value !== null && (allowed as readonly string[]).includes(value)) return value as T;
   } catch {
-    // Storage blocked: the default range is fine.
+    // Storage blocked: the default is fine.
   }
-  return "7d";
+  return fallback;
 }
 
-function shortDay(day: string): string {
-  const [year, month, date] = day.split("-").map(Number);
-  return new Date(year!, (month ?? 1) - 1, date ?? 1).toLocaleDateString([], { month: "short", day: "numeric" });
+function remember(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Remembering is a convenience.
+  }
 }
 
-function costText(micros: number | null, partial: boolean): string {
-  return `${formatUsageCost(micros)}${partial && micros !== null ? "+" : ""}`;
+const KNOWN_PROVIDERS: Readonly<Record<string, string>> = {
+  tagflow: "Included AI", anthropic: "Anthropic", openai: "OpenAI", google: "Google", openrouter: "OpenRouter", ollama: "Ollama",
+  deepseek: "DeepSeek", mistral: "Mistral", xai: "xAI", groq: "Groq", custom: "Custom endpoint",
+  "cli-claude": "Claude Code", "cli-codex": "Codex", "cli-opencode": "OpenCode", "cli-gemini": "Gemini CLI",
+};
+
+/** The last folder of a path: "shop" for "E:\work\shop". */
+export function projectName(path: string): string {
+  const parts = path.split(/[\\/]+/).filter((part) => part.length > 0);
+  return parts[parts.length - 1] ?? path;
 }
 
 function stat(label: string, value: string, detail: string): HTMLElement {
@@ -53,50 +78,53 @@ function stat(label: string, value: string, detail: string): HTMLElement {
   return tile;
 }
 
-function modelRow(model: UsageModelView): HTMLElement {
-  const row = el("li", "usage-model");
-  const name = el("div", "usage-model-name");
-  const title = el("strong", "", model.model);
-  title.title = model.model;
-  name.append(title, el("span", "usage-model-provider", model.provider));
-  const bar = el("span", "usage-model-bar");
-  bar.setAttribute("aria-hidden", "true");
-  const fill = el("span", "");
-  fill.style.setProperty("--share", `${Math.max(2, Math.round(model.share * 100))}%`);
-  bar.append(fill);
-  const tokens = el("span", "usage-model-tokens", `${model.estimated ? "≈ " : ""}${formatTokens(model.inputTokens + model.outputTokens)}`);
-  tokens.title = `${model.inputTokens.toLocaleString()} in${model.cachedTokens > 0 ? ` (${model.cachedTokens.toLocaleString()} cached)` : ""} · ${model.outputTokens.toLocaleString()} out${model.estimated ? " · some counts estimated" : ""}`;
-  const requests = el("span", "usage-model-requests", `${model.requests.toLocaleString()} ${model.requests === 1 ? "request" : "requests"}`);
-  requests.title = `${model.chatRequests.toLocaleString()} from the chat · ${model.agentRequests.toLocaleString()} from agents`;
-  const cost = el("span", "usage-model-cost", costText(model.costMicros, model.costPartial));
-  cost.title = model.costMicros === null
-    ? "The model catalogue has no price for this model."
-    : model.costPartial ? "Some requests had no price, so this is less than the whole." : "Estimated from the catalogue's price per million tokens.";
-  row.append(name, bar, tokens, requests, cost);
-  return row;
-}
-
 /** Open the usage dialog. Resolves when it closes. */
-export function openUsageDialog(): Promise<void> {
+export function openUsageDialog(options: UsageDialogOptions = {}): Promise<void> {
   return new Promise((resolve) => {
-    let range = savedRange();
-    /** The range whose charts have already drawn themselves in. */
-    let analysedRange: UsageRange | null = null;
+    let range = saved<UsageRange>(RANGE_KEY, ["today", "7d", "30d", "90d"], "7d");
+    let view: UsageView = options.view ?? saved<UsageView>(VIEW_KEY, ["cost", "tokens", "limits"], "cost");
+    const filter: { project: string | null; provider: string | null } = { project: null, provider: null };
+    const state: UsagePageState = { breakdown: "model", whatIf: null, section: saved<UsageSection>(SECTION_KEY, USAGE_SECTIONS.map((option) => option.value), "overview"), expanded: new Set() };
+    /** What the page last drew, so switching Cost and Tokens needs no new read. */
+    let last: AnalysedUsageView | null = null;
+    /** The range and view whose sections have already drawn themselves in. */
+    let entered = "";
     let stop: (() => void) | null = null;
     let request = 0;
     let allowanceRequest = 0;
     let allowanceTimer: ReturnType<typeof setInterval> | undefined;
-    const { dialog, card, finish } = openFormModal("ai-usage-dialog", "AI usage", () => {
+    const names = new Map<string, string>();
+    const chatTitles = new Map<string, string>();
+    let prices: PricedModel[] = [];
+    const { dialog, card, title, finish } = openFormModal("ai-usage-dialog", "Usage", () => {
       request += 1;
-      allowanceRequest += 1;
+      // Closed: any read still out is dropped, and no further read starts.
+      allowanceRequest = -1;
       stop?.();
       clearInterval(allowanceTimer);
       resolve();
     });
+    const nameOf = (provider: string): string => names.get(provider) ?? KNOWN_PROVIDERS[provider] ?? (provider.startsWith("cli-") ? `${provider.slice(4)} CLI` : provider.charAt(0).toUpperCase() + provider.slice(1));
 
-    const historyText = "History below covers the selected period and all models on this computer.";
-    const freeText = "Included AI is free; costs for your own models are estimates.";
-    const historyNote = el("p", "usage-lead", `${historyText} ${freeText}`);
+    // Usage / All projects / All providers
+    const head = el("header", "usage-head");
+    const crumbs = el("nav", "usage-crumbs");
+    crumbs.setAttribute("aria-label", "Filter usage");
+    const projectSelect = el("select", "ad-input ad-select usage-crumb-select");
+    projectSelect.setAttribute("aria-label", "Project");
+    const providerSelect = el("select", "ad-input ad-select usage-crumb-select");
+    providerSelect.setAttribute("aria-label", "Provider");
+    const slash = (): HTMLElement => {
+      const node = el("span", "usage-crumb-slash", "/");
+      node.setAttribute("aria-hidden", "true");
+      return node;
+    };
+    title.classList.add("usage-crumb-title");
+    crumbs.append(title, slash(), projectSelect, slash(), providerSelect);
+    head.append(crumbs);
+    projectSelect.addEventListener("change", () => { filter.project = projectSelect.value === "" ? null : projectSelect.value; entered = ""; void refresh(); });
+    providerSelect.addEventListener("change", () => { filter.provider = providerSelect.value === "" ? null : providerSelect.value; entered = ""; void refresh(); });
+
     const allowance = el("div", "usage-allowance", "Checking included AI allowance…");
     const allowanceHelp = el("details", "usage-allowance-help");
     const budgetNote = el("p", "usage-note");
@@ -110,6 +138,9 @@ export function openUsageDialog(): Promise<void> {
     );
     allowanceHelp.hidden = true;
     allowance.setAttribute("role", "status");
+    const limitsEmpty = el("div", "usage-panel-empty");
+    limitsEmpty.append(el("strong", "", "No limits to show"), el("p", "", "Limits apply only to the AI included with ADCode. Your own keys and coding CLIs are limited by their provider, not by ADCode."));
+    limitsEmpty.hidden = true;
     /** Credits replace the token explanation; the summary line stays. */
     function creditHelp(credits: CreditsAllowance): void {
       const lines = [
@@ -152,23 +183,85 @@ export function openUsageDialog(): Promise<void> {
     }
     const paidWallet = el("section", "usage-allowance");
     paidWallet.hidden = true;
-    async function refreshAllowance(): Promise<void> {
-      const mine = ++allowanceRequest;
+    /*
+     * One read at a time, and every answer is drawn. This used to start a new read on every
+     * usage change and throw away any answer that a newer read had overtaken - and while a
+     * chat or agent is working, usage changes every second, so a read slower than that was
+     * always overtaken and Limits sat on "Checking..." for good (reported 12 November 2026).
+     * A change during a read now asks for one more read after it.
+     */
+    let allowanceBusy = false;
+    let allowanceAgain = false;
+    function refreshAllowance(): Promise<void> {
+      if (allowanceBusy) { allowanceAgain = true; return Promise.resolve(); }
+      allowanceBusy = true;
+      return readAllowance().finally(() => {
+        allowanceBusy = false;
+        if (allowanceAgain && allowanceRequest >= 0) { allowanceAgain = false; void refreshAllowance(); }
+      });
+    }
+    /** True when this machine has no signed-in account; null when that could not be told in 3 seconds. */
+    const signedOutCheck = (): Promise<boolean | null> => Promise.race([
+      Promise.resolve().then(() => window.adcode.account.status()).then((account) => account.state === "anonymous" || account.state === "unavailable").catch(() => null),
+      // The account check is a round trip too; past the allowance's own deadline it is no help.
+      new Promise<null>((done) => setTimeout(() => done(null), 10_000)),
+    ]);
+    /** Set once anything real is drawn, so a late "sign in" never covers an allowance. */
+    let allowanceShown = false;
+    function showSignIn(): void {
+      allowance.hidden = true;
+      allowance.replaceChildren();
+      allowanceHelp.hidden = true;
+      explainMissing(true);
+    }
+    /** Signed out, or signed in and the read failed: the two need different words. */
+    function explainMissing(signedOut: boolean): void {
+      limitsEmpty.replaceChildren(
+        el("strong", "", signedOut ? "Sign in to see your allowance" : "Your allowance could not be read just now"),
+        el("p", "", signedOut
+          ? "Limits belong to your ADCode account. Sign in from the account menu and your included AI allowance shows here. Your own keys and coding CLIs are limited only by their provider."
+          : "ADCode could not reach your account. Check your connection and try again. Your own keys and coding CLIs keep working either way."),
+        ...(signedOut ? [] : [button("Try again", "ad-btn ad-btn-secondary", () => void refreshAllowance())]),
+      );
+      limitsEmpty.hidden = false;
+    }
+    async function readAllowance(): Promise<void> {
+      const mine = allowanceRequest;
+      // Signed out is known in a moment, while the allowance read itself can take the main
+      // process's full 12 seconds to give up; say "sign in" as soon as that is clear.
+      const signedOut = signedOutCheck();
+      void signedOut.then((out) => { if (out === true && !allowanceShown && mine === allowanceRequest) showSignIn(); });
+      // A slow answer is said to be slow, rather than "Checking..." sitting there unexplained.
+      const slow = setTimeout(() => {
+        if (!allowanceShown && limitsEmpty.hidden && mine === allowanceRequest) allowance.replaceChildren(el("span", "usage-note", "Still checking your allowance. A slow connection can take a few seconds; your own models keep working meanwhile."));
+      }, 4_000);
       try {
-        const view = await window.adcode.aiUsage.allowance();
+        // A signed-in read that has not answered in 10 seconds is reported, not waited on.
+        const view = await Promise.race([
+          window.adcode.aiUsage.allowance(),
+          new Promise<never>((_done, fail) => setTimeout(() => fail(new Error("allowance timed out")), 10_000)),
+        ]);
         if (mine !== allowanceRequest) return;
+        if (view === null) {
+          allowance.hidden = true;
+          allowanceHelp.hidden = true;
+          paidWallet.hidden = true;
+          explainMissing((await signedOut) === true);
+          return;
+        }
+        allowanceShown = true;
         paidWallet.hidden = view?.wallet === undefined;
         if (view?.wallet) paidWallet.replaceChildren(
           el("strong", "", "Paid model credits"),
-          stat("Available", `$${(view.wallet.availableMicros/1_000_000).toFixed(4)}`, "USD · provider cost plus 35%"),
+          stat("Available", `$${(view.wallet.availableMicros/1_000_000).toFixed(4)}`, "USD, for paid models"),
           el("p", "usage-note", `$${(view.wallet.reservedMicros/1_000_000).toFixed(4)} held for active requests. Separate from included tokens and Heabsy subscriptions.`),
           button("Add paid credits", "ad-btn ad-btn-secondary", ()=>void window.open(`${BUY_TOKENS_URL}#wallet`,"_blank","noopener")),
         );
         allowance.hidden = view === null || !view.available;
         allowanceHelp.hidden = allowance.hidden;
-        // "Above" only means something when the allowance is there to point at.
-        historyNote.textContent = allowance.hidden ? `${historyText} ${freeText}` : `${historyText} The included-AI allowance above applies across your devices. ${freeText}`;
-        if (view === null || !view.available) return;
+        limitsEmpty.replaceChildren(el("strong", "", "No limits to show"), el("p", "", "Limits apply only to the AI included with ADCode, which this account does not use. Your own keys and coding CLIs are limited by their provider, not by ADCode."));
+        limitsEmpty.hidden = !allowance.hidden || !paidWallet.hidden;
+        if (!view.available) return;
         if (view.blocked) { allowance.textContent = "Included AI is disabled for this account."; allowanceHelp.hidden = true; return; }
         if (view.tokens?.enabled === true) {
           allowance.replaceChildren(includedAllowance(view.tokens, view.usage.requests));
@@ -228,14 +321,20 @@ export function openUsageDialog(): Promise<void> {
         allowance.replaceChildren(...parts);
       } catch {
         if (mine !== allowanceRequest) return;
+        if (!allowanceShown && (await signedOut) === true) { showSignIn(); return; }
         allowance.hidden = false;
+        limitsEmpty.hidden = true;
         allowanceHelp.hidden = true;
-        allowance.replaceChildren(el("span", "usage-note", "Account allowance could not be checked."), button("Retry", "ad-btn ad-btn-tertiary", () => void refreshAllowance()));
+        allowance.replaceChildren(el("span", "usage-note", "Your allowance could not be checked. Check your connection and try again."), button("Retry", "ad-btn ad-btn-tertiary", () => void refreshAllowance()));
+      } finally {
+        clearTimeout(slow);
       }
     }
     void refreshAllowance();
     allowanceTimer = setInterval(() => void refreshAllowance(), 15_000);
 
+    // Range: Today / 7 days / 30 days / 90 days. View: Cost / Tokens / Limits.
+    const toolbar = el("div", "usage-toolbar");
     const tabs = el("div", "ad-tabs usage-tabs");
     tabs.setAttribute("role", "tablist");
     tabs.setAttribute("aria-label", "Range");
@@ -254,105 +353,149 @@ export function openUsageDialog(): Promise<void> {
       choose(next.value);
       tabButtons.find((tab) => tab.dataset["range"] === next.value)?.focus();
     });
+    const views = el("div", "ad-tabs usage-views");
+    views.setAttribute("role", "radiogroup");
+    views.setAttribute("aria-label", "Show");
+    const VIEWS: readonly (readonly [UsageView, string])[] = [["cost", "Cost"], ["tokens", "Tokens"], ["limits", "Limits"]];
+    const viewButtons = VIEWS.map(([value, label]) => {
+      const item = button(label, "ad-tab usage-view", () => show(value));
+      item.setAttribute("role", "radio");
+      item.dataset["view"] = value;
+      return item;
+    });
+    views.append(...viewButtons);
+    views.addEventListener("keydown", (event) => {
+      if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+      event.preventDefault();
+      const at = VIEWS.findIndex(([value]) => value === view);
+      const next = VIEWS[(at + (event.key === "ArrowRight" ? 1 : VIEWS.length - 1)) % VIEWS.length]![0];
+      show(next);
+      viewButtons.find((item) => item.dataset["view"] === next)?.focus();
+    });
+    toolbar.append(tabs, views);
+    const slideRange = segmentIndicator(tabs, "[aria-selected=\"true\"]");
+    const slideView = segmentIndicator(views, "[aria-checked=\"true\"]");
 
+    const lead = el("p", "usage-lead", "Counted on this computer for the range and filters above. Costs are estimates at list prices, not a bill.");
     const body = el("div", "usage-body");
     body.id = "ai-usage-panel";
     body.setAttribute("role", "tabpanel");
     body.setAttribute("aria-live", "polite");
+    const limits = el("section", "usage-limits");
+    limits.setAttribute("aria-label", "Limits");
+    const limitsLead = el("div", "usage-panel-head");
+    const limitsTitles = el("div", "usage-panel-titles");
+    limitsTitles.append(el("h3", "usage-panel-title", "Limits"), el("p", "usage-panel-note", "How much of ADCode's included AI you have left, and when it refills."));
+    limitsLead.append(limitsTitles);
+    limits.append(limitsLead, allowance, limitsEmpty, paidWallet, allowanceHelp);
     const footer = el("div", "usage-footer");
     const clear = button("Clear usage", "ghost-button usage-clear", () => void clearAll());
     const close = button("Done", "ad-btn ad-btn-primary", () => finish());
-    footer.append(clear, button("About your AI use","ad-btn ad-btn-tertiary",() => void openAudienceProfile()), close);
+    footer.append(clear, button("About your AI use", "ad-btn ad-btn-tertiary", () => void openAudienceProfile()), close);
     /*
-     * One scrolling area for everything but the footer. The balance cards used to sit outside
-     * it, so the range content below the tabs scrolled in whatever strip was left - about a
-     * row of the activity grid on a laptop (reported 2 November 2026). The tabs stay pinned.
+     * One scrolling area for everything but the header and footer, so the page never scrolls
+     * inside a strip (reported 2 November 2026). The range and view switch stay pinned.
      */
     const scroller = el("div", "usage-scroll");
-    scroller.append(allowance, paidWallet, tabs, body);
-    card.append(scroller, footer);
+    scroller.append(toolbar, limits, body);
+    card.append(head, scroller, footer);
 
-    function paintTabs(): void {
+    function paintControls(): void {
+      dialog.dataset["view"] = view;
       for (const tab of tabButtons) {
         const on = tab.dataset["range"] === range;
         tab.setAttribute("aria-selected", String(on));
-        tab.id = `ai-usage-range-${tab.dataset["range"]}`;
+        tab.id = `ai-usage-range-${tab.dataset["range"]!}`;
         tab.setAttribute("aria-controls", body.id);
         if (on) body.setAttribute("aria-labelledby", tab.id);
         tab.tabIndex = on ? 0 : -1;
       }
+      for (const item of viewButtons) {
+        const on = item.dataset["view"] === view;
+        item.setAttribute("aria-checked", String(on));
+        item.tabIndex = on ? 0 : -1;
+      }
+      limits.hidden = view !== "limits";
+      body.hidden = view === "limits";
+      tabs.hidden = view === "limits";
+      slideRange();
+      slideView();
     }
 
-    function paint(view: AiUsageView & { readonly insights?: UsageInsights }): void {
+    /** A main process from before the page existed sends no `page`; draw it as empty rather than fail. */
+    const pageOf = (current: AnalysedUsageView): UsagePageView => (current as Partial<AnalysedUsageView>).page ?? usagePage([], range, Date.now());
+
+    function paintFilters(current: AnalysedUsageView): void {
+      const page = pageOf(current);
+      const fill = (select: HTMLSelectElement, all: string, choices: readonly { readonly id: string; readonly requests: number }[], chosen: string | null, label: (id: string) => string): void => {
+        const list = chosen !== null && !choices.some((choice) => choice.id === chosen) ? [...choices, { id: chosen, requests: 0 }] : choices;
+        const allOption = el("option", "", all);
+        allOption.value = "";
+        select.replaceChildren(allOption, ...list.map((choice) => {
+          const option = el("option", "", label(choice.id));
+          option.value = choice.id;
+          option.title = choice.id;
+          return option;
+        }));
+        select.value = chosen ?? "";
+        select.disabled = list.length === 0;
+      };
+      fill(projectSelect, "All projects", page.projects, filter.project, projectName);
+      fill(providerSelect, "All providers", page.providers, filter.provider, nameOf);
+      projectSelect.title = page.projects.length === 0 ? "Projects are recorded from this version on" : "";
+    }
+
+    function paint(current: AnalysedUsageView): void {
+      last = current;
+      paintFilters(current);
       const focusedDay = body.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset["day"] : undefined;
-      const focusedHelp = allowanceHelp.contains(document.activeElement) ? document.activeElement as HTMLElement : null;
       const day = body.querySelector<HTMLElement>('.usage-calendar-cell[tabindex="0"]')?.dataset["day"];
       const scrollLeft = body.querySelector<HTMLElement>(".usage-calendar-scroll")?.scrollLeft;
       const scrollTop = scroller.scrollTop;
-      const activity = createUsageActivity(view.activity, { ...(day === undefined ? {} : { day }), ...(scrollLeft === undefined ? {} : { scrollLeft }) });
-      const replace = (...parts: HTMLElement[]): void => {
-        body.replaceChildren(allowanceHelp, historyNote, ...parts);
-        scroller.scrollTop = scrollTop;
-        if (focusedDay) body.querySelector<HTMLButtonElement>(`[data-day="${focusedDay}"]`)?.focus({ preventScroll: true });
-        focusedHelp?.focus({ preventScroll: true });
-      };
-      clear.disabled = view.since === null;
-      if (view.totals.requests === 0) {
+      const activity = createUsageActivity(current.activity, { ...(day === undefined ? {} : { day }), ...(scrollLeft === undefined ? {} : { scrollLeft }) });
+      clear.disabled = current.since === null;
+      const page = pageOf(current);
+      const key = `${range}:${view}`;
+      const arriving = key !== entered;
+      if (arriving) body.dataset["enter"] = "true"; else delete body.dataset["enter"];
+      entered = key;
+      let parts: HTMLElement[];
+      if (page.totals.requests === 0) {
+        const filtered = filter.project !== null || filter.provider !== null;
         const empty = el("div", "usage-empty");
         empty.append(
-          el("strong", "", view.since === null ? "Nothing used yet" : "Nothing in this range"),
-          el("p", "", view.since === null
-            ? "Send a message in the chat or give an agent a task, and the tokens it uses appear here."
-            : "Pick a longer range to see earlier use."),
+          el("strong", "", current.since === null ? "Nothing used yet" : filtered ? "Nothing for this filter" : "Nothing in this range"),
+          el("p", "", current.since === null
+            ? "Send a message in the chat or give an agent a task, and what it uses shows up here."
+            : filtered ? "Pick All projects or All providers at the top to see more." : "Pick a longer range at the top, like 30 days, to see earlier use."),
         );
-        replace(activity, empty);
-        return;
+        parts = [empty, activity];
+      } else {
+        parts = [lead, usagePageTabs(page, {
+          metric: view === "tokens" ? "tokens" : "cost",
+          nameOf,
+          providerSlot: (provider) => page.providers.findIndex((option) => option.id === provider),
+          chatTitle: (id) => chatTitles.get(id) ?? null,
+          projectName,
+          prices,
+          state,
+          showTokens: () => show("tokens"),
+          enter: arriving,
+          showConversations: options.showConversations === undefined ? undefined : () => { finish(); options.showConversations?.(); },
+          openChat: options.openChat === undefined ? undefined : (id: string) => { finish(); options.openChat?.(id); },
+        }, activity)];
       }
-      const totals = view.totals;
-      const stats = el("div", "usage-stats");
-      stats.append(
-        stat("Tokens", `${totals.estimated ? "≈ " : ""}${formatTokens(totals.inputTokens + totals.outputTokens)}`, `${formatTokens(totals.inputTokens)} in · ${formatTokens(totals.outputTokens)} out${totals.cachedTokens > 0 ? ` · ${formatTokens(totals.cachedTokens)} cached` : ""}`),
-        stat("Requests", totals.requests.toLocaleString(), `${view.models.length} ${view.models.length === 1 ? "model" : "models"}`),
-        stat("Estimated cost", costText(totals.costMicros, totals.costPartial), totals.costPartial ? "Some models have no price" : "From catalogue prices"),
-      );
-
-      const parts: HTMLElement[] = [stats, activity];
-      if (view.insights !== undefined) {
-        const entering = analysedRange !== view.range;
-        analysedRange = view.range;
-        parts.push(usageAnalysis(view.insights, view.models, entering));
-      } else if (view.days.length > 1) {
-        const most = Math.max(1, ...view.days.map((day) => day.tokens));
-        const chart = el("div", "usage-days");
-        chart.style.setProperty("--usage-day-count", String(view.days.length));
-        chart.setAttribute("role", "img");
-        chart.setAttribute("aria-label", `Tokens per day, ${shortDay(view.days[0]!.day)} to ${shortDay(view.days[view.days.length - 1]!.day)}`);
-        for (const day of view.days) {
-          const column = el("span", "usage-day");
-          column.style.setProperty("--height", `${day.tokens === 0 ? 0 : Math.max(4, Math.round((day.tokens / most) * 100))}%`);
-          column.title = `${shortDay(day.day)}: ${formatTokens(day.tokens)} tokens`;
-          chart.append(column);
-        }
-        parts.push(chart);
-      }
-
-      const list = el("ul", "usage-models");
-      list.setAttribute("aria-label", "Usage by model");
-      for (const model of view.models) list.append(modelRow(model));
-      parts.push(list);
-      if (totals.cachedTokens > 0) {
-        const share = Math.round((totals.cachedTokens / Math.max(1, totals.inputTokens)) * 100);
-        parts.push(el("p", "usage-note usage-cached-note", `${share}% of the input was cached: the instructions, tools and earlier conversation each step sends again, read back from the provider's prompt cache. It is billed at a fraction of fresh input, and the estimated cost uses that price where the catalogue lists one.`));
-      }
-      if (totals.estimated) parts.push(el("p", "usage-note", "≈ marks counts ADCode estimated because the provider did not report them."));
-      replace(...parts);
+      remember(SECTION_KEY, state.section);
+      body.replaceChildren(...parts);
+      scroller.scrollTop = scrollTop;
+      if (focusedDay) body.querySelector<HTMLButtonElement>(`[data-day="${focusedDay}"]`)?.focus({ preventScroll: true });
     }
 
     async function refresh(): Promise<void> {
       const mine = ++request;
       try {
-        const view = await window.adcode.aiUsage.read(range);
-        if (mine === request) paint(view);
+        const current = await window.adcode.aiUsage.read(range, { project: filter.project, provider: filter.provider } satisfies UsageFilter);
+        if (mine === request) paint(current);
       } catch {
         if (mine === request) body.replaceChildren(el("p", "usage-note", "Usage could not be read."), button("Try again", "ad-btn ad-btn-tertiary", () => void refresh()));
       }
@@ -360,13 +503,31 @@ export function openUsageDialog(): Promise<void> {
 
     function choose(next: UsageRange): void {
       range = next;
-      try {
-        localStorage.setItem(RANGE_KEY, next);
-      } catch {
-        // Remembering the range is a convenience.
-      }
-      paintTabs();
+      remember(RANGE_KEY, next);
+      paintControls();
       void refresh();
+    }
+
+    function show(next: UsageView): void {
+      view = next;
+      remember(VIEW_KEY, next);
+      paintControls();
+      if (last !== null && next !== "limits") paint(last);
+    }
+
+    /** Names, chat titles and prices make the page read better; it works without them. */
+    async function loadContext(): Promise<void> {
+      const [status, sessions] = await Promise.all([
+        Promise.resolve().then(() => window.adcode.ai.status()).catch(() => null),
+        Promise.resolve().then(() => window.adcode.chat.sessions()).catch(() => null),
+      ]);
+      for (const provider of status?.providers ?? []) names.set(provider.id, provider.id === "tagflow" ? "Included AI" : provider.displayName);
+      for (const session of sessions ?? []) chatTitles.set(session.id, session.title);
+      // Every listed price; the page compares only the models you actually used.
+      prices = (status?.providers ?? []).flatMap((provider) => provider.models
+        .filter((model) => typeof model.inputPrice === "number" && typeof model.outputPrice === "number" && model.free !== true && (model.inputPrice + model.outputPrice) > 0)
+        .map((model) => ({ key: `${provider.id}\u0000${model.id}`, provider: provider.id, model: model.id, name: model.name, inputUsdPerMillion: model.inputPrice as number, outputUsdPerMillion: model.outputPrice as number })));
+      if (last !== null && view !== "limits") paint(last);
     }
 
     async function clearAll(): Promise<void> {
@@ -384,10 +545,12 @@ export function openUsageDialog(): Promise<void> {
 
     stop = window.adcode.aiUsage.onChanged(() => { void refresh(); void refreshAllowance(); });
     dialog.showModal();
-    paintTabs();
+    paintControls();
+    requestAnimationFrame(() => { slideRange(); slideView(); });
     body.replaceChildren(el("p", "usage-note", "Loading…"));
     void refresh();
-    tabButtons.find((tab) => tab.dataset["range"] === range)?.focus();
+    void loadContext();
+    (view === "limits" ? viewButtons.find((item) => item.dataset["view"] === view) : tabButtons.find((tab) => tab.dataset["range"] === range))?.focus();
   });
 }
 

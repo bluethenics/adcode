@@ -272,7 +272,7 @@ try {
           working.querySelector('.chat-working-stop')?.disabled === false && working === working.parentElement?.lastElementChild,
         // One assistant at work, one face on screen: every mascot in the conversation that is
         // actually drawn, whichever kind it is.
-        faces: [...document.querySelectorAll('.chat-transcript :is(.chat-mascot, .agent-mascot)')]
+        faces: [...document.querySelectorAll('.chat-transcript :is(.chat-mascot, .agent-mascot, .adcode-mascot)')]
           .filter((face) => face.getBoundingClientRect().width > 0).length,
         workingEvidence: (() => {
           const any = document.querySelector('.chat-working');

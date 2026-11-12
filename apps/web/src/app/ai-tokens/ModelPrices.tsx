@@ -35,7 +35,7 @@ function Availability({ available }: { available: boolean }) {
   return <span className="model-price-status" data-available={available}><span aria-hidden="true" />{available ? "Available" : "Coming soon"}</span>;
 }
 
-export function ModelPrices({ models, markupPercent, title = "Model pricing" }: { models: PaidModelPrice[]; markupPercent: number; title?: string }) {
+export function ModelPrices({ models, title = "Model pricing" }: { models: PaidModelPrice[]; title?: string }) {
   const rates = ALL_RATES.filter(([, key]) => key !== "cacheWritePrice" || models.some((model) => model.cacheWritePrice !== undefined));
   const showAvailability = models.some((model) => !model.available);
   const [query, setQuery] = useState("");
@@ -54,7 +54,7 @@ export function ModelPrices({ models, markupPercent, title = "Model pricing" }: 
   return <section className="model-prices" aria-labelledby="model-prices-title">
     <div className="model-prices-heading">
       <div><h3 id="model-prices-title">{title}</h3><p>Compare models. Pay for what you use.</p></div>
-      <div className="model-prices-units"><strong>USD / 1M tokens</strong><span>{markupPercent}% markup included</span></div>
+      <div className="model-prices-units"><strong>USD / 1M tokens</strong><span>The price you pay</span></div>
     </div>
     <div className="model-prices-toolbar">
       <label className="model-prices-search">
@@ -67,7 +67,7 @@ export function ModelPrices({ models, markupPercent, title = "Model pricing" }: 
     </div>
     <div className="model-prices-scroll" role="region" aria-label="Paid model prices" tabIndex={0}>
       <table className="model-prices-table">
-        <caption className="model-prices-sr-only">Model prices in USD per one million tokens, including {markupPercent}% markup.</caption>
+        <caption className="model-prices-sr-only">Model prices in USD per one million tokens: the price you pay.</caption>
         <thead><tr><th scope="col">Model</th><th scope="col">Connection</th>{rates.map(([label, key]) => <th scope="col" className="model-price-number" key={key}>{label}</th>)}{showAvailability && <th scope="col">Availability</th>}</tr></thead>
         <tbody>{shown.map(model => {
           const label = modelLabel(model);
@@ -92,7 +92,7 @@ export function ModelPrices({ models, markupPercent, title = "Model pricing" }: 
     {shown.length === 0 && <div className="model-prices-empty"><strong>No matching models</strong><p>Try another model name or provider.</p><button type="button" onClick={() => { setQuery(""); setConnection("all"); }}>Show all models</button></div>}
     <div className="model-prices-footer">
       <span role="status">{shown.length} of {models.length} connections</span>
-      <details><summary>How pricing works</summary><p>Rates include the {markupPercent}% markup. Applicable tax is shown at checkout. Cache discounts apply when reported by the provider. GPT-6 Luna prompts above 272K tokens use twice the input and cache rates and 1.5 times the output rate. Direct DeepSeek prices follow its ordinary peak and off-peak schedule. Models marked Coming soon are not available to use yet.</p></details>
+      <details><summary>How pricing works</summary><p>These are the prices you pay. Applicable tax is shown at checkout. Cache discounts apply when reported by the provider. GPT-6 Luna prompts above 272K tokens use twice the input and cache rates and 1.5 times the output rate. Direct DeepSeek prices follow its ordinary peak and off-peak schedule. Models marked Coming soon are not available to use yet.</p></details>
     </div>
   </section>;
 }

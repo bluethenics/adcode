@@ -74,7 +74,7 @@ export interface Landing {
  */
 const perImpression = formatMicros(perImpressionMicros, 3);
 const floorBlock = formatMicros(ECONOMICS.floorBlockMicros, 2);
-const includedAiSummary = `Tagflow AI and other free included models share ${creditAmount(FREE_WEEKLY_TOKENS)} free credits a day. Heabsy and other partner models use paid credits: a USD wallet charged at the provider's price plus 35%, or included in Max. No API key is needed for included models; your own key or local desktop model is optional.`;
+const includedAiSummary = `Tagflow AI and other free included models share ${creditAmount(FREE_WEEKLY_TOKENS)} free credits a day. Heabsy and other partner models use paid credits: a USD wallet charged at each model's listed price, or included in Max. No API key is needed for included models; your own key or local desktop model is optional.`;
 
 /**
  * The comparison pages live under `/compare/`, the rest at the root.
@@ -408,7 +408,7 @@ export const LANDINGS: readonly Landing[] = [
         {
           aspect: "Price",
           them: "A free Hobby plan with limited usage, then a monthly subscription; teams pay per seat.",
-          us: `Free editor; Tagflow AI free, other models pay as you go at provider price plus 35%.`,
+          us: `Free editor; Tagflow AI free, other models pay as you go at each model's listed price.`,
         },
         {
           aspect: "AI billing",
@@ -584,7 +584,7 @@ export const LANDINGS: readonly Landing[] = [
         {
           aspect: "Price",
           them: "A free plan with a light quota, and paid plans with a larger usage allowance.",
-          us: `Free editor with no personal cloud time quota; Tagflow AI free, other models pay as you go at provider price plus 35%.`,
+          us: `Free editor with no personal cloud time quota; Tagflow AI free, other models pay as you go at each model's listed price.`,
         },
         {
           aspect: "AI billing",
@@ -688,7 +688,7 @@ export const LANDINGS: readonly Landing[] = [
         {
           aspect: "Price",
           them: "A free tier with monthly limits, and paid individual and business plans above it.",
-          us: `Free editor; Tagflow AI free, other models pay as you go at provider price plus 35%.`,
+          us: `Free editor; Tagflow AI free, other models pay as you go at each model's listed price.`,
         },
         {
           aspect: "AI billing",

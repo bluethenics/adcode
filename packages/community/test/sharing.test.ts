@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ARTIFACT_SHARE_PREFIX, artifactAccess, artifactIsListed, artifactShareFor, artifactShareMessage, decodeArtifactShare,
-  encodeArtifactShare, isArtifactShareKey, newArtifactShareKey, parseArtifactVisibility,
+  encodeArtifactShare, findArtifactShare, isArtifactShareKey, newArtifactShareKey, parseArtifactVisibility,
 } from "@adcode/community";
 
 const key = "0123456789abcdef0123456789abcdef";
@@ -42,6 +42,24 @@ describe("artifact share codes", () => {
     expect(message).toContain(`"Todo app"`);
     expect(message).toContain(encodeArtifactShare(subject.id, key));
     expect(message).toContain("unlisted");
+    expect(message).toContain("Join a friend");
+  });
+
+  it("finds the invite code however it was pasted", () => {
+    const code = encodeArtifactShare(subject.id, key);
+    const want = { id: subject.id, key };
+    expect(findArtifactShare(code)).toEqual(want);
+    expect(findArtifactShare(`  ${code}\n`)).toEqual(want);
+    expect(findArtifactShare(`${subject.id}:${key}`)).toEqual(want);
+    expect(findArtifactShare(code.toUpperCase())).toEqual(want);
+    expect(findArtifactShare(`adartifact: ${subject.id} : ${key}`)).toEqual(want);
+    expect(findArtifactShare(`adartifact:${subject.id}:${key.slice(0, 20)}\n${key.slice(20)}`)).toEqual(want);
+    // The whole invitation, where a hex-looking word follows the code.
+    expect(findArtifactShare(artifactShareMessage("Todo app", subject.id, key))).toEqual(want);
+    expect(findArtifactShare(`${code}\n\nA private project`)).toEqual(want);
+    for (const text of ["", "hello", "https://adcode.bluethenics.com", `adartifact:${subject.id}:`, `${subject.id}:${key.slice(0, 31)}`]) {
+      expect(findArtifactShare(text)).toBeNull();
+    }
   });
 });
 

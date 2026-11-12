@@ -23,7 +23,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import type { ToolDefinition, ToolRunner, ToolRunResult } from "@adcode/ai";
+import type { CliMcpServer, ToolDefinition, ToolRunner, ToolRunResult } from "@adcode/ai";
 import type { ToolBridgeView } from "../shared/api.ts";
 import {
   BRIDGE_CALL_CEILING_MS,
@@ -224,6 +224,8 @@ export interface ToolBridgeDeps {
 const STATE_FILE = "tool-bridge.json";
 /** The file `--mcp-config` names when ADCode runs Claude Code as its chat model. */
 const CLAUDE_FILE = "tool-bridge-claude.json";
+/** OpenCode's config with the bridge in it, named to OpenCode by `OPENCODE_CONFIG` for each run. */
+const OPENCODE_FILE = "tool-bridge-opencode.json";
 
 let deps: ToolBridgeDeps | null = null;
 let state: BridgeState | null = null;
@@ -231,6 +233,7 @@ let running: ToolBridgeServer | null = null;
 let problem: string | null = null;
 /** Where Claude Code's config was last written, or null when no folder could be given to the CLI. */
 let claudeFile: string | null = null;
+let openCodeFile: string | null = null;
 /** Start, stop and regenerate run one after another, so a quick toggle cannot start two servers. */
 let lifecycle: Promise<unknown> = Promise.resolve();
 
@@ -269,6 +272,9 @@ async function writeClaudeConfig(port: number, token: string): Promise<void> {
     await mkdir(directory, { recursive: true });
     await writeAtomic(join(directory, CLAUDE_FILE), claudeMcpConfig(bridgeUrl(port), token));
     claudeFile = join(directory, CLAUDE_FILE);
+    // OpenCode's own shape: a remote server with its headers. Merged with the person's config, not replacing it.
+    await writeAtomic(join(directory, OPENCODE_FILE), `${JSON.stringify({ $schema: "https://opencode.ai/config.json", mcp: { [BRIDGE_SERVER_NAME]: { type: "remote", url: bridgeUrl(port), headers: { Authorization: `Bearer ${token}` }, enabled: true } } }, null, 2)}\n`);
+    openCodeFile = join(directory, OPENCODE_FILE);
   } catch {
     // Claude Code as the chat model then runs without ADCode's tools; the bridge itself is fine.
     claudeFile = null;
@@ -301,7 +307,9 @@ async function stop(): Promise<void> {
   if (server !== null) await server.close();
   // The file holds the key; with nothing listening it is no use to anyone.
   if (claudeFile !== null) await rm(claudeFile, { force: true }).catch(() => undefined);
+  if (openCodeFile !== null) await rm(openCodeFile, { force: true }).catch(() => undefined);
   claudeFile = null;
+  openCodeFile = null;
 }
 
 /** Start or stop to match the setting. */
@@ -351,7 +359,13 @@ export function regenerateToolBridgeToken(): Promise<ToolBridgeView> {
  * null while the bridge is off. Synchronous, from the state the lifecycle keeps current;
  * `cliArgs` drops a path the shell could misread (see `cliConfigPath`).
  */
-export function claudeToolBridge(): { readonly configPath: string; readonly server: string } | null {
+export function claudeToolBridge(): CliMcpServer | null {
   if (deps === null || running === null || claudeFile === null || !deps.enabled()) return null;
-  return { configPath: cliConfigPath(claudeFile), server: BRIDGE_SERVER_NAME };
+  return {
+    configPath: cliConfigPath(claudeFile),
+    server: BRIDGE_SERVER_NAME,
+    url: bridgeUrl(running.port),
+    ...(state === null ? {} : { token: state.token }),
+    ...(openCodeFile === null ? {} : { openCodeConfig: openCodeFile }),
+  };
 }

@@ -11,7 +11,7 @@ export const metadata: Metadata = pageMetadata({
   path: "/pricing",
   title: "Pricing: free code editor, pay-as-you-go AI models",
   socialTitle: "ADCode pricing: free editor, pay only for the models you use",
-  description: "ADCode's editor and Tagflow AI are free. Every other AI model is paid from USD credits at its provider's price plus 35%, listed model by model. No subscription; credits never expire.",
+  description: "ADCode's editor and Tagflow AI are free. Every other AI model is paid from USD credits at the price listed for it, model by model. No subscription; credits never expire.",
 });
 
 export const revalidate = 60;

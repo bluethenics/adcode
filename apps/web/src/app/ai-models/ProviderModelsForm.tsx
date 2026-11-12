@@ -112,7 +112,7 @@ export function ProviderModelsForm() {
         <button type="button" className="btn btn-outline provider-models-add" disabled={rows.length >= MAX_MODELS} onClick={() => setRows((current) => [...current, { ...EMPTY }])}>Add another model</button>
       </fieldset>
 
-      <p className="provider-models-billing-note">Developers pay from USD credits: your price per million tokens, plus ADCode&apos;s 35%. ADCode pays you your price for the tokens they use.</p>
+      <p className="provider-models-billing-note">Developers pay per million tokens from USD credits they add in advance. ADCode pays you your price for the tokens they use.</p>
 
       <label className="glass-field"><span>Anything we should know <small>optional</small></span>
         <textarea name="message" rows={3} maxLength={2000} placeholder="Rate limits, regions, which models support tool calls" /></label>

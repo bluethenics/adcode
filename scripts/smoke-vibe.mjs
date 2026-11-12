@@ -206,22 +206,22 @@ try {
   checks.roomGrew = build.length === 3 && build[1] > build[0];
   await shot("01-finished-answer");
 
-  /* The model chip switches model from a small menu, not the full Connect screen. */
+  /* The model chip opens the model picker, not the full Connect screen. */
   await evaluate("document.querySelector('.chat-model')?.click()");
   await sleep(600);
   checks.modelMenu = await evaluate(`(() => {
-    const panel = document.querySelector('.menu-panel');
-    const labels = [...(panel?.querySelectorAll('.menu-item') ?? [])].map((item) => item.textContent ?? '');
+    const panel = document.querySelector('.model-picker');
+    const labels = [...(panel?.querySelectorAll('.model-picker-pick') ?? [])].map((item) => item.textContent ?? '');
     return {
       open: !!panel,
       offersCurrent: labels.some((label) => label.includes('qwen2.5-coder:7b')),
-      offersMore: labels.some((label) => label.includes('More models and providers')),
+      offersMore: (panel?.querySelector('.model-picker-connect')?.textContent ?? '').includes('Connect more models'),
       connectStayedShut: !document.querySelector('dialog[data-popup-id="connect"][open]'),
       chip: document.querySelector('.chat-model')?.textContent ?? null,
     };
   })()`);
   await shot("01b-model-menu");
-  await evaluate("document.querySelector('.menu-panel')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+  await evaluate("document.querySelector('.model-picker-search input')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
   await sleep(300);
 
   /* 2. A reply that never fits: Continue once, then the chat says what will help. */

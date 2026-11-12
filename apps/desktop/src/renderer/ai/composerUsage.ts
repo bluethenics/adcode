@@ -45,7 +45,7 @@ export function composerUsageModels(view: AiUsageView | null, allowance: Tagflow
     const unlimitedPlan = allowance.tokens?.enabled === true && isFairUsePlan(allowance.tokens.plan?.id) && aiPlanName(allowance.tokens.plan, Date.now()) !== null;
     if (modelId !== null && allowance.wallet?.models.includes(modelId) && !unlimitedPlan) {
       const wallet=allowance.wallet;
-      const available:ComposerMeterModel={label:"Paid credits",percent:null,value:`$${(wallet.availableMicros/1_000_000).toFixed(4)}`,detail:"USD available",tone:wallet.availableMicros>0?"ok":"full",tooltip:"Purchased USD credits. This model charges its provider cost plus 35%. Unused request holds are released after the response. Manage credits from AI usage."};
+      const available:ComposerMeterModel={label:"Paid credits",percent:null,value:`$${(wallet.availableMicros/1_000_000).toFixed(4)}`,detail:"USD available",tone:wallet.availableMicros>0?"ok":"full",tooltip:"Purchased USD credits for paid models. Unused request holds are released after the response. Manage credits from AI usage."};
       const held:ComposerMeterModel={label:"Held",percent:null,value:`$${(wallet.reservedMicros/1_000_000).toFixed(4)}`,detail:"For active requests",tone:"ok",tooltip:"Maximum charges reserved for running paid requests. Unused amounts return to your available credits."};
       return [available,held];
     }

@@ -68,8 +68,8 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   },
   "community.artifacts": {
     added: "2026-11-04",
-    actions: [command("community.artifacts", "Browse shared projects"), command("community.shareProject", "Share this project"), command("community.inbox", "Improvements inbox")],
-    keywords: ["artifact", "share project", "publish project", "remix", "fork", "improve someone else's project", "pull request", "contribute", "help wanted", "open source", "send improvement", "accept changes", "inbox", "private project", "share code", "invite a friend", "live room", "live session", "start session", "join session", "collaborate live", "work together", "live project", "live editing", "multiplayer editing", "team create", "roblox studio", "share project live", "edit together", "who is online", "agent lane", "shared plan", "takeover", "watch live", "join live room", "join checks", "approvals", "hand off", "handoff", "mission control", "live now", "overlap warning", "lock file", "stale comment"],
+    actions: [command("community.artifacts", "Browse shared projects"), command("community.shareProject", "Share this project"), command("community.inbox", "Changes sent to you")],
+    keywords: ["artifact", "shared project", "invite code", "join a friend", "make my copy", "build with friends", "team room", "send your changes back", "share project", "publish project", "remix", "fork", "improve someone else's project", "pull request", "contribute", "help wanted", "open source", "send improvement", "accept changes", "inbox", "private project", "share code", "invite a friend", "live room", "live session", "start session", "join session", "collaborate live", "work together", "live project", "live editing", "multiplayer editing", "team create", "roblox studio", "share project live", "edit together", "who is online", "agent lane", "shared plan", "takeover", "watch live", "join live room", "join checks", "approvals", "hand off", "handoff", "mission control", "live now", "overlap warning", "lock file", "stale comment"],
   },
   "community.profile": {
     added: "2026-11-04",
@@ -339,6 +339,19 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("workspace.browser", "Open Browser"), command("browser.clearData", "Sign out and clear its data")],
     keywords: ["browser", "web browser", "in-app browser", "built-in browser", "tabs", "address bar", "open a website", "google", "search the web", "agent browser", "agent-browser", "browse for me", "fill a form", "research", "sign in to a site", "cookies", "clear cookies", "webview", "docs", "dashboard"],
   },
+  "adcode.appearance.mascots": {
+    keywords: ["mascot", "mascots", "buck", "character", "hide mascot", "turn off mascot", "cute", "faces", "avatar", "quiet screen"],
+  },
+  "adcode.power.whenDone": {
+    added: "2026-11-13",
+    actions: [command("power.whenDone", "Choose what happens"), command("power.cancel", "Cancel the countdown")],
+    keywords: ["sleep when done", "shut down when done", "shutdown after task", "turn off computer", "hibernate", "lock screen when done", "power off", "battery", "overnight", "auto shutdown", "sleep after ai finishes", "computer sleep"],
+  },
+  "adcode.phone.link": {
+    added: "2026-11-13",
+    actions: [command("phone.link", "Connect my phone")],
+    keywords: ["phone link", "remote chat", "chat from phone", "mobile", "mobile app", "iphone", "android", "remote control", "control from phone", "away from desk", "pwa", "home screen", "install on phone", "qr code", "continue on phone"],
+  },
   "adcode.ai.doneSound": {
     keywords: ["sound", "chime", "notification sound", "sound effect", "task finished sound", "done sound", "beep", "alert when done", "audio", "ding"],
   },
@@ -465,8 +478,14 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   "adcode.ai.chatWidget": {
     keywords: ["queue a message", "follow up while it works", "send while working", "message while busy", "send now", "queued message"],
   },
+  "workbench.annotate": {
+    added: "2026-11-12",
+    actions: [command("browser.annotate", "Annotate this page")],
+    keywords: ["annotate", "mark up", "markup", "pin", "point at", "comment on page", "screenshot with notes", "visual feedback", "tell ai what to change", "click what to change"],
+  },
   "adcode.ai.model": {
-    keywords: ["switch model", "change model", "model menu", "quick model switch", "recent models", "recommended model"],
+    actions: [command("ai.chooseModel", "Choose a model")],
+    keywords: ["switch model", "change model", "model menu", "model picker", "quick model switch", "recent models", "recommended model", "favourite models", "favorite models", "star a model", "reasoning", "thinking effort", "effort level", "ctrl+1", "search models"],
   },
   "adcode.ai.keepGoing": {
     keywords: ["dont stop", "step limit", "finish the job", "work until done", "carry on by itself"],

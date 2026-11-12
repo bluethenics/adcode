@@ -2,7 +2,8 @@ import Link from "@/components/IntentLink";
 import { type PricingOffer } from "@/lib/pricing";
 import { Icon } from "@/components/Icon";
 import { ArrowUpRight } from "lucide";
-import { WALLET_MARKUP_PERCENT, WALLET_TOPUPS_CENTS } from "@adcode/api/src/modelWallet.ts";
+import { Buck } from "@/components/buck/Buck";
+import { WALLET_TOPUPS_CENTS } from "@adcode/api/src/modelWallet.ts";
 import { ModelPrices } from "../ai-tokens/ModelPrices";
 
 const WHERE_TO_MANAGE = "Where do I add credits or redeem a code?";
@@ -10,7 +11,7 @@ const WHERE_TO_MANAGE = "Where do I add credits or redeem a code?";
 /** The questions, once: rendered below and published as FAQPage data by the page. */
 export const PRICING_FAQ: readonly { q: string; a: string }[] = [
   { q: "Do I need to pay to use ADCode?", a: "No. The editor is free, and Tagflow AI's sponsored models are free for every signed-in account. Every other model is paid from USD credits you add when you want them. Your own provider keys and local models also stay free to connect." },
-  { q: "How much does a model cost?", a: `Each model's provider price per million tokens, plus ${WALLET_MARKUP_PERCENT}%. The full list is on this page and in your account. A request holds its maximum possible charge while it runs and releases whatever it did not use, so you never pay for an answer you did not get.` },
+  { q: "How much does a model cost?", a: `Each model has its own price per million tokens. The full list is on this page and in your account. A request holds its maximum possible charge while it runs and releases whatever it did not use, so you never pay for an answer you did not get.` },
   { q: "Is there a subscription?", a: "No. Plans ended on 6 November 2026. You add credits once and they never expire; nothing renews and nothing is charged automatically." },
   { q: "I had a plan. What happens to it?", a: "A plan you already paid for keeps working until its paid period ends, and until then it covers every model, premium ones included. It will not renew, and you will not be charged again. Unused credits from one-time packs were added to your USD credits at the price you paid." },
   { q: "What happens when my credits run out?", a: "Paid models pause with a message saying so, and Tagflow AI stays free. Add credits and send the message again; a paused task carries on where it stopped." },
@@ -26,9 +27,10 @@ export function PricingContent({ offer }: { offer: PricingOffer; now?: number })
     <div className="pricing-page marketplace-wrap">
       <header className="pricing-intro">
         <div>
+          <Buck mood="earning" size={72} interactive greet="proud" label="Buck, flipping a coin. Tap him." />
           <p className="pricing-eyebrow">Pricing</p>
           <h1>Free to start.<br />Pay only for the models you use.</h1>
-          <p>The editor and Tagflow AI cost nothing. Every other model is paid from USD credits at its provider&apos;s price plus {WALLET_MARKUP_PERCENT}%. No subscription, and nothing renews.</p>
+          <p>The editor and Tagflow AI cost nothing. Every other model is paid from USD credits at the price listed for it. No subscription, and nothing renews.</p>
         </div>
         <Link href="/ai-tokens#wallet" className="pricing-account">Add credits <Icon node={ArrowUpRight} /></Link>
       </header>
@@ -72,7 +74,6 @@ export function PricingContent({ offer }: { offer: PricingOffer; now?: number })
         {paid.length > 0 ? (
           <ModelPrices
             title={`Every model's price (${paid.length})`}
-            markupPercent={WALLET_MARKUP_PERCENT}
             models={paid.map((model) => ({ id: model.id, name: model.name, provider: model.provider, available: true, inputPrice: model.input, outputPrice: model.output, cacheInputPrice: model.cached }))}
           />
         ) : (

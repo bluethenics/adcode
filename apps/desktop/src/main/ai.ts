@@ -66,6 +66,7 @@ import {
   usableCatalogue,
   type Agent,
   type ToolDefinition,
+  type ToolRunner,
   type AiFileChange,
   type AiWorkspaceTask,
   titleFor,
@@ -121,11 +122,12 @@ import { askQuestionInWindows } from "./aiQuestion.ts";
 import { resolveSandboxPath } from "./aiSandbox.ts";
 import { createCheckpointStore, type CheckpointTurn, type UndoResult } from "./aiCheckpoints.ts";
 import { announceFinishedUnseen, keepAwakeWhileWorking } from "./backgroundWork.ts";
+import { powerTurnEnded, powerTurnStarted } from "./powerAfterTasks.ts";
 import { createChatRuns, KEEP_GOING_LIMIT, MAX_PARALLEL_CHATS, shouldKeepGoing } from "./chatRuns.ts";
 import { createChatForkService, MAX_FORKS_PER_CHAT, withChatForks, type ChatForkService } from "./aiChatForks.ts";
 import { CONTINUE_PROMPT } from "../shared/continuePrompt.ts";
 import { checkpointView, checkpointsForSession } from "./aiCheckpointView.ts";
-import { ASSISTANT_EXTENSION_TOOLS, offeredAppTools, withAssistantExtensions } from "./assistantControls.ts";
+import { ASSISTANT_EXTENSION_TOOLS, bridgeAppTools, offeredAppTools, withAssistantExtensions } from "./assistantControls.ts";
 import { memoryForWorkspace } from "./memory.ts";
 import { currentSettings, writeSetting } from "./settings.ts";
 import { describeDebugContext, recordDebug } from "./debugLog.ts";
@@ -170,9 +172,9 @@ import { toAiTeamActivityView, toAiTeamTraceView, toAiTeamView } from "./aiTeamV
 import { createAiAutomationService, type AiAutomationService } from "./aiAutomationService.ts";
 import { toAiAutomationView } from "./aiAutomationViews.ts";
 import { askOllama, localModels, startOllama } from "./localModels.ts";
-import { cliModels, detectCliAgents, spawnCli } from "./cliAgents.ts";
+import { cliModels, detectCliAgents, forgetCliModels, spawnCli } from "./cliAgents.ts";
 import { claudeToolBridge } from "./toolBridge.ts";
-import { CLI_AGENTS, cliAgentFor, cliProviderId, createCliProvider } from "@adcode/ai";
+import { AUDIT_PAGE, CLI_AGENTS, OPEN_PREVIEW, VIEW_PAGE, cliAgentFor, cliProviderId, createCliProvider } from "@adcode/ai";
 import { apiBaseUrl } from "./backend.ts";
 import { buildTagflowProvider, refreshTagflowModels, tagflowCatalogue, tagflowDefaultModel } from "./tagflowAi.ts";
 import { recordModelOutcome } from "./modelOutcomes.ts";
@@ -963,12 +965,50 @@ function broadcast(channel: string, ...args: unknown[]): void {
   }
 }
 
+/** Chat events as the windows get them, for Phone link (phoneLink.ts). */
+const chatEventListeners = new Set<(event: { readonly kind: string; readonly [key: string]: unknown }) => void>();
+
+export function onChatEvent(listener: (event: { readonly kind: string; readonly [key: string]: unknown }) => void): () => void {
+  chatEventListeners.add(listener);
+  return () => chatEventListeners.delete(listener);
+}
+
+/**
+ * A message from a phone. Null names a new conversation, started here so the phone gets its id
+ * at once; the turn itself runs exactly as one typed in the window, and the window sees it too.
+ */
+export function aiSendFromPhone(text: string, sessionId: string | null): string {
+  let id = sessionId;
+  if (id === null) {
+    const fresh = startSession();
+    threadFor(fresh);
+    id = fresh.id;
+  }
+  void aiSend(text, [], null, id).catch((error: unknown) => {
+    broadcast(CHANNELS.aiEvent, { kind: "error", detail: error instanceof Error ? error.message : String(error), sessionId: id });
+    for (const listener of chatEventListeners) listener({ kind: "error", detail: error instanceof Error ? error.message : String(error), sessionId: id });
+  });
+  return id;
+}
+
+/** What the phone shows about this computer's assistant. */
+export function aiPhoneSummary(): { readonly project: string | null; readonly model: string | null } {
+  const root = currentWorkspace()?.root ?? null;
+  const provider = activeProvider();
+  return { project: root === null ? null : root.split(/[\\/]/).filter(Boolean).pop() ?? root, model: activeModel(provider) || null };
+}
+
 /** About one frame: code drafts arriving faster than this are merged into one message. */
 const LIVE_FRAME_MS = 33;
 
 /** The chat's events, with code drafts coalesced so a fast model does not flood the window. */
 const chatEvents = createLiveBatcher<AgentEvent>(
-  (event) => broadcast(CHANNELS.aiEvent, event),
+  (event) => {
+    broadcast(CHANNELS.aiEvent, event);
+    for (const listener of chatEventListeners) {
+      try { listener(event as unknown as { readonly kind: string; readonly [key: string]: unknown }); } catch { /* A listener never breaks the chat. */ }
+    }
+  },
   (flush) => { setTimeout(flush, LIVE_FRAME_MS); },
 );
 
@@ -1054,7 +1094,8 @@ export async function buildProvider(
     if (!cli.headless || !(await detectCliAgents(homedir())).some((view) => view.id === cli.id && view.installed)) return null;
     let sessions = cliSessions.get(cli.id);
     if (sessions === undefined) cliSessions.set(cli.id, sessions = new Map());
-    return createCliProvider({ spec: cli, models: await cliModels(cli, homedir()), spawn: spawnCli, cwd: () => currentWorkspace()?.root ?? homedir(), sessions, mcp: claudeToolBridge });
+    const listedModels = await cliModels(cli, homedir());
+    return createCliProvider({ spec: cli, models: listedModels.map((model) => model.id), modelEfforts: Object.fromEntries(listedModels.filter((model) => model.efforts !== undefined).map((model) => [model.id, model.efforts!])), spawn: spawnCli, cwd: () => currentWorkspace()?.root ?? homedir(), sessions, mcp: claudeToolBridge });
   }
   const key = offeredKey ?? (KEYLESS.has(id) ? "" : ((await keys.get(id)) ?? ""));
   const paced = (provider: Provider) => requestScheduler.wrap(provider, id, () => connections().find(item => item.id === id)?.rpm ?? 6000);
@@ -1187,6 +1228,28 @@ function toolRunner(undo: () => CheckpointTurn | null = () => null, sessionId: (
   } };
 }
 
+/**
+ * What the tool bridge offers a coding agent running outside ADCode (Claude Code, Codex,
+ * OpenCode): the app's own tools, the live preview and page viewer, the page audit, skills
+ * and the person's connectors. Not the file and command tools - those agents have their own,
+ * and two sets editing one folder would only fight. Built-in skills only while they are on.
+ */
+export function bridgeToolDefinitions(): readonly ToolDefinition[] {
+  return [...offeredAppTools(), OPEN_PREVIEW, VIEW_PAGE, AUDIT_PAGE, ...ASSISTANT_EXTENSION_TOOLS, ...(designTasteOn() ? [BUILTIN_SKILL_TOOL] : [])];
+}
+
+/** Runs only what `bridgeToolDefinitions` offers right now; the app tools ask through the bridge's own dialogs. */
+export function bridgeToolRunner(): ToolRunner {
+  return {
+    run: async (call, signal) => {
+      const offered = bridgeToolDefinitions();
+      if (!offered.some((tool) => tool.name === call.name)) return { content: `${call.name} is not offered to agents outside ADCode.`, isError: true };
+      if (offeredAppTools().some((tool) => tool.name === call.name)) return bridgeAppTools().run(call, signal);
+      return withBuiltinSkills(withAssistantExtensions(toolRunner()), designTasteOn).run(call, signal);
+    },
+  };
+}
+
 onCollabModeChange(() => markAgentsForRebuild());
 registerCollabToolHandler(async (call, signal) => {
   const root = currentWorkspace()?.root;
@@ -1268,7 +1331,8 @@ export async function aiStatus(): Promise<AiStatus> {
     providers.push({
       id: cliProviderId(spec.id),
       displayName: spec.headless ? `${spec.name} (CLI)` : `${spec.name} (terminal)`,
-      models: models.map((model) => ({ id: model, name: model === "default" ? `${spec.name}'s default model` : model, toolCall: true, reasoning: false, recommended: model === "default" })),
+      // Live: what the CLI reports for this account, named and described as it describes them.
+      models: models.map((model) => ({ id: model.id, name: model.name, toolCall: true, reasoning: false, recommended: model.id === "default", ...(model.description === undefined ? {} : { note: model.description }), ...(model.efforts === undefined ? {} : { efforts: model.efforts }) })),
       hasKey: usable,
       needsKey: false,
       cli: view,
@@ -1445,6 +1509,8 @@ const cliSessions = new Map<string, Map<string, { id: string; messages: number }
 
 /** Look for coding CLIs again - after the person installs one - and say how things are now. */
 export async function aiRefreshCliAgents(): Promise<AiStatus> {
+  // Signed in or upgraded since: ask each CLI for its models again, not just whether it is there.
+  forgetCliModels();
   await detectCliAgents(homedir(), true);
   return aiStatus();
 }
@@ -1558,8 +1624,10 @@ function usagePrice(providerId: string, model: string): UsagePrice | null {
 }
 
 /** Count one request on the usage page. */
-function noteUsage(source: UsageSource, providerId: string, model: string, event: { readonly inputTokens: number; readonly outputTokens: number; readonly cachedTokens?: number; readonly estimated: boolean; readonly durationMs?: number; readonly firstResponseMs?: number }): void {
+function noteUsage(source: UsageSource, providerId: string, model: string, event: { readonly inputTokens: number; readonly outputTokens: number; readonly cachedTokens?: number; readonly estimated: boolean; readonly durationMs?: number; readonly firstResponseMs?: number }, where: { readonly chat?: string; readonly project?: string | null } = {}): void {
   recordAiUsage({
+    ...(where.chat === undefined ? {} : { chat: where.chat }),
+    ...(where.project === undefined || where.project === null ? {} : { project: where.project }),
     source, provider: providerId, model, inputTokens: event.inputTokens, outputTokens: event.outputTokens,
     ...(event.cachedTokens === undefined ? {} : { cachedTokens: event.cachedTokens }),
     estimated: event.estimated, at: Date.now(), price: usagePrice(providerId, model),
@@ -1825,6 +1893,7 @@ export async function aiSend(
   }
   thread.stopRequested = false;
   thread.hookAbort = new AbortController();
+  powerTurnStarted();
   announceRuns();
   let prompt = text;
   let files = attachments;
@@ -1869,6 +1938,8 @@ export async function aiSend(
     runs.end(chat.id);
     announceRuns();
     announceFinishedUnseen(thread.session.title, ended);
+    // Last of all: the computer may go to sleep once nothing is left working.
+    powerTurnEnded(ended, runs.list().length);
   }
 }
 
@@ -1964,7 +2035,7 @@ async function runTurn(
 
     for await (const event of ready.send(turnText, { images })) {
       if (event.kind === "usage") {
-        noteUsage("chat", providerId, model, event);
+        noteUsage("chat", providerId, model, event, { chat: thread.session.id, project: thread.root });
         continue;
       }
       // Out of steps with Keep going until done on: not an ending, the next turn picks it up.

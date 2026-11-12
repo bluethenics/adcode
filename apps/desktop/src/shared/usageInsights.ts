@@ -13,10 +13,13 @@
  * Pure: rows in, numbers out.
  */
 import { dayKey, rangeStart, type AiUsageView, type UsageRange, type UsageRow } from "./aiUsage.ts";
+import type { UsagePageView } from "./usagePage.ts";
 
 /** The usage view with its analysis attached: what the Usage dialog is given. */
 export interface AnalysedUsageView extends AiUsageView {
   readonly insights: UsageInsights;
+  /** The Usage page for the range and filter asked for (shared/usagePage.ts). */
+  readonly page: UsagePageView;
 }
 
 export interface UsageDayDetail {

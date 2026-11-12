@@ -6,7 +6,7 @@
  * `<$>` mark with a face. His drawing carries its own ground shadow, float and breath, so this
  * sheet only gives him a size in each place; the agent mascots keep their rules below.
  */
-.live-browser-start .adcode-mascot { --mascot-size: 104px; }
+.live-browser-start .adcode-mascot { --mascot-size: 184px; }
 .composio-banner .adcode-mascot { --mascot-size: 68px; }
 .move-in-lead .adcode-mascot { --mascot-size: 60px; }
 /* The welcome hero is always near-black, whatever the theme, so the marks he draws in the air are light. */
@@ -20,7 +20,7 @@
 .chat-live-mascot .agent-mascot { --mascot-size: 34px; }
 
 @media (max-width: 860px) {
-  .live-browser-start .adcode-mascot { --mascot-size: 80px; }
+  .live-browser-start .adcode-mascot { --mascot-size: 132px; }
   /* The hero shrinks to a band above the steps here; a smaller Buck keeps the headline in it. */
   .welcome-tour-hero > .adcode-mascot { --mascot-size: 72px; }
 }
@@ -33,3 +33,19 @@
   :root:not([data-reduced-motion="true"]) .welcome-tour-mascots .agent-mascot:hover { animation-play-state: paused; }
 }
 @keyframes mascot-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+
+/* Buck in the chat: above an empty conversation's greeting, in each turn's header, and on a failure card. */
+.chat-welcome-buck { display: block; margin: 0 auto var(--space-3); }
+.chat-card .chat-turn-face .adcode-mascot { --mascot-size: 26px; }
+.chat-card .chat-turn-face { width: 28px; height: 28px; }
+.chat-failure-icon[data-buck="true"] { width: 40px; height: 40px; background: none; }
+.chat-failure-icon[data-buck="true"] .adcode-mascot { --mascot-size: 36px; }
+
+/* Settings > Appearance > Mascots off: every mascot goes, the words beside them stay. */
+:root[data-mascots="off"] :is(.adcode-mascot, .agent-mascot, .chat-mascot, .welcome-tour-mascots) { display: none !important; }
+
+/* The Browser fills a hovered button with a grey tile (workspacePolish.css); Buck stands on the page, not on a tile. */
+.agent-browser button.adcode-mascot { background: transparent; box-shadow: none; border-radius: 0; }
+@media (hover: hover) and (pointer: fine) {
+  .agent-browser button.adcode-mascot:hover { background: transparent; box-shadow: none; }
+}

@@ -19,6 +19,8 @@ import { registerOnboardingIpc } from "../main/onboarding.ts";
 import { registerMilestoneIpc } from "../main/milestones.ts";
 import { registerReferralIpc } from "../main/referrals.ts";
 import { registerRatingIpc } from "../main/ratingAsk.ts";
+import { registerPowerIpc } from "../main/powerAfterTasks.ts";
+import { registerPhoneLinkUnsupported } from "../main/phoneLink.ts";
 import { registerPinPromptIpc } from "../main/pinPrompt.ts";
 import { registerUpdateIpc } from "../main/autoUpdate.ts";
 import { startNoticePolling } from "../main/notices.ts";
@@ -97,6 +99,9 @@ registerOnboardingIpc();
 registerMilestoneIpc();
 registerReferralIpc();
 registerRatingIpc();
+// Both report themselves unavailable here: the sandbox is not the person's computer.
+registerPowerIpc();
+registerPhoneLinkUnsupported();
 registerPinPromptIpc();
 registerUpdateIpc();
 registerAccountIpc();

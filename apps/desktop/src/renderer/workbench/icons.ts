@@ -71,6 +71,15 @@ export const ICON = {
   device: "M2 3.5h7.5v9H2zM11 6.5h3v6h-3z",
   /** Crosshair: "tell me about the element under the pointer". Symmetric about (8, 8). */
   inspect: "M8 2v3M8 11v3M2 8h3M11 8h3M8 8m-2.5 0a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0",
+  /**
+   * Annotate: a pointer arrow with a small sparkle above its shoulder - "point at it, and the
+   * assistant does the rest". Arrow and sparkle together span (3, 1.5)-(14.5, 13.7), so the
+   * ink centres within a pixel of (8, 8).
+   */
+  annotate: "M3 3v9.5l2.6-2.4 1.7 3.6 1.6-.8-1.7-3.5h3.6zM12.5 1.5c.15 1 .95 1.85 2 2c-1.05.15-1.85 1-2 2c-.15-1-.95-1.85-2-2c1.05-.15 1.85-1 2-2z",
+  /** The same two marks as separate paths, so the button can nudge the arrow and twinkle the sparkle. */
+  annotateArrow: "M3 3v9.5l2.6-2.4 1.7 3.6 1.6-.8-1.7-3.5h3.6z",
+  annotateSparkle: "M12.5 1.5c.15 1 .95 1.85 2 2c-1.05.15-1.85 1-2 2c-.15-1-.95-1.85-2-2c1.05-.15 1.85-1 2-2z",
 
   /* ── Severity, for the Problems panel's badges ──────────────────────────── */
 

@@ -195,7 +195,7 @@ try {
     const spinner = document.querySelector('.chat-working:not([hidden]) .chat-pixel-spinner');
     return spinner !== null && spinner.getBoundingClientRect().width > 0;
   })()`);
-  checks.mascotsWhileWorking = await browser.evaluate("document.querySelectorAll('.chat-transcript .chat-mascot').length");
+  checks.mascotsWhileWorking = await browser.evaluate("document.querySelectorAll('.chat-transcript :is(.chat-mascot, .adcode-mascot)').length");
   await shot("chat-working");
   checks.chatReply = await browser.waitFor("[...document.querySelectorAll('.chat-bubble-assistant')].some((bubble) => bubble.textContent.includes('bakery page is ready'))", { timeoutMs: 90_000 });
   // Once it is done: folded to "Worked for", the answer below the fold, the steps inside it.
@@ -213,7 +213,7 @@ try {
       textBetweenStepsInFold: between !== undefined && turn.contains(between),
       thought: turn.querySelector('.chat-step.is-thinking .chat-step-summary')?.textContent ?? null,
       toolRows: [...turn.querySelectorAll('.chat-step.is-tools .chat-step-label')].map((label) => label.textContent),
-      mascotsLeft: document.querySelectorAll('.chat-transcript .chat-mascot').length,
+      mascotsLeft: document.querySelectorAll('.chat-transcript :is(.chat-mascot, .adcode-mascot)').length,
     });
   })()`);
   // Unfolding shows the steps again; opening a step shows its calls.

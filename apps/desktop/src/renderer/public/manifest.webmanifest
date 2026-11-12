@@ -1,0 +1,22 @@
+{
+  "id": "/",
+  "name": "ADCode",
+  "short_name": "ADCode",
+  "description": "The ad-supported, AI-native code editor, in your browser.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "background_color": "#111110",
+  "theme_color": "#111110",
+  "categories": ["developer", "productivity"],
+  "icons": [
+    { "src": "/phone/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/phone/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/phone/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "Chat with my computer", "short_name": "Phone link", "url": "/phone/", "icons": [{ "src": "/phone/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

@@ -20,6 +20,7 @@ import { createIcon } from "../workbench/icons.ts";
 import { reconcileTabs, tabMotionAllowed, updateTabStrip } from "../workbench/tabMotion.ts";
 import { setWorkspaceBrowserOpener } from "../workbench/workspacePanels.ts";
 import { createAdcodeMascot } from "../mascot/adcodeMascot.ts";
+import { createAnnotator } from "./annotate.ts";
 
 /** Must match `LIVE_BROWSER_PARTITION` in the main process; anything else is refused there. */
 const PARTITION = "persist:adcode-browser";
@@ -140,6 +141,19 @@ export function createLiveBrowserPane() {
   stage.id = "agent-browser-page";
   stage.setAttribute("role", "tabpanel");
 
+  // Annotate sits after the address: it is about the page the address names.
+  const annotator = createAnnotator({
+    name: "Browser",
+    host: stage,
+    page: () => {
+      if (active.view === null || !active.ready || active.error !== null || active.url === "" || active.url === "about:blank") return "Open a page in the Browser first, then press Annotate.";
+      return { element: active.view, target: { surface: "browser", tab: active.id }, url: active.url, title: active.title || null };
+    },
+    isShown: () => panel.isOpen(),
+    notify: (text) => notice(text),
+  });
+  toolbar.insertBefore(annotator.button, driver);
+
   /* The start page: a search box and where you have been. Ours, not a web page. */
   const start = el("div", "live-browser-start");
   // The pane lives as long as the window, so Buck is made once and never destroyed; off screen
@@ -240,7 +254,11 @@ export function createLiveBrowserPane() {
     view.addEventListener("did-start-loading", () => { tab.loading = true; tab.error = null; paint(); });
     view.addEventListener("did-stop-loading", () => { tab.loading = false; sync(tab); remember(tab); });
     const navigated = (): void => { sync(tab); };
-    view.addEventListener("did-navigate", navigated);
+    // A new page has none of the pinned elements; the pins would point at nothing.
+    view.addEventListener("did-navigate", () => {
+      if (tab === active && annotator.isActive()) { annotator.stop(); notice("The page changed, so Annotate stopped. Press Annotate to mark up this one."); }
+      sync(tab);
+    });
     view.addEventListener("did-navigate-in-page", navigated);
     view.addEventListener("page-title-updated", navigated);
     view.addEventListener("page-favicon-updated", (event) => {
@@ -291,6 +309,7 @@ export function createLiveBrowserPane() {
   }
 
   function addTab(url: string | null, motion = false): Tab {
+    annotator.stop();
     const tab: Tab = { id: ++serial, view: null, url: "", title: "", favicon: null, loading: false, ready: false, error: null };
     list.push(tab);
     active = tab;
@@ -305,6 +324,7 @@ export function createLiveBrowserPane() {
     const index = list.indexOf(tab);
     if (index < 0) return;
     list = list.filter((item) => item !== tab);
+    if (tab === active) annotator.stop();
     void window.adcode.browser.detachTab(tab.id).catch(() => undefined);
     tab.view?.remove();
     if (list.length === 0) { addTab(null, motion); return; }
@@ -313,6 +333,7 @@ export function createLiveBrowserPane() {
   }
 
   function select(tab: Tab, motion = false): void {
+    if (tab !== active) annotator.stop();
     active = tab;
     offer(tab);
     paint(motion);

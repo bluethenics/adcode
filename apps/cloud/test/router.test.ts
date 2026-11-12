@@ -142,6 +142,16 @@ describe("the page", () => {
     expect(response.headers.get("content-security-policy")).toContain(LEGACY_WEB_APP_SCHEMA_CSP);
     expect(names).toEqual([]);
   });
+  it("serves Phone link's page at /phone/ as a real page, able to reach the relay", async () => {
+    const { env, assetsFetch } = fakeEnv();
+    const response = await route(new Request("https://web.bluethenics.com/phone/"), env, deps);
+    expect(response.status).toBe(200);
+    expect(new URL((assetsFetch.mock.calls[0]![0] as unknown as Request).url).pathname).toBe("/phone/index.html");
+    expect(response.headers.get("content-security-policy")).toContain("wss://projects.bluethenics.com");
+    const bare = await route(new Request("https://web.bluethenics.com/phone"), env, deps);
+    expect(bare.status).toBe(308);
+    expect(bare.headers.get("location")).toBe("https://web.bluethenics.com/phone/");
+  });
   it("serves the app with a strict content security policy", async () => {
     const { env } = fakeEnv();
     const response = await route(new Request("https://web.bluethenics.com/"), env, deps);

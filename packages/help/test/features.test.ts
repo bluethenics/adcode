@@ -151,7 +151,6 @@ describe("feature catalogue", () => {
       "adcode.ads.frequency",
       "adcode.ai.customBaseUrl",
       "adcode.ai.editPolicy",
-      "adcode.ai.model",
       "adcode.ai.parallelAgents",
       "adcode.ai.provider",
       "adcode.ai.taskTokenBudget",

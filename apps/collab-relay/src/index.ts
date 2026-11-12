@@ -3,7 +3,8 @@ import { verifyIdToken } from "../../cloud/src/auth.ts";
 import { boundedJson, projectRoute, ProjectDirectory, SharedProject } from "./projects.ts";
 import { communityRoute, CommunityHub, ArtifactVault } from "./community.ts";
 import { ArtifactRoom } from "./artifactRoom.ts";
-export { ProjectDirectory, SharedProject, CommunityHub, ArtifactVault, ArtifactRoom };
+import { PhoneLink, PHONE_ORIGINS, phoneLinkRoute } from "./phoneLink.ts";
+export { ProjectDirectory, SharedProject, CommunityHub, ArtifactVault, ArtifactRoom, PhoneLink };
 export { PriorityQueue, RequestPriority } from "./priority.ts";
 
 type Env = CollabRelayEnv;
@@ -99,6 +100,9 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/health") return json({ ok: true });
+    if (url.pathname === "/phone/host" || url.pathname === "/phone/phone") {
+      return phoneLinkRoute(request, env, (token) => verifyIdToken(token, env.FIREBASE_PROJECT_ID), PHONE_ORIGINS);
+    }
     if (url.pathname === "/community" || url.pathname.startsWith("/community/")) {
       // Reading the directory is public; the route itself decides what needs an account.
       const token = (request.headers.get("authorization") ?? "").replace(/^Bearer /,"");

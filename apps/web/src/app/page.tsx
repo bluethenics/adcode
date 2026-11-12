@@ -15,6 +15,8 @@ import { HomeMotion } from "@/components/HomeMotion";
 import { HeroAscii } from "@/components/HeroAscii";
 import Link from "@/components/IntentLink";
 import { HomeFaq } from "@/components/HomeFaq";
+import { Buck } from "@/components/buck/Buck";
+import { HomeNewFeatures } from "@/components/HomeNewFeatures";
 import { FreePlan } from "@/components/FreePlan";
 import { JsonLd } from "@/components/JsonLd";
 import { FAQ, faqPage } from "@/lib/schema";
@@ -53,6 +55,7 @@ export default function Home() {
         </div>
       </section>
       <ModeShowcase />
+      <HomeNewFeatures />
       <FreePlan />
       <section className="home-share marketplace-wrap" aria-labelledby="share-heading" data-home-reveal>
         <div className="home-share-copy">
@@ -62,6 +65,7 @@ export default function Home() {
           <Link className="home-text-link" href="/earn-while-you-code">How earnings work <Icon node={ArrowUpRight} /></Link>
         </div>
         <div className="home-share-panel">
+          <Buck mood="idle" size={64} interactive greet="earning" hoverMood="earning" reactTo=".home-share-panel" label="Buck, with the coin you earn. Tap him." className="home-share-buck" />
           <span className="home-share-caption">BUILT AROUND A SIMPLE SPLIT</span>
           <strong className="home-share-amount">50<span>%</span></strong>
           <span className="home-share-label">of eligible ad revenue goes to you.</span>
@@ -77,6 +81,7 @@ export default function Home() {
       <AboutUs />
       <HomeFaq />
       <section className="closing-cta marketplace-wrap" data-home-reveal>
+        <Buck mood="greeting" size={96} interactive greet="dancing" hoverMood="proud" reactTo=".closing-cta" label="Buck, cheering you on. Tap him." />
         <p className="marketplace-eyebrow">YOUR NEXT CHAPTER</p>
         <h2>Make something<br /><span>you&apos;ve been imagining.</span></h2>
         <p>A full editor. Free AI. Space to see what you can do.</p>

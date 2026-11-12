@@ -138,6 +138,139 @@
 .community-category:hover { color: var(--text-primary); background: var(--bg-hover); }
 .community-category[aria-pressed="true"] { border-color: var(--border-hairline); background: var(--surface-selected); color: var(--text-primary); }
 
+/* ── Artifacts: the first screen ─────────────────────────────────────────
+ * One sentence of what this is, Buck beside it, then three choices a newcomer can tell apart
+ * at a glance. The first choice carries the accent because it is the one most people came
+ * for; Join turns primary only once a code is pasted, so there is never a tie for "press me".
+ * Primary buttons here are 44px tall at least, and everything stacks into one column well
+ * before a phone's width, so nothing scrolls sideways.
+ */
+.community-page[data-hub="artifacts"] .community-header { align-items: center; gap: var(--space-3) var(--space-4); }
+.community-page[data-hub="artifacts"] .community-heading { flex: 1 1 220px; min-width: 0; }
+.community-page[data-hub="artifacts"] .community-summary { max-width: 62ch; margin-top: 6px; color: var(--text-secondary); font-size: var(--text-md); line-height: 1.5; }
+/* Every tab stays in sight on a narrow window: they wrap instead of scrolling out of view. */
+@container community (max-width: 560px) {
+  .community-page[data-hub="artifacts"] .community-tabs.ad-tabs { flex-wrap: wrap; overflow-x: visible; }
+}
+@media (max-width: 560px) {
+  .community-page[data-hub="artifacts"] { padding-inline: var(--space-4); }
+}
+.artifacts-buck { display: inline-grid; flex: none; }
+.artifacts-buck .adcode-mascot { --mascot-size: 76px; }
+@container community (max-width: 520px) { .artifacts-buck .adcode-mascot { --mascot-size: 56px; } }
+
+.artifacts-start { display: grid; gap: var(--space-4); }
+.artifacts-choices { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
+@container community (min-width: 860px) { .artifacts-choices { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.artifacts-choice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-lg);
+  background: var(--surface-sheen), var(--bg-app);
+}
+.artifacts-choice[data-choice="together"] {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border-hairline));
+  background: var(--surface-sheen), color-mix(in srgb, var(--accent) 6%, var(--bg-app));
+}
+.artifacts-choice-head { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.artifacts-choice-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-control);
+  color: var(--text-primary);
+}
+.artifacts-choice[data-choice="together"] .artifacts-choice-icon { border-color: transparent; background: var(--fill-primary); color: var(--text-on-accent); }
+.artifacts-choice-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.artifacts-choice-title { margin: 0; font-size: var(--text-lg); font-weight: 600; line-height: 1.3; letter-spacing: -.01em; }
+.artifacts-choice-text { flex: 1; margin: 0; color: var(--text-secondary); font-size: var(--text-md); line-height: 1.5; }
+.artifacts-choice-text strong { color: var(--text-primary); font-weight: 600; overflow-wrap: anywhere; }
+.artifacts-choice-foot { display: grid; gap: var(--space-2); }
+.artifacts-big-btn.ad-btn { min-height: 44px; padding: 0 var(--space-4); font-size: var(--text-md); font-weight: 600; justify-content: center; }
+.artifacts-choice-foot > .artifacts-big-btn { width: 100%; }
+.artifacts-join { display: flex; gap: var(--space-2); min-width: 0; }
+.artifacts-join-input.ad-input { flex: 1; min-width: 0; min-height: 44px; font-size: var(--text-md); }
+.artifacts-join .artifacts-big-btn { flex: none; min-width: 88px; }
+.artifacts-join-error { margin: 0; color: var(--danger); font-size: var(--text-sm); line-height: 1.45; }
+.artifacts-join-error[hidden] { display: none; }
+
+/* What a choice led to, said in one sentence, with the next thing to press right under it. */
+.artifacts-outcome {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border-hairline);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius-lg);
+  background: var(--bg-app);
+}
+.artifacts-outcome[hidden] { display: none; }
+.artifacts-outcome[data-tone="success"] { border-left-color: var(--success); }
+.artifacts-outcome[data-tone="error"] { border-left-color: var(--danger); }
+.artifacts-outcome[data-tone="info"] { border-left-color: var(--border-strong); }
+.artifacts-outcome-text { margin: 0; color: var(--text-primary); font-size: var(--text-md); font-weight: 500; line-height: 1.5; }
+.artifacts-code-row { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.artifacts-code.ad-input {
+  flex: 1 1 280px;
+  min-width: 0;
+  min-height: 52px;
+  padding-block: 13px;
+  font: 500 var(--text-md)/1.4 var(--font-mono);
+  resize: none;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  field-sizing: content;
+}
+.artifacts-code-row .artifacts-big-btn { flex: 1 0 140px; min-height: 52px; }
+@container community (min-width: 640px) { .artifacts-code-row .artifacts-big-btn { flex-grow: 0; } }
+.artifacts-outcome-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+
+/* How working together works: three numbered steps, folded to one line once someone has done it. */
+.artifacts-how {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-lg);
+  background: var(--bg-app);
+}
+details.artifacts-how:not([open]) { gap: 0; }
+.artifacts-how-heading { margin: 0; font-size: var(--text-md); font-weight: 600; }
+/* A list item keeps the native disclosure triangle, so it is plain that the steps fold. */
+summary.artifacts-how-heading { display: list-item; min-height: 32px; line-height: 32px; cursor: pointer; }
+.artifacts-how-steps { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
+@container community (min-width: 720px) { .artifacts-how-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.artifacts-how-step { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto 1fr; gap: 2px var(--space-3); align-items: start; }
+.artifacts-how-number {
+  display: grid;
+  place-items: center;
+  grid-row: 1 / span 2;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--fill-primary);
+  color: var(--text-on-accent);
+  font-size: var(--text-md);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.artifacts-how-title { font-size: var(--text-md); font-weight: 600; line-height: 1.35; }
+.artifacts-how-line { color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.45; }
+.artifacts-empty-actions { justify-content: center; }
+
+@media (hover: hover) and (pointer: fine) {
+  summary.artifacts-how-heading:hover { color: var(--text-primary); text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 3px; }
+}
+
 /* ── Cards ──────────────────────────────────────────────────────────── */
 
 .community-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--space-3); }
@@ -291,6 +424,8 @@
  * the card fills it.
  */
 .form-dialog.community-dialog:is(.community-detail, .community-review, .community-share) { max-width: min(720px, calc(100vw - 48px)); }
+/* The team room holds the most, so it gets the most room. */
+.form-dialog.community-dialog.community-live { max-width: min(780px, calc(100vw - 48px)); }
 .form-dialog.community-dialog .form-dialog-card { min-width: 0; max-height: calc(100vh - 64px); overflow: auto; overflow-wrap: anywhere; }
 .community-dialog .form-dialog-form { min-width: 0; }
 .community-dialog :is(.form-input, textarea, input) { min-width: 0; max-width: 100%; box-sizing: border-box; }
@@ -702,6 +837,67 @@
 
 :root[data-reduced-motion="true"] .community-live-editor { transition: none; }
 
+/*
+ * "Right now" at the top of the room: who is here, the invite code, the next step and a box
+ * to talk to everyone, one labelled row each. The advanced tools sit in one fold below it.
+ */
+.community-live-now {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--success) 30%, var(--border-hairline));
+  border-radius: var(--radius-md);
+  background: var(--surface-sheen), var(--bg-app);
+}
+.community-live-now-head { display: flex; align-items: center; gap: var(--space-2) var(--space-3); flex-wrap: wrap; }
+.community-live-now-title { margin: 0; font-size: var(--text-lg); font-weight: 600; letter-spacing: -.01em; }
+.community-live-now-row {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-hairline);
+}
+.community-live-now-label { padding-top: 4px; color: var(--text-tertiary); font-size: var(--text-sm); font-weight: 500; }
+.community-live-now-value { display: grid; gap: var(--space-2); min-width: 0; }
+.community-live-now-text { margin: 0; color: var(--text-primary); font-size: var(--text-md); line-height: 1.5; overflow-wrap: anywhere; }
+.community-live-now-text strong { font-weight: 600; }
+.community-live-now-value > .ad-btn { justify-self: start; }
+.community-live-now-faces { display: flex; gap: 4px; flex-wrap: wrap; }
+.community-live-now-faces:empty { display: none; }
+.community-live-now-code-row { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.community-live-now-code.ad-input { flex: 1 1 220px; min-width: 0; min-height: 44px; font: 500 var(--text-sm) var(--font-mono); }
+.community-live-now-code-row .ad-btn { min-height: 44px; padding: 0 var(--space-4); font-weight: 600; }
+.community-live-now .community-live-chat { gap: 0; max-height: 220px; overflow: auto; }
+/* Inside Right now the messages read as a conversation, not a stack of cards. */
+.community-live-now .community-live-message { gap: 2px 8px; padding: 6px 0; border: 0; border-bottom: 1px solid var(--border-hairline); border-radius: 0; background: transparent; }
+.community-live-now .community-live-empty { border-radius: var(--radius-sm); }
+/* A plan step's status menu sits beside its title instead of taking a whole line. */
+.community-live-step > .ad-select { flex: none; width: auto; min-width: 112px; }
+.community-live-now-chat.community-live-form { margin-top: 0; }
+.community-live-now-chat .ad-btn { min-height: 36px; }
+@media (max-width: 640px) {
+  .community-live-now-row { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
+  .community-live-now-label { padding-top: 0; }
+}
+
+.community-live-tool { gap: var(--space-2); }
+.community-live-tool .community-section-title { font-size: var(--text-md); }
+.community-live-tool > .community-live-head { padding: 12px; }
+.community-live-more { border: 1px solid var(--border-hairline); border-radius: var(--radius-md); background: var(--bg-app); }
+.community-live-more-summary { display: grid; gap: 2px; min-height: 44px; padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); cursor: pointer; }
+.community-live-more-title { color: var(--text-primary); font-size: var(--text-md); font-weight: 600; }
+.community-live-more-note { color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.45; }
+.community-live-more[open] > .community-live-more-summary { border-bottom: 1px solid var(--border-hairline); border-radius: var(--radius-md) var(--radius-md) 0 0; }
+.community-live-more > .community-live-tool { padding: var(--space-4); }
+.community-live-more > .community-live-tool + .community-live-tool { border-top: 1px solid var(--border-hairline); }
+.community-dialog :is(.community-live-more-summary, .community-live-now button, .community-live-now input):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media (hover: hover) and (pointer: fine) {
+  .community-live-more-summary:hover { background: var(--bg-hover); }
+}
+
 /* Stillness asked for: colour still answers hover, nothing moves. */
 @media (hover: hover) and (pointer: fine) {
   .community-card:hover { border-color: var(--border-strong); }
@@ -836,4 +1032,11 @@
 @media (prefers-reduced-motion: no-preference) {
   :root:not([data-reduced-motion="true"]) .composio-logo img { transition: opacity 200ms ease; }
   :root:not([data-reduced-motion="true"]) .composio-card { animation: motion-rise var(--motion-enter) var(--motion-curve) backwards; animation-delay: calc(var(--stagger, 0) * 18ms); }
+}
+
+/* A result on the Artifacts first screen rises in once, so the eye finds the new sentence. */
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-reduced-motion="true"]) .artifacts-outcome:not([hidden]) {
+    animation: community-rise 200ms var(--motion-curve) backwards;
+  }
 }

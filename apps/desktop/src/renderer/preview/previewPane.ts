@@ -27,6 +27,7 @@ import type { PreviewMode, PreviewStatus } from "../../shared/api.ts";
 import { createDeviceToolbar, type DeviceToolbar } from "./deviceToolbar.ts";
 import { createElementInspector, type ElementInspector, type InspectedBox } from "./elementInspector.ts";
 import { formatViewport, parseViewport } from "./deviceSizes.ts";
+import { createAnnotator, type Annotator } from "./annotate.ts";
 import { ICON, createIcon, iconButton } from "../workbench/icons.ts";
 import {
   centreIn,
@@ -97,6 +98,8 @@ export interface PreviewPane {
    */
   toggleInspect(): void;
   isInspecting(): boolean;
+  /** Turn Annotate on or off: numbered pins and notes on the page, sent to the chat. */
+  toggleAnnotate(): void;
   /**
    * Show another page of the running site - the assistant's open_preview with a path, or an
    * address typed into the bar. Only pages on the preview's own server; anything else is
@@ -248,6 +251,23 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
     frame,
     ...(deps.onFixElement === undefined ? {} : { onFix: (box: InspectedBox) => deps.onFixElement?.(box, currentUrl) }),
   });
+
+  /*
+   * Annotate: pins and notes on the page, sent to the chat with a marked-up screenshot. The
+   * sheet mounts in the stage over the frame and never touches the frame itself, for the
+   * reason at the top of this file.
+   */
+  const annotator: Annotator = createAnnotator({
+    name: "Preview",
+    host: stage,
+    page: () => {
+      if (!open || currentUrl === null || frame.getAttribute("src") === null) return "Start the preview first, then press Annotate.";
+      return { element: frame, target: { surface: "preview" }, url: pageUrl ?? currentUrl, title: null };
+    },
+    isShown: () => open && !pane.hidden,
+    notify: (text) => deps.notify(text),
+  });
+  bar.insertBefore(annotator.button, deviceButton);
 
   pane.append(bar, deviceToolbar.element, stage, inspector.element, output, ...edges);
   deps.host.append(pane);
@@ -412,6 +432,7 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
   }
 
   function goTo(url: string): void {
+    annotator.stop();
     pageUrl = url;
     showAddress(url);
     frame.removeAttribute("src");
@@ -614,6 +635,7 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
     },
 
     async close(): Promise<void> {
+      annotator.stop();
       open = false;
       pane.hidden = true;
 
@@ -634,6 +656,7 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
     reload(): void {
       if (currentUrl === null) return;
 
+      annotator.stop();
       // `contentWindow.location.reload()` is a cross-origin call and throws. Re-assigning
       // `src` is the same reload from the outside - of the page on show, not the home page.
       frame.removeAttribute("src");
@@ -699,6 +722,8 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
     },
 
     isInspecting: () => inspector.isActive(),
+
+    toggleAnnotate: () => annotator.toggle(),
 
     setWorkspace(root: string | null): void {
       workspace = root;

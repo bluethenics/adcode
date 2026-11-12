@@ -29,7 +29,19 @@
 
 import { createIcon, ICON } from "../workbench/icons.ts";
 import { renderChatMessageHtml } from "./chatMarkdown.ts";
-import { createMascot, type MascotHandle } from "./mascot.ts";
+import type { MascotHandle, MascotMood } from "./mascot.ts";
+import { createAdcodeMascot, moodForAssistant } from "../mascot/adcodeMascot.ts";
+
+/** Buck behind the turn mascot's own small interface, so the timeline needs no other change. */
+function buckForTurn(): MascotHandle {
+  const buck = createAdcodeMascot({ mood: moodForAssistant("thinking"), size: 26, interactive: true, label: "Buck, the ADCode mascot. Activate for a reaction." });
+  return {
+    element: buck.element,
+    setMood: (mood: MascotMood) => buck.setMood(moodForAssistant(mood)),
+    poke: () => { buck.play("poked"); return ""; },
+    destroy: () => buck.destroy(),
+  };
+}
 
 export type TurnOutcome = "running" | "worked" | "thought" | "failed" | "stopped" | "declined";
 
@@ -420,7 +432,8 @@ export function createTurnTimeline(options?: { readonly startedAt?: number }): T
 
   const header = document.createElement("div");
   header.className = "chat-turn-header";
-  const mascot: MascotHandle = createMascot({ mood: "thinking" });
+  // Buck, small, in every turn's header: his face follows the work (moodForAssistant).
+  const mascot = buckForTurn();
   // Poking the mascot must not fold the turn.
   mascot.element.addEventListener("click", (event) => event.stopPropagation());
   const face = document.createElement("span");

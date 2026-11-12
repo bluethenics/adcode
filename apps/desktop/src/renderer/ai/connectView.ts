@@ -461,6 +461,74 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
     }
   }
   /**
+   * A CLI's models as buttons: its name for each, what the CLI says about it on hover and in
+   * the accessible name, the one in use marked. Eight show at first; the rest are one press away.
+   */
+  function cliModelList(provider: AiProviderInfo, said: HTMLElement): HTMLElement {
+    const wrap = document.createElement("div");
+    wrap.className = "connect-cli-models";
+    const heading = document.createElement("p");
+    heading.className = "connect-cli-models-head";
+    heading.textContent = `${String(provider.models.length)} model${provider.models.length === 1 ? "" : "s"} on your account`;
+    const list = document.createElement("div");
+    list.className = "connect-cli-model-list";
+    list.setAttribute("role", "group");
+    list.setAttribute("aria-label", `${provider.displayName} models`);
+    const shown = 8;
+    provider.models.forEach((model, index) => {
+      const inUse = status?.activeProvider === provider.id && status.activeModel === model.id;
+      const pick = document.createElement("button");
+      pick.type = "button";
+      pick.className = "connect-cli-pick";
+      // Each card's list arrives in a short stagger (connect.css), capped so long lists do not drag.
+      pick.style.setProperty("--pick-index", String(Math.min(index % shown, 7)));
+      pick.dataset["current"] = String(inUse);
+      pick.setAttribute("aria-pressed", String(inUse));
+      pick.hidden = index >= shown;
+      const name = document.createElement("strong");
+      name.textContent = model.name;
+      pick.append(name);
+      if (model.note) {
+        const note = document.createElement("span");
+        note.textContent = model.note;
+        pick.append(note);
+      }
+      pick.setAttribute("aria-label", `Use ${model.name}${model.note ? ` - ${model.note}` : ""}`);
+      pick.addEventListener("click", () => {
+        void (async () => {
+          for (const button of list.querySelectorAll("button")) (button as HTMLButtonElement).disabled = true;
+          try {
+            await deps.write("adcode.ai.provider", provider.id);
+            await deps.write("adcode.ai.model", model.id);
+            status = await deps.status();
+            said.textContent = `Using ${model.name} through ${provider.cli?.name ?? provider.displayName}.`;
+          } catch (error) {
+            said.textContent = error instanceof Error ? error.message : "That model could not be chosen. Try again.";
+          } finally {
+            if (activeTab === "cli") renderCliFinder();
+          }
+        })();
+      });
+      list.append(pick);
+    });
+    wrap.append(heading, list);
+    if (provider.models.length > shown) {
+      const all = document.createElement("button");
+      all.type = "button";
+      all.className = "connect-cli-models-all";
+      all.textContent = `Show all ${String(provider.models.length)}`;
+      all.addEventListener("click", () => {
+        for (const button of list.querySelectorAll<HTMLButtonElement>("button[hidden]")) button.hidden = false;
+        // Focus stays in the list, on the first model that just appeared, rather than falling to the page.
+        list.querySelectorAll<HTMLButtonElement>("button")[shown]?.focus();
+        all.remove();
+      });
+      wrap.append(all);
+    }
+    return wrap;
+  }
+
+  /**
    * Coding CLIs on their own tab. They used to sit at the bottom of the key-providers list,
    * where nobody looking for "use my Claude subscription" would scroll to.
    */
@@ -518,7 +586,10 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
       const moreSummary = document.createElement("summary");
       moreSummary.textContent = "More options";
       more.append(moreSummary, cliActions(provider, cli));
-      card.append(head, text, detail, connect, said, more);
+      card.append(head, text, detail, connect, said);
+      // Every model the CLI offers this account, live from the CLI itself; a click uses it.
+      if (cli.installed && cli.headless && provider.models.length > 0) card.append(cliModelList(provider, said));
+      card.append(more);
       grid.append(card);
     }
     const again = document.createElement("button");

@@ -15,6 +15,7 @@ import { join } from "node:path";
 import { CHANNELS } from "../shared/api.ts";
 import {
   addUsage,
+  mergeUsageRow,
   parseUsageRows,
   pruneUsage,
   summarizeUsage,
@@ -24,6 +25,7 @@ import {
   type UsageRow,
 } from "../shared/aiUsage.ts";
 import { usageInsights, type AnalysedUsageView } from "../shared/usageInsights.ts";
+import { usagePage, type UsageFilter } from "../shared/usagePage.ts";
 import { atomicReplace } from "./atomicReplace.ts";
 
 const WRITE_AFTER_MS = 2_000;
@@ -44,30 +46,12 @@ function load(): Promise<void> {
       // Counts recorded before the file was read join the ones on disk rather than replacing them.
       const before = rows;
       rows = parseUsageRows(JSON.parse(text));
-      for (const row of before) rows = mergeRow(rows, row);
+      for (const row of before) rows = mergeUsageRow(rows, row);
     })
     .catch(() => {
       // No file yet, or one this build cannot read: start counting from here.
     });
   return loaded;
-}
-
-function mergeRow(into: UsageRow[], row: UsageRow): UsageRow[] {
-  const index = into.findIndex((other) => other.day === row.day && other.provider === row.provider && other.model === row.model && other.source === row.source);
-  if (index === -1) return [...into, row];
-  const base = into[index]!;
-  const copy = [...into];
-  copy[index] = {
-    ...base,
-    requests: base.requests + row.requests,
-    inputTokens: base.inputTokens + row.inputTokens,
-    outputTokens: base.outputTokens + row.outputTokens,
-    cachedTokens: (base.cachedTokens ?? 0) + (row.cachedTokens ?? 0),
-    estimatedRequests: base.estimatedRequests + row.estimatedRequests,
-    pricedRequests: base.pricedRequests + row.pricedRequests,
-    costMicros: base.costMicros + row.costMicros,
-  };
-  return copy;
 }
 
 async function write(): Promise<void> {
@@ -114,11 +98,19 @@ export function recordAiUsage(entry: UsageEntry): void {
   });
 }
 
-export async function readAiUsage(range: unknown): Promise<AnalysedUsageView> {
+/** A filter from the renderer, checked rather than trusted: anything odd reads as "all". */
+function readFilter(raw: unknown): UsageFilter {
+  if (typeof raw !== "object" || raw === null) return {};
+  const pick = (value: unknown): string | null => (typeof value === "string" && value.length > 0 && value.length <= 1024 ? value : null);
+  const { project, provider } = raw as { project?: unknown; provider?: unknown };
+  return { project: pick(project), provider: pick(provider) };
+}
+
+export async function readAiUsage(range: unknown, filter?: unknown): Promise<AnalysedUsageView> {
   await load();
-  const chosen: UsageRange = range === "today" || range === "7d" || range === "30d" || range === "all" ? range : "7d";
+  const chosen: UsageRange = range === "today" || range === "7d" || range === "30d" || range === "90d" || range === "all" ? range : "7d";
   const now = Date.now();
-  return { ...summarizeUsage(rows, chosen, now), insights: usageInsights(rows, chosen, now) };
+  return { ...summarizeUsage(rows, chosen, now), insights: usageInsights(rows, chosen, now), page: usagePage(rows, chosen, now, readFilter(filter)) };
 }
 
 export async function clearAiUsage(): Promise<void> {

@@ -1,0 +1,86 @@
+/*
+ * Buck on the website: what the desktop's stylesheet cannot know about this site.
+ *
+ * The drawing's ink (thought dots, z's) follows the site's text colour, and the host box keeps
+ * its size before the script arrives so nothing shifts. The companion is the one Buck that
+ * moves around the page; everything it does is transform and opacity, and Reduce motion keeps
+ * it still.
+ */
+.buck-host { display: inline-grid; place-items: center; flex: none; vertical-align: middle; }
+.buck-host .adcode-mascot { --mascot-ink: var(--text, #e8ecec); }
+:root[data-theme="light"] .buck-host .adcode-mascot { --mascot-ink: #1b1d1e; }
+
+/* ── The companion ───────────────────────────────────────────────────────── */
+.buck-guide {
+  position: fixed;
+  /* Bottom right: the consent card owns bottom left, and the install bar the middle. */
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 60;
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: flex-end;
+  gap: 10px;
+  pointer-events: none;
+  transform: translateY(0);
+  transition: transform 420ms cubic-bezier(0.16, 1, 0.3, 1), opacity 260ms ease;
+}
+.buck-guide[data-state="hidden"] { transform: translateY(140%); opacity: 0; }
+.buck-guide[data-state="tucked"] { transform: translateY(46%); }
+.buck-guide[data-state="tucked"]:hover,
+.buck-guide[data-state="tucked"]:focus-within { transform: translateY(12%); }
+.buck-guide > * { pointer-events: auto; }
+.buck-guide-body { position: relative; display: grid; place-items: center; }
+.buck-guide-body::after {
+  /* A soft floor, so Buck stands on the page instead of floating over it. */
+  content: "";
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: -4px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(0 0 0 / 0.35), transparent);
+  pointer-events: none;
+}
+.buck-bubble {
+  position: relative;
+  max-width: min(280px, calc(100vw - 120px));
+  margin-bottom: 54px;
+  padding: 12px 14px;
+  border: 1px solid var(--ink-hairline, rgb(232 236 236 / 0.12));
+  border-radius: 14px 14px 4px 14px;
+  background: var(--ink-raised, #121618);
+  color: var(--text, #e8ecec);
+  box-shadow: 0 16px 40px rgb(0 0 0 / 0.35);
+  font-size: 14px;
+  line-height: 1.5;
+  transform-origin: 100% 100%;
+  animation: buck-bubble-in 360ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+:root[data-theme="light"] .buck-bubble { background: #fff; color: #1b1d1e; border-color: rgb(0 0 0 / 0.1); box-shadow: 0 16px 40px rgb(0 0 0 / 0.12); }
+.buck-bubble p { margin: 0; }
+.buck-bubble a { color: inherit; font-weight: 600; text-underline-offset: 3px; }
+.buck-bubble-actions { display: flex; gap: 12px; margin-top: 8px; font-size: 13px; }
+.buck-bubble button { padding: 0; border: 0; background: none; color: var(--muted, #a4adaf); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.buck-bubble button:hover { color: inherit; }
+@keyframes buck-bubble-in { from { opacity: 0; transform: scale(0.85) translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* ── Buck placed in pages ────────────────────────────────────────────────── */
+.notfound-buck { display: flex; margin-bottom: 8px; }
+.footer-buck { display: inline-flex; align-items: center; gap: 10px; color: var(--muted, #a4adaf); font-size: 13px; }
+.footer-buck .buck-host { cursor: pointer; }
+.buck-loader { display: grid; place-items: center; gap: 14px; min-height: 40vh; color: var(--muted, #a4adaf); font-size: 14px; }
+.buck-inline { display: flex; align-items: center; gap: 14px; }
+.buck-inline p { margin: 0; color: var(--muted, #a4adaf); }
+
+@media (prefers-reduced-motion: reduce) {
+  .buck-guide, .buck-bubble { transition: none; animation: none; }
+}
+@media print { .buck-guide { display: none; } }
+.home-share-buck { float: right; margin: -8px -6px 0 0; }
+.docs-hero-copy > .buck-host, .pricing-intro .buck-host, .public-glass-hero > .buck-host, .closing-cta > .buck-host { margin-bottom: 10px; }
+.closing-cta > .buck-host { margin-inline: auto; display: grid; }
+
+/* Narrow screens: the install bar spans the bottom, so Buck stands above it. */
+@media (max-width: 720px) { .buck-guide { bottom: calc(84px + env(safe-area-inset-bottom)); } }

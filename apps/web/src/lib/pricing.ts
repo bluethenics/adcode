@@ -27,7 +27,7 @@ export const pricePerDay = (cents: number, interval: "week" | "month"): string =
  * How AI is paid for, in one clause, for every page that says it. Plans and packs ended on
  * 6 November 2026; every model but Tagflow's sponsored ones is paid from USD credits.
  */
-export const PAYG_SUMMARY = "Tagflow AI is free; every other model is paid from USD credits at its provider's price plus 35%, added once from $10, never expiring, with no subscription";
+export const PAYG_SUMMARY = "Tagflow AI is free; every other model is paid from USD credits at the price listed for it, added once from $10, never expiring, with no subscription";
 export const topUpName = (id: string): string => ({ starter: "Starter", "50m": "Boost", "140m": "Plus", "300m": "Power" } as Record<string, string>)[id] ?? "AI top-up";
 export const topUpDescription = (id: string): string => ({ starter: "A small first top-up to finish what you started.", "50m": "A little extra for your next task.", "140m": "More flexibility for a busy stretch.", "300m": "More room for your biggest projects." } as Record<string, string>)[id] ?? "Extra AI usage, whenever you need it.";
 

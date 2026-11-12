@@ -161,9 +161,9 @@ module.exports = {
     {
       name: "web-has-no-node",
       comment:
-        "src/web runs in a browser tab. A Node built-in there builds and then fails in the browser.",
+        "src/web and src/phone run in a browser tab. A Node built-in there builds and then fails in the browser.",
       severity: "error",
-      from: { path: "^apps/desktop/src/web" },
+      from: { path: "^apps/desktop/src/(web|phone)" },
       to: { dependencyTypes: ["core"] },
     },
     {
@@ -177,7 +177,8 @@ module.exports = {
       name: "no-orphans",
       comment: "An unreachable module is either dead code or a missing wire-up.",
       severity: "warn",
-      from: { orphan: true, pathNot: "\\.d\\.ts$|(^|/)index\\.ts$" },
+      // A service worker is reached by its URL (navigator.serviceWorker.register), never by an import.
+      from: { orphan: true, pathNot: "\\.d\\.ts$|(^|/)index\\.ts$|/public/sw\\.js$" },
       to: {},
     },
   ],

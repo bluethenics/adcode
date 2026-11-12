@@ -14,6 +14,7 @@
  * the CLIs' real output captured as strings.
  */
 import type { Message, Provider, ProviderEvent, ProviderRequest } from "./types.ts";
+import { effortFor } from "./effort.ts";
 
 export type CliAgentId = "claude" | "codex" | "opencode" | "gemini" | "freebuff";
 
@@ -28,6 +29,13 @@ export interface CliAgentSpec {
   readonly models: readonly string[];
   /** Arguments that print the CLI's own model list, one per line; missing when it has none. */
   readonly listModels?: readonly string[];
+  /**
+   * How to ask the CLI which models this account can use, when it has no list command:
+   * Claude Code answers an `initialize` control request on its stream-JSON input, Codex a
+   * `model/list` call on its app-server. Both report names and descriptions, and only what
+   * the signed-in account is offered - so the list is live, not a copy kept in ADCode.
+   */
+  readonly modelProtocol?: "claude-initialize" | "codex-app-server";
   /** What to run in a terminal to sign in, when the CLI reports it is signed out. */
   readonly signIn: string;
   readonly install: string;
@@ -35,8 +43,8 @@ export interface CliAgentSpec {
 }
 
 export const CLI_AGENTS: readonly CliAgentSpec[] = [
-  { id: "claude", name: "Claude Code", command: "claude", headless: true, models: ["default", "opus", "sonnet", "haiku"], signIn: "claude", install: "npm install -g @anthropic-ai/claude-code", docs: "https://docs.claude.com/en/docs/claude-code/overview" },
-  { id: "codex", name: "Codex CLI", command: "codex", headless: true, models: ["default"], signIn: "codex login", install: "npm install -g @openai/codex", docs: "https://developers.openai.com/codex/cli" },
+  { id: "claude", name: "Claude Code", command: "claude", headless: true, models: ["default", "opus", "sonnet", "haiku"], modelProtocol: "claude-initialize", signIn: "claude", install: "npm install -g @anthropic-ai/claude-code", docs: "https://docs.claude.com/en/docs/claude-code/overview" },
+  { id: "codex", name: "Codex CLI", command: "codex", headless: true, models: ["default"], modelProtocol: "codex-app-server", signIn: "codex login", install: "npm install -g @openai/codex", docs: "https://developers.openai.com/codex/cli" },
   { id: "opencode", name: "OpenCode", command: "opencode", headless: true, models: ["default"], listModels: ["models"], signIn: "opencode auth login", install: "npm install -g opencode-ai", docs: "https://opencode.ai/docs/cli/" },
   { id: "gemini", name: "Gemini CLI", command: "gemini", headless: true, models: ["default"], signIn: "gemini", install: "npm install -g @google/gemini-cli", docs: "https://github.com/google-gemini/gemini-cli" },
   { id: "freebuff", name: "Freebuff", command: "freebuff", headless: false, models: [], signIn: "freebuff login", install: "npm install -g freebuff", docs: "https://www.npmjs.com/package/freebuff" },
@@ -67,15 +75,48 @@ export function isSafeCliToken(value: string): boolean {
  * `server` is the name inside it, which the CLI uses to name the server's tools.
  */
 export interface CliMcpServer {
+  /** Claude Code's `--mcp-config` file. Must pass `isSafeCliToken`, or Claude Code runs without it. */
   readonly configPath: string;
   readonly server: string;
+  /** The bridge's address, for Codex's `-c mcp_servers.<server>.url=` override. */
+  readonly url?: string;
+  /** The key, handed to Codex through `CLI_BRIDGE_TOKEN_ENV`, never on the command line. */
+  readonly token?: string;
+  /** OpenCode's config file with the server in it, handed over as `OPENCODE_CONFIG`. */
+  readonly openCodeConfig?: string;
+}
+
+/**
+ * The environment variable Codex reads the bridge's key from (`bearer_token_env_var`).
+ * Checked with codex-cli 0.157.1: `codex -c mcp_servers.adcode.url=… -c
+ * mcp_servers.adcode.bearer_token_env_var=ADCODE_TOOL_BRIDGE_TOKEN mcp get adcode` lists it as
+ * a streamable-HTTP server with bearer auth.
+ */
+export const CLI_BRIDGE_TOKEN_ENV = "ADCODE_TOOL_BRIDGE_TOKEN";
+
+/**
+ * Environment for one turn: how OpenCode and Codex find ADCode's tools. OpenCode merges the
+ * file named by `OPENCODE_CONFIG` with the person's own config (checked with `opencode mcp
+ * list`); Codex reads the key from `CLI_BRIDGE_TOKEN_ENV`. Claude Code needs nothing here.
+ */
+export function cliEnv(id: CliAgentId, mcp: CliMcpServer | null | undefined): Record<string, string> {
+  if (mcp === null || mcp === undefined) return {};
+  if (id === "opencode" && mcp.openCodeConfig !== undefined) return { OPENCODE_CONFIG: mcp.openCodeConfig };
+  if (id === "codex" && mcp.token !== undefined && mcp.url !== undefined) return { [CLI_BRIDGE_TOKEN_ENV]: mcp.token };
+  return {};
 }
 
 /** The arguments for one headless turn. `session` resumes the CLI's own conversation. */
-export function cliArgs(id: CliAgentId, options: { readonly model: string; readonly session?: string; readonly mcp?: CliMcpServer | null }): string[] {
+export function cliArgs(id: CliAgentId, options: { readonly model: string; readonly session?: string; readonly mcp?: CliMcpServer | null; readonly effort?: string }): string[] {
+  // A level is one lowercase word from the model's own list (effortFor); anything else is dropped.
+  const effort = options.effort !== undefined && EFFORT_WORD.test(options.effort) ? options.effort : null;
   const model = options.model !== "default" && isSafeCliToken(options.model) ? options.model : null;
   const session = options.session !== undefined && isSafeCliToken(options.session) ? options.session : null;
   const mcp = options.mcp !== undefined && options.mcp !== null && isSafeCliToken(options.mcp.configPath) && /^[a-z][a-z0-9-]{0,40}$/.test(options.mcp.server) ? options.mcp : null;
+  // Codex takes the bridge as two config overrides; a value that is not TOML is read as a string.
+  const codexBridge = mcp !== null && mcp.url !== undefined && mcp.token !== undefined
+    ? [`mcp_servers.${mcp.server}.url=${mcp.url}`, `mcp_servers.${mcp.server}.bearer_token_env_var=${CLI_BRIDGE_TOKEN_ENV}`].filter(isSafeCliToken)
+    : [];
   switch (id) {
     case "claude":
       // acceptEdits: it may edit files in the project, but shell commands still need the
@@ -83,17 +124,105 @@ export function cliArgs(id: CliAgentId, options: { readonly model: string; reado
       // allows every tool of that one server (Claude Code's permissions docs); ADCode's own
       // confirmation dialogs still stand in front of anything guarded. Both flags take
       // several values, so they go last, where only options can follow them.
-      return ["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits", ...(model ? ["--model", model] : []), ...(session ? ["--resume", session] : []), ...(mcp ? ["--mcp-config", mcp.configPath, "--allowedTools", `mcp__${mcp.server}`] : [])];
+      return ["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits", ...(model ? ["--model", model] : []), ...(effort ? ["--effort", effort] : []), ...(session ? ["--resume", session] : []), ...(mcp ? ["--mcp-config", mcp.configPath, "--allowedTools", `mcp__${mcp.server}`] : [])];
     case "codex":
       // `-` reads the prompt from stdin. workspace-write: edits inside the project, no network.
-      return ["exec", ...(session ? ["resume", session] : []), "--json", "--skip-git-repo-check", ...(session ? [] : ["--sandbox", "workspace-write"]), ...(model ? ["-m", model] : []), "-"];
+      return ["exec", ...(session ? ["resume", session] : []), "--json", "--skip-git-repo-check", ...(session ? [] : ["--sandbox", "workspace-write"]), ...(model ? ["-m", model] : []), ...(effort ? ["-c", `model_reasoning_effort=${effort}`] : []), ...(codexBridge.length === 2 ? codexBridge.flatMap((value) => ["-c", value]) : []), "-"];
     case "opencode":
-      return ["run", "--format", "json", ...(model ? ["-m", model] : []), ...(session ? ["--session", session] : [])];
+      return ["run", "--format", "json", ...(model ? ["-m", model] : []), ...(effort ? ["--variant", effort] : []), ...(session ? ["--session", session] : [])];
     case "gemini":
       return ["--output-format", "stream-json", ...(model ? ["-m", model] : []), ...(session ? ["--resume", session] : [])];
     case "freebuff":
       return [];
   }
+}
+
+/** A model a CLI offers, as it describes it. */
+export interface CliModelInfo {
+  /** What is passed to the CLI's model flag. Always passes `isSafeCliToken`. */
+  readonly id: string;
+  readonly name: string;
+  readonly description?: string;
+  /** The model the CLI uses when none is chosen. */
+  readonly isDefault?: boolean;
+  /** Its reasoning levels, in the CLI's words (low ... max), when the CLI says. */
+  readonly efforts?: readonly string[];
+}
+
+const EFFORT_WORD = /^[a-z]{2,12}$/;
+const efforts = (values: unknown): string[] => (Array.isArray(values) ? values.filter((value): value is string => typeof value === "string" && EFFORT_WORD.test(value)).slice(0, 8) : []);
+
+/** The lines to write to a CLI to ask for its models, one JSON message each. */
+export function modelRequest(protocol: NonNullable<CliAgentSpec["modelProtocol"]>): unknown[] {
+  if (protocol === "claude-initialize") return [{ type: "control_request", request_id: "adcode-models", request: { subtype: "initialize" } }];
+  return [
+    { jsonrpc: "2.0", id: 1, method: "initialize", params: { clientInfo: { name: "adcode", version: "1" } } },
+    { jsonrpc: "2.0", method: "initialized" },
+    codexPageRequest(2),
+  ];
+}
+
+/** Codex's next page of models. Page requests are numbered from 2; 1 is the handshake. */
+export function codexPageRequest(id: number, cursor?: string): unknown {
+  return { jsonrpc: "2.0", id, method: "model/list", params: cursor === undefined ? {} : { cursor } };
+}
+
+const text = (value: unknown, limit: number): string => (typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, limit) : "");
+
+/**
+ * Claude Code's answer to `initialize`: its `models`, each a value for `--model` with a name.
+ * A value the model flag could not carry safely (`claude-fable-5-1[1m]`, its long-context
+ * variant) falls back to the full model name it resolves to, which Claude Code also accepts.
+ */
+export function parseClaudeModels(message: unknown): CliModelInfo[] | null {
+  const response = (message as { type?: unknown; response?: { response?: { models?: unknown } } } | null);
+  if (response?.type !== "control_response") return null;
+  const models = response.response?.response?.models;
+  if (!Array.isArray(models)) return [];
+  const out: CliModelInfo[] = [];
+  for (const raw of models) {
+    const model = raw as { value?: unknown; resolvedModel?: unknown; displayName?: unknown; description?: unknown; supportedEffortLevels?: unknown };
+    const value = text(model.value, 200);
+    const id = isSafeCliToken(value) ? value : text(model.resolvedModel, 200);
+    if (!isSafeCliToken(id) || out.some((item) => item.id === id)) continue;
+    const description = text(model.description, 200);
+    const levels = efforts(model.supportedEffortLevels);
+    out.push({ id, name: text(model.displayName, 80) || id, ...(description === "" ? {} : { description }), ...(id === "default" ? { isDefault: true } : {}), ...(levels.length === 0 ? {} : { efforts: levels }) });
+  }
+  return out;
+}
+
+/** Codex's answer to `model/list`: the page of models and the cursor to the next, if any. Hidden models are left out. */
+export function parseCodexModels(message: unknown): { models: CliModelInfo[]; next: string | null } | null {
+  const reply = message as { id?: unknown; result?: { data?: unknown; nextCursor?: unknown }; error?: unknown } | null;
+  if (typeof reply?.id !== "number" || reply.id < 2) return null;
+  const data = reply.result?.data;
+  if (!Array.isArray(data)) return { models: [], next: null };
+  const models: CliModelInfo[] = [];
+  for (const raw of data) {
+    const model = raw as { id?: unknown; model?: unknown; displayName?: unknown; description?: unknown; hidden?: unknown; isDefault?: unknown; supportedReasoningEfforts?: unknown };
+    const id = text(model.model, 200) || text(model.id, 200);
+    if (model.hidden === true || !isSafeCliToken(id)) continue;
+    const description = text(model.description, 200);
+    const levels = efforts(Array.isArray(model.supportedReasoningEfforts) ? model.supportedReasoningEfforts.map((entry: unknown) => (entry as { reasoningEffort?: unknown } | null)?.reasoningEffort) : []);
+    models.push({ id, name: text(model.displayName, 80) || id, ...(description === "" ? {} : { description }), ...(model.isDefault === true ? { isDefault: true } : {}), ...(levels.length === 0 ? {} : { efforts: levels }) });
+  }
+  const next = reply.result?.nextCursor;
+  return { models, next: typeof next === "string" && next !== "" ? next : null };
+}
+
+/**
+ * The list ADCode shows: the CLI's own default first, then everything it reported, with the
+ * built-in aliases filling in only when the CLI could not be asked (signed out, an old
+ * version, no answer in time) - so there is always something to choose.
+ */
+export function mergeCliModels(spec: CliAgentSpec, reported: readonly CliModelInfo[]): CliModelInfo[] {
+  if (reported.length > 0) {
+    const hasDefault = reported.some((model) => model.id === "default");
+    const ordered = [...reported].sort((a, b) => Number(b.id === "default") - Number(a.id === "default") || Number(b.isDefault === true) - Number(a.isDefault === true));
+    return hasDefault ? ordered : [{ id: "default", name: `${spec.name}'s default model`, isDefault: true }, ...ordered];
+  }
+  return spec.models.map((id) => ({ id, name: id === "default" ? `${spec.name}'s default model` : id, ...(id === "default" ? { isDefault: true } : {}) }));
 }
 
 /** Model ids from a CLI's list command: one `provider/model` per line, nothing else. */
@@ -313,7 +442,7 @@ export interface CliProcess {
 }
 
 /** Starts `command args` in `cwd`, writes `input` to its stdin and closes it. */
-export type CliSpawn = (command: string, args: readonly string[], options: { readonly cwd: string; readonly input: string }) => CliProcess;
+export type CliSpawn = (command: string, args: readonly string[], options: { readonly cwd: string; readonly input: string; readonly env?: Readonly<Record<string, string>> }) => CliProcess;
 
 export interface CliProviderOptions {
   readonly spec: CliAgentSpec;
@@ -327,13 +456,20 @@ export interface CliProviderOptions {
    * ADCode's tool bridge, resolved per turn because it can be switched off or move port
    * while a provider lives. Null: not running, or its config path cannot pass the shell.
    *
-   * Only Claude Code receives it. Codex could take the server as `-c mcp_servers.…` overrides,
-   * but the key would have to travel as `-c …http_headers` (a space and quotes, refused by
-   * `isSafeCliToken`) or through an environment variable the spawn does not set per run;
-   * OpenCode and Gemini CLI read MCP servers from their own config files, with no per-run flag
-   * to add one. Those agents get the bridge when the person adds it with the copied config.
+   * Claude Code takes it as `--mcp-config`, Codex as `-c` overrides with the key in the
+   * environment, OpenCode as a config file named by `OPENCODE_CONFIG` (all three checked
+   * against the real CLIs). Gemini CLI is not given it: it reads MCP servers only from its own
+   * settings file, and it could not be checked here - people add it with the copied config.
    */
   readonly mcp?: () => CliMcpServer | null;
+  /** Each model's reasoning levels as the CLI reported them, so the person's choice maps onto them. */
+  readonly modelEfforts?: Readonly<Record<string, readonly string[]>>;
+}
+
+/** The person's effort (low ... max) as the nearest level this model has, or nothing for Auto or a model with no levels. */
+function cliEffort(request: ProviderRequest, levels: Readonly<Record<string, readonly string[]>> | undefined): { effort?: string } {
+  const level = effortFor(request.effort, levels?.[request.model]);
+  return level === undefined ? {} : { effort: level };
 }
 
 const SIGNED_OUT = /not logged in|please run \/login|not authenticated|unauthori[sz]ed|login required|sign in|api key/i;
@@ -349,8 +485,8 @@ export function createCliProvider(options: CliProviderOptions): Provider {
       const key = conversationKey(spec.id, request.model, request);
       const prior = sessions.get(key);
       const resume = prior !== undefined && request.messages.length > prior.messages;
-      const mcp = spec.id === "claude" ? options.mcp?.() ?? null : null;
-      const process = options.spawn(spec.command, cliArgs(spec.id, { model: request.model, ...(resume ? { session: prior.id } : {}), mcp }), { cwd: options.cwd(), input: cliPrompt(request, resume) });
+      const mcp = spec.id === "claude" || spec.id === "codex" || spec.id === "opencode" ? options.mcp?.() ?? null : null;
+      const process = options.spawn(spec.command, cliArgs(spec.id, { model: request.model, ...(resume ? { session: prior.id } : {}), mcp: spec.id === "claude" || spec.id === "codex" ? mcp : null, ...cliEffort(request, options.modelEfforts) }), { cwd: options.cwd(), env: cliEnv(spec.id, mcp), input: cliPrompt(request, resume) });
       const stop = (): void => process.kill();
       signal.addEventListener("abort", stop, { once: true });
       const parse = createCliLineParser(spec.id);

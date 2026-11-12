@@ -178,7 +178,7 @@ try {
     await writeFile(join(artifacts, `${name}.png`), Buffer.from(shot.data, "base64"));
   };
   const exists = (path) => stat(join(workspace, path)).then(() => true, () => false);
-  const mascots = () => evaluate("document.querySelectorAll('.chat-transcript .chat-mascot').length");
+  const mascots = () => evaluate("document.querySelectorAll('.chat-transcript :is(.chat-mascot, .adcode-mascot)').length");
 
   /** Send a prompt and follow the turn to its answer, counting mascots on the way. */
   async function turn(prompt, answer) {

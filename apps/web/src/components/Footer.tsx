@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { WebsiteAnalytics } from "@/components/WebsiteAnalytics";
 import { COMPARE_PREFIX, comparisons, guides, landingPath } from "@/lib/landings";
 import { PARENT, SITE, SOURCE, TEAM } from "@/lib/site";
+import { Buck } from "@/components/buck/Buck";
 
 /**
  * The footer, and the only route to the landing pages.
@@ -76,7 +77,7 @@ export function Footer() {
         {/* Here rather than after the footer, where its button floated on the page on its
             own. The consent card it opens is fixed-position, so placement moves nothing else. */}
         <Suspense fallback={null}><WebsiteAnalytics /></Suspense>
-        <span>{SITE.tagline}.</span>
+        <span className="footer-buck"><Buck mood="sleeping" size={36} hoverMood="wink" reactTo=".footer-buck" />{SITE.tagline}.</span>
       </div>
     </footer>
   );

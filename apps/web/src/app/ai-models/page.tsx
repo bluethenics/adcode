@@ -22,7 +22,7 @@ const AFTER: readonly { title: string; body: string }[] = [
 
 const FAQ: readonly { q: string; a: string }[] = [
   { q: "How is my API key kept?", a: "It is encrypted on arrival and bound to your submission, never shown to anyone, including administrators. On approval it becomes a server secret that only ADCode's relay reads. Once the submission is approved or declined, it is deleted from the submission record." },
-  { q: "What does a developer pay?", a: "Your price per million tokens plus ADCode's 35%, from USD credits they add in advance. Your model is listed with its price on ADCode's pricing page, beside every other model." },
+  { q: "What does a developer pay?", a: "A price per million tokens, shown next to your model, from USD credits they add in advance. Your model is listed with its price on ADCode's pricing page, beside every other model." },
   { q: "Can I change prices or limits later?", a: "Yes. Reply to our approval email, or submit the model again with the new figures. An approved model keeps working while a change is reviewed." },
   { q: "What if I only want to talk first?", a: "Use the application form on the main providers page. It asks for less and starts a conversation instead of a review." },
 ];

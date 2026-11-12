@@ -1,0 +1,668 @@
+/*
+ * The composer's model picker (ai/modelPicker.ts): rail, models, reasoning, footer.
+ *
+ * Built on the design system - `.ad-search`, `.ad-icon-btn`, `.ad-select`, `.ad-btn` - and
+ * tokens only. Hover lives behind a fine pointer; every movement behind both stillness
+ * switches, and only transform and opacity ever move. Calm, not bouncy: the popover grows
+ * from the chip and leaves faster than it came, one highlight slides between items, checks
+ * draw in, and a fresh column arrives 25ms an item.
+ */
+
+.model-picker {
+  position: fixed;
+  z-index: 130;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-sheen), var(--bg-elevated);
+  box-shadow: var(--shadow-floating);
+  color: var(--text-primary);
+  font: 500 var(--text-sm) var(--font-ui);
+  transform-origin: bottom right;
+}
+
+.model-picker[data-side="below"] {
+  transform-origin: top right;
+}
+
+/* Leaving: it no longer takes clicks meant for what is underneath. */
+.model-picker[data-state="closing"] {
+  pointer-events: none;
+}
+
+.model-picker-body {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr) 168px;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── The sliding highlights ── */
+
+.model-picker-indicator {
+  position: absolute;
+  top: 0;
+  left: var(--space-1);
+  right: var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.model-picker-indicator[data-shown="true"] {
+  opacity: 1;
+}
+
+.model-picker-effort-indicator {
+  left: 0;
+  right: 0;
+  background: var(--surface-selected);
+  box-shadow: var(--shadow-control);
+}
+
+/* The rail's sits behind the provider shown, with a short accent bar at its edge. */
+.model-picker-rail-indicator {
+  background: var(--surface-selected);
+}
+
+.model-picker-rail-indicator::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: calc(-1 * var(--space-1));
+  width: 3px;
+  height: 16px;
+  margin-top: -8px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+}
+
+/* Items paint above their column's highlight. */
+.model-picker-rail > :not(.model-picker-indicator),
+.model-picker-list > :not(.model-picker-indicator),
+.model-picker-efforts > :not(.model-picker-indicator) {
+  position: relative;
+}
+
+/* Controls with a hover layer: it fades in beneath their content. */
+.model-picker-rail-button,
+.model-picker-effort,
+.model-picker-more,
+.model-picker-connect {
+  position: relative;
+  isolation: isolate;
+}
+
+.model-picker-rail-button::before,
+.model-picker-effort::before,
+.model-picker-more::before,
+.model-picker-connect::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--bg-hover);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ── Rail: Favourites, then each provider by name ── */
+
+.model-picker-rail {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--space-2) var(--space-1);
+  overflow-y: auto;
+  border-right: 1px solid var(--border-hairline);
+  scrollbar-width: none;
+}
+
+.model-picker-rail-button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: 520 var(--text-xs) var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+}
+
+.model-picker-rail-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.model-picker-rail-button[aria-pressed="true"] {
+  color: var(--text-primary);
+  font-weight: 620;
+}
+
+.model-picker-rail-button > svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.model-picker-rail-button[data-rail="favorites"][aria-pressed="true"] > svg {
+  color: var(--warning);
+  fill: currentColor;
+}
+
+/* Long names stop short; the button's tooltip carries the whole one. */
+.model-picker-rail-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The provider in use carries a small dot, so the rail says where you are. */
+.model-picker-rail-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+/* ── Models ── */
+
+.model-picker-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.model-picker-search {
+  margin: var(--space-2);
+  min-height: 32px;
+}
+
+.model-picker-search > input::-webkit-search-cancel-button {
+  cursor: pointer;
+}
+
+.model-picker-list {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  padding: 0 var(--space-1) var(--space-2);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.model-picker-group {
+  margin: var(--space-2) var(--space-2) var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-hairline);
+  color: var(--text-tertiary);
+  font: 600 var(--text-xs) var(--font-ui);
+}
+
+.model-picker-list > .model-picker-group:first-of-type {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.model-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.model-picker-pick {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 40px;
+  padding: 4px var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.model-picker-pick:focus-visible,
+.model-picker-effort:focus-visible,
+.model-picker-more:focus-visible,
+.model-picker-connect:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.model-picker-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.model-picker-name,
+.model-picker-note,
+.model-picker-effort-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-picker-name {
+  color: var(--text-primary);
+  font-weight: 560;
+}
+
+.model-picker-row[data-current="true"] .model-picker-name {
+  font-weight: 640;
+}
+
+.model-picker-note,
+.model-picker-effort-detail {
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+}
+
+.model-picker-kbd {
+  flex: none;
+  padding: 1px 5px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+  background: var(--surface-control);
+  color: var(--text-tertiary);
+  font: 500 var(--text-xs) var(--font-ui);
+  font-variant-numeric: tabular-nums;
+}
+
+.model-picker-check {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
+}
+
+.model-picker-check svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* The star waits out of sight, a few pixels off, until the row is pointed at or reached. */
+.model-picker-star {
+  width: 28px;
+  height: 28px;
+  border-color: transparent;
+  opacity: 0;
+  transform: translateX(3px);
+}
+
+.model-picker-star svg {
+  width: 14px;
+  height: 14px;
+}
+
+.model-picker-row[data-active="true"] .model-picker-star,
+.model-picker-row:focus-within .model-picker-star,
+.model-picker-star[aria-pressed="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+/* Starred is said by the filled icon alone, not by the pressed-button panel. */
+.model-picker-star[aria-pressed="true"] {
+  background: transparent;
+  box-shadow: none;
+  color: var(--warning);
+}
+
+.model-picker-star[aria-pressed="true"] svg {
+  fill: currentColor;
+}
+
+.model-picker-more {
+  width: 100%;
+  min-height: 30px;
+  margin-top: 2px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--accent);
+  font: 560 var(--text-xs) var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  cursor: pointer;
+}
+
+.model-picker-empty {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-4) var(--space-3) var(--space-3);
+  color: var(--text-secondary);
+}
+
+.model-picker-empty > svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  color: var(--text-tertiary);
+}
+
+.model-picker-empty > p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.model-picker-empty-action {
+  margin: 0 var(--space-3);
+}
+
+/* ── Reasoning ── */
+
+.model-picker-reasoning {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-height: 0;
+  padding: var(--space-3) var(--space-2);
+  overflow-y: auto;
+  border-left: 1px solid var(--border-hairline);
+}
+
+.model-picker-reasoning-title {
+  margin: 0 var(--space-1);
+  color: var(--text-primary);
+  font: 620 var(--text-sm) var(--font-ui);
+}
+
+.model-picker-reasoning-for,
+.model-picker-reasoning-note {
+  margin: 0 var(--space-1) var(--space-1);
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.model-picker-reasoning[data-supported="false"] .model-picker-reasoning-for {
+  color: var(--text-secondary);
+  font-weight: 560;
+}
+
+.model-picker-efforts {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.model-picker-effort {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: 3px var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.model-picker-effort-label {
+  color: var(--text-primary);
+  font-weight: 560;
+}
+
+.model-picker-effort[aria-checked="true"] .model-picker-effort-label {
+  font-weight: 640;
+}
+
+/* ── Footer ── */
+
+.model-picker-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--border-hairline);
+}
+
+.model-picker-access {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+}
+
+.model-picker-access-select {
+  width: auto;
+  min-height: 28px;
+  font-size: var(--text-xs);
+}
+
+.model-picker-connect {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--accent);
+  font: 560 var(--text-xs) var(--font-ui);
+  cursor: pointer;
+}
+
+.model-picker-connect svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* A narrow window drops the reasoning column below the list rather than squeezing both. */
+@media (max-width: 680px) {
+  .model-picker-body {
+    grid-template-columns: 112px minmax(0, 1fr);
+  }
+
+  .model-picker-reasoning {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--border-hairline);
+    border-left: 0;
+  }
+}
+
+/* ── Motion: all of it behind both stillness switches ── */
+
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-reduced-motion="true"]) .model-picker[data-state="open"] {
+    animation: model-picker-in var(--duration-enter) var(--ease-sheet);
+  }
+
+  :root:not([data-reduced-motion="true"]) .model-picker[data-state="closing"] {
+    animation: model-picker-out var(--duration-exit) var(--ease-sheet) forwards;
+  }
+
+  :root:not([data-reduced-motion="true"]) .model-picker-indicator {
+    transition: opacity 140ms var(--ease-sheet);
+  }
+
+  :root:not([data-reduced-motion="true"]) .model-picker-indicator[data-placed="true"] {
+    transition: transform var(--duration-enter) var(--ease-sheet), opacity 140ms var(--ease-sheet);
+  }
+
+  :root:not([data-reduced-motion="true"]) .model-picker-rail-button::before,
+  :root:not([data-reduced-motion="true"]) .model-picker-effort::before,
+  :root:not([data-reduced-motion="true"]) .model-picker-more::before,
+  :root:not([data-reduced-motion="true"]) .model-picker-connect::before {
+    transition: opacity 140ms var(--ease-sheet);
+  }
+
+  :root:not([data-reduced-motion="true"]) .model-picker-star {
+    transition: opacity 140ms var(--ease-sheet), transform 160ms var(--ease-sheet);
+  }
+
+  :root:not([data-reduced-motion="true"]) .model-picker-text,
+  :root:not([data-reduced-motion="true"]) .model-picker-rail-name,
+  :root:not([data-reduced-motion="true"]) .model-picker-rail-button > svg,
+  :root:not([data-reduced-motion="true"]) .model-picker-connect > svg {
+    transition: transform 140ms var(--ease-sheet);
+  }
+
+  :root:not([data-reduced-motion="true"]) .model-picker-pick,
+  :root:not([data-reduced-motion="true"]) .model-picker-effort,
+  :root:not([data-reduced-motion="true"]) .model-picker-more,
+  :root:not([data-reduced-motion="true"]) .model-picker-connect,
+  :root:not([data-reduced-motion="true"]) .model-picker-rail-button {
+    transition: transform 100ms var(--ease-sheet);
+  }
+
+  /* Pressed: a brief give, about 100ms. */
+  :root:not([data-reduced-motion="true"]) .model-picker-pick:active,
+  :root:not([data-reduced-motion="true"]) .model-picker-effort:active,
+  :root:not([data-reduced-motion="true"]) .model-picker-more:active,
+  :root:not([data-reduced-motion="true"]) .model-picker-connect:active,
+  :root:not([data-reduced-motion="true"]) .model-picker-rail-button:active,
+  :root:not([data-reduced-motion="true"]) .model-picker-star:active {
+    transform: scale(0.97);
+  }
+
+  /* A check that moved draws in from smaller, once. */
+  :root:not([data-reduced-motion="true"]) .model-picker-check[data-fresh="true"] svg {
+    animation: model-picker-check-in 200ms var(--ease-toast) backwards;
+  }
+
+  /* A fresh column arrives one item after another, 25ms apart, eight at most. */
+  :root:not([data-reduced-motion="true"]) .model-picker [data-stagger] {
+    animation: model-picker-item-in 180ms var(--ease-sheet) backwards;
+  }
+
+  :root:not([data-reduced-motion="true"]) .model-picker [data-stagger="1"] { animation-delay: 25ms; }
+  :root:not([data-reduced-motion="true"]) .model-picker [data-stagger="2"] { animation-delay: 50ms; }
+  :root:not([data-reduced-motion="true"]) .model-picker [data-stagger="3"] { animation-delay: 75ms; }
+  :root:not([data-reduced-motion="true"]) .model-picker [data-stagger="4"] { animation-delay: 100ms; }
+  :root:not([data-reduced-motion="true"]) .model-picker [data-stagger="5"] { animation-delay: 125ms; }
+  :root:not([data-reduced-motion="true"]) .model-picker [data-stagger="6"] { animation-delay: 150ms; }
+  :root:not([data-reduced-motion="true"]) .model-picker [data-stagger="7"] { animation-delay: 175ms; }
+}
+
+/* ── Hover: a fine pointer only ── */
+
+@media (hover: hover) and (pointer: fine) {
+  .model-picker-rail-button:hover {
+    color: var(--text-primary);
+  }
+
+  .model-picker-rail-button:hover::before,
+  .model-picker-effort:hover::before,
+  .model-picker-more:hover::before,
+  .model-picker-connect:hover::before {
+    opacity: 1;
+  }
+
+  .model-picker-row:hover .model-picker-star {
+    opacity: 1;
+    transform: none;
+  }
+
+  .model-picker-star:hover {
+    color: var(--warning);
+  }
+
+  /* Small nudges toward the pointer: names step 2px in, icons lift 1px. Not while still. */
+  @media (prefers-reduced-motion: no-preference) {
+    :root:not([data-reduced-motion="true"]) .model-picker-pick:hover .model-picker-text,
+    :root:not([data-reduced-motion="true"]) .model-picker-effort:hover .model-picker-text {
+      transform: translateX(2px);
+    }
+
+    :root:not([data-reduced-motion="true"]) .model-picker-rail-button:hover .model-picker-rail-name {
+      transform: translateX(2px);
+    }
+
+    :root:not([data-reduced-motion="true"]) .model-picker-rail-button:hover > svg,
+    :root:not([data-reduced-motion="true"]) .model-picker-connect:hover > svg {
+      transform: translateY(-1px);
+    }
+  }
+}
+
+@keyframes model-picker-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes model-picker-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+@keyframes model-picker-check-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes model-picker-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

@@ -77,6 +77,16 @@ function toBrowser(env: Env, request: Request, who: Verified): Promise<Response>
   return env.BROWSER.getByName(who.uid).fetch(new Request(url, new Request(request, { headers })));
 }
 
+/** Where Phone link's relay lives; the phone page connects to it and nowhere else new. */
+export function relayOrigin(env: Env): string {
+  return env.PHONE_RELAY_ORIGIN ?? "https://projects.bluethenics.com";
+}
+
+/** ADCode Remote, the Phone link page: its own small app under /phone/, never a soft 404. */
+export function isPhonePage(pathname: string): boolean {
+  return pathname === "/phone/" || pathname === "/phone/index.html";
+}
+
 export function contentSecurityPolicy(env: Env, includeLegacySchema = false): string {
   const previews = `https://*${env.PREVIEW_SUFFIX}`;
   return [
@@ -87,7 +97,8 @@ export function contentSecurityPolicy(env: Env, includeLegacySchema = false): st
     "font-src 'self' data:",
     "img-src 'self' data: blob: https:",
     "worker-src 'self' blob:",
-    `connect-src 'self' wss://${env.APP_HOST} https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com`,
+    // The relay is Phone link's: the /phone page talks to the person's own computer through it.
+    `connect-src 'self' wss://${env.APP_HOST} ${relayOrigin(env)} ${relayOrigin(env).replace(/^https:/, "wss:")} https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com`,
     `frame-src ${previews} https://${env.FIREBASE_AUTH_DOMAIN} https://accounts.google.com`,
     "manifest-src 'self'",
     "object-src 'none'",
@@ -126,7 +137,7 @@ async function servePage(request: Request, env: Env, assetPath?: string): Promis
       headers.delete("x-robots-tag");
     }
     // The asset binding's SPA fallback otherwise makes every nonexistent path a soft 404.
-    if (url.pathname !== "/" && url.pathname !== "/index.html" && status === 200) status = 404;
+    if (url.pathname !== "/" && url.pathname !== "/index.html" && !isPhonePage(url.pathname) && status === 200) status = 404;
   }
   return new Response(request.method === "HEAD" ? null : body, { status, headers });
 }
@@ -196,6 +207,9 @@ export async function route(request: Request, env: Env, deps: RouterDeps = defau
         return json({ ok: false, error: "Not found" }, 404);
     }
   }
+
+  if (url.pathname === "/phone") return Response.redirect(new URL("/phone/", url).toString(), 308);
+  if (isPhonePage(url.pathname)) return servePage(request, env, "/phone/index.html");
 
   // Releases can retain the prior execution UI while the browser-first entry changes.
   // Fresh builds without this optional asset fall back to the normal SPA index.

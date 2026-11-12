@@ -18,13 +18,13 @@
 import { shiftDay, usageActivity, type UsageActivityView } from "./usageActivity.ts";
 
 export type UsageSource = "chat" | "agents";
-export type UsageRange = "today" | "7d" | "30d" | "all";
+export type UsageRange = "today" | "7d" | "30d" | "90d" | "all";
 
 export const USAGE_RANGES: readonly { readonly value: UsageRange; readonly label: string }[] = [
   { value: "today", label: "Today" },
   { value: "7d", label: "7 days" },
   { value: "30d", label: "30 days" },
-  { value: "all", label: "All time" },
+  { value: "90d", label: "90 days" },
 ];
 
 /** One day's use of one model from one place. */
@@ -53,6 +53,24 @@ export interface UsageRow {
   readonly durationMs?: number;
   readonly firstResponseMs?: number;
   readonly timedOutputTokens?: number;
+  /**
+   * Kept from 2.6.1 on, absent in older rows. `chat` is the conversation a chat request
+   * belonged to and `project` the folder it ran in, so the page can count chats and filter by
+   * project. `hours` counts the day's requests by local hour, 0-23, for the busiest-hours map.
+   */
+  readonly chat?: string;
+  readonly project?: string;
+  readonly hours?: readonly number[];
+  /**
+   * The cost split by what was paid for, in micro-dollars, for priced requests: fresh input,
+   * input read from the cache, and output. Together they make `costMicros` (give or take
+   * rounding) for the requests that had them; a row's older requests are left unsplit.
+   */
+  readonly inputCostMicros?: number;
+  readonly cacheReadCostMicros?: number;
+  readonly outputCostMicros?: number;
+  /** What reading from the cache saved against the full input price, where the catalogue has a cache price. */
+  readonly cacheSavedMicros?: number;
 }
 
 export interface UsagePrice {
@@ -77,6 +95,10 @@ export interface UsageEntry {
   readonly firstResponseMs?: number;
   /** Null when the catalogue has no price for this model. */
   readonly price: UsagePrice | null;
+  /** The chat conversation this request was part of; absent for agents. */
+  readonly chat?: string;
+  /** The project folder it ran in; absent when no folder was open. */
+  readonly project?: string;
 }
 
 export interface UsageModelView {
@@ -127,7 +149,8 @@ export interface AiUsageView {
 
 /** How long rows are kept. Long enough for "this year", short enough to stay a small file. */
 export const KEEP_USAGE_DAYS = 400;
-const MAX_ROWS = 20_000;
+// Rows are per chat as well as per model from 2.6.1, so there are more of them.
+const MAX_ROWS = 30_000;
 
 function pad(value: number): string {
   return String(value).padStart(2, "0");
@@ -153,6 +176,54 @@ export function costOf(price: UsagePrice, inputTokens: number, outputTokens: num
   return Math.round(((inputTokens - cached) * price.inputMicrosPerMillion + cached * cachedRate + outputTokens * price.outputMicrosPerMillion) / 1_000_000);
 }
 
+/** One request's cost split into fresh input, cached input and output, and what the cache saved. */
+export function costSplit(price: UsagePrice, inputTokens: number, outputTokens: number, cachedTokens = 0): { readonly input: number; readonly cacheRead: number; readonly output: number; readonly saved: number | null } {
+  const cached = Math.min(cachedTokens, inputTokens);
+  const cachedRate = price.cacheReadMicrosPerMillion ?? price.inputMicrosPerMillion;
+  return {
+    input: Math.round(((inputTokens - cached) * price.inputMicrosPerMillion) / 1_000_000),
+    cacheRead: Math.round((cached * cachedRate) / 1_000_000),
+    output: Math.round((outputTokens * price.outputMicrosPerMillion) / 1_000_000),
+    saved: price.cacheReadMicrosPerMillion === undefined ? null : Math.round((cached * Math.max(0, price.inputMicrosPerMillion - price.cacheReadMicrosPerMillion)) / 1_000_000),
+  };
+}
+
+interface RowKey { readonly day: string; readonly provider: string; readonly model: string; readonly source: UsageSource; readonly chat?: string | undefined; readonly project?: string | undefined }
+
+/** Two rows count into one when they share day, provider, model, source, chat and project. */
+function sameRow(row: UsageRow, other: RowKey): boolean {
+  return row.day === other.day && row.provider === other.provider && row.model === other.model && row.source === other.source && row.chat === other.chat && row.project === other.project;
+}
+
+type SummedField = "timedRequests" | "durationMs" | "firstResponseMs" | "timedOutputTokens" | "inputCostMicros" | "cacheReadCostMicros" | "outputCostMicros" | "cacheSavedMicros";
+const SUMMED: readonly SummedField[] = ["timedRequests", "durationMs", "firstResponseMs", "timedOutputTokens", "inputCostMicros", "cacheReadCostMicros", "outputCostMicros", "cacheSavedMicros"];
+
+/** Add one row's counts into the matching row, or append it: how counts recorded before the file was read join it. */
+export function mergeUsageRow(into: readonly UsageRow[], row: UsageRow): UsageRow[] {
+  const index = into.findIndex((other) => sameRow(other, row));
+  if (index === -1) return [...into, row];
+  const base = into[index]!;
+  const extra: Partial<Record<SummedField, number>> = {};
+  for (const key of SUMMED) {
+    if (base[key] !== undefined || row[key] !== undefined) extra[key] = (base[key] ?? 0) + (row[key] ?? 0);
+  }
+  const hours = base.hours === undefined && row.hours === undefined ? undefined : Array.from({ length: 24 }, (_value, hour) => (base.hours?.[hour] ?? 0) + (row.hours?.[hour] ?? 0));
+  const copy = [...into];
+  copy[index] = {
+    ...base,
+    requests: base.requests + row.requests,
+    inputTokens: base.inputTokens + row.inputTokens,
+    outputTokens: base.outputTokens + row.outputTokens,
+    cachedTokens: (base.cachedTokens ?? 0) + (row.cachedTokens ?? 0),
+    estimatedRequests: base.estimatedRequests + row.estimatedRequests,
+    pricedRequests: base.pricedRequests + row.pricedRequests,
+    costMicros: base.costMicros + row.costMicros,
+    ...extra,
+    ...(hours === undefined ? {} : { hours }),
+  };
+  return copy;
+}
+
 /** The rows with one request added to its day's row. */
 export function addUsage(rows: readonly UsageRow[], entry: UsageEntry): UsageRow[] {
   const day = dayKey(entry.at);
@@ -164,10 +235,15 @@ export function addUsage(rows: readonly UsageRow[], entry: UsageEntry): UsageRow
   const duration = finite(entry.durationMs ?? 0);
   const timed = duration > 0 && duration < 3_600_000;
   const cost = entry.price === null ? 0 : costOf(entry.price, inputTokens, outputTokens, cachedTokens);
-  const index = rows.findIndex((row) => row.day === day && row.provider === entry.provider && row.model === entry.model && row.source === entry.source);
+  const split = entry.price === null ? null : costSplit(entry.price, inputTokens, outputTokens, cachedTokens);
+  const chat = typeof entry.chat === "string" && entry.chat.length > 0 && entry.chat.length <= 128 ? entry.chat : undefined;
+  const project = typeof entry.project === "string" && entry.project.length > 0 && entry.project.length <= 1024 ? entry.project : undefined;
+  const index = rows.findIndex((row) => sameRow(row, { day, provider: entry.provider, model: entry.model, source: entry.source, chat, project }));
   const base: UsageRow = index === -1
-    ? { day, provider: entry.provider, model: entry.model, source: entry.source, requests: 0, inputTokens: 0, outputTokens: 0, cachedTokens: 0, estimatedRequests: 0, pricedRequests: 0, costMicros: 0 }
+    ? { day, provider: entry.provider, model: entry.model, source: entry.source, requests: 0, inputTokens: 0, outputTokens: 0, cachedTokens: 0, estimatedRequests: 0, pricedRequests: 0, costMicros: 0, ...(chat === undefined ? {} : { chat }), ...(project === undefined ? {} : { project }) }
     : rows[index]!;
+  const hours = Array.from({ length: 24 }, (_value, hour) => base.hours?.[hour] ?? 0);
+  hours[new Date(entry.at).getHours()]! += 1;
   const next: UsageRow = {
     ...base,
     requests: base.requests + 1,
@@ -183,6 +259,13 @@ export function addUsage(rows: readonly UsageRow[], entry: UsageEntry): UsageRow
       firstResponseMs: (base.firstResponseMs ?? 0) + Math.min(duration, finite(entry.firstResponseMs ?? 0)),
       timedOutputTokens: (base.timedOutputTokens ?? 0) + outputTokens,
     } : {}),
+    hours,
+    ...(split === null ? {} : {
+      inputCostMicros: (base.inputCostMicros ?? 0) + split.input,
+      cacheReadCostMicros: (base.cacheReadCostMicros ?? 0) + split.cacheRead,
+      outputCostMicros: (base.outputCostMicros ?? 0) + split.output,
+    }),
+    ...(split === null || split.saved === null ? {} : { cacheSavedMicros: (base.cacheSavedMicros ?? 0) + split.saved }),
   };
   if (index === -1) return [...rows, next];
   const copy = [...rows];
@@ -220,8 +303,21 @@ export function parseUsageRows(raw: unknown): UsageRow[] {
     // Files written before cached counts were kept have none; that reads as nothing cached.
     const cachedTokens = Math.min(count(row["cachedTokens"]) ?? 0, inputTokens!);
     const timedRequests = Math.min(count(row["timedRequests"]) ?? 0, requests!);
+    const chat = row["chat"];
+    const project = row["project"];
+    const hours = row["hours"];
+    const optional: Record<string, number> = {};
+    for (const key of ["inputCostMicros", "cacheReadCostMicros", "outputCostMicros", "cacheSavedMicros"]) {
+      const value = count(row[key]);
+      if (value !== null) optional[key] = value;
+    }
     rows.push({ day, provider, model, source, requests: requests!, inputTokens: inputTokens!, outputTokens: outputTokens!, cachedTokens, estimatedRequests: estimatedRequests!, pricedRequests: pricedRequests!, costMicros: costMicros!,
-      ...(timedRequests > 0 ? { timedRequests, durationMs: count(row["durationMs"]) ?? 0, firstResponseMs: count(row["firstResponseMs"]) ?? 0, timedOutputTokens: Math.min(count(row["timedOutputTokens"]) ?? 0, outputTokens!) } : {}) });
+      ...(timedRequests > 0 ? { timedRequests, durationMs: count(row["durationMs"]) ?? 0, firstResponseMs: count(row["firstResponseMs"]) ?? 0, timedOutputTokens: Math.min(count(row["timedOutputTokens"]) ?? 0, outputTokens!) } : {}),
+      ...(typeof chat === "string" && chat.length > 0 && chat.length <= 128 ? { chat } : {}),
+      ...(typeof project === "string" && project.length > 0 && project.length <= 1024 ? { project } : {}),
+      ...(Array.isArray(hours) && hours.length === 24 && hours.every((value) => count(value) !== null) ? { hours: hours.map((value) => count(value)!) } : {}),
+      ...optional,
+    });
   }
   return rows;
 }
@@ -229,7 +325,7 @@ export function parseUsageRows(raw: unknown): UsageRow[] {
 /** The first day a range covers, or null for all time. */
 export function rangeStart(range: UsageRange, now: number): string | null {
   if (range === "all") return null;
-  const days = range === "today" ? 0 : range === "7d" ? 6 : 29;
+  const days = range === "today" ? 0 : range === "7d" ? 6 : range === "30d" ? 29 : 89;
   return shiftDay(dayKey(now), -days);
 }
 

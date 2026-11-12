@@ -22,6 +22,17 @@ interface NoticeRow {
   createdAt: number;
 }
 
+/**
+ * Starting points, so the common notices take one click and read the same way each time.
+ * The two "New" ones announce the latest features with a door straight into their guides.
+ */
+const TEMPLATES: readonly { readonly name: string; readonly severity: "info" | "warning"; readonly title: string; readonly body: string; readonly buttons: readonly NoticeButton[] }[] = [
+  { name: "Outage", severity: "warning", title: "Some AI models aren't answering right now", body: "We're on it. Chats with other models still work, and nothing you've built or earned is affected. We'll post here when it's fixed.", buttons: [{ label: "Status page", url: "https://adcode.bluethenics.com/status" }] },
+  { name: "Maintenance", severity: "info", title: "Short maintenance tonight", body: "Sign-in and included AI may pause for a few minutes around 02:00 UTC. Your projects stay on your computer and keep working offline.", buttons: [] },
+  { name: "New: Phone link", severity: "info", title: "Chat with ADCode from your phone", body: "Turn on Phone link, scan the code, and keep your computer's assistant going from anywhere - it does the work, your phone follows along. Install the page to your home screen to use it like an app.", buttons: [{ label: "How it works", url: "https://adcode.bluethenics.com/docs/phone-link" }] },
+  { name: "New: Sleep when done", severity: "info", title: "Let your computer sleep when the work is done", body: "Hand over a long job and walk away: once every chat has finished, ADCode can sleep, lock or shut down your computer after a countdown you can cancel.", buttons: [{ label: "Set it up", url: "https://adcode.bluethenics.com/docs/power-when-done" }] },
+];
+
 const isHttps = (value: string): boolean => {
   try { return new URL(value.trim()).protocol === "https:"; } catch { return false; }
 };
@@ -47,6 +58,19 @@ export function NoticesBody() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [previewTheme, setPreviewTheme] = useState<"dark" | "light">("dark");
+
+  const applyTemplate = (name: string) => {
+    const template = TEMPLATES.find((one) => one.name === name);
+    if (template === undefined) return;
+    setSeverity(template.severity);
+    setTitle(template.title);
+    setBody(template.body);
+    setButtons(template.buttons.map((button) => ({ ...button })));
+    setError(null);
+    setSent(false);
+  };
 
   const load = useCallback(async () => {
     const found = await apiFetch<{ notices: NoticeRow[] }>({
@@ -132,6 +156,27 @@ export function NoticesBody() {
       setUploading(false);
     }
   };
+  /** An image dropped on, or pasted into, the form uploads as if picked with Upload. */
+  const imageFrom = (items: DataTransferItemList | null | undefined): File | undefined => {
+    for (const item of Array.from(items ?? [])) {
+      if (item.kind === "file" && item.type.startsWith("image/")) return item.getAsFile() ?? undefined;
+    }
+    return undefined;
+  };
+  const onDrop = (event: React.DragEvent) => {
+    const file = imageFrom(event.dataTransfer?.items);
+    setDragging(false);
+    if (file === undefined) return;
+    event.preventDefault();
+    void upload(file);
+  };
+  const onPaste = (event: React.ClipboardEvent) => {
+    const file = imageFrom(event.clipboardData?.items);
+    if (file === undefined) return;
+    event.preventDefault();
+    void upload(file);
+  };
+
   const editButton = (index: number, patch: Partial<NoticeButton>) =>
     setButtons((current) => current.map((button, at) => (at === index ? { ...button, ...patch } : button)));
 
@@ -177,6 +222,16 @@ export function NoticesBody() {
       <AdminPanel title="Send a notice" hint="Shown once on every machine running ADCode, within half an hour." onSubmit={publish}>
 
         <div className="field">
+          <label>Start from</label>
+          <span className="field-hint">Fills the form; change anything before sending.</span>
+          <div className="adm-template-row">
+            {TEMPLATES.map((template) => (
+              <button key={template.name} type="button" className="btn btn-outline btn-small" data-tone={template.severity} onClick={() => applyTemplate(template.name)}>{template.name}</button>
+            ))}
+          </div>
+        </div>
+
+        <div className="field">
           <label htmlFor="n-sev">Weight</label>
           <select
             id="n-sev"
@@ -218,9 +273,16 @@ export function NoticesBody() {
           />
         </div>
 
-        <div className="field">
+        <div
+          className="field adm-image-drop"
+          data-dragging={dragging ? "true" : undefined}
+          onDragOver={(event) => { if (Array.from(event.dataTransfer.items).some((item) => item.type.startsWith("image/"))) { event.preventDefault(); setDragging(true); } }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={onDrop}
+          onPaste={onPaste}
+        >
           <label htmlFor="n-image">Image</label>
-          <span className="field-hint">Optional. Shown above the text in the editor. Upload one, or paste an https:// address.</span>
+          <span className="field-hint">Optional. Shown above the text in the editor, up to 160px tall. Drop or paste an image here, upload one, or paste an https:// address. Wide images (about 2:1) read best.</span>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <input id="n-image" className="input" style={{ flex: 1, minWidth: 220 }} maxLength={500} placeholder="https://" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
             <label className="btn btn-outline" style={{ cursor: uploading ? "progress" : "pointer" }}>
@@ -251,7 +313,12 @@ export function NoticesBody() {
 
         <div className="field">
           <label>Preview</label>
-          <div className="adm-preview-stage">
+          <div className="adm-preview-toolbar" role="radiogroup" aria-label="Preview theme">
+            {(["dark", "light"] as const).map((theme) => (
+              <button key={theme} type="button" role="radio" aria-checked={previewTheme === theme} className="btn btn-outline btn-small" onClick={() => setPreviewTheme(theme)}>{theme === "dark" ? "Dark editor" : "Light editor"}</button>
+            ))}
+          </div>
+          <div className="adm-preview-stage" data-theme={previewTheme}>
             <div
               className="toast"
               style={{

@@ -11,7 +11,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { access, constants } from "node:fs/promises";
 import { delimiter, extname, join } from "node:path";
 import { createInterface } from "node:readline";
-import { CLI_AGENTS, isSafeCliToken, parseModelList, type CliAgentId, type CliAgentSpec, type CliProcess, type CliSpawn } from "@adcode/ai";
+import { CLI_AGENTS, codexPageRequest, isSafeCliToken, mergeCliModels, modelRequest, parseClaudeModels, parseCodexModels, parseModelList, type CliAgentId, type CliAgentSpec, type CliModelInfo, type CliProcess, type CliSpawn } from "@adcode/ai";
 import type { CliAgentView } from "../shared/api.ts";
 
 const VERSION_TIMEOUT_MS = 8_000;
@@ -56,11 +56,13 @@ function killTree(child: ChildProcess): void {
   }
 }
 
-function start(path: string, args: readonly string[], cwd: string): ChildProcess {
+function start(path: string, args: readonly string[], cwd: string, extra: Readonly<Record<string, string>> = {}): ChildProcess {
   if (args.some((arg) => arg !== "-" && !isSafeCliToken(arg) && !/^-{1,2}[a-z][a-z-]*$/i.test(arg))) throw new Error("Refusing an unsafe argument for a CLI agent.");
+  // Only names ADCode itself sets (`cliEnv`): how a CLI finds ADCode's tools for this run.
+  const env = { ...process.env, NO_COLOR: "1", ...Object.fromEntries(Object.entries(extra).filter(([name]) => /^[A-Z][A-Z0-9_]{1,63}$/.test(name))) };
   return needsShell(path)
-    ? spawn(`${quoteForCmd(path)} ${args.map(quoteForCmd).join(" ")}`, { cwd, shell: true, windowsHide: true, env: { ...process.env, NO_COLOR: "1" } })
-    : spawn(path, [...args], { cwd, windowsHide: true, env: { ...process.env, NO_COLOR: "1" } });
+    ? spawn(`${quoteForCmd(path)} ${args.map(quoteForCmd).join(" ")}`, { cwd, shell: true, windowsHide: true, env })
+    : spawn(path, [...args], { cwd, windowsHide: true, env });
 }
 
 /** Runs a short command to completion and returns its stdout, or null. */
@@ -79,7 +81,63 @@ function capture(path: string, args: readonly string[], cwd: string, timeoutMs: 
 
 const paths = new Map<CliAgentId, string | null>();
 let detected: { at: number; views: Promise<CliAgentView[]> } | null = null;
-const listed = new Map<CliAgentId, { at: number; models: string[] }>();
+const listed = new Map<CliAgentId, { at: number; models: readonly CliModelInfo[] }>();
+/** Asking a CLI for its models starts it; one ask per CLI at a time. */
+const asking = new Map<CliAgentId, Promise<CliModelInfo[]>>();
+/** Long enough for a cold start of a Node CLI on a slow disk; the picker shows the aliases meanwhile. */
+const ASK_TIMEOUT_MS = 25_000;
+const MAX_CODEX_PAGES = 6;
+
+/** Forget the lists, so the next read asks again: after signing in, or pressing Look again. */
+export function forgetCliModels(): void {
+  listed.clear();
+}
+
+/**
+ * Ask a running CLI for its models over its own protocol (`modelProtocol`), then stop it.
+ * Starting Claude Code this way loads no model and sends no prompt: the answer to
+ * `initialize` comes from its configuration and account. Null when it could not be asked.
+ */
+function askForModels(spec: CliAgentSpec, path: string, cwd: string): Promise<CliModelInfo[] | null> {
+  const protocol = spec.modelProtocol;
+  if (protocol === undefined) return Promise.resolve(null);
+  const args = protocol === "claude-initialize" ? ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"] : ["app-server"];
+  return new Promise((resolve) => {
+    let child: ChildProcess;
+    try { child = start(path, args, cwd); } catch { resolve(null); return; }
+    const found: CliModelInfo[] = [];
+    let settled = false;
+    let page = 2;
+    const finish = (models: CliModelInfo[] | null): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      killTree(child);
+      resolve(models);
+    };
+    const timer = setTimeout(() => finish(found.length > 0 ? found : null), ASK_TIMEOUT_MS);
+    child.on("error", () => finish(null));
+    child.on("close", () => finish(found.length > 0 ? found : null));
+    child.stdin?.on("error", () => undefined);
+    const send = (message: unknown): void => { child.stdin?.write(`${JSON.stringify(message)}\n`); };
+    if (child.stdout === null) { finish(null); return; }
+    createInterface({ input: child.stdout, crlfDelay: Infinity }).on("line", (line) => {
+      let message: unknown;
+      try { message = JSON.parse(line); } catch { return; }
+      if (protocol === "claude-initialize") {
+        const models = parseClaudeModels(message);
+        if (models !== null) finish(models);
+        return;
+      }
+      const reply = parseCodexModels(message);
+      if (reply === null) return;
+      found.push(...reply.models);
+      if (reply.next !== null && page < MAX_CODEX_PAGES + 1) send(codexPageRequest(++page, reply.next));
+      else finish(found);
+    });
+    for (const message of modelRequest(protocol)) send(message);
+  });
+}
 
 async function view(spec: CliAgentSpec, home: string): Promise<CliAgentView> {
   const path = await resolveCommand(spec.command);
@@ -99,17 +157,31 @@ export function detectCliAgents(home: string, fresh = false): Promise<CliAgentVi
   return detected.views;
 }
 
-/** The CLI's models: "default" and its known aliases, then whatever it lists itself. */
-export async function cliModels(spec: CliAgentSpec, home: string): Promise<string[]> {
-  const base = [...spec.models];
+/**
+ * The CLI's models, live: what it reports for the signed-in account (its list command, or its
+ * own protocol), with the built-in aliases only when it could not be asked. Cached for ten
+ * minutes, and asked at most once at a time.
+ */
+export async function cliModels(spec: CliAgentSpec, home: string): Promise<CliModelInfo[]> {
   const path = paths.get(spec.id);
-  if (spec.listModels === undefined || path === null || path === undefined) return base;
+  if (path === null || path === undefined || (spec.listModels === undefined && spec.modelProtocol === undefined)) return mergeCliModels(spec, []);
   const cached = listed.get(spec.id);
-  if (cached !== undefined && Date.now() - cached.at < MODELS_TTL_MS) return [...base, ...cached.models];
-  const output = await capture(path, spec.listModels, home, LIST_TIMEOUT_MS);
-  const models = output === null ? [] : parseModelList(output).filter((model) => !base.includes(model));
-  listed.set(spec.id, { at: Date.now(), models });
-  return [...base, ...models];
+  if (cached !== undefined && Date.now() - cached.at < MODELS_TTL_MS) return mergeCliModels(spec, cached.models);
+  let pending = asking.get(spec.id);
+  if (pending === undefined) {
+    pending = (async () => {
+      let models: CliModelInfo[] | null;
+      if (spec.listModels !== undefined) {
+        const output = await capture(path, spec.listModels, home, LIST_TIMEOUT_MS);
+        models = output === null ? null : parseModelList(output).map((id) => ({ id, name: id }));
+      } else models = await askForModels(spec, path, home);
+      // A failed ask is remembered briefly too, so a signed-out CLI is not restarted on every repaint.
+      listed.set(spec.id, { at: models === null ? Date.now() - MODELS_TTL_MS + 60_000 : Date.now(), models: models ?? [] });
+      return models ?? [];
+    })().finally(() => asking.delete(spec.id));
+    asking.set(spec.id, pending);
+  }
+  return mergeCliModels(spec, await pending);
 }
 
 /** The spawn the provider uses: stdout as lines, stdin the prompt, killed as a tree. */
@@ -123,7 +195,7 @@ export const spawnCli: CliSpawn = (command, args, options) => {
   let stderr = "";
   let child: ChildProcess;
   try {
-    child = start(path, args, options.cwd);
+    child = start(path, args, options.cwd, options.env);
   } catch (error) {
     const message = error instanceof Error ? error.message : "It could not be started.";
     return { lines: (async function* () { /* nothing */ })(), exit: Promise.resolve(1), stderr: () => message, kill: () => undefined };

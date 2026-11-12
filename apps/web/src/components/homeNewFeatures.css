@@ -1,0 +1,64 @@
+/*
+ * "New in ADCode" on the home page (HomeNewFeatures.tsx). The home page's own tokens: card,
+ * hairline, brand, muted. Motion is transform and opacity and answers the reader: steps arrive
+ * as the phone plays, the ring drains while it counts.
+ */
+.nf { padding-block: clamp(64px, 9vw, 120px); }
+.nf-head { max-width: 640px; margin-bottom: 36px; }
+.nf-head h2 { margin: 10px 0 0; font: 500 clamp(32px, 4.4vw, 52px)/1.05 var(--font-display), sans-serif; letter-spacing: -.04em; }
+.nf-head h2 span { color: var(--muted); }
+.nf-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.nf-card { display: grid; grid-template-rows: auto 1fr; gap: 24px; padding: 28px; border: 1px solid var(--hairline); border-radius: 16px; background: var(--card); transition: border-color 200ms ease, transform 260ms cubic-bezier(0.16, 1, 0.3, 1); }
+.nf-card:hover { border-color: color-mix(in srgb, var(--brand) 32%, var(--hairline)); transform: translateY(-2px); }
+.nf-copy { display: grid; align-content: start; gap: 10px; }
+.nf-copy h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 18px; }
+.nf-copy h3 svg { width: 18px; height: 18px; color: var(--brand); }
+.nf-copy p { margin: 0; color: var(--muted); font-size: 14.5px; line-height: 1.7; max-width: 52ch; }
+
+/* ── The phone ───────────────────────────────────────────────────────────── */
+.nf-phone {
+  --mascot-ink: #ebe8e1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(300px, 100%);
+  height: 340px;
+  margin-inline: auto;
+  overflow: hidden;
+  border: 1px solid #2a2825;
+  border-radius: 30px;
+  background: #111110;
+  color: #ebe8e1;
+  box-shadow: 0 24px 60px rgb(0 0 0 / .3), inset 0 0 0 6px #0c0c0b;
+  font-size: 12.5px;
+}
+.nf-phone-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 18px 18px 10px; border-bottom: 1px solid #2a2825; }
+.nf-phone-bar span { display: grid; }
+.nf-phone-bar small { color: #79756e; font-size: 11px; }
+.nf-phone-chat { flex: 1; list-style: none; margin: 0; padding: 12px 14px; display: flex; flex-direction: column; gap: 7px; overflow: hidden; }
+.nf-step { animation: nf-rise 320ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.nf-user { align-self: flex-end; max-width: 82%; padding: 8px 11px; border-radius: 14px 14px 4px 14px; background: #2b2926; }
+.nf-tool { align-self: flex-start; padding: 4px 9px; border-radius: 999px; background: #191817; color: #a39f97; font-size: 11.5px; }
+.nf-reply { align-self: stretch; line-height: 1.55; }
+.nf-phone-composer { display: flex; align-items: center; gap: 8px; margin: 0 12px 14px; padding: 8px 8px 8px 14px; border: 1px solid #3a3733; border-radius: 999px; color: #79756e; }
+.nf-phone-composer span { flex: 1; }
+.nf-phone-composer i { width: 24px; height: 24px; border-radius: 50%; background: #6fb98f; }
+.nf-replay { position: absolute; right: 14px; top: 62px; padding: 4px 10px; border: 1px solid #3a3733; border-radius: 999px; background: #191817; color: #a39f97; font: inherit; font-size: 11px; cursor: pointer; animation: nf-rise 260ms 400ms both; }
+.nf-replay:hover { color: #ebe8e1; }
+@keyframes nf-rise { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+
+/* ── The countdown ───────────────────────────────────────────────────────── */
+.nf-sleep { display: grid; justify-items: center; align-content: center; gap: 14px; min-height: 340px; padding: 24px; border-radius: 22px; background: color-mix(in srgb, var(--card) 60%, #000 6%); transition: background-color 600ms ease; }
+.nf-sleep[data-asleep="true"] { background: color-mix(in srgb, var(--card) 40%, #000 30%); }
+.nf-dial { position: relative; display: grid; place-items: center; width: 150px; height: 150px; }
+.nf-dial svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+.nf-track { fill: none; stroke: var(--hairline); stroke-width: 4; }
+.nf-ring { fill: none; stroke: #e0b25c; stroke-width: 4; stroke-linecap: round; transition: stroke-dashoffset 1s linear; }
+.nf-sleep-line { margin: 0; min-height: 1.6em; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; text-align: center; }
+.nf-sleep-actions { display: flex; gap: 8px; }
+.nf-btn { min-height: 38px; padding: 0 16px; border: 1px solid var(--hairline); border-radius: 10px; background: var(--control, transparent); color: var(--text); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; transition: transform 140ms cubic-bezier(0.16, 1, 0.3, 1); }
+.nf-btn:active { transform: scale(.97); }
+.nf-btn-primary { border-color: transparent; background: var(--text); color: var(--ink, #0b0d0e); }
+
+@media (max-width: 860px) { .nf-grid { grid-template-columns: minmax(0, 1fr); } .nf-card { padding: 20px; } }
+@media (prefers-reduced-motion: reduce) { .nf-step, .nf-replay { animation: none; } .nf-ring, .nf-card, .nf-sleep { transition: none; } }

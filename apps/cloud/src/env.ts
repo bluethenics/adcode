@@ -39,6 +39,8 @@ export interface Env {
   readonly FIREBASE_PROJECT_ID: string;
   readonly FIREBASE_AUTH_DOMAIN: string;
   readonly ADMIN_UIDS: string;
+  /** Phone link's relay (apps/collab-relay); the /phone page connects to it. */
+  readonly PHONE_RELAY_ORIGIN?: string;
   /** Where adcode-host sends `/v1` calls (ads, earnings, included AI). */
   readonly ADCODE_API_BASE: string;
 

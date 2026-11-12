@@ -6,6 +6,16 @@ import type { HelpEntry } from "../types.ts";
 
 export const APPEARANCE_ENTRIES: readonly HelpEntry[] = [
   {
+    id: "adcode.appearance.mascots",
+    title: "Mascots",
+    plain: "Whether Buck, ADCode's mascot, and the agents' little characters are shown.",
+    why: "They make the app friendlier and say at a glance how work is going, but some people want a quieter screen, especially when recording or sharing it.",
+    how: "On by default. Open Settings, choose Appearance, and switch Mascots. Off hides every mascot at once - Buck in the chat, the welcome tour, the Browser, Apps and Move in, and the agents' faces on the board - and keeps the words beside them. To keep them but stop them moving, set Motion to Reduce instead.",
+    group: "appearance",
+    settingIds: ["adcode.appearance.mascots"],
+    related: ["ai.agentMascots","adcode.appearance.motion"],
+  },
+  {
     id: "adcode.appearance.density",
     title: "Density",
     plain: "How much space there is between things. Comfortable is roomier; compact fits more on screen.",

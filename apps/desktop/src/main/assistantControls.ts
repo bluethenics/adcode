@@ -18,6 +18,7 @@ import { setFeatureSurface } from "@adcode/help";
 import { ADCODE_APP_TOOLS, adcodeAppToolsFor, createAdcodeAppTools } from "./adcodeAppTools.ts";
 import { currentSettings, writeSetting } from "./settings.ts";
 import { runRoomTool } from "./liveRoom.ts";
+import { readSessions } from "./aiSessions.ts";
 
 export { ASSISTANT_EXTENSION_TOOLS, ADCODE_APP_TOOLS };
 /** The app tools this surface offers: no Browser panel or live rooms on the web, and no Browser tool when the person switched it off. */
@@ -118,6 +119,8 @@ function buildAppTools(confirm: (title: string, detail: string, signal?: AbortSi
     settings: currentSettings,
     writeSetting,
     room: runRoomTool,
+    // The assistant can read this project's other conversations (chatAwareness.ts); the web host has no local history.
+    ...(onWeb ? {} : { chats: () => readSessions(currentWorkspace()?.root ?? null) }),
     ...(onWeb ? {} : { browser: async (input: Record<string, unknown>, signal: AbortSignal) => (await import("./liveBrowser.ts")).runLiveBrowser(input, signal) }),
     // The window the person is using; the menu's own channel, so it runs like a menu choice.
     runCommand: (command) => {

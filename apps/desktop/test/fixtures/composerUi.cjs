@@ -109,8 +109,8 @@ app.whenReady().then(async () => {
       emit('ai.onEvent',{kind:'status',text:'Free AI allowance reached. This task will resume automatically after tomorrow. Keep ADCode open; press Stop to cancel.'});
       await pause(80);
       result.automaticWaitVisible=document.querySelector('.chat-composer .chat-send').dataset.mode==='stop'&&document.querySelector('.chat-turn')!==null&&document.body.textContent.includes('This task will resume automatically');
-      document.querySelector('.chat-model').click();await waitFor(()=>[...document.querySelectorAll('.menu-item')].some(node=>node.textContent.includes('Tagflow Next')),'Next model menu');
-      [...document.querySelectorAll('.menu-item')].find(node=>node.textContent.includes('Tagflow Next')).click();
+      document.querySelector('.chat-model').click();await waitFor(()=>[...document.querySelectorAll('.model-picker-pick')].some(node=>node.textContent.includes('Tagflow Next')),'Next model in the picker');
+      [...document.querySelectorAll('.model-picker-pick')].find(node=>node.textContent.includes('Tagflow Next')).click();
       await waitFor(()=>sent.length===beforeWait+1,'Waiting task model switch');
       result.switchingWaitingTask=settings['adcode.ai.model']==='tagflow-next'&&sent.at(-1).toLowerCase().includes('continue')&&sent.length===beforeWait+1;
       emit('ai.onEvent',{kind:'turn-end'});

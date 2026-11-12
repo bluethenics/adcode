@@ -16,7 +16,8 @@
     { "name": "REQUEST_QUEUES", "class_name": "PriorityQueue" },
     { "name": "COMMUNITY", "class_name": "CommunityHub" },
     { "name": "ARTIFACT_VAULTS", "class_name": "ArtifactVault" },
-    { "name": "ARTIFACT_ROOMS", "class_name": "ArtifactRoom" }
+    { "name": "ARTIFACT_ROOMS", "class_name": "ArtifactRoom" },
+    { "name": "PHONE_LINKS", "class_name": "PhoneLink" }
   ] },
   // Local packages resolve by alias here too (no npm workspaces on FAT32): the community
   // rules import the settings schema to decide which settings a plugin may preset.
@@ -24,6 +25,7 @@
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["CollabRoom", "ProjectDirectory", "SharedProject", "PriorityQueue"] },
     { "tag": "v2", "new_sqlite_classes": ["CommunityHub", "ArtifactVault"] },
-    { "tag": "v3", "new_sqlite_classes": ["ArtifactRoom"] }
+    { "tag": "v3", "new_sqlite_classes": ["ArtifactRoom"] },
+    { "tag": "v4", "new_sqlite_classes": ["PhoneLink"] }
   ]
 }

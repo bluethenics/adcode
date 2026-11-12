@@ -1107,6 +1107,9 @@
 .composer-tools-text { display: grid; gap: 1px; min-width: 0; }
 .composer-tools-name { font-size: 13px; font-weight: 600; line-height: 1.3; }
 .composer-tools-hint { overflow: hidden; color: var(--text-tertiary); font-size: 11.5px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+/* "When done" is armed: the moon and the hint take the accent so the menu shows it at a glance. */
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-toolbar .composer-tools-item-armed > svg,
+.composer-tools-item-armed .composer-tools-hint { color: var(--accent); }
 /* Dictating: the row's icon becomes the recording dot. */
 .chat-toolbar .composer-tools-item.chat-voice { display: grid; place-items: initial; }
 .chat-toolbar .composer-tools-item.chat-voice[data-recording="true"] > svg { display: block; color: var(--danger); }
