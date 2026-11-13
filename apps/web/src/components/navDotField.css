@@ -1,0 +1,23 @@
+/*
+ * The header's reactive dot grid (NavDotField.tsx). It sits behind the bar's content, takes the
+ * text colour for its resting dots and ADCode's green where the pointer is, and never catches a
+ * click. Clipped in its own box, so the header can keep showing its menus beyond its edge.
+ */
+.nav-dot-field {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  color: var(--text);
+  --nav-dot-accent: #6fb98f;
+  /* Fades out toward the bottom edge, so the grid never meets the hairline in a hard line. */
+  mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
+}
+:root[data-theme="light"] .nav-dot-field { --nav-dot-accent: #2f7d55; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .nav-dot-field { --nav-dot-accent: #2f7d55; }
+}
+.nav-dot-field canvas { display: block; width: 100%; height: 100%; }
+.marketplace-nav-inner { position: relative; z-index: 1; }

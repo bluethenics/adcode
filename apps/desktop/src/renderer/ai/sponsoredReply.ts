@@ -17,6 +17,8 @@ export const SPONSORED_SETTING = "adcode.ads.chatSponsored";
 /** Longest exchange handed over; a reply full of code needs no more to be understood. */
 const MAX_CHARS = 4_000;
 const MAX_HEIGHT = 640;
+/** How long a replaced card takes to fade before it is removed (conversation.css, --duration-exit). */
+const LEAVE_MS = 200;
 
 export interface SponsoredExchange {
   readonly request: string;
@@ -162,8 +164,15 @@ export function createSponsorStrip(origin = SPONSORED_ORIGIN, now: () => number 
         if (waiting !== next) return;
         waiting = null;
         if (outcome !== "shown" || next === null) return;
-        current?.remove();
+        // A cross-fade in one place, not a swap: the new card rises in over the old one, which
+        // fades and then leaves, so the strip never jumps or blinks between two cards.
+        const leaving = current;
         current = next;
+        next.dataset["state"] = "in";
+        if (leaving !== null) {
+          leaving.dataset["state"] = "out";
+          setTimeout(() => leaving.remove(), LEAVE_MS);
+        }
         element.dataset["filled"] = "true";
       });
       waiting = next;

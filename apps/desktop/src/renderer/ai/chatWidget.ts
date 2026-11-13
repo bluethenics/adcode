@@ -321,8 +321,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   let sponsoredReplies = false;
   let doneSound = false;
   const sponsorStrip = createSponsorStrip();
-  // ADCode's own advertisers come first: while a direct card shows, the partner strip stands down.
-  window.adcode.ads.onShow((toast) => sponsorStrip.yieldTo(toast.autoDismissMs + 2_000));
+  // Zeekend is the main source (2026-11-13): its strip keeps its card and asks after every reply,
+  // even while one of ADCode's own direct cards is showing in the corner.
   const readSponsored = (): void => {
     void window.adcode.settings.read().then((values) => {
       const record = values as Record<string, unknown>;
@@ -1004,7 +1004,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     const composerBox = scrollButton.parentElement?.querySelector<HTMLElement>(":scope > .chat-composer");
     if (!scrollButton.hidden && composerBox) {
       const below = Number.parseFloat(getComputedStyle(composerBox).marginBottom) || 0;
-      scrollButton.style.bottom = `${String(Math.round(composerBox.offsetHeight + below + 12))}px`;
+      // And above the sponsor strip when it shows a card, so the pill never sits on the ad.
+      const strip = sponsorStrip.element.hidden ? 0 : sponsorStrip.element.offsetHeight;
+      scrollButton.style.bottom = `${String(Math.round(composerBox.offsetHeight + below + strip + 12))}px`;
     }
     if (scrollButtonLabel !== null) {
       scrollButtonLabel.textContent = pendingUnread > 0 ? `Jump to latest · ${String(pendingUnread)} new` : "Jump to latest";
@@ -2824,6 +2826,22 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   });
   transcript.addEventListener("scroll", () => updateScrollButton(), { passive: true });
   conversation.append(memory, connectBanner, folderBanner, welcome, transcript, scrollButton, sponsorStrip.element, composer, quickActions);
+  // The card lines up with the composer under it, in every layout: the strip takes the
+  // composer's own left and right insets, so the ad reads as part of the chat, not a slab.
+  if (typeof ResizeObserver === "function") {
+    const alignStrip = (): void => {
+      if (sponsorStrip.element.hidden) return;
+      const outer = conversation.getBoundingClientRect();
+      const inner = composer.getBoundingClientRect();
+      if (inner.width === 0) return;
+      sponsorStrip.element.style.paddingLeft = `${String(Math.max(0, Math.round(inner.left - outer.left)))}px`;
+      sponsorStrip.element.style.paddingRight = `${String(Math.max(0, Math.round(outer.right - inner.right)))}px`;
+    };
+    const aligner = new ResizeObserver(alignStrip);
+    aligner.observe(conversation);
+    aligner.observe(composer);
+    aligner.observe(sponsorStrip.element);
+  }
   refreshWelcome();
   /*
    * The "is writing" row: what the assistant is doing, for how long, and the way to stop it

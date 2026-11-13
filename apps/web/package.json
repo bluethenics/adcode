@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "@adimpress/imprezia-sdk": "^0.5.24",
-    "@zeekend/sdk": "0.8.3",
+    "@zeekend/sdk": "0.8.4",
     "lucide": "1.59.0",
     "next": "~16.4.3"
   },

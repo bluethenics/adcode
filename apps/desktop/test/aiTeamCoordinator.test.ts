@@ -1,7 +1,7 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createTeamBudget,
   createTeamHandoff,
@@ -452,8 +452,8 @@ describe("parallel agents limit across runs", () => {
     await coordinator.startConfirmed("solo-one");
     await coordinator.startConfirmed("solo-two");
     await coordinator.startConfirmed("solo-three");
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    expect(started).toEqual(["solo-one"]);
+    // Wait for the first run to begin rather than a fixed pause: a slow CI machine took longer than 10ms.
+    await vi.waitFor(() => expect(started).toEqual(["solo-one"]), { timeout: 2_000, interval: 5 });
 
     expect((await coordinator.cancel("solo-two")).state).toBe("cancelled");
     release();

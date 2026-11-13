@@ -3,6 +3,7 @@ import { Icon } from "@/components/Icon";
 import { ArrowUpRight } from "lucide";
 
 import Link from "@/components/IntentLink";
+import { NavDotField } from "@/components/NavDotField";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { signOutNow } from "@/lib/firebase";
@@ -136,6 +137,7 @@ export function Nav() {
 
   return (
     <header className="marketplace-nav" data-home={pathname === "/" ? "true" : undefined}>
+      <NavDotField />
       <div className="marketplace-wrap marketplace-nav-inner">
         <Link href="/" className="marketplace-brand" aria-label="ADCode home"><Mark /><span>ADCode</span></Link>
         <nav className="glass-nav" aria-label="Main navigation">
