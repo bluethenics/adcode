@@ -10,7 +10,7 @@
       "license": "Apache-2.0",
       "dependencies": {
         "@adimpress/imprezia-sdk": "^0.5.24",
-        "@zeekend/sdk": "0.8.3",
+        "@zeekend/sdk": "0.8.4",
         "lucide": "1.59.0",
         "next": "~16.4.3"
       },
@@ -3496,9 +3496,9 @@
       "optional": true
     },
     "node_modules/@zeekend/sdk": {
-      "version": "0.8.3",
-      "resolved": "https://registry.npmjs.org/@zeekend/sdk/-/sdk-0.8.3.tgz",
-      "integrity": "sha512-ejXxvBrS/sq10DBe6ChyHynOwYWUSgmq0dVJgKGgWT0CTLQwnIWC1SR0WHRSvgkhMsYlJ33i7XoMpohjA+AlbA==",
+      "version": "0.8.4",
+      "resolved": "https://registry.npmjs.org/@zeekend/sdk/-/sdk-0.8.4.tgz",
+      "integrity": "sha512-RxI6mVAoOzYYZ9SWeTidKAc9GHXvD2veKUpV2tRflN7L0LY8H99UyxNnX1cNxK+KU7ytVJkLXzb5ugTuwI9dyA==",
       "license": "MIT",
       "bin": {
         "zeekend": "bin/init.cjs"
