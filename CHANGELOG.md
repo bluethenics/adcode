@@ -3,6 +3,19 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
+## 2.6.0 — 2026-11-13
+
+- **Sleep or shut down when the work is done.** In the chat box, open Tools and choose **When done** (or type /sleep): pick Sleep, Hibernate, Shut down or Lock, for the next time only or every time. Once every chat has finished, a one-minute countdown you can cancel shows over the window; pressing Stop yourself never triggers it, and open files are saved before a shutdown.
+- **Chat from your phone.** Tools > **Phone link** (or /phone) shows a QR code: scan it, sign in, and the phone opens this computer's chats. Read and follow replies live, start chats, press Stop, switch the model, and set what happens when the work is done. Your computer does the work and must stay on; the relay passes messages and keeps nothing. The phone page installs like an app.
+- **A Browser panel you and the assistant share.** Real tabs and sign-ins beside your code; hand the assistant a web task and watch it work in the same tab. Downloads, pop-ups and device permissions are refused; switch the assistant's access off in Settings.
+- **Move in.** Use the coding CLIs you already pay for (Claude Code, Codex, OpenCode, Gemini CLI, Freebuff) as models, and import conversations from those tools and from Claude or ChatGPT exports, filed under their projects.
+- **Apps.** Plugins > Apps connects 77 apps through Composio, with search and categories.
+- **Live rooms know each other.** Every member's assistant sees who is online, what the others are doing, the plan, notes and reserved files. Artifacts can be private, shared by code, or opened as a live room.
+- **Buck, a welcome tour and a fuller Usage report.** ADCode's mascot greets you in a short optional tour; Usage adds per-model speed, cost per request, who paid, a trend chart and a weekday pattern.
+- **Tool bridge.** Other agents can use ADCode's own tools through a local, key-protected MCP server (Settings > AI > Tool bridge).
+- **Smaller things.** Export a conversation as Markdown or JSON; replies can carry link buttons; an optional chime when a long task finishes; tidier tooltips and dialogs; a sharp taskbar icon on Windows; PowerShell commands that redirect errors keep the program's exit code.
+- **Website and servers**, already live for every version: no subscriptions, every model priced on the pricing page, and an AI models page where providers submit models for review.
+
 ## 2.5.1 — 2026-11-06
 
 - **Sponsored cards are now on by default.** Sponsored cards under AI replies and sponsored notifications from ADCode's ad partner are switched on for everyone who has not turned sponsored messages off. A one-time card at the bottom right says exactly what each partner receives (your message and the reply for cards, only open language names for notifications), with **Turn off**, **Settings** and **OK**. Both switches stay in Settings > Ads.
