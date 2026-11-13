@@ -449,4 +449,7 @@ body:has(.home-redesign) .website-consent :where(a, button):focus-visible {
 }
 
 /* One bounded canvas renders the ASCII waves without DOM updates. */
-.hero-ascii { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; color: var(--text); opacity: .28; contain: strict; }
+/* The hero's drifting dot field (HeroDotField.tsx): resting dots in the text colour, green under the cursor. Alpha is drawn per dot, so no opacity here. */
+.hero-dot-field { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; color: var(--text); --hero-dot-accent: #6fb98f; contain: strict; mask-image: radial-gradient(ellipse at 50% 45%, #000 55%, transparent 100%); -webkit-mask-image: radial-gradient(ellipse at 50% 45%, #000 55%, transparent 100%); }
+:root[data-theme="light"] .hero-dot-field { --hero-dot-accent: #2f7d55; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .hero-dot-field { --hero-dot-accent: #2f7d55; } }

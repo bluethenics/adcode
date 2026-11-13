@@ -12,7 +12,7 @@ import { Partners } from "@/components/Partners";
 import { DocsShowcase } from "@/components/DocsShowcase";
 import { AboutUs } from "@/components/AboutUs";
 import { HomeMotion } from "@/components/HomeMotion";
-import { HeroAscii } from "@/components/HeroAscii";
+import { HeroDotField } from "@/components/HeroDotField";
 import Link from "@/components/IntentLink";
 import { HomeFaq } from "@/components/HomeFaq";
 import { Buck } from "@/components/buck/Buck";
@@ -41,7 +41,7 @@ export default function Home() {
       <section className="marketplace-hero studio-hero" id="earn">
         <div className="marketplace-wrap" id="marketplace-main">
           <div className="studio-hero-top">
-            <HeroAscii />
+            <HeroDotField />
             <div className="marketplace-hero-copy">
               <p className="home-hero-label">THE FREE AI CODE EDITOR</p>
               <h1>Your next idea.<br /><span>Built with free AI.</span></h1>

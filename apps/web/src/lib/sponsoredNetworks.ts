@@ -78,8 +78,9 @@ export async function zeekendSessionId(conversationId: string): Promise<string> 
  * allows restyling its unit; the "Sponsored" disclosure and the Report button stay its own.
  */
 export const ZEEKEND_COLOURS = {
-  dark: { text: "#ebe8e1", muted: "#8f8c85", accent: "#ece9e2", border: "rgba(235, 232, 225, 0.16)" },
-  light: { text: "#24231f", muted: "#69665f", accent: "#26241f", border: "rgba(36, 35, 31, 0.16)" },
+  // accent: SDK 0.8.4 draws its "Shop →" link in this colour - ADCode's green, readable on each theme.
+  dark: { text: "#ebe8e1", muted: "#8f8c85", accent: "#6fb98f", border: "rgba(235, 232, 225, 0.16)" },
+  light: { text: "#24231f", muted: "#69665f", accent: "#2f7d55", border: "rgba(36, 35, 31, 0.16)" },
 } as const;
 
 /**

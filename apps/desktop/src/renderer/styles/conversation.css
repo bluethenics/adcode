@@ -1135,12 +1135,36 @@
  * the composer's width and no room at all until its first card arrives; a new card grows in
  * beneath the old one, which then leaves, so the strip is never empty in between.
  */
-.chat-sponsor-strip { display: grid; width: 100%; padding: var(--space-2) var(--space-4) 0; box-sizing: border-box; background: var(--bg-app); }
-/* It shares the transcript's row, pinned to its foot; the transcript ends with a spacer as tall as the strip, so no message hides behind it. */
+/*
+ * Blended, not boxed: the strip fades up out of the chat behind it instead of starting at a
+ * hard edge, and every card shares one grid cell so a new one cross-fades over the old.
+ */
+.chat-sponsor-strip {
+  display: grid; width: 100%; padding: var(--space-3) var(--space-4) 0; box-sizing: border-box;
+  background: linear-gradient(to bottom, transparent, var(--bg-app) var(--space-3));
+}
+/*
+ * It shares the transcript's row, pinned to its foot, and the transcript stops short of it by
+ * the strip's own height. Reported 2026-11-13: a spacer at the end of the transcript only kept
+ * the last message clear; scrolled up, or in a short window, the card covered the messages.
+ */
 .chat-conversation > .chat-sponsor-strip { grid-row: 3; grid-column: 1; align-self: end; z-index: 1; }
-.chat-conversation > .chat-transcript::after { content: ""; display: block; flex: none; height: var(--sponsor-strip-height, 0px); }
+.chat-conversation > .chat-transcript { margin-bottom: var(--sponsor-strip-height, 0px); }
 .chat-sponsor-strip[hidden] { display: none; }
 /* A direct ADCode card has the floor: the partner's card is out of sight, its room kept so nothing jumps. */
 .chat-sponsor-strip[data-yielding="true"] > .chat-sponsored-frame { visibility: hidden; }
-.chat-sponsor-strip > .chat-sponsored-frame { margin: 0; max-height: 180px; }
+.chat-sponsor-strip > .chat-sponsored-frame {
+  grid-area: 1 / 1; align-self: end; margin: 0; max-height: 180px;
+  /* A waiting card is never seen until it has arrived; then it rises in, and a replaced one fades. */
+  opacity: 0;
+  transition: height var(--duration-enter) var(--ease-toast), opacity var(--duration-exit) ease;
+}
+.chat-sponsor-strip > .chat-sponsored-frame[data-state="in"] { opacity: 1; animation: chat-sponsor-in 320ms var(--ease-toast) both; }
+.chat-sponsor-strip > .chat-sponsored-frame[data-state="out"] { opacity: 0; pointer-events: none; }
+@keyframes chat-sponsor-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .chat-sponsor-strip > .chat-sponsored-frame { transition: none; }
+  .chat-sponsor-strip > .chat-sponsored-frame[data-state="in"] { animation: none; }
+}
+:root[data-reduced-motion="true"] .chat-sponsor-strip > .chat-sponsored-frame { transition: none; animation: none; }
 .chat-sponsor-strip[data-filled="true"] { padding-bottom: var(--space-2); }

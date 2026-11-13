@@ -163,7 +163,10 @@ body[data-workspace-mode="vibe"] .main[data-panel-maximized="true"] #panel { gri
 }
 .assistant-dock .chat-conversation > .chat-memory { flex: none; order: 0; }
 .assistant-dock .chat-conversation > .chat-connect-banner { flex: none; order: 1; }
-.assistant-dock .chat-card .chat-conversation > .chat-transcript { flex: 1; min-height: 0; order: 2; overflow: auto; }
+.assistant-dock .chat-card .chat-conversation > .chat-transcript { flex: 1; min-height: 0; order: 2; overflow: auto; margin-bottom: 0; }
+/* The sponsor strip follows the transcript (same order, later in the DOM) and takes real room above the
+   composer. Reported 2026-11-13: with no order of its own it was laid out first, over the top of the chat. */
+.assistant-dock .chat-card .chat-conversation > .chat-sponsor-strip { flex: none; order: 2; background: transparent; }
 .assistant-dock .chat-card .chat-conversation[data-empty="true"] > .chat-memory,
 .assistant-dock .chat-card .chat-conversation[data-empty="true"] > .chat-connect-banner { display: none; }
 .assistant-dock .chat-card .chat-conversation[data-empty="true"] > .chat-welcome { flex: 1; min-height: 0; overflow: auto; order: 2; padding-block: var(--space-5); margin: 0; }
