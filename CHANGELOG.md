@@ -13,6 +13,7 @@ only public once its installers are attached to a GitHub release.
 - **Live rooms know each other.** Every member's assistant sees who is online, what the others are doing, the plan, notes and reserved files. Artifacts can be private, shared by code, or opened as a live room.
 - **Buck, a welcome tour and a fuller Usage report.** ADCode's mascot greets you in a short optional tour; Usage adds per-model speed, cost per request, who paid, a trend chart and a weekday pattern.
 - **Tool bridge.** Other agents can use ADCode's own tools through a local, key-protected MCP server (Settings > AI > Tool bridge).
+- **Sponsored cards that stay out of the way.** The card above the message box no longer covers the conversation: it takes its own room, lines up with the box, and a new card fades in over the old one. Cards from ADCode's ad partner Zeekend now have a softer look.
 - **Smaller things.** Export a conversation as Markdown or JSON; replies can carry link buttons; an optional chime when a long task finishes; tidier tooltips and dialogs; a sharp taskbar icon on Windows; PowerShell commands that redirect errors keep the program's exit code.
 - **Website and servers**, already live for every version: no subscriptions, every model priced on the pricing page, and an AI models page where providers submit models for review.
 
