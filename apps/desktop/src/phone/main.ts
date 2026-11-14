@@ -21,6 +21,7 @@ import {
   applyPhoneEvent,
   describeUserAgent,
   pairedComputerFrom,
+  phoneSponsoredExchange,
   timelineFromChat,
   withUserMessage,
   type HostMessage,
@@ -34,6 +35,7 @@ import {
   type PowerActionName,
 } from "../shared/phoneProtocol.ts";
 import { renderMarkdown } from "./markdown.ts";
+import { OPENING_EXCHANGE, SPONSOR_ROTATE_MS, createSponsorStrip, type SponsoredExchange } from "../renderer/ai/sponsoredReply.ts";
 
 declare const __ADCODE_RELAY__: string;
 declare const __ADCODE_WEB_DEV__: boolean;
@@ -313,6 +315,7 @@ function onHost(message: HostMessage): void {
       state.power = message.power;
       if (state.view === "chats") paintChats();
       paintPower();
+      paintSponsored();
       send({ t: "models" });
       return;
     case "chats":
@@ -761,8 +764,15 @@ function openChat(sessionId: string | null, title = "New chat"): void {
     paintComposerRef = paintComposer;
     paintComposer();
 
-    teardown.push(() => { timelineList = null; activityLine = null; composerButton = null; headerBuck = null; headerTitle = null; headerSub = null; paintComposerRef = null; modelSlot = null; });
-    page.append(bar, offlineNotice(), scroller, activityLine, modelSlot, composer);
+    // One Zeekend card above the message box, as on the computer (see paintSponsored).
+    const strip = createSponsorStrip();
+    // The ad box keeps a fresh Zeekend card while the chat is open, as on the computer.
+    const stopRotating = strip.keepFilled(phoneSponsorExchange, SPONSOR_ROTATE_MS, () => document.visibilityState === "visible" && state.device?.sponsored === true);
+    sponsorStrip = strip;
+    sponsoredFor = "";
+
+    teardown.push(() => { timelineList = null; activityLine = null; composerButton = null; headerBuck = null; headerTitle = null; headerSub = null; paintComposerRef = null; modelSlot = null; stopRotating(); strip.clear(); sponsorStrip = null; sponsoredFor = ""; });
+    page.append(bar, offlineNotice(), scroller, activityLine, modelSlot, strip.element, composer);
     return page;
   });
   paintModels();
@@ -923,7 +933,59 @@ function paintTimeline(reset: boolean): void {
   }
   rendered = [...timeline.items];
   paintActivity();
+  paintSponsored();
   if (pinned) scroller.scrollTo({ top: scroller.scrollHeight, behavior: reset ? "auto" : "smooth" });
+}
+
+/* ── Sponsored card ──────────────────────────────────────────────────────── */
+
+let sponsorStrip: ReturnType<typeof createSponsorStrip> | null = null;
+/** The reply the strip last asked a card for, so a repaint never asks twice. */
+let sponsoredFor = "";
+
+/**
+ * A Zeekend card above the message box once a reply has finished - the same card, chosen the
+ * same way, as under a reply on the computer, and only while the computer has Sponsored cards
+ * under AI replies on. The card is ADCode's walled-off /sponsored/chat page in a sandboxed
+ * frame: Zeekend's code never runs in this page, which holds the sign-in. A new card replaces
+ * the old one only once it has arrived; a reply with no card leaves the last one in place.
+ */
+function paintSponsored(): void {
+  const strip = sponsorStrip;
+  if (strip === null) return;
+  if (state.device?.sponsored !== true) {
+    strip.clear();
+    sponsoredFor = "";
+    return;
+  }
+  const sessionId = state.sessionId;
+  const exchange = phoneSponsoredExchange(state.timeline, state.device.sponsored);
+  if (sessionId === null || exchange === null) return;
+  const key = `${sessionId}:${String(exchange.turn)}:${String(exchange.response.length)}`;
+  if (key === sponsoredFor) return;
+  sponsoredFor = key;
+  strip.show(phoneSponsorExchange());
+}
+
+/** Every card asked for on this page, for Zeekend's pacing: each one is a turn of its own. */
+let phoneSponsorAsks = 0;
+const phoneSponsorSession = `phone-${Date.now().toString(36)}`;
+
+/**
+ * What the ad box asks Zeekend for: the chat's last finished exchange, or a general developer's
+ * day before there is one. Never anything else from the project.
+ */
+function phoneSponsorExchange(): SponsoredExchange {
+  const finished = phoneSponsoredExchange(state.timeline, true);
+  return {
+    request: finished?.request ?? OPENING_EXCHANGE.request,
+    response: finished?.response ?? OPENING_EXCHANGE.response,
+    sessionId: state.sessionId ?? phoneSponsorSession,
+    // The phone page is dark only (phone.css).
+    theme: "dark",
+    turn: Math.min(10_000, ++phoneSponsorAsks),
+    layout: "banner",
+  };
 }
 
 /* ── Start ───────────────────────────────────────────────────────────────── */

@@ -84,3 +84,24 @@
 
 /* Narrow screens: the install bar spans the bottom, so Buck stands above it. */
 @media (max-width: 720px) { .buck-guide { bottom: calc(84px + env(safe-area-inset-bottom)); } }
+
+/* ── Buck talking: a short conversation in his bubble ───────────────────── */
+.buck-chat { display: grid; gap: 10px; width: min(320px, calc(100vw - 120px)); max-width: none; }
+.buck-chat-log { display: grid; gap: 8px; max-height: min(320px, 46vh); overflow-y: auto; overscroll-behavior: contain; }
+.buck-chat-hint { color: var(--muted, #a4adaf); }
+.buck-chat-turn { margin: 0; padding: 8px 10px; border-radius: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+.buck-chat-turn[data-role="user"] { justify-self: end; max-width: 85%; background: var(--accent, #e8ecec); color: var(--accent-text, #0a0c0d); }
+.buck-chat-turn[data-role="assistant"] { justify-self: start; max-width: 100%; background: rgb(127 127 127 / 0.12); }
+.buck-chat-source { display: block; margin-top: 4px; color: var(--muted, #a4adaf); font-size: 11px; }
+.buck-chat-form { display: flex; gap: 6px; }
+.buck-chat-form input { flex: 1; min-width: 0; min-height: 36px; padding: 6px 10px; border: 1px solid var(--ink-hairline, rgb(127 127 127 / 0.3)); border-radius: 8px; background: transparent; color: inherit; font: inherit; font-size: 14px; }
+.buck-chat-form input:focus { outline: 2px solid var(--text, #e8ecec); outline-offset: 1px; }
+.buck-chat-form button[type="submit"] { min-height: 36px; padding: 6px 12px; border: 0; border-radius: 8px; background: var(--accent, #e8ecec); color: var(--accent-text, #0a0c0d); font: inherit; font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer; }
+.buck-chat-form button[type="submit"]:disabled { opacity: .5; cursor: default; }
+.buck-chat-dots { display: inline-flex; gap: 4px; }
+.buck-chat-dots i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .4; animation: buck-dot 1s ease-in-out infinite; }
+.buck-chat-dots i:nth-child(2) { animation-delay: .15s; }
+.buck-chat-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes buck-dot { 50% { opacity: 1; transform: translateY(-2px); } }
+@media (prefers-reduced-motion: reduce) { .buck-chat-dots i { animation: none; opacity: .8; } }
+.pricing-plan-buck, .pricing-closing > .buck-host { margin: 0; }

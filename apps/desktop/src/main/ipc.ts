@@ -1306,6 +1306,10 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
     if (isString(creativeId)) ads.notePainted(creativeId);
   });
 
+  ipcMain.on(CHANNELS.adPartnerImpression, (_event, slotId: unknown) => {
+    if (isString(slotId)) void ads.notePartnerImpression(slotId);
+  });
+
   ipcMain.on(CHANNELS.adPartnerResult, (_event, id: unknown, outcome: unknown) => {
     if (isString(id) && (outcome === "shown" || outcome === "empty")) ads.notePartnerResult(id, outcome);
   });

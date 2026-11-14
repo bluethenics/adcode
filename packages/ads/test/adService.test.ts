@@ -481,6 +481,16 @@ describe("a partner fills an empty slot", () => {
     expect(calls).toBe(2);
   });
 
+  it("says the next slot opens exactly one minimum gap after the last card, and now when it gave one back", async () => {
+    const service = await ready({ present: () => true });
+    expect(service.nextSlotAt()).toBe(clock.now());
+    const shownAt = clock.now();
+    await service.tick();
+    expect(service.nextSlotAt()).toBe(shownAt + service.effectiveCaps().minIntervalMs);
+    service.fallbackUnfilled();
+    expect(service.nextSlotAt()).toBe(clock.now());
+  });
+
   it("leaves the slot empty and uncounted when the partner declines", async () => {
     const service = await ready({ present: () => false });
     await service.tick();

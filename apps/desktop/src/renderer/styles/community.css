@@ -104,7 +104,7 @@
 
 .community-doors {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
   gap: var(--space-1);
   padding: var(--space-1);
   border: 1px solid var(--border-hairline);
@@ -154,6 +154,12 @@
 }
 @media (max-width: 560px) {
   .community-page[data-hub="artifacts"] { padding-inline: var(--space-4); }
+  .community-page { padding-inline: var(--space-4); }
+  /* Row actions drop under the name instead of squeezing it to nothing. */
+  .community-row-actions { width: 100%; justify-content: flex-start; margin-left: 0; }
+  /* Dialog actions stretch where there is no room to sit in a row. */
+  .community-dialog-actions { justify-content: stretch; }
+  .community-dialog-actions > * { flex: 1 1 auto; }
 }
 .artifacts-buck { display: inline-grid; flex: none; }
 .artifacts-buck .adcode-mascot { --mascot-size: 76px; }
@@ -273,7 +279,7 @@ summary.artifacts-how-heading { display: list-item; min-height: 32px; line-heigh
 
 /* ── Cards ──────────────────────────────────────────────────────────── */
 
-.community-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--space-3); }
+.community-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: var(--space-3); }
 .community-card {
   display: grid;
   align-content: start;
@@ -284,6 +290,7 @@ summary.artifacts-how-heading { display: list-item; min-height: 32px; line-heigh
   border-radius: var(--radius-md);
   background: var(--surface-sheen), var(--bg-app);
   transition: border-color 140ms ease, translate 180ms var(--motion-curve);
+  overflow-wrap: anywhere;
 }
 .community-card-top { display: flex; align-items: flex-start; gap: var(--space-3); }
 .community-monogram {
@@ -315,7 +322,7 @@ summary.artifacts-how-heading { display: list-item; min-height: 32px; line-heigh
   white-space: nowrap;
 }
 .community-card-title:hover { text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 3px; }
-.community-card-by { color: var(--text-tertiary); font-size: var(--text-xs); line-height: 1.45; font-variant-numeric: tabular-nums; }
+.community-card-by { color: var(--text-tertiary); font-size: var(--text-xs); line-height: 1.45; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .community-card-text { margin: 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .community-card-meta { display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; color: var(--text-tertiary); font-size: var(--text-xs); }
 .community-stat strong { color: var(--text-secondary); font-weight: 500; font-variant-numeric: tabular-nums; }
@@ -343,11 +350,11 @@ summary.artifacts-how-heading { display: list-item; min-height: 32px; line-heigh
 /* ── Lists ──────────────────────────────────────────────────────────── */
 
 .community-installed { display: grid; margin: 0; padding: 0; list-style: none; border: 1px solid var(--border-hairline); border-radius: var(--radius-md); background: var(--bg-app); overflow: hidden; }
-.community-installed-row { display: flex; align-items: center; gap: var(--space-3); min-height: 56px; padding: var(--space-2) var(--space-3); }
+.community-installed-row { display: flex; align-items: center; gap: var(--space-3); min-height: 56px; padding: var(--space-2) var(--space-3); flex-wrap: wrap; }
 .community-installed-row .community-card-names { flex: 1; }
 .community-installed-row + .community-installed-row { border-top: 1px solid var(--border-hairline); }
 .community-installed-row .community-monogram { width: 32px; height: 32px; font-size: 13px; }
-.community-row-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-end; }
+.community-row-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
 .community-banner {
   display: flex;
   align-items: center;
@@ -376,7 +383,7 @@ summary.artifacts-how-heading { display: list-item; min-height: 32px; line-heigh
 .community-level-name { font-size: var(--text-xl); font-weight: 600; letter-spacing: -.01em; }
 /* Filled with transform, not width, so the first paint can grow it on the compositor. */
 .community-progress > .community-progress-fill { width: 100%; transform: scaleX(var(--progress, 0)); transform-origin: left center; }
-.community-badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(156px, 1fr)); gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.community-badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(156px, 100%), 1fr)); gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .community-badge { display: grid; gap: 2px; padding: var(--space-2) var(--space-3); border: 1px dashed var(--border-hairline); border-radius: var(--radius-sm); color: var(--text-tertiary); font-size: var(--text-xs); line-height: 1.4; }
 .community-badge strong { color: var(--text-secondary); font-size: var(--text-sm); font-weight: 500; }
 .community-badge-earned { border-style: solid; background: var(--surface-control); color: var(--text-secondary); }
@@ -435,8 +442,10 @@ summary.artifacts-how-heading { display: list-item; min-height: 32px; line-heigh
 .community-callout p, .community-callout ul { margin: 0; }
 .community-callout strong { font-weight: 600; }
 .community-file-path { font-family: var(--font-mono); font-size: 12px; overflow-wrap: anywhere; }
-.community-readme-text { margin: 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.55; white-space: pre-line; }
-.community-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.community-readme-text { margin: 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.55; white-space: pre-line; overflow-wrap: anywhere; }
+.community-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2); }
+/* A long plugin name wraps instead of pushing the close button out of the dialog. */
+.community-dialog-head .result-title { min-width: 0; overflow-wrap: anywhere; }
 .community-dialog-head .ad-icon-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .community-dialog-subtitle { margin: var(--space-4) 0 var(--space-1); color: var(--text-secondary); font-size: var(--text-sm); font-weight: 600; }
 .community-dialog-actions { flex-wrap: wrap; }
@@ -475,15 +484,21 @@ summary.artifacts-how-heading { display: list-item; min-height: 32px; line-heigh
  */
 .addon-slot:empty { display: none; }
 /* No color-scheme here: the frame inherits the app's, and the add-on is told the same value, so the browser paints no opaque backdrop behind it. */
-.addon-frame { display: block; border: 0; background: transparent; opacity: 0; transition: opacity 160ms ease-out; }
+.addon-frame { display: block; border: 0; max-width: 100%; background: transparent; opacity: 0; transition: opacity 160ms ease-out; }
 .addon-frame[data-ready="true"] { opacity: 1; }
 .addon-slot-chat { display: grid; gap: 2px; flex: 0 0 100%; width: 100%; min-width: 0; padding-bottom: var(--space-1); border-bottom: 1px solid var(--border-hairline); grid-column: 1 / -1; }
 .addon-slot-chat .addon-frame { width: 100%; height: 28px; }
-.addon-slot-sidebar { display: grid; gap: var(--space-2); padding: var(--space-2) var(--space-2) var(--space-1); }
+.addon-slot-sidebar { display: grid; gap: var(--space-2); padding: var(--space-2) var(--space-2) var(--space-1); min-width: 0; }
 .addon-slot-sidebar .addon-frame { width: 100%; height: 72px; }
-.addon-slot-statusbar { display: inline-flex; align-items: center; gap: var(--space-1); height: 22px; }
-:is(.vibe-topbar, .web-tabs) .addon-slot-statusbar { flex: none; height: 28px; padding: 0 var(--space-1); border-radius: var(--radius-sm); }
-.addon-slot-statusbar .addon-frame { width: 120px; height: 22px; }
+/*
+ * The host takes the room the bar has, not the width the add-on asks for. A plugin that
+ * reports a fixed width must not push the window's own controls off a narrow bar: the slot
+ * shrinks, the frame follows it through max-width, and anything that no longer fits is
+ * clipped inside the add-on's own sealed page instead of breaking the chrome around it.
+ */
+.addon-slot-statusbar { display: inline-flex; align-items: center; gap: var(--space-1); height: 22px; min-width: 0; max-width: 100%; overflow: hidden; }
+:is(.vibe-topbar, .web-tabs) .addon-slot-statusbar { flex: 0 1 auto; height: 28px; padding: 0 var(--space-1); border-radius: var(--radius-sm); }
+.addon-slot-statusbar .addon-frame { width: 120px; height: 22px; max-width: 100%; }
 
 /* The sidebar's Plugins and Artifacts entries carry an unread count. */
 :is(.vibe-page-plugins, .vibe-page-artifacts)[data-unread]::after {

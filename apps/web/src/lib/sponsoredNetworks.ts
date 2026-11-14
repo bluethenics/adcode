@@ -5,7 +5,11 @@ export type { SponsoredNetwork };
 /** Zeekend's exchange, as its SDK addresses it. */
 export const ZEEKEND_ENDPOINT = "https://exchange.zeekend.com/v1";
 
-/** The network list from `/v1/sponsored/networks`, keeping only well-formed entries, in order. */
+/**
+ * The network list from `/v1/sponsored/networks`, keeping only well-formed Zeekend entries, in
+ * order. Zeekend is ADCode's only ad partner: an `imprezia` entry an older server still lists
+ * is ignored, so no Imprezia card is ever asked for or drawn.
+ */
 export function parseNetworks(raw: unknown): SponsoredNetwork[] | null {
   const list = typeof raw === "object" && raw !== null ? (raw as { networks?: unknown }).networks : undefined;
   if (!Array.isArray(list)) return null;
@@ -13,8 +17,7 @@ export function parseNetworks(raw: unknown): SponsoredNetwork[] | null {
   for (const one of list) {
     if (typeof one !== "object" || one === null) continue;
     const entry = one as Record<string, unknown>;
-    if (entry["id"] === "imprezia") networks.push({ id: "imprezia" });
-    else if (entry["id"] === "zeekend" && typeof entry["publisherKey"] === "string" && typeof entry["placementId"] === "string") {
+    if (entry["id"] === "zeekend" && typeof entry["publisherKey"] === "string" && typeof entry["placementId"] === "string") {
       networks.push({ id: "zeekend", publisherKey: entry["publisherKey"], placementId: entry["placementId"] });
     }
   }
@@ -22,13 +25,19 @@ export function parseNetworks(raw: unknown): SponsoredNetwork[] | null {
 }
 
 /**
- * Who is asked for this card. Under a reply: the server's order, Zeekend then Imprezia, and the
- * first card wins - one card per reply. In a partner notification: Imprezia only, because
- * Zeekend's placements belong under an assistant's answer to a real question.
+ * Who is asked for this card: Zeekend, whether the card goes under a reply, in a sponsored
+ * notification or on the phone. The first connection that answers wins - one card each time.
  */
-export function networksFor(layout: "reply" | "notification", networks: readonly SponsoredNetwork[]): SponsoredNetwork[] {
-  return layout === "notification" ? networks.filter((network) => network.id === "imprezia") : [...networks];
+export function networksFor(_layout: "reply" | "notification" | "banner", networks: readonly SponsoredNetwork[]): SponsoredNetwork[] {
+  return networks.filter((network) => network.id === "zeekend");
 }
+
+/**
+ * The pages allowed to embed `/sponsored/chat` and hand it an exchange: the desktop app's
+ * window, and Phone link's page on web.bluethenics.com, which shows a card under the
+ * computer's replies. Keep in step with the `frame-ancestors` header in next.config.ts.
+ */
+export const SPONSORED_EMBEDDERS: readonly string[] = ["app://adcode", "https://web.bluethenics.com"];
 
 /**
  * Zeekend's SDK counts turns itself, from zero in each page - and this page is new for every
@@ -36,9 +45,10 @@ export function networksFor(layout: "reply" | "notification", networks: readonly
  * cap, set in its dashboard) could never work. The SDK's `transport` option sends its requests
  * instead: this one posts them to Zeekend's documented endpoints unchanged, except that a slot
  * request carries the conversation's real turn. Events (impressions, clicks, reports) pass
- * through as the SDK built them, and never throw.
+ * through as the SDK built them, and never throw. `onImpression` hears each impression Zeekend
+ * counts - whether its own unit or the ad box drew the card - so ADCode can count it too.
  */
-export function zeekendTransport(turn: number, fetchImpl: typeof fetch = fetch, endpoint = ZEEKEND_ENDPOINT) {
+export function zeekendTransport(turn: number, fetchImpl: typeof fetch = fetch, endpoint = ZEEKEND_ENDPOINT, onImpression?: (slotId: string) => void) {
   const post = (url: string, body: unknown): Promise<Response> => fetchImpl(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -51,6 +61,9 @@ export function zeekendTransport(turn: number, fetchImpl: typeof fetch = fetch, 
     if (payload["event"] === true) {
       const { event: _event, ...body } = payload;
       try { await post(`${endpoint}/event`, body); } catch { /* an event never breaks the card */ }
+      if (body["type"] === "impression" && typeof body["slotId"] === "string") {
+        try { onImpression?.(body["slotId"]); } catch { /* counting never breaks the card */ }
+      }
       return null;
     }
     const response = await post(`${endpoint}/slot`, { ...payload, turn });
@@ -101,4 +114,17 @@ export function withoutPrices<T extends object>(slot: T): T {
       return kept;
     }) } : {}),
   } as T;
+}
+
+/**
+ * Tell ADCode's API that Zeekend counted an impression, for the admin's "Ads shown"
+ * (services/api/src/networkImpressions.ts). Fire and forget: the card never waits on it.
+ */
+export function reportNetworkImpression(slotId: string, layout: "reply" | "notification" | "banner", fetchImpl: typeof fetch = fetch, origin = ""): void {
+  void fetchImpl(`${origin}/v1/sponsored/impression`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ network: "zeekend", slotId, layout }),
+    keepalive: true,
+  }).catch(() => undefined);
 }

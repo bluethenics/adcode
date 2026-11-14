@@ -123,6 +123,12 @@ export interface PhoneDevice {
   readonly platform: string;
   readonly project: string | null;
   readonly model: string | null;
+  /**
+   * Whether this computer shows sponsored cards under AI replies (Settings > Ads, with
+   * sponsored messages on). The phone shows a Zeekend card under a finished reply only when it
+   * is true, so one switch on the computer decides for both. Absent from older computers: off.
+   */
+  readonly sponsored?: boolean;
 }
 
 /** A model the phone may pick, as its model picker shows it. */
@@ -351,4 +357,40 @@ export function describeUserAgent(agent: string): string {
   const device = /iPhone/.test(agent) ? "iPhone" : /iPad/.test(agent) ? "iPad" : /Android/.test(agent) ? "Android phone" : /Macintosh/.test(agent) ? "Mac" : /Windows/.test(agent) ? "Windows PC" : /Linux/.test(agent) ? "Linux" : "Browser";
   const browser = /EdgA?\//.test(agent) ? "Edge" : /SamsungBrowser/.test(agent) ? "Samsung Internet" : /Firefox|FxiOS/.test(agent) ? "Firefox" : /CriOS|Chrome/.test(agent) ? "Chrome" : /Safari/.test(agent) ? "Safari" : "";
   return browser === "" ? device : `${device} · ${browser}`;
+}
+
+/** What a sponsored card under a finished reply on the phone is chosen from. */
+export interface PhoneSponsoredExchange {
+  readonly request: string;
+  readonly response: string;
+  /** Which user message of the conversation the reply answers, for Zeekend's pacing. */
+  readonly turn: number;
+}
+
+/**
+ * The exchange for a card under the latest reply, or null when there is none to show one for:
+ * the computer has sponsored cards off, the chat is still running, or the conversation does
+ * not end with a finished reply to a message. Only the last message and its reply are used,
+ * exactly as under a reply on the computer.
+ */
+export function phoneSponsoredExchange(timeline: PhoneTimeline | null, sponsored: boolean | undefined): PhoneSponsoredExchange | null {
+  if (sponsored !== true || timeline === null || timeline.running) return null;
+  const items = timeline.items;
+  let reply = -1;
+  for (let index = items.length - 1; index >= 0; index--) {
+    const item = items[index]!;
+    if (item.kind === "assistant") { reply = index; break; }
+    if (item.kind === "user") return null;
+  }
+  if (reply < 0 || items[reply]!.open === true) return null;
+  let asked = -1;
+  for (let index = reply - 1; index >= 0; index--) {
+    if (items[index]!.kind === "user") { asked = index; break; }
+  }
+  if (asked < 0) return null;
+  const request = items[asked]!.text.trim();
+  const response = items[reply]!.text.trim();
+  if (request === "" || response === "") return null;
+  const turn = items.slice(0, asked + 1).filter((item) => item.kind === "user").length;
+  return { request, response, turn };
 }

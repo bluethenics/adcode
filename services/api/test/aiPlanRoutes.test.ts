@@ -54,7 +54,7 @@ describe("AI plan routes", () => {
   });
 
   it("refuses plan checkout once sales are closed, pointing at credits", async () => {
-    handle = createFetchHandler({ store, verifier, clock: { now: () => NOW }, payments: payments(), siteOrigin: "https://adcode.test", tagflow: { apiKey: "k" } });
+    handle = createFetchHandler({ store, verifier, clock: { now: () => NOW }, payments: payments(), siteOrigin: "https://adcode.test", tagflow: { apiKey: "k", salesOpen: false } });
     const response = await call("/ai/plans/checkout", "user", { plan: "pro", billingCountry: "US" });
     expect(response.status).toBe(410);
     expect(await response.json()).toMatchObject({ error: { code: "plans-retired" } });
@@ -71,8 +71,21 @@ describe("AI plan routes", () => {
     const response = await call("/ai/plans/checkout", "user", { plan: "pro", billingCountry: "DE" });
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ checkoutUrl: "https://checkout.test/cs_p" });
-    expect(checkouts[0]).toMatchObject({ product: "plan-pro", amountMicros: 29_000_000n, billingCountry: "DE", metadata: { uid: "user", plan: "pro" } });
+    expect(checkouts[0]).toMatchObject({ product: "plan-pro", amountMicros: 39_000_000n, billingCountry: "DE", metadata: { uid: "user", plan: "pro", billing: "month" } });
     expect(checkouts[0]!.orderId.startsWith("aip_")).toBe(true);
+    expect(checkouts[0]!.orderId.startsWith("aip_y")).toBe(false);
+  });
+
+  it("opens a yearly checkout on the plan's yearly product at ten months' price", async () => {
+    const response = await call("/ai/plans/checkout", "user", { plan: "pro", billingCountry: "DE", billing: "year" });
+    expect(response.status).toBe(200);
+    expect(checkouts[0]).toMatchObject({ product: "plan-pro-year", amountMicros: 390_000_000n, metadata: { uid: "user", plan: "pro", billing: "year" } });
+    expect(checkouts[0]!.orderId.startsWith("aip_y")).toBe(true);
+    // The open yearly checkout is resumed for yearly, and refused for the same plan monthly.
+    expect((await call("/ai/plans/checkout", "user", { plan: "pro", billingCountry: "DE", billing: "year" })).status).toBe(200);
+    expect((await call("/ai/plans/checkout", "user", { plan: "pro", billingCountry: "DE" })).status).toBe(409);
+    expect(checkouts).toHaveLength(1);
+    expect((await call("/ai/plans/checkout", "friend", { plan: "pro", billingCountry: "DE", billing: "weekly" })).status).toBe(400);
   });
 
   it("refuses an unknown plan, an unverified account, selling off, and a missing product", async () => {

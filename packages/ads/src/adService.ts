@@ -81,6 +81,8 @@ export interface AdService {
   start(): Promise<void>;
   tick(): Promise<void>;
   flushReceipts(): Promise<void>;
+  /** Ask the server for the balance now - after a credit that did not come from a receipt. */
+  refreshBalance(): Promise<void>;
   stop(): void;
   onPainted(): void;
   onFocusChange(focused: boolean): void;
@@ -92,6 +94,13 @@ export interface AdService {
    * empty answer never uses up the day's cap or starts the minimum gap.
    */
   fallbackUnfilled(): void;
+  /**
+   * When the next card may show by the frequency alone: the last card's time plus the
+   * minimum gap, or now when nothing has shown yet. The app wakes its tick then, so cards
+   * follow each other at exactly the chosen frequency rather than up to a tick late. It says
+   * nothing about the other rules - focus, debugging, the daily cap - which the tick checks.
+   */
+  nextSlotAt(): number;
   /** Why the last tick did not show. `null` if it did. */
   lastReason(): SuppressReason | null;
   effectiveCaps(): FrequencyCaps;
@@ -269,6 +278,7 @@ export function createAdService(deps: AdServiceDeps): AdService {
     },
 
     flushReceipts: () => contain(flushReceipts),
+    refreshBalance: () => contain(refreshBalance),
 
     stop(): void {
       stopped = true;
@@ -319,6 +329,11 @@ export function createAdService(deps: AdServiceDeps): AdService {
       const at = impressions.lastIndexOf(fallbackAt);
       if (at >= 0) impressions.splice(at, 1);
       fallbackAt = null;
+    },
+
+    nextSlotAt(): number {
+      const last = impressions.at(-1);
+      return last === undefined ? deps.clock.now() : last + effectiveCaps().minIntervalMs;
     },
 
     lastReason: () => lastReason,

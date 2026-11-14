@@ -15,18 +15,35 @@ vi.mock("../src/lib/apiRead", () => ({ readApi: vi.fn() }));
 afterEach(() => vi.resetAllMocks());
 
 describe("public pricing and existing checkout", () => {
-  it("renders without sign-in or a successful API call, and sells no plan or pack", async () => {
+  it("renders without sign-in or a successful API call, and sells three plans and any amount of credits", async () => {
     vi.mocked(readApi).mockRejectedValue(new Error("offline"));
     const html = renderToStaticMarkup(await PricingPage());
     expect(metadata.alternates?.canonical).toBe(url("/pricing"));
-    for (const amount of ["$10", "$20", "$50", "$100"]) expect(html).toContain(amount);
+    for (const amount of ["$10", "$20", "$50", "$100", "$19", "$39", "$149", "$5 to $1,000"]) expect(html).toContain(amount);
     expect(html).not.toContain("35%");
-    expect(html).toContain("Pay only for the models you use");
     expect(html).toContain("The live price list could not be loaded");
-    expect(html).toContain("Plans ended on 6 November 2026");
-    expect(PLANS_ON_SALE).toEqual([]);
-    for (const gone of ["$29", "$59", "Practically unlimited", "ai-tokens?plan=", "#packs", "100 extra credits"]) expect(html).not.toContain(gone);
+    expect(PLANS_ON_SALE.map((plan) => plan.name)).toEqual(["Builder", "Pro", "Max"]);
+    // Pro is the recommendation, each plan costs so much a day, and checkout opens from each card.
+    expect(html).toContain("Recommended");
+    for (const perDay of ["$0.63 a day", "$1.30 a day", "$4.97 a day"]) expect(html).toContain(perDay);
+    for (const plan of ["monthly", "pro", "max"]) expect(html).toContain(`/ai-tokens?plan=${plan}&amp;go=1#plans`);
+    expect(html).toContain("/ai-tokens?amount=25&amp;go=1#wallet");
+    expect(html).toContain("Cancel any time");
+    // Yearly is offered only once its Dodo products exist.
+    expect(html).not.toContain("2 months free");
+    expect(html).not.toContain("Plans ended on 6 November 2026");
     expect(html).not.toContain("Sign in to see");
+  });
+
+  it("sells honestly: no countdown, invented proof or hidden price", () => {
+    const html = renderToStaticMarkup(<PricingContent offer={{ ...STANDARD_PRICING, available: true }} />).toLowerCase();
+    for (const word of ["hurry", "only a few", "spots left", "countdown", "users love", "trusted by", "most popular", "markup", "margin"]) expect(html, word).not.toContain(word);
+  });
+
+  it("shows yearly billing only when it can be bought, with the amount charged today", () => {
+    const html = renderToStaticMarkup(<PricingContent offer={{ ...STANDARD_PRICING, available: true, yearly: true }} />);
+    expect(html).toContain("2 months free");
+    expect(html).toContain("Monthly or yearly, until you cancel");
   });
 
   it("lists every paid model with its marked-up price, and the free Tagflow models, from the live list", async () => {
@@ -48,9 +65,45 @@ describe("public pricing and existing checkout", () => {
     expect(html).not.toContain("Cache writes");
   });
 
+  it("shows a running price offer: a banner, offer prices, and each regular price struck through", async () => {
+    const endsAt = Date.parse("2099-11-27T13:00:00Z");
+    vi.mocked(readApi).mockResolvedValue(Response.json({
+      paid: { enabled: true, providers: ["custom-heabsy"], freeWeeklyTokens: 1_540_000, accounting: "cost-v1", packs: [{ id: "starter", priceCents: 300, tokens: 16_500_000 }] },
+      offer: { name: "Launch offer", percent: 15, endsAt },
+      // The service already lists offer prices: $1.35 regular, $1.1475 with 15% off.
+      models: [{ id: "paid", name: "Paid · Paid credits", billing: "wallet", paid: true, providerName: "Heabsy", inputPrice: 1.1475, outputPrice: 5.7375, cacheInputPrice: 0.11475 }],
+    }));
+    const offer = await pricingOffer();
+    expect(offer.offer).toEqual({ name: "Launch offer", percent: 15, endsAt });
+    const html = renderToStaticMarkup(<PricingContent offer={offer} />);
+    expect(html).toContain("Launch offer");
+    expect(html).toContain("15% off every paid model");
+    expect(html).toContain("Until 27 November");
+    expect(html).toContain("$1.1475");
+    expect(html).toMatch(/<s class="model-price-regular">.*?\$1\.35<\/s>/);
+    expect(html).toMatch(/<s class="model-price-regular">.*?\$6\.75<\/s>/);
+    // The offer is shown, never where the discount comes from.
+    for (const word of ["markup", "margin", "35%"]) expect(html.toLowerCase()).not.toContain(word);
+  });
+
+  it("ignores an offer that has ended or is malformed, and shows regular prices only", async () => {
+    for (const bad of [{ name: "Old", percent: 15, endsAt: Date.now() - 1000 }, { name: "", percent: 15, endsAt: Date.parse("2099-01-01") }, { name: "X", percent: 150, endsAt: Date.parse("2099-01-01") }]) {
+      vi.mocked(readApi).mockResolvedValue(Response.json({
+        paid: { enabled: true, providers: ["custom-heabsy"], freeWeeklyTokens: 1_540_000, accounting: "cost-v1", packs: [{ id: "starter", priceCents: 300, tokens: 16_500_000 }] },
+        offer: bad,
+        models: [{ id: "paid", name: "Paid", billing: "wallet", paid: true, providerName: "Heabsy", inputPrice: 1.35, outputPrice: 6.75 }],
+      }));
+      const offer = await pricingOffer();
+      expect(offer.offer).toBeNull();
+      const html = renderToStaticMarkup(<PricingContent offer={offer} />);
+      expect(html).not.toContain("model-price-regular");
+      expect(html).not.toContain("pricing-offer");
+    }
+  });
+
   it("explains a paused sale", () => {
     const html = renderToStaticMarkup(<PricingContent offer={{ ...STANDARD_PRICING, available: false }} />);
-    expect(html).toContain("Credit purchases are temporarily paused");
+    expect(html).toContain("Purchases are temporarily paused");
   });
 
   it("falls back safely instead of rendering malformed or unsafe advertised products", async () => {
@@ -63,8 +116,11 @@ describe("public pricing and existing checkout", () => {
   });
 
   it("opens checkout straight from a Pricing click, and only then", () => {
-    expect(checkoutIntent("?plan=pro&go=1")).toEqual({ plan: "pro", pack: null });
-    expect(checkoutIntent("?pack=starter&go=1")).toEqual({ plan: null, pack: "starter" });
+    expect(checkoutIntent("?plan=pro&go=1")).toEqual({ plan: "pro", pack: null, billing: "month", amount: null });
+    expect(checkoutIntent("?plan=max&billing=year&go=1")).toEqual({ plan: "max", pack: null, billing: "year", amount: null });
+    expect(checkoutIntent("?pack=starter&go=1")).toEqual({ plan: null, pack: "starter", billing: "month", amount: null });
+    expect(checkoutIntent("?amount=37&go=1")).toEqual({ plan: null, pack: null, billing: "month", amount: 37 });
+    for (const bad of ["?amount=4&go=1", "?amount=1001&go=1", "?amount=12.5&go=1", "?amount=abc&go=1"]) expect(checkoutIntent(bad), bad).toBeNull();
     expect(checkoutIntent("?plan=pro")).toBeNull();
     expect(checkoutIntent("?plan=invalid&go=1")).toBeNull();
     expect(checkoutIntent("?plan=pro&go=1&order=aip_123")).toBeNull();

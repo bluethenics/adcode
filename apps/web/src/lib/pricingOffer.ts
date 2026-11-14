@@ -1,6 +1,6 @@
 import { parsePaidConfig } from "@adcode/api/src/paidTokens.ts";
 import { readApi } from "./apiRead";
-import { STANDARD_PRICING, type IncludedModelRate, type PaidModelRate, type PricingOffer } from "./pricing";
+import { STANDARD_PRICING, parsePriceOffer, type IncludedModelRate, type PaidModelRate, type PricingOffer } from "./pricing";
 
 /**
  * The included models the service offers now, with their credit rates. The page used to list the
@@ -52,7 +52,8 @@ export async function pricingOffer(): Promise<PricingOffer> {
     const config = parsePaidConfig({ enabled: paid["enabled"], accounting: paid["accounting"], providers: paid["providers"], freeWeeklyTokens: paid["freeWeeklyTokens"], packs: paid["packs"] });
     const models = offeredModels("models" in raw ? raw.models : undefined);
     const lists = paidAndFreeModels("models" in raw ? raw.models : undefined);
-    return config === null || config.accounting !== "cost-v1" ? STANDARD_PRICING : { freeWeeklyTokens: config.freeWeeklyTokens, packs: config.packs, available: config.enabled, ...(models === undefined ? {} : { models }), ...(lists ?? {}) };
+    const offer = parsePriceOffer("offer" in raw ? raw.offer : undefined);
+    return config === null || config.accounting !== "cost-v1" ? STANDARD_PRICING : { freeWeeklyTokens: config.freeWeeklyTokens, packs: config.packs, available: config.enabled, offer, yearly: paid["yearly"] === true, ...(models === undefined ? {} : { models }), ...(lists ?? {}) };
   } catch {
     return STANDARD_PRICING;
   }

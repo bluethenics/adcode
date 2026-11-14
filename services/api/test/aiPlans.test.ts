@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { effectiveWeeklyAllowance, hasActivePlan, hasAllModelAccess, PLANS_ON_SALE, hasUnlimitedPlan, requiresSubscription, parsePromo, planById, PLANS, ALLOWANCE_CHANGED_AT, planAllowance } from "../src/aiPlans.ts";
+import { effectiveWeeklyAllowance, hasActivePlan, hasAllModelAccess, PLANS_ON_SALE, hasUnlimitedPlan, requiresSubscription, parsePromo, planById, PLANS, ALLOWANCE_CHANGED_AT, planAllowance, OLD_PRICE_PERIODS_END, planChargeCents, planOrderBilling } from "../src/aiPlans.ts";
 
 describe("AI plans", () => {
-  it("prices and sizes the five plans, none of them on sale since 6 November 2026", () => {
-    expect(PLANS.map((p) => [p.id, p.priceCents, p.interval, p.weeklyTokens, p.invites])).toEqual([
-      ["weekly", 300, "week", 4_620_000, 0], ["monthly", 900, "month", 3_300_000, 0], ["pro", 2900, "month", 10_725_000, 2], ["max", 5900, "month", 22_000_000, 0], ["unlimited", 29900, "month", 110_550_000, 0]]);
-    expect(PLANS_ON_SALE).toEqual([]);
-    // Which plans would be offered if sales reopened, and that every plan covers every model.
+  it("prices and sizes the five plans, three on sale again since 13 November 2026", () => {
+    expect(PLANS.map((p) => [p.id, p.priceCents, p.yearlyCents, p.interval, p.weeklyTokens, p.invites])).toEqual([
+      ["weekly", 300, undefined, "week", 4_620_000, 0], ["monthly", 1900, 19000, "month", 6_380_000, 0], ["pro", 3900, 39000, "month", 13_090_000, 2], ["max", 14900, 149000, "month", 49_500_000, 0], ["unlimited", 29900, undefined, "month", 110_550_000, 0]]);
+    expect(PLANS_ON_SALE.map((p) => p.name)).toEqual(["Builder", "Pro", "Max"]);
+    // Every plan covers every model.
     expect(PLANS.filter((p) => p.onSale).map((p) => p.name)).toEqual(["Builder", "Pro", "Max"]);
     expect(PLANS.every((p) => p.allModels === true)).toBe(true);
     expect(planById("pro")?.name).toBe("Pro");
@@ -17,11 +17,29 @@ describe("AI plans", () => {
     const pro = planById("pro")!, weekly = planById("weekly")!, day = 86_400_000;
     // Ends within a month of the change: it gets the better of old and new - since 4 November, the new 975.
     expect(planAllowance(pro, ALLOWANCE_CHANGED_AT + 20 * day)).toBe(10_725_000);
-    // The next period, bought after the change, gets the new allowance.
-    expect(planAllowance(pro, ALLOWANCE_CHANGED_AT + 40 * day)).toBe(10_725_000);
+    // A period sold at the old $29 before sales closed on 6 November keeps 975, up to 8 December.
+    expect(planAllowance(pro, OLD_PRICE_PERIODS_END)).toBe(10_725_000);
+    expect(planAllowance(planById("max")!, OLD_PRICE_PERIODS_END - day)).toBe(22_000_000);
+    // A period sold at the new $39 gets the new 1,190.
+    expect(planAllowance(pro, OLD_PRICE_PERIODS_END + day)).toBe(13_090_000);
+    expect(planAllowance(pro, OLD_PRICE_PERIODS_END + 365 * day)).toBe(13_090_000);
     // Weekly went up, so every Weekly period gets the higher figure at once.
     expect(planAllowance(weekly, ALLOWANCE_CHANGED_AT + day)).toBe(4_620_000);
     expect(effectiveWeeklyAllowance({ plan: { id: "pro", endsAt: ALLOWANCE_CHANGED_AT + 20 * day, source: "subscription" }, boostTokens: 0 }, 1_100_000, ALLOWANCE_CHANGED_AT)).toBe(10_725_000);
+  });
+
+  it("loses no money at full daily use, on the yearly price too", () => {
+    // A credit costs at most $0.00085 (85% of a $0.001 list credit); payment fees take about 5%.
+    for (const plan of PLANS_ON_SALE) {
+      const credits = plan.weeklyTokens / 11_000;
+      expect(credits * 30 * 0.085 + plan.priceCents * 0.05).toBeLessThan(plan.priceCents);
+      expect(credits * 365 * 0.085 + plan.yearlyCents! * 0.05).toBeLessThan(plan.yearlyCents!);
+      expect(plan.yearlyCents).toBe(plan.priceCents * 10);
+      expect(planChargeCents(plan, "year")).toBe(plan.yearlyCents);
+    }
+    expect(planChargeCents(planById("weekly")!, "year")).toBeNull();
+    expect(planOrderBilling("aip_y0123abcd")).toBe("year");
+    expect(planOrderBilling("aip_0123abcd")).toBe("month");
   });
 
   it("gives every paid plan every hosted model inside its own fair-use allowance", () => {

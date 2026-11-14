@@ -113,10 +113,8 @@ export function readBuiltinSkill(input: unknown, enabled: boolean): ToolRunResul
 export function builtinSkillGuidance(enabled: boolean): string | null {
   if (!enabled) return null;
   return [
-    `Product quality: before building or restyling a user interface, call ${BUILTIN_SKILL_TOOL_NAME} with name "production-quality" for the compact design and verification workflow. Read its motion and release references when relevant. For deeper visual direction, load "design-taste-frontend", or "redesign-existing-projects" for a larger redesign.`,
-    "Keep the project's own stack, framework and styling: a plain HTML, CSS and JavaScript project stays plain, and an existing design system wins over the skill's taste. The skill's React and Tailwind defaults are only for a new project that has no stack yet.",
-    `Finish every file you start: no placeholder comments, no "rest of the code here". For a long multi-file answer, ${BUILTIN_SKILL_TOOL_NAME} "full-output-enforcement" says how.`,
-    "Discover the project's real checks with inspect_project and verify relevant changes with run_project_checks or native run_command checks. For a UI, inspect screenshots and primary flows with view_page and findings with audit_page when these tools are available. Missing or unrun checks are unverified; report them honestly.",
+    `Product quality: before building or restyling a user interface, read ${BUILTIN_SKILL_TOOL_NAME} "production-quality" (and "design-taste-frontend", or "redesign-existing-projects" for a larger redesign). Keep the project's own stack: a plain HTML, CSS and JavaScript project stays plain and its design system wins; the skill's React and Tailwind defaults are only for a new project with no stack.`,
+    `Finish every file you start, with no placeholders; for a long multi-file answer, "full-output-enforcement" says how. Verify with inspect_project and run_project_checks or run_command, and for a UI with view_page and audit_page; report unrun checks as unverified.`,
   ].join(" ");
 }
 

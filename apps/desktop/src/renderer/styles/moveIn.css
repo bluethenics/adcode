@@ -2,7 +2,13 @@
  * Move in (onboarding/moveIn.ts): accounts on top, conversations beneath, in one dialog.
  * Rows are plain and dense - this is a list to tick through, not a page to admire.
  */
-.move-in .form-dialog-card { width: min(680px, calc(100vw - 32px)); max-height: min(86vh, 820px); overflow: auto; }
+/*
+ * The frame carries the width. A card given its own width wider than the dialog frame
+ * overflows to the right - and with content-box sizing its padding was added on top,
+ * so at a narrow window the dialog was clipped instead of reflowing.
+ */
+.move-in.form-dialog { width: min(680px, calc(100vw - 32px)); max-width: min(680px, calc(100vw - 32px)); }
+.move-in .form-dialog-card { box-sizing: border-box; width: 100%; min-width: 0; max-height: min(86vh, 820px); overflow: auto; overflow-wrap: anywhere; }
 .move-in-lead { display: flex; align-items: center; gap: var(--space-3); }
 .move-in-lead .result-summary { margin: 0; }
 .move-in-section { display: grid; gap: var(--space-2); padding-top: var(--space-4); margin-top: var(--space-4); border-top: 1px solid var(--border-subtle); }
@@ -28,11 +34,6 @@
 .move-in-footer { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
 .move-in-footer[hidden] { display: none; }
 .move-in-target { font-size: var(--text-xs); color: var(--text-secondary); cursor: pointer; }
-@media (max-width: 560px) {
-  .move-in-cli { flex-direction: column; align-items: flex-start; }
-  .move-in-chat { grid-template-columns: auto minmax(0, 1fr); }
-  .move-in-chat small { grid-column: 2; }
-}
 @media (prefers-reduced-motion: no-preference) {
   :root:not([data-reduced-motion="true"]) .move-in-group { animation: motion-rise var(--motion-enter) var(--motion-curve) backwards; }
 }
@@ -59,3 +60,22 @@
 .move-in-project-side { display: grid; justify-items: end; gap: 4px; flex: none; }
 .move-in-project-side small { font-size: 10px; color: var(--text-tertiary); }
 .move-in-project-gone { color: var(--warning); }
+
+/*
+ * Below a phone width: stack the account row, the lead and the project side, and let the
+ * frame take the window. Kept last so these overrides follow the base rules they change.
+ */
+@media (max-width: 560px) {
+  .move-in.form-dialog { width: calc(100vw - 16px); max-width: calc(100vw - 16px); }
+  .move-in .form-dialog-card { padding: var(--space-4); gap: var(--space-3); }
+  .move-in-lead { flex-direction: column; align-items: flex-start; }
+  .move-in-lead .result-summary { max-width: none; }
+  .move-in-cli { flex-direction: column; align-items: flex-start; }
+  .move-in-chat { grid-template-columns: auto minmax(0, 1fr); }
+  .move-in-chat small { grid-column: 2; }
+  .move-in-source { flex-wrap: wrap; }
+  .move-in-project { flex-wrap: wrap; }
+  .move-in-project-side { flex: 1 1 100%; grid-auto-flow: column; justify-content: space-between; justify-items: start; align-items: center; }
+  .move-in-footer { flex-direction: column; align-items: stretch; }
+  .move-in-footer .ad-btn-primary { width: 100%; }
+}

@@ -10,14 +10,16 @@ describe("the one-time notice that sponsored cards are on", () => {
     expect(shouldShowAdPartnerNotice({ ...on, "adcode.ads.partnerNotifications": false }, false)).toBe(true);
   });
 
-  it("is not shown again, nor to somebody with both off or sponsored messages off", () => {
+  it("is not shown again, nor to somebody with both off, sponsored messages off, or frequency off", () => {
     expect(shouldShowAdPartnerNotice(on, true)).toBe(false);
     expect(shouldShowAdPartnerNotice({ ...on, "adcode.ads.chatSponsored": false, "adcode.ads.partnerNotifications": false }, false)).toBe(false);
     expect(shouldShowAdPartnerNotice({ ...on, "adcode.ads.enabled": false }, false)).toBe(false);
+    expect(shouldShowAdPartnerNotice({ ...on, "adcode.ads.frequency": "off" }, false)).toBe(false);
   });
 
   it("says who receives what, and offers Turn off", () => {
-    expect(AD_PARTNER_NOTICE.body).toContain("Zeekend, then Imprezia");
+    expect(AD_PARTNER_NOTICE.body).toContain("Zeekend, our only ad partner");
+    expect(AD_PARTNER_NOTICE.body).not.toContain("Imprezia");
     expect(AD_PARTNER_NOTICE.body).toContain("names of the languages");
     expect(AD_PARTNER_NOTICE.turnOff).toBe("Turn off");
     expect(AD_PARTNER_PRIVACY_URL).toBe("https://adcode.bluethenics.com/privacy#sponsored-cards");

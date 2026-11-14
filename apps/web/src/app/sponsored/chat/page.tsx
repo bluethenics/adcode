@@ -1,38 +1,34 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Imprezia, { MonetizedContentWithCards } from "@adimpress/imprezia-sdk";
-import { hasCards } from "@adimpress/imprezia-sdk/utils/cardHelpers";
 import { Zeekend, type ZeekendClient, type ZeekendSlot } from "@zeekend/sdk";
-import { networksFor, parseNetworks, withoutPrices, ZEEKEND_COLOURS, zeekendSessionId, zeekendTransport, type SponsoredNetwork } from "@/lib/sponsoredNetworks";
+import { networksFor, parseNetworks, reportNetworkImpression, SPONSORED_EMBEDDERS, withoutPrices, ZEEKEND_COLOURS, zeekendSessionId, zeekendTransport, type SponsoredNetwork } from "@/lib/sponsoredNetworks";
 import "./sponsored.css";
 
 /**
- * Sponsored cards under one AI reply - the opt-in `adcode.ads.chatSponsored` setting.
+ * One Zeekend card: under an AI reply, in a sponsored notification, or under a reply on the
+ * phone.
  *
- * The desktop app embeds this page in a sandboxed frame (`renderer/ai/sponsoredReply.ts`) and
- * hands it one exchange by postMessage. The ad partners' SDKs run here, on ADCode's own origin
- * and never in the editor: their measurement scripts load in this page only. Zeekend is asked
- * first and Imprezia fills what it leaves (`/v1/sponsored/networks`), one card per reply, each
- * drawn and measured by its own SDK. Imprezia's calls go through this site's `/v1/imprezia`
- * relay, which adds its key; Zeekend's publisher key is public by design.
+ * The desktop app (`renderer/ai/sponsoredReply.ts`) and Phone link's page embed this page in a
+ * sandboxed frame and hand it one exchange by postMessage. Zeekend's SDK runs here, on ADCode's
+ * own origin and never in the editor or the phone page, which hold the person's files and
+ * sign-in. Zeekend is ADCode's only ad partner; its publisher key is public by design and comes
+ * from `/v1/sponsored/networks`.
  *
- * Only the desktop window may talk to it: messages from any other origin are ignored, and
- * `frame-ancestors app://adcode` keeps other sites from embedding it at all.
+ * Only the embedders in SPONSORED_EMBEDDERS may talk to it: messages from any other origin are
+ * ignored, and the `frame-ancestors` header keeps other sites from embedding it at all.
  */
-const EMBEDDER = "app://adcode";
 
 /**
- * Where the card appears: `reply` under an AI reply, `notification` in a partner notification,
- * which asks for one card. Either way the card is the SDK's, exactly as it draws it: Imprezia
- * asks that it is not restyled, because the SDK handles many formats and edits can break them.
+ * Where the card appears: `reply` under an AI reply, `notification` in a sponsored
+ * notification - both Zeekend's own unit, drawn by its SDK - or `banner`, the one-line ad box
+ * above the message box, drawn here (see ZeekendBanner).
  */
-type Layout = "reply" | "notification";
+type Layout = "reply" | "notification" | "banner";
 /** `turn`: which user message of the conversation this is, for Zeekend's pacing; 1 when not sent. */
 type Exchange = { request: string; response: string; sessionId: string; theme: "light" | "dark"; layout: Layout; turn: number };
-/** The card this page found, from whichever partner had one. */
-type Found = { network: "imprezia"; monetized: Monetized } | { network: "zeekend"; slot: ZeekendSlot; client: ZeekendClient };
-type Monetized = Awaited<ReturnType<typeof Imprezia.monetize>>;
+/** The card this page found. */
+type Found = { slot: ZeekendSlot; client: ZeekendClient };
 
 function readExchange(data: unknown): Exchange | null {
   const value = data as Partial<Exchange> & { type?: unknown } | null;
@@ -40,45 +36,44 @@ function readExchange(data: unknown): Exchange | null {
   const { request, response, sessionId, theme } = value;
   if (typeof request !== "string" || typeof response !== "string" || typeof sessionId !== "string") return null;
   if (request.length === 0 || response.length === 0 || sessionId.length === 0 || sessionId.length > 100) return null;
-  const layout: Layout = (data as { layout?: unknown }).layout === "notification" ? "notification" : "reply";
+  const asked = (data as { layout?: unknown }).layout;
+  const layout: Layout = asked === "notification" || asked === "banner" ? asked : "reply";
   const sent = (data as { turn?: unknown }).turn;
   const turn = typeof sent === "number" && Number.isInteger(sent) && sent >= 1 && sent <= 10_000 ? sent : 1;
   return { request: request.slice(0, 4_000), response: response.slice(0, 4_000), sessionId, theme: theme === "light" ? "light" : "dark", layout, turn };
 }
 
-/** Which partners to ask, from this site's API; Imprezia alone if the list cannot be read. */
+/** Which Zeekend connection to ask, from this site's API; none if the list cannot be read. */
 async function loadNetworks(): Promise<SponsoredNetwork[]> {
   try {
     const response = await fetch("/v1/sponsored/networks", { cache: "no-store" });
-    return (response.ok ? parseNetworks(await response.json()) : null) ?? [{ id: "imprezia" }];
+    return (response.ok ? parseNetworks(await response.json()) : null) ?? [];
   } catch {
-    return [{ id: "imprezia" }];
+    return [];
   }
 }
 
 /** Zeekend's slot for this exchange through its SDK, or null. The answer is complete, so one pass. */
-async function askZeekend(network: Extract<SponsoredNetwork, { id: "zeekend" }>, exchange: Exchange): Promise<Found | null> {
+async function askZeekend(network: SponsoredNetwork, exchange: Exchange): Promise<Found | null> {
   const sessionId = await zeekendSessionId(exchange.sessionId);
-  const client = Zeekend.client({ publisherKey: network.publisherKey, sessionId, keepPinned: false, transport: zeekendTransport(exchange.turn) });
+  const client = Zeekend.client({ publisherKey: network.publisherKey, sessionId, keepPinned: false, transport: zeekendTransport(exchange.turn, fetch, undefined, (slotId) => {
+    // Counted for the admin here, and told to the app, which claims the person's payout with its own sign-in.
+    reportNetworkImpression(slotId, exchange.layout);
+    tell({ type: "adcode-sponsored-impression", slotId });
+  }) });
   const { slot } = await client.request({
     placementId: network.placementId,
     context: { type: "conversation", question: exchange.request, answer: exchange.response, conversationId: sessionId },
     dimensions: { maxWidth: 640 },
   });
-  return slot === null ? null : { network: "zeekend", slot, client };
+  return slot === null ? null : { slot, client };
 }
-
-async function askImprezia(exchange: Exchange): Promise<Found | null> {
-  const monetized = await Imprezia.monetize({ request: exchange.request, response: exchange.response, sessionId: exchange.sessionId, ...(exchange.layout === "notification" ? { maxCards: 1 } : {}) });
-  return hasCards(monetized) ? { network: "imprezia", monetized } : null;
-}
-
 
 /**
  * Outgoing messages say only that the frame is ready, that it found nothing, or how tall
  * the card is: none of the exchange travels this way. So any embedder may hear them, and
  * `*` keeps the page working in an ordinary browser, which cannot parse the editor's
- * `app://` origin as a postMessage target. Incoming messages stay pinned to EMBEDDER.
+ * `app://` origin as a postMessage target. Incoming messages stay pinned to the embedders.
  */
 const tell = (message: Record<string, unknown>): void => window.parent.postMessage(message, "*");
 
@@ -89,14 +84,8 @@ export default function SponsoredChat() {
   const zeekendMount = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const origin = window.location.origin;
-    Imprezia.init({
-      apiKey: "proxy", // the real key is added by the relay, never sent to the browser
-      endpoint: `${origin}/v1/imprezia`,
-      impressionEndpoint: `${origin}/v1/imprezia/v1/events/sdk-impression`,
-    });
     const onMessage = (event: MessageEvent): void => {
-      if (event.origin !== EMBEDDER || event.source !== window.parent) return;
+      if (!SPONSORED_EMBEDDERS.includes(event.origin) || event.source !== window.parent) return;
       const next = readExchange(event.data);
       if (next !== null) setExchange((current) => current ?? next);
     };
@@ -105,7 +94,7 @@ export default function SponsoredChat() {
     return () => window.removeEventListener("message", onMessage);
   }, []);
 
-  // One card per reply: ask the partners in order (Zeekend, then Imprezia) and stop at the first.
+  // One card each time: the first Zeekend connection with a card wins.
   useEffect(() => {
     if (exchange === null) return;
     let live = true;
@@ -113,7 +102,7 @@ export default function SponsoredChat() {
       for (const network of networksFor(exchange.layout, await loadNetworks())) {
         if (!live) return;
         let found: Found | null = null;
-        try { found = network.id === "zeekend" ? await askZeekend(network, exchange) : await askImprezia(exchange); } catch { found = null; }
+        try { found = await askZeekend(network, exchange); } catch { found = null; }
         if (found !== null) { if (live) setResult(found); return; }
       }
       if (live) tell({ type: "adcode-sponsored-empty" });
@@ -124,7 +113,7 @@ export default function SponsoredChat() {
   // Zeekend's own unit draws the placement and reports its viewable impression and click.
   useEffect(() => {
     const mount = zeekendMount.current;
-    if (mount === null || result?.network !== "zeekend" || exchange === null) return;
+    if (mount === null || result === null || exchange === null || exchange.layout === "banner") return;
     // Drawn by Zeekend's own unit, minus the price (see withoutPrices): the card names the product, the page it opens prices it.
     const unit = result.client.render(withoutPrices(result.slot), mount, { theme: { ...ZEEKEND_COLOURS[exchange.theme] } });
     return () => { unit?.remove(); };
@@ -160,16 +149,70 @@ export default function SponsoredChat() {
   if (exchange === null || result === null) return null;
   return (
     <div ref={box} className="sponsored-chat" data-theme={exchange.theme}>
-      {result.network === "imprezia" ? (
-        <MonetizedContentWithCards
-          response={result.monetized}
-          theme={exchange.theme}
-          // The reply is already in the chat; only the sponsored cards are drawn here.
-          hideResponseContainer
-        />
-      ) : (
-        <div ref={zeekendMount} />
-      )}
+      {exchange.layout === "banner" ? <ZeekendBanner found={result} /> : <div ref={zeekendMount} />}
     </div>
   );
 }
+
+/**
+ * The ad box above the message box: the product's picture, its headline with Zeekend's own
+ * disclosure beside it, one line of copy and a button, in one tinted box.
+ *
+ * Zeekend allows custom rendering on two conditions, both kept: the link is the slot's
+ * `clickUrl` (never `url`), and `slot.disclosure` stays visible. Its measurement is kept too:
+ * an impression only once half the box has been on screen for a second - the frame's
+ * visibility in the editor's window, which an observer here sees - and a click as it opens.
+ * No price, as everywhere else (see withoutPrices).
+ */
+function ZeekendBanner({ found }: { found: Found }) {
+  const slot = withoutPrices(found.slot) as BannerSlot;
+  const link = useRef<HTMLAnchorElement>(null);
+  const [imageOk, setImageOk] = useState(true);
+
+  useEffect(() => {
+    const element = link.current;
+    if (element === null || typeof IntersectionObserver !== "function") return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const observer = new IntersectionObserver((entries) => {
+      const seen = entries.some((entry) => entry.intersectionRatio >= 0.5);
+      if (seen && timer === null) timer = setTimeout(() => { void found.client.impression(found.slot); observer.disconnect(); }, 1_000);
+      if (!seen && timer !== null) { clearTimeout(timer); timer = null; }
+    }, { threshold: [0, 0.5, 1] });
+    observer.observe(element);
+    return () => { observer.disconnect(); if (timer !== null) clearTimeout(timer); };
+  }, [found]);
+
+  const href = typeof slot.clickUrl === "string" && slot.clickUrl.startsWith("https://") ? slot.clickUrl : null;
+  if (href === null) return null;
+  const image = typeof slot.image === "string" && slot.image.startsWith("https://") && imageOk ? slot.image : null;
+  const headline = typeof slot.headline === "string" ? slot.headline : typeof slot.advertiser === "string" ? slot.advertiser : "";
+  const body = typeof slot.body === "string" ? slot.body : "";
+  const cta = typeof slot.cta === "string" && slot.cta.trim() !== "" ? slot.cta.trim() : "Shop";
+  const disclosure = typeof slot.disclosure === "string" && slot.disclosure.trim() !== "" ? slot.disclosure.trim() : "Sponsored";
+
+  return (
+    <a
+      ref={link}
+      className="sponsored-banner"
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer sponsored"
+      onClick={() => { void found.client.click(found.slot); }}
+    >
+      {image !== null && (
+        // eslint-disable-next-line @next/next/no-img-element -- an advertiser's https image, shown as sent
+        <img className="sponsored-banner-image" src={image} alt="" referrerPolicy="no-referrer" onError={() => setImageOk(false)} />
+      )}
+      <span className="sponsored-banner-text">
+        <span className="sponsored-banner-title">
+          <span className="sponsored-banner-headline">{headline}</span>
+          <span className="sponsored-banner-disclosure">{disclosure}</span>
+        </span>
+        {body !== "" && <span className="sponsored-banner-body">{body}</span>}
+      </span>
+      <span className="sponsored-banner-cta">{cta}</span>
+    </a>
+  );
+}
+
+type BannerSlot = ZeekendSlot & { headline?: unknown; body?: unknown; image?: unknown; cta?: unknown; clickUrl?: unknown; advertiser?: unknown };

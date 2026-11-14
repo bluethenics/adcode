@@ -17,13 +17,18 @@ export function aiWorkspaceContext(
   editor: AiEditorContextView | null = null,
   /** The user's AI edit approval choice: "direct" is Apply automatically. */
   edits: "direct" | "review" = "direct",
+  /**
+   * Full access is on for this turn. Say so, or the model keeps asking for permission in
+   * prose even though no dialog will appear - the whole point of the mode is that it acts.
+   */
+  fullAccess = false,
 ): string {
   if (root === null) return "Workspace status: no folder is open. Ask the user to open or create a project folder in ADCode before creating files. Pasting a path does not open a workspace.";
   return [
     `Open workspace root (JSON string): ${JSON.stringify(root)}.`,
-    "The workspace is already selected. Do not ask the user for its path. Use list_files with no path (or an empty string) to inspect its root; use relative paths with read_file, edit_file and propose_edit. Change existing files with edit_file (exact old/new text); create new files with propose_edit.",
-    'For example, create "src/main.ts", not "/src/main.ts" or a guessed project directory. After a path error, inspect the workspace with list_files and correct the path before retrying; never repeat the same rejected call.',
-    "To list images or files by shape, use glob_files (e.g. **/*.png). Skim long files with get_outline, page reads with offset/limit, run tests with run_command, and fetch docs with fetch_url.",
+    // The general tool advice is the system prompt's (agent.ts); saying it again here cost every
+    // request ~150 tokens (docs/token-benchmark-2026-11-14.md). Only what is about this workspace.
+    'The workspace is already selected. Do not ask the user for its path: paths are relative to it ("src/main.ts", not "/src/main.ts"). Change files with edit_file; create new files with propose_edit. After a path error, list_files and correct the path; never repeat a rejected call.',
     // One statement of where edits land, matching the user's approval setting. The two
     // used to sit side by side, and models reported finished work as unreviewed proposals.
     blocker !== null
@@ -31,9 +36,12 @@ export function aiWorkspaceContext(
       : edits === "direct"
         ? "Your edits apply directly: edit_file, propose_edit and run_command change the user's real project folder the moment they run, and the user can undo a whole turn afterwards. Say what you changed, not what you propose."
         : "Your edits are staged for the user's review: edit_file, propose_edit and run_command work in an isolated copy of the project, and reads show your staged version. Nothing reaches the user's files until they apply it, so say you proposed the changes and that they are waiting for review.",
+    ...(fullAccess
+      ? ["Full access is on for this turn: the user has already authorised guarded actions, so do the work instead of asking for permission in prose. Capabilities they switched off, the blocked destructive shell commands, and password or card fields are still refused."]
+      : []),
     edits === "direct"
-      ? "For a web app, view_page looks at a page in a real browser (text, console errors, failed requests, a screenshot) and open_preview shows a page to the user in the conversation; both take a path such as about.html and serve the project's files as they are on disk. Check a page with view_page before saying it works. Do not claim a desktop Python GUI can run inside a web preview."
-      : "For a web app, view_page looks at a page in a real browser and open_preview shows a page to the user in the conversation; both take a path such as about.html and serve the applied project, so staged changes appear once the user applies them. Do not claim a desktop Python GUI can run inside a web preview.",
+      ? "Previews serve the project's files as they are on disk (open_preview and view_page take a path such as about.html). A desktop Python GUI cannot run in a web preview."
+      : "Previews serve the applied project, so staged changes appear in open_preview and view_page once the user applies them. A desktop Python GUI cannot run in a web preview.",
     CHAT_FORMATS,
     ...editorContextLines(editor),
   ].join("\n");

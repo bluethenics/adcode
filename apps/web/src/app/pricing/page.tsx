@@ -9,9 +9,9 @@ import "./pricing.css";
 
 export const metadata: Metadata = pageMetadata({
   path: "/pricing",
-  title: "Pricing: free code editor, pay-as-you-go AI models",
-  socialTitle: "ADCode pricing: free editor, pay only for the models you use",
-  description: "ADCode's editor and Tagflow AI are free. Every other AI model is paid from USD credits at the price listed for it, model by model. No subscription; credits never expire.",
+  title: "Pricing: free code editor, AI plans and pay-as-you-go credits",
+  socialTitle: "ADCode pricing: free editor, three AI plans, or credits in any amount",
+  description: "ADCode's editor and Tagflow AI are free. Builder, Pro and Max plans give fresh AI credits every day on every hosted model, or pay as you go with USD credits in any amount from $5.",
 });
 
 export const revalidate = 60;

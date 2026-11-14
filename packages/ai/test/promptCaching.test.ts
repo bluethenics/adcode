@@ -127,14 +127,17 @@ describe("Anthropic cache breakpoints", () => {
     expect(breakpoints(second)).toBe(MAX_CACHE_BREAKPOINTS);
   });
 
-  it("keeps the instructions' cache when the host context changes between steps", async () => {
+  it("holds the host context for the whole message, so the cached prefix survives a moving cursor", async () => {
     let step = 0;
     const { sent } = await twoSteps(() => `Cursor on line ${String(++step)}.`);
     const [first, second] = sent as [Record<string, unknown>, Record<string, unknown>];
     const firstSystem = first["system"] as Array<Record<string, unknown>>;
     const secondSystem = second["system"] as Array<Record<string, unknown>>;
-    expect(secondSystem[0]).toEqual(firstSystem[0]);
-    expect(secondSystem[1]).toEqual({ type: "text", text: "Cursor on line 2." });
+    // The instructions keep their own breakpoint, and the context after them is the one read
+    // when the message started: everything behind it still matches the previous request.
+    expect(secondSystem).toEqual(firstSystem);
+    expect(secondSystem[1]).toEqual({ type: "text", text: "Cursor on line 1." });
+    expect(step).toBe(1);
   });
 
   it("never carries more than four breakpoints, however long the conversation", async () => {

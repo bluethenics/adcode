@@ -988,6 +988,26 @@
   font-size: var(--text-xs);
 }
 
+/* The door for somebody whose conversations are still in another AI tool. */
+.chat-history-import {
+  margin: 0 10px 8px;
+  padding: 5px 9px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--accent);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.chat-history-import:hover,
+.chat-history-import:focus-visible {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+
 .chat-history-clear {
   margin: 8px;
   padding: 4px 8px;
@@ -2869,6 +2889,48 @@ button.chat-model[data-ready="false"]::before {
   text-align: left;
 }
 
+/*
+ * Move in from the empty conversation: a quiet card under the setup steps, not another
+ * numbered step. It opens the same popup as the command palette and the welcome tour.
+ */
+.chat-welcome-import {
+  display: grid;
+  gap: 1px;
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 14px;
+  padding: 9px 12px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.chat-welcome-import strong {
+  color: var(--text-primary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.chat-welcome-import span {
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.chat-welcome-import:hover {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+
+.chat-welcome-import[hidden] {
+  display: none;
+}
+
 .chat-setup-step {
   display: flex;
   align-items: center;
@@ -3921,6 +3983,12 @@ button.chat-setup-action {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   color: var(--accent);
 }
+.chat-mode-pill.chat-approval[data-mode="full"] {
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--border-hairline));
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+  color: var(--danger);
+  font-weight: 650;
+}
 .chat-mode-pill.chat-approval:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .chat-mode-note {
@@ -3930,6 +3998,83 @@ button.chat-setup-action {
   line-height: 1.5;
   text-align: center;
 }
+
+/* ══ Full access: the red shield that never lets the mode become invisible ═ */
+
+.chat-full-access-shield {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger);
+  cursor: pointer;
+}
+.chat-full-access-shield[hidden] { display: none; }
+.chat-full-access-shield svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.chat-full-access-shield:hover { background: color-mix(in srgb, var(--danger) 14%, transparent); }
+.chat-full-access-shield:focus-visible { outline: 2px solid var(--danger); outline-offset: 2px; }
+
+.chat-full-access-card {
+  padding: 16px 18px;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border-hairline));
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  animation: chat-rise var(--duration-enter) var(--ease-sheet);
+}
+.chat-full-access-title { margin: 0 0 6px; font-size: 15px; font-weight: 650; line-height: 1.35; }
+.chat-full-access-text { margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.55; }
+.chat-full-access-list {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.chat-full-access-list li { margin: 2px 0; }
+.chat-full-access-fine {
+  margin: 10px 0 0;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.chat-full-access-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.chat-full-access-confirm,
+.chat-full-access-cancel {
+  min-height: 32px;
+  padding: 5px 14px;
+  border-radius: 7px;
+  font: 600 12px var(--font-ui);
+  cursor: pointer;
+}
+.chat-full-access-confirm {
+  border: 1px solid color-mix(in srgb, var(--danger) 70%, var(--border-hairline));
+  background: color-mix(in srgb, var(--danger) 84%, black);
+  color: #fff;
+}
+.chat-full-access-confirm:hover { background: var(--danger); }
+.chat-full-access-cancel {
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-primary);
+}
+.chat-full-access-cancel:hover { background: var(--bg-hover); }
+.chat-full-access-confirm:focus-visible,
+.chat-full-access-cancel:focus-visible { outline: 2px solid var(--danger); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .chat-full-access-card { animation: none; } }
 
 .chat-checkpoint {
   padding: 0;

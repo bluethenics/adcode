@@ -1,5 +1,5 @@
 /**
- * The earnings report: what the ad side has actually paid, and what it would pay.
+ * The earnings report: what the ad side has actually paid.
  *
  * A glanceable summary inside the workbench's activity-anchored popup shell. The shell owns
  * disclosure, anchoring and dismissal; this module keeps ownership of account and earnings
@@ -19,8 +19,10 @@
  *
  * - The balances are mirrored from `/v1/balance` and formatted by the ledger in integer
  *   arithmetic. Real, and the only two monetary figures here.
- * - The per-preset hourly projections come pre-computed from `/v1/config` (deviation D1,
- *   which exists precisely so §8.1 can be satisfied without the client doing the sum).
+ * - The per-preset hourly projections that `/v1/config` supplies are deliberately not shown.
+ *   They answer "what might I earn from now on", not "what has this paid", and a forecast
+ *   sitting where a balance belongs is read as a promise. Settings still offers the cadence
+ *   choices themselves.
  * - The receipt queue is an **outbox**, not a history: entries are deleted once the server
  *   accepts them. So it can say how much is waiting to be sent, and it cannot say how many
  *   ads were ever shown. It is labelled as the former.
@@ -50,34 +52,6 @@ export interface AnchoredTool {
 export interface EarningsPopover extends AnchoredTool {
   /** The main process broadcasts on every tick; the card redraws whether or not it is open. */
   update(snapshot: EarningsSnapshot): void;
-}
-
-/** Human wording for a preset id, since the ids are wire values. */
-const PRESET_LABEL: Readonly<Record<string, string>> = {
-  off: "Off",
-  light: "Light",
-  standard: "Standard",
-  max: "Maximum",
-};
-
-function presetLabel(preset: string): string {
-  return PRESET_LABEL[preset] ?? preset;
-}
-
-/**
- * "one every 4 min", from an interval in milliseconds.
- *
- * Rounded to whole minutes, and to whole seconds below a minute. This is a description of a
- * cadence, not a monetary value, so ordinary arithmetic is fine here - the bigint rule
- * governs money and nothing else.
- */
-function cadence(minIntervalMs: number, dailyCap: number): string {
-  if (dailyCap === 0) return "never";
-
-  const minutes = Math.round(minIntervalMs / 60_000);
-  const every = minutes >= 1 ? `${minutes} min` : `${Math.round(minIntervalMs / 1000)}s`;
-
-  return `1 every ${every} · up to ${dailyCap}/day`;
 }
 
 function row(label: string, value: string): HTMLElement {
@@ -220,24 +194,6 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
 
   const facts = document.createElement("div");
   facts.className = "earnings-facts";
-
-  /* ── Presets ────────────────────────────────────────────────────────────── */
-
-  const presetSection = document.createElement("div");
-  presetSection.className = "earnings-section";
-
-  const presetHeading = document.createElement("h3");
-  presetHeading.className = "earnings-heading";
-  presetHeading.textContent = "What each frequency pays";
-
-  const presetList = document.createElement("ul");
-  presetList.className = "earnings-presets";
-
-  const presetEmpty = document.createElement("p");
-  presetEmpty.className = "earnings-empty";
-  presetEmpty.textContent = "Frequency estimates will appear when available.";
-
-  presetSection.append(presetHeading, presetList, presetEmpty);
 
   /* ── Account ────────────────────────────────────────────────────────────── */
 
@@ -397,7 +353,7 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
 
   const body = document.createElement("div");
   body.className = "earnings-body";
-  body.append(hero, facts, invite, accountRow, presetSection, footer);
+  body.append(hero, facts, invite, accountRow, footer);
 
   card.append(header, body);
 
@@ -418,8 +374,6 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
       heroValue.dataset["known"] = "false";
       heroCaption.textContent = "Waiting for the server";
       facts.replaceChildren();
-      presetList.replaceChildren();
-      presetEmpty.hidden = false;
       note.textContent = "";
       return;
     }
@@ -446,34 +400,6 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
       // here rather than buried in settings, because this popover is where somebody
       // already is when they are wondering why no card has arrived.
       ...(accountUid === null ? [] : [accountIdRow(accountUid)]),
-    );
-
-    presetEmpty.hidden = snapshot.presets.length > 0;
-    presetList.replaceChildren(
-      ...snapshot.presets.map((option) => {
-        const item = document.createElement("li");
-        item.className = "earnings-preset";
-        if (option.active) item.dataset["active"] = "true";
-
-        const name = document.createElement("span");
-        name.className = "earnings-preset-name";
-        name.textContent = presetLabel(option.preset);
-        if (option.active) name.textContent += " · current";
-
-        const detail = document.createElement("span");
-        detail.className = "earnings-preset-detail";
-        detail.textContent = cadence(option.minIntervalMs, option.dailyCap);
-
-        const rate = document.createElement("span");
-        rate.className = "earnings-preset-rate";
-        // `null` when `/v1/config` has not delivered a projections table. A dash, never a
-        // guess: an hourly rate invented here would be the client computing money.
-        rate.textContent = option.projectionLabel === null ? "—" : `${option.projectionLabel}/hr`;
-        rate.dataset["known"] = String(option.projectionLabel !== null);
-
-        item.append(name, detail, rate);
-        return item;
-      }),
     );
 
     note.textContent = snapshot.hasServerBalance

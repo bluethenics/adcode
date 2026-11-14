@@ -352,7 +352,6 @@ startActivityTracker(editorHost, (deltas) =>
 /* ── Settings ─────────────────────────────────────────────────────────── */
 
 let settingsValues: Record<string, boolean | string> = {};
-let serverProjections: Record<string, string> | null = null;
 
 /** Everything a settings change has to reach. */
 function applySettings(values: Record<string, boolean | string>): void {
@@ -2797,7 +2796,6 @@ const settingsView = createSettingsView({
   read: () => window.adcode.settings.read(),
   write: (id, value) => window.adcode.settings.write(id, value),
   reset: () => window.adcode.settings.reset(),
-  projections: () => serverProjections,
   mcpConnection: () => window.adcode.memory.connection(),
 });
 
@@ -3492,6 +3490,21 @@ async function createProjectForIdea(idea: string): Promise<boolean> {
     setStatus(`Could not make a project folder: ${error instanceof Error ? error.message : String(error)}`, 8000);
     return false;
   }
+}
+
+/**
+ * Move in, with this window's services: the palette, the welcome area and an empty history
+ * all open the same popup. Nothing is imported until the person presses a button in it.
+ */
+function openMoveInDialog(): void {
+  openMoveIn({
+    selectProvider: (providerId) => connectView.select(providerId),
+    runInTerminal: (command) => { void runInTerminal(command); },
+    write: (id, value) => window.adcode.settings.write(id, value),
+    openFolder: (folder) => void openFolderAt(folder),
+    showConversations: () => chat.showConversations(),
+    openApps: () => openPlugins("apps"),
+  });
 }
 
 /** The welcome tour for whoever it is for; `after` runs once it ends, however it ends. */
@@ -4807,6 +4820,7 @@ const chat = createChatWidget({
   openTools: () => commands.run("tools.open"),
   openSettings: (query) => openSetting(query),
   runCommand: (command, arg) => commands.run(command, arg),
+  moveIn: () => openMoveInDialog(),
   uncommittedDiff: async () => {
     const [diff, status] = await Promise.all([
       window.adcode.git.diff().catch(() => ""),
@@ -5376,6 +5390,18 @@ window.adcode.ads.onShow((toast) => notifications.showSponsored(toast));
 // The ad partner fills a slot no direct campaign did. Its frame only answers the desktop app,
 // so the web version hands the slot straight back.
 window.adcode.ads.onPartnerShow((toast) => isWebSurface() ? window.adcode.ads.partnerResult(toast.id, "empty") : notifications.showPartner(toast));
+
+/*
+ * The kill switch and Frequency Off take down what is already on screen, not only the next
+ * card. Without this, somebody switching ads off watched the card in the corner carry on to
+ * its own timer, which reads as the switch not having worked.
+ */
+window.adcode.settings.onChanged((values) => {
+  const record = values as Record<string, unknown>;
+  if (record["adcode.ads.enabled"] === false || record["adcode.ads.frequency"] === "off") {
+    notifications.dismissSponsored();
+  }
+});
 
 /*
  * Telling the ad client what the editor is currently showing.
@@ -6285,6 +6311,7 @@ function registerCommands(): void {
   );
   add("run.file", "Run Active File", () => runButton.activate());
   add("ai.toggle", "Assistant", () => chat.toggle());
+  add("ai.fullAccess", "Full Access: Let the Assistant Do Anything", () => { showChatSurface(); chat.requestFullAccess(); });
   add("ai.connect", "Connect a Model", () => connectView.open());
   add("ai.chooseModel", "AI: Choose Model and Reasoning", () => { showChatSurface(); chat.openModelPicker(); });
   add("ai.useCodingCli", "Use a Coding CLI (Claude Code, Codex, OpenCode)", async () => {
@@ -6294,20 +6321,13 @@ function registerCommands(): void {
     const best = clis.find((provider) => provider.cli?.installed === true && provider.cli.headless) ?? clis.find((provider) => provider.cli?.installed === true) ?? clis[0];
     connectView.select(best?.id ?? "cli-claude");
   });
-  add("onboarding.moveIn", "Move In: Bring Your AI Accounts and Conversations", () => openMoveIn({
-    selectProvider: (providerId) => connectView.select(providerId),
-    runInTerminal: (command) => { void runInTerminal(command); },
-    write: (id, value) => window.adcode.settings.write(id, value),
-    openFolder: (folder) => void openFolderAt(folder),
-    showConversations: () => chat.showConversations(),
-    openApps: () => openPlugins("apps"),
-  }));
+  add("onboarding.moveIn", "Move In: Bring Your AI Accounts and Conversations", () => openMoveInDialog());
   add("ai.askMockup", "Ask the Assistant for a Mockup", () => { showChatSurface(); chat.draft("Sketch a mockup of "); });
   add("tools.sortSkills", "Tools: Sort, Pin and Group Skills", () => openTools("skills"));
   add("collab.liveRoom", "Live Room: Who Is Online and Room Chat", () => { showChatSurface(); chat.toggleLiveRoom(); });
   // The welcome tour, on demand. It does not yet open by itself: see welcomeTour.ts.
   add("onboarding.tour", "Show the Welcome Tour", () => openWelcomeTour(true, () => undefined));
-  add("ai.importChats", "Import Conversations from Claude Code, Codex and OpenCode", () => commands.run("onboarding.moveIn"));
+  add("ai.importChats", "Import Conversations from Claude Code, Codex and OpenCode", () => openMoveInDialog());
   add("ai.exportChat", "Export This Conversation as Markdown", () => chat.exportConversation("markdown"));
   add("ai.exportChatJson", "Export This Conversation as JSON", () => chat.exportConversation("json"));
   add("browser.clearData", "Browser: Sign Out of Everything and Clear Its Data", () => {

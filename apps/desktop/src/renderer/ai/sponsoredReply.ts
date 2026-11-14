@@ -1,15 +1,15 @@
 /**
- * Sponsored cards under an AI reply - Zeekend, then Imprezia. On by default from 2.5.1; one switch turns it off.
+ * Sponsored cards under an AI reply - Zeekend, ADCode's only ad partner. On by default from 2.5.1; one switch turns it off.
  *
- * The SDK never runs in this window. It needs advertisers' measurement scripts, and this
- * window holds `window.adcode`, which reads files and runs commands: no ad script may share
- * it. So the cards live on ADCode's own site, `/sponsored/chat`, in a cross-origin frame
- * sandboxed away from this page. This side only hands the frame the one exchange it may see
- * and sizes it; the site's `/v1/imprezia` relay adds the key, so no key is in the app.
+ * The SDK never runs in this window. It measures what it shows, and this window holds
+ * `window.adcode`, which reads files and runs commands: no ad script may share it. So the
+ * cards live on ADCode's own site, `/sponsored/chat`, in a cross-origin frame sandboxed away
+ * from this page. This side only hands the frame the one exchange it may see and sizes it;
+ * Zeekend's publisher key is public by design and comes from the site, so none is in the app.
  *
  * What leaves the machine, and only while `adcode.ads.chatSponsored` is on: the person's
- * message and the reply under which the card appears, and the conversation's id, so Imprezia
- * can keep one conversation together. Nothing else from the project.
+ * message and the reply under which the card appears, and a one-way code made from the
+ * conversation's id, so Zeekend can pace one conversation. Nothing else from the project.
  */
 export const SPONSORED_ORIGIN = "https://adcode.bluethenics.com";
 export const SPONSORED_SETTING = "adcode.ads.chatSponsored";
@@ -26,29 +26,45 @@ export interface SponsoredExchange {
   /** The conversation's own stored id: the same on every turn and retry of one chat. */
   readonly sessionId: string;
   readonly theme: "light" | "dark";
-  /** `notification`: the page asks the SDK for one card. The card is always drawn as the SDK draws it. */
-  readonly layout?: "reply" | "notification";
+  /**
+   * `notification`: one card, drawn by Zeekend's SDK. `banner`: the one-line ad box above the
+   * message box - picture, headline, disclosure, a line of copy and a button - drawn by the page.
+   */
+  readonly layout?: "reply" | "notification" | "banner";
   /** Which user message of the conversation this reply answers, for the partner's pacing. A number only. */
   readonly turn?: number;
 }
 
 /** The message the frame waits for. Clipped here so an enormous reply never crosses whole. */
-export function sponsoredMessage(exchange: SponsoredExchange): { type: "adcode-sponsored"; request: string; response: string; sessionId: string; theme: "light" | "dark"; layout?: "notification"; turn?: number } | null {
+export function sponsoredMessage(exchange: SponsoredExchange): { type: "adcode-sponsored"; request: string; response: string; sessionId: string; theme: "light" | "dark"; layout?: "notification" | "banner"; turn?: number } | null {
   const request = exchange.request.trim().slice(0, MAX_CHARS);
   const response = exchange.response.trim().slice(0, MAX_CHARS);
   const sessionId = exchange.sessionId.slice(0, 100);
   if (request === "" || response === "" || sessionId === "") return null;
   const turn = exchange.turn !== undefined && Number.isInteger(exchange.turn) && exchange.turn >= 1 && exchange.turn <= 10_000 ? exchange.turn : undefined;
-  return { type: "adcode-sponsored", request, response, sessionId, theme: exchange.theme, ...(exchange.layout === "notification" ? { layout: "notification" as const } : {}), ...(turn === undefined ? {} : { turn }) };
+  const layout = exchange.layout === "notification" || exchange.layout === "banner" ? exchange.layout : undefined;
+  return { type: "adcode-sponsored", request, response, sessionId, theme: exchange.theme, ...(layout === undefined ? {} : { layout }), ...(turn === undefined ? {} : { turn }) };
 }
+
+/** How often the ad box asks Zeekend for a fresh card while the chat is on screen. */
+export const SPONSOR_ROTATE_MS = 30_000;
+
+/**
+ * What the ad box asks for before the conversation has a finished reply: a developer's working
+ * day in general words. Nothing from the project or the person.
+ */
+export const OPENING_EXCHANGE = {
+  request: "I'm a software developer working in my code editor all day. What would make my work more comfortable and productive?",
+  response: "A comfortable keyboard and mouse, a good monitor, noise-cancelling headphones, a supportive chair, and tools that keep you focused through the day.",
+} as const;
 
 /**
  * Keeps a card in view as it arrives, for the frame's `onSize`.
  *
  * The card comes a few seconds after the reply and grows its frame from nothing, and growth
  * below the fold scrolls nothing: someone reading at the bottom of the chat never saw it.
- * Both partners count an impression only for a card that is on screen (Imprezia: half of it
- * for a second), so those cards sent "inserted" and never "viewable". While the chat is
+ * Zeekend counts an impression only for a card that is on screen, so those cards were
+ * inserted and never seen. While the chat is
  * pinned to the bottom it follows the card in, as it follows streamed text; scrolled up, it
  * stays where the person put it.
  */
@@ -95,7 +111,12 @@ export function sponsoredReplyFrame(
     told = true;
     onOutcome?.(outcome);
   };
+  let connected = false;
   const onMessage = (event: MessageEvent): void => {
+    // A frame the strip has replaced stops listening at the next message from any card, so a
+    // box that changes card every half minute does not collect listeners for hours.
+    if (frame.isConnected) connected = true;
+    else if (connected) { window.removeEventListener("message", onMessage); return; }
     if (event.source !== frame.contentWindow || event.origin !== origin) return;
     const data = event.data as { type?: unknown; height?: unknown } | null;
     if (data?.type === "adcode-sponsored-ready") frame.contentWindow?.postMessage(message, origin);
@@ -105,6 +126,13 @@ export function sponsoredReplyFrame(
       const whole = (value: unknown): number | null => typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
       onSize?.({ height: data.height, left: whole(measured.left), right: whole(measured.right), top: whole(measured.top) });
       if (data.height > 0) tell("shown");
+    } else if (data?.type === "adcode-sponsored-impression") {
+      // Zeekend counted this card on screen: the app claims the person's $0.002 for it. Only the
+      // slot's id crosses; the phone page has no `window.adcode`, so there it does nothing.
+      const slotId = (data as { slotId?: unknown }).slotId;
+      if (typeof slotId === "string" && /^slot_[A-Za-z0-9_-]{4,64}$/.test(slotId)) {
+        (globalThis as { adcode?: { ads?: { partnerImpression?: (slot: string) => void } } }).adcode?.ads?.partnerImpression?.(slotId);
+      }
     } else if (data?.type === "adcode-sponsored-empty") {
       window.removeEventListener("message", onMessage);
       frame.remove();
@@ -126,7 +154,7 @@ export function sponsoredReplyFrame(
  *
  * A waiting frame has no height, so neither partner can count it as seen before it is.
  */
-export function createSponsorStrip(origin = SPONSORED_ORIGIN, now: () => number = Date.now): { readonly element: HTMLElement; show(exchange: SponsoredExchange): void; yieldTo(ms: number): void; clear(): void } {
+export function createSponsorStrip(origin = SPONSORED_ORIGIN, now: () => number = Date.now): { readonly element: HTMLElement; show(exchange: SponsoredExchange): void; keepFilled(next: () => SponsoredExchange | null, everyMs?: number, onScreen?: () => boolean): () => void; yieldTo(ms: number): void; clear(): void } {
   const element = document.createElement("aside");
   element.className = "chat-sponsor-strip";
   element.setAttribute("aria-label", "Sponsored");
@@ -142,21 +170,40 @@ export function createSponsorStrip(origin = SPONSORED_ORIGIN, now: () => number 
       element.parentElement?.style.setProperty("--sponsor-strip-height", `${String(element.hidden ? 0 : element.offsetHeight)}px`);
     }).observe(element);
   }
-  return {
+  const strip = {
     element,
+    /**
+     * Keep a card in the box for as long as it is on screen, a fresh one every `everyMs`:
+     * Zeekend is asked at once and then on that beat, not only after a reply, so the box is
+     * never empty and never stale. `next` says what to ask for each time (null skips a beat),
+     * and nothing is asked while the window is hidden or minimised - an impression only counts
+     * for a card somebody can see. Returns the stop.
+     */
+    keepFilled(next: () => SponsoredExchange | null, everyMs = SPONSOR_ROTATE_MS, onScreen: () => boolean = () => document.visibilityState === "visible") {
+      const ask = (): void => {
+        if (!onScreen()) return;
+        const exchange = next();
+        if (exchange !== null) strip.show(exchange);
+      };
+      ask();
+      const timer = setInterval(ask, Math.max(5_000, everyMs));
+      const onVisible = (): void => { if (onScreen() && current === null) ask(); };
+      document.addEventListener("visibilitychange", onVisible);
+      return () => { clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
+    },
     /**
      * A direct ADCode advertiser's card is on screen: it comes first. The partner's strip
      * steps out of sight for as long as that card shows, and no partner card is asked for in
      * that time - an ADCode advertiser never shares the moment with a partner's ad.
      */
-    yieldTo(ms) {
+    yieldTo(ms: number) {
       const span = Math.max(0, Math.min(ms, 120_000));
       yieldingUntil = Math.max(yieldingUntil, now() + span);
       element.dataset["yielding"] = "true";
       if (yieldTimer !== null) clearTimeout(yieldTimer);
       yieldTimer = setTimeout(() => { yieldTimer = null; delete element.dataset["yielding"]; }, Math.max(0, yieldingUntil - now()));
     },
-    show(exchange) {
+    show(exchange: SponsoredExchange) {
       if (now() < yieldingUntil) return;
       // A newer reply replaces a card that was still on its way; the one on show is untouched.
       waiting?.remove();
@@ -191,4 +238,5 @@ export function createSponsorStrip(origin = SPONSORED_ORIGIN, now: () => number 
       delete element.dataset["filled"];
     },
   };
+  return strip;
 }

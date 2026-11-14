@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { WalletStore, WalletView } from "../src/modelWallet.ts";
+import { summarizeWalletSales, type WalletStore, type WalletView } from "../src/modelWallet.ts";
 
 const check = (error: { message: string } | null): void => { if (error) throw new Error(`Model wallet storage: ${error.message}`); };
 export function createModelWalletStore(lazy: () => Promise<SupabaseClient>): WalletStore {
@@ -24,6 +24,12 @@ export function createModelWalletStore(lazy: () => Promise<SupabaseClient>): Wal
     },
     async settleModelWallet(id, micros, estimated, now) {
       const { error } = await (await lazy()).rpc("settle_model_wallet", { p_id: id, p_micros: micros, p_estimated: estimated, p_now: now }); check(error);
+    },
+    async walletSales(sinceMs) {
+      const { data, error } = await (await lazy()).from("model_wallet_orders").select("price_cents,status,created_at")
+        .gte("created_at", sinceMs).in("status", ["paid", "refunded", "disputed"]).order("created_at", { ascending: false }).limit(10_000);
+      check(error);
+      return summarizeWalletSales((data ?? []).map((row: { price_cents: number; status: string; created_at: number | string }) => ({ priceCents: Number(row.price_cents), status: row.status, createdAt: Number(row.created_at) })));
     },
   };
 }

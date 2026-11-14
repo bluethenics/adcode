@@ -33,9 +33,10 @@ import {
 } from "@adcode/ads";
 import { CHANNELS, type EarningsSnapshot, type PartnerToast, type SponsoredToast } from "../shared/api.ts";
 import { DiskFileStore, FetchHttpTransport, SystemClock, toDataUrl } from "./adPorts.ts";
-import { currentSettings } from "./settings.ts";
+import { currentSettings, onSettingsChanged } from "./settings.ts";
 import { apiBaseUrl, apiOrigin, createBackendTokens } from "./backend.ts";
 import { adsHeldForNewcomer } from "./milestones.ts";
+import { PARTNER_DISMISS_MS, nextTickDelay, partnerExchange, partnerRetryDelay } from "./partnerNotification.ts";
 import { currentDebugState } from "./debug.ts";
 import { isAgentBrowserWindow } from "./agentBrowser.ts";
 
@@ -108,6 +109,8 @@ interface AdRuntime {
   notePainted(creativeId: string): void;
   /** The partner frame's answer for a slot it took: `empty` gives the slot back. */
   notePartnerResult(id: string, outcome: "shown" | "empty"): void;
+  /** Zeekend counted an impression of this slot on screen: claim its payout for this account. */
+  notePartnerImpression(slotId: string): Promise<void>;
   noteDismissed(creativeId: string): void;
   noteClicked(creativeId: string): void;
   setSuppressed(suppressed: boolean): void;
@@ -302,35 +305,40 @@ export function createAdRuntime(): AdRuntime {
     },
   });
 
-  /** Longer than a direct card's 8s: the partner's card loads in its frame first. */
-  const PARTNER_DISMISS_MS = 12_000;
   let partnerId: string | null = null;
-  /** One conversation id per launch, so the partner sees one session rather than many. */
+  /** One conversation id per launch, so Zeekend sees one session rather than many. */
   const launchedAtId = clock.now().toString(36);
+  /** Which notification of this session the next one is: Zeekend paces placements by turn. */
+  let partnerTurn = 0;
+  /** When to ask again after Zeekend left a slot empty; null when nothing is waiting. */
+  let partnerRetryAt: number | null = null;
+  /** Empty answers in a row, for the retry's back-off. */
+  let partnerEmpties = 0;
 
   /**
-   * The ad partner (Imprezia), in a slot no direct campaign filled - only when the person
-   * turned it on. What it is told is the project's topic tags in plain words, the same tags
-   * our own ads are targeted by: no file names, paths, code or project name. Not in the web
-   * version, whose origin the partner's frame does not answer.
+   * Zeekend, in a slot no direct campaign filled - only while the person leaves sponsored
+   * notifications on. What it is told is the project's topic tags in plain words, the same tags
+   * our own ads are targeted by: no file names, paths, code or project name (see
+   * `partnerExchange`). Not in the web version, whose origin the sponsored frame does not answer.
    */
   function presentPartner(theme: ThemeKind): boolean {
     if (currentSettings()["adcode.ads.partnerNotifications"] !== true) return false;
     const target = toastTarget();
     if (target === null || target.isDestroyed()) return false;
-    // "lang:typescript" reads as "typescript": the partner matches on words, not our scheme.
+    // "lang:typescript" reads as "typescript": Zeekend matches on words, not our scheme.
     const topics = tag({ languageIds, filenames }).map((one) => one.slice(one.indexOf(":") + 1)).slice(0, 6);
-    const named = topics.length === 0 ? "software" : topics.join(", ");
+    partnerTurn += 1;
     const toast: PartnerToast = {
       id: `partner-${clock.now().toString(36)}`,
-      request: `I'm building a ${named} project in a code editor. What tools and services would help me build, ship and run it?`,
-      response: `For a ${named} project, the useful pieces are hosting and deployment, a database, monitoring and error tracking, testing, and developer tools that fit ${named}.`,
+      ...partnerExchange(topics, partnerTurn),
       sessionId: `partner-${launchedAtId}`,
       theme,
       autoDismissMs: PARTNER_DISMISS_MS,
+      turn: partnerTurn,
     };
     partnerId = toast.id;
-    debug("partner notification", { id: toast.id, topics });
+    partnerRetryAt = null;
+    debug("partner notification", { id: toast.id, topics, turn: partnerTurn });
     target.webContents.send(CHANNELS.adPartnerShow, toast);
     return true;
   }
@@ -384,6 +392,52 @@ export function createAdRuntime(): AdRuntime {
   });
 
   let timer: NodeJS.Timeout | null = null;
+  let stopped = false;
+
+  /**
+   * Wake the tick when the next card is due: when the frequency's gap ends, or soon after
+   * Zeekend left a slot empty - at most a regular tick away. One timer at a time; a tick that
+   * is already waiting is replaced by the sooner one.
+   */
+  function schedule(): void {
+    if (stopped) return;
+    if (timer !== null) clearTimeout(timer);
+    const now = clock.now();
+    const delay = nextTickDelay(now, service.nextSlotAt(), tickMs(), partnerRetryAt);
+    timer = setTimeout(() => {
+      timer = null;
+      if (partnerRetryAt !== null && clock.now() >= partnerRetryAt) partnerRetryAt = null;
+      void service
+        .tick()
+        .then(async () => {
+          debug("tick", { reason: service.lastReason(), caps: service.effectiveCaps() });
+          await pushEarnings();
+        })
+        .catch((error: unknown) => debug("tick failed", String(error)))
+        .finally(schedule);
+    }, delay);
+    // Node keeps the process alive for pending timers; an ad tick must never be the
+    // reason the app refuses to quit.
+    timer.unref?.();
+  }
+
+  /**
+   * Follow the switches the moment they move.
+   *
+   * A frequency change has to take effect now rather than when the old interval runs out -
+   * otherwise switching to Max while a Standard gap is pending feels like the setting did
+   * nothing for one more wait. And a switch that says ads are off must take down the card
+   * already on screen instead of leaving it to its own dismiss timer.
+   */
+  onSettingsChanged((values) => {
+    // Only once the runtime is running: a settings load before `start` must not begin
+    // ticking on its own. A tick already in flight reschedules itself with the new values.
+    if (timer !== null) schedule();
+    const off = values["adcode.ads.enabled"] === false || values["adcode.ads.frequency"] === "off";
+    if (!off) return;
+    service.dismiss();
+    partnerRetryAt = null;
+  });
 
   async function pushEarnings(): Promise<EarningsSnapshot> {
     const balance = service.balance() ?? lastBalance;
@@ -415,7 +469,8 @@ export function createAdRuntime(): AdRuntime {
       availableLabel: balance === null ? view.availableLabel : formatMicros(balance.availableMicros),
       lifetimeLabel: balance === null ? view.lifetimeLabel : formatMicros(balance.lifetimeMicros),
       hasServerBalance: view.hasServerBalance,
-      enabled: currentSettings()["adcode.ads.enabled"] !== false,
+      // Frequency Off is reported as ads off, because that is what the person sees: no card.
+      enabled: currentSettings()["adcode.ads.enabled"] !== false && activePreset !== "off",
       pendingReceipts,
       // Straight from the scheduler's last decision. Null once nothing is blocking.
       suppressedReason: service.lastReason(),
@@ -434,6 +489,12 @@ export function createAdRuntime(): AdRuntime {
     return snapshot;
   }
 
+  /** The balance from the server, broadcast to every window. */
+  async function runtimeRefresh(): Promise<EarningsSnapshot> {
+    await service.refreshBalance();
+    return pushEarnings();
+  }
+
   return {
     async start(): Promise<void> {
       debug("starting", { baseUrl: apiBaseUrl(), assetHost });
@@ -447,33 +508,59 @@ export function createAdRuntime(): AdRuntime {
         debug("start failed", String(error));
       }
 
-      timer = setInterval(() => {
-        void service
-          .tick()
-          .then(async () => {
-            debug("tick", { reason: service.lastReason(), caps: service.effectiveCaps() });
-            await pushEarnings();
-          })
-          .catch((error: unknown) => debug("tick failed", String(error)));
-      }, tickMs());
-
-      // Node keeps the process alive for pending timers; an ad tick must never be the
-      // reason the app refuses to quit.
-      timer.unref?.();
+      schedule();
     },
 
     stop(): void {
-      if (timer !== null) clearInterval(timer);
+      stopped = true;
+      if (timer !== null) clearTimeout(timer);
       timer = null;
       clearWatchdog();
       service.stop();
+    },
+
+    /**
+     * $0.002 for a Zeekend card this person was shown (services/api networkImpressions.ts).
+     * The sponsored page says which slot Zeekend counted on screen; this process, which holds
+     * the account's token, claims it. The server pays a slot once, to one person, within a
+     * daily cap, so a repeat or a forged slot costs nothing. Sponsored messages off: nothing.
+     */
+    async notePartnerImpression(slotId: string): Promise<void> {
+      if (!/^slot_[A-Za-z0-9_-]{4,64}$/.test(slotId) || currentSettings()["adcode.ads.enabled"] === false) return;
+      try {
+        const token = await tokens.getToken();
+        if (!token.ok) return;
+        const response = await fetch(`${apiBaseUrl()}/sponsored/earn`, {
+          method: "POST",
+          headers: { authorization: `Bearer ${token.value}`, "content-type": "application/json" },
+          body: JSON.stringify({ network: "zeekend", slotId }),
+          signal: AbortSignal.timeout(10_000),
+        });
+        const outcome = (await response.json().catch(() => null)) as { credited?: unknown } | null;
+        debug("partner impression", { slotId, status: response.status, credited: outcome?.credited });
+        // The balance moved on the server: show it, a moment later, without waiting for the next tick.
+        if (outcome?.credited === true) setTimeout(() => { void runtimeRefresh(); }, 1_500).unref?.();
+      } catch (error) {
+        debug("partner impression failed", String(error));
+      }
     },
 
     notePartnerResult(id: string, outcome: "shown" | "empty"): void {
       if (id !== partnerId) return;
       partnerId = null;
       debug("partner result", { id, outcome });
-      if (outcome === "empty") service.fallbackUnfilled();
+      if (outcome !== "empty") {
+        partnerEmpties = 0;
+        return;
+      }
+      // The slot goes back, uncounted, and Zeekend is asked again shortly rather than at the
+      // next regular tick: an empty answer must not leave a gap in the cadence. A run of empty
+      // answers backs off - 20s, 40s, then the regular tick - so a quiet exchange is not
+      // asked more often than it was before.
+      service.fallbackUnfilled();
+      partnerRetryAt = clock.now() + partnerRetryDelay(partnerEmpties);
+      partnerEmpties += 1;
+      schedule();
     },
 
     notePainted(creativeId: string): void {

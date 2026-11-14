@@ -180,7 +180,7 @@ function Pulse({ growth, loaded, asOf }: { growth: Growth | null; loaded: boolea
     { label: "Active, last 24 hours", value: growth.active1d, sub: `${number.format(growth.active7d)} in 7 days · ${number.format(growth.active30d)} in 30`, spark: active, delta: weekChange(active, "mean"), href: "/admin/growth" },
     { label: "New developers, 7 days", value: growth.joined7d, sub: `${number.format(growth.developers)} have used ADCode`, spark: joined, delta: weekChange(joined, "sum"), href: "/admin/growth" },
     { label: "Came back, 7 days", value: growth.returning7d ?? growth.active7d, sub: growth.returning7d === null ? "Active in 7 days" : `Of ${number.format(growth.active7d)} active this week`, spark: daily.map((day) => day.returning ?? 0), delta: weekChange(daily.map((day) => day.returning ?? 0), "mean"), href: "/admin/growth" },
-    { label: "Ads shown, 7 days", value: growth.adsShown7d, sub: `${number.format(growth.clicks)} clicks all time`, spark: ads, delta: weekChange(ads, "sum"), href: "/admin/analytics" },
+    { label: "Ads shown, 7 days", value: growth.adsShown7d, sub: `${growth.networkAdsShown7d === null ? "" : `${number.format(growth.networkAdsShown7d)} from Zeekend · `}${number.format(growth.clicks)} clicks all time`, spark: ads, delta: weekChange(ads, "sum"), href: "/admin/analytics" },
   ];
   return (
     <section className="adm-section" aria-labelledby="adm-pulse-heading">

@@ -37,6 +37,7 @@ import { killTree, shellFor } from "./aiCommands.ts";
 import { recordDebug } from "./debugLog.ts";
 import { confirmInWindow } from "./themedConfirm.ts";
 import { currentSettings } from "./settings.ts";
+import { fullAccessApplies } from "./fullAccess.ts";
 
 const askBeforeConnectorTools = (): boolean => currentSettings()["adcode.ai.askBeforeConnectorTools"] === true;
 
@@ -105,6 +106,12 @@ const untilAborted = (signal: AbortSignal | undefined): Promise<false> =>
   });
 
 async function projectHooksApproved(root: string, hooks: readonly AgentHook[], signal?: AbortSignal): Promise<boolean> {
+  /*
+   * Full access covers an agent turn, but it must not leave a permanent approval behind:
+   * the person trusted this run, not every launch from now on. The hooks answer yes for
+   * this run without writing the approvals file.
+   */
+  if (fullAccessApplies(currentSettings())) return true;
   const fingerprint = createHash("sha256").update(hooksFingerprint(hooks)).digest("hex");
   const key = resolve(root).toLowerCase();
   approvals ??= await loadApprovals();

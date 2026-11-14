@@ -159,6 +159,28 @@ describe("CLI agents", () => {
     expect(fake.calls[0]?.args.slice(-4)).toEqual(["--mcp-config", "/tmp/bridge.json", "--allowedTools", "mcp__adcode"]);
   });
 
+  it("switches each CLI's own permission questions off only while Full access is on", async () => {
+    const claude = CLI_AGENTS.find((agent) => agent.id === "claude")!;
+    const fake = fakeSpawn(CLAUDE_OK);
+    let fullAccess = false;
+    const provider = createCliProvider({ spec: claude, models: ["default"], spawn: fake.spawn, cwd: () => ".", bypassPermissions: () => fullAccess });
+    await collect(provider.stream(request(["hi"]), new AbortController().signal));
+    expect(fake.calls[0]?.args).toContain("--permission-mode");
+    expect(fake.calls[0]?.args).not.toContain("--dangerously-skip-permissions");
+    // The switch is read per turn, so turning it on applies to the very next message.
+    fullAccess = true;
+    await collect(provider.stream(request(["hi", "ok", "again"]), new AbortController().signal));
+    expect(fake.calls[1]?.args).toContain("--dangerously-skip-permissions");
+    expect(fake.calls[1]?.args).not.toContain("--permission-mode");
+  });
+
+  it("uses the bypass flag for Claude Code and Codex only when asked", () => {
+    expect(cliArgs("claude", { model: "default", bypassPermissions: true })).toContain("--dangerously-skip-permissions");
+    expect(cliArgs("claude", { model: "default" })).toContain("acceptEdits");
+    expect(cliArgs("codex", { model: "default", bypassPermissions: true })).toContain("--dangerously-bypass-approvals-and-sandbox");
+    expect(cliArgs("codex", { model: "default" })).toContain("workspace-write");
+  });
+
   it("reads a model list and maps provider ids back to their CLI", () => {
     expect(parseModelList("opencode/big-pickle\nnvidia/google/gemma-4-31b-it\n\nWARN something\nbad model\n")).toEqual(["opencode/big-pickle", "nvidia/google/gemma-4-31b-it"]);
     expect(cliAgentFor("cli-codex")?.name).toBe("Codex CLI");

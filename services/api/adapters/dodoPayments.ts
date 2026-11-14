@@ -24,7 +24,18 @@ function baseUrl(): string {
 }
 function productId(product: NonNullable<CheckoutRequest["product"]>): string | undefined {
   return ({ advertiser: process.env["DODO_PRODUCT_ID"], "ai-tokens": process.env["DODO_AI_PRODUCT_ID"], "ai-wallet": process.env["DODO_WALLET_PRODUCT_ID"],
-    "plan-weekly": process.env["DODO_PLAN_WEEKLY_ID"], "plan-monthly": process.env["DODO_PLAN_MONTHLY_ID"], "plan-pro": process.env["DODO_PLAN_PRO_ID"], "plan-max": process.env["DODO_PLAN_MAX_ID"], "plan-unlimited": process.env["DODO_PLAN_UNLIMITED_ID"] })[product];
+    "plan-weekly": process.env["DODO_PLAN_WEEKLY_ID"], "plan-monthly": process.env["DODO_PLAN_MONTHLY_ID"], "plan-pro": process.env["DODO_PLAN_PRO_ID"], "plan-max": process.env["DODO_PLAN_MAX_ID"], "plan-unlimited": process.env["DODO_PLAN_UNLIMITED_ID"],
+    // Yearly billing: three more products. Until their ids are set, yearly checkout answers "not configured".
+    "plan-monthly-year": process.env["DODO_PLAN_MONTHLY_YEAR_ID"], "plan-pro-year": process.env["DODO_PLAN_PRO_YEAR_ID"], "plan-max-year": process.env["DODO_PLAN_MAX_YEAR_ID"] })[product];
+}
+
+/** The plan, price and interval a plan product must have in Dodo before checkout is offered. */
+export function expectedPlanPrice(product: string): { priceCents: number; interval: string } | null {
+  const yearly = product.endsWith("-year");
+  const plan = planById(product.slice(5, yearly ? -5 : undefined));
+  if (plan === null) return null;
+  const priceCents = yearly ? plan.yearlyCents : plan.priceCents;
+  return priceCents === undefined ? null : { priceCents, interval: yearly ? "year" : plan.interval };
 }
 
 export function createDodoProvider(): PaymentProvider {
@@ -41,10 +52,10 @@ export function createDodoProvider(): PaymentProvider {
       });
       if (!response.ok) { console.warn("Dodo plan preflight rejected", { product, status: response.status }); return false; }
       const data = await response.json() as { price?: { type?: string; currency?: string; price?: number; payment_frequency_count?: number; payment_frequency_interval?: string } };
-      const plan = planById(product.slice(5));
+      const expected = expectedPlanPrice(product);
       const price = data.price;
-      const valid = plan !== null && price?.type === "recurring_price" && price.currency === "USD" && price.price === plan.priceCents &&
-        price.payment_frequency_count === 1 && price.payment_frequency_interval?.toLowerCase() === plan.interval;
+      const valid = expected !== null && price?.type === "recurring_price" && price.currency === "USD" && price.price === expected.priceCents &&
+        price.payment_frequency_count === 1 && price.payment_frequency_interval?.toLowerCase() === expected.interval;
       if (!valid) { console.warn("Dodo plan price mismatch", { product, price }); return false; }
       checked.set(selected, Date.now() + 60_000);
       return true;
@@ -76,6 +87,7 @@ export function createDodoProvider(): PaymentProvider {
       } catch { return false; }
     },
     canCreateCheckout: ready,
+    hasProduct: (product) => (process.env["DODO_API_KEY"] ?? "").trim() !== "" && (productId(product) ?? "").trim() !== "",
     async createCheckout(request: CheckoutRequest): Promise<CheckoutSession | null> {
       const apiKey = process.env["DODO_API_KEY"];
       const selectedProductId = productId(request.product ?? "advertiser");

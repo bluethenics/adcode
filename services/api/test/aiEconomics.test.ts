@@ -15,7 +15,7 @@ describe("cost-based credits", () => {
     // Starter is a smaller first purchase, not a discount: the same price per credit as Boost.
     expect(COST_PAID_CONFIG.packs[0]!.priceCents / (COST_PAID_CONFIG.packs[0]!.tokens / CREDIT_UNITS)).toBe(COST_PAID_CONFIG.packs[1]!.priceCents / (COST_PAID_CONFIG.packs[1]!.tokens / CREDIT_UNITS));
     expect(COST_PAID_CONFIG.freeWeeklyTokens / CREDIT_UNITS).toBe(140);
-    expect(PLANS.map(p => p.weeklyTokens / CREDIT_UNITS)).toEqual([420, 300, 975, 2000, 10050]);
+    expect(PLANS.map(p => p.weeklyTokens / CREDIT_UNITS)).toEqual([420, 580, 1190, 4500, 10050]);
     expect(hasUnlimitedPlan({ plan: { id: "pro", endsAt: 10, source: "subscription" }, boostTokens: 0 }, 1)).toBe(false);
   });
   // The owner raised every plan by half on 4 November 2026, accepting a thin worst case: full use

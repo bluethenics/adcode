@@ -107,12 +107,13 @@ export function cliEnv(id: CliAgentId, mcp: CliMcpServer | null | undefined): Re
 }
 
 /** The arguments for one headless turn. `session` resumes the CLI's own conversation. */
-export function cliArgs(id: CliAgentId, options: { readonly model: string; readonly session?: string; readonly mcp?: CliMcpServer | null; readonly effort?: string }): string[] {
+export function cliArgs(id: CliAgentId, options: { readonly model: string; readonly session?: string; readonly mcp?: CliMcpServer | null; readonly effort?: string; readonly bypassPermissions?: boolean }): string[] {
   // A level is one lowercase word from the model's own list (effortFor); anything else is dropped.
   const effort = options.effort !== undefined && EFFORT_WORD.test(options.effort) ? options.effort : null;
   const model = options.model !== "default" && isSafeCliToken(options.model) ? options.model : null;
   const session = options.session !== undefined && isSafeCliToken(options.session) ? options.session : null;
   const mcp = options.mcp !== undefined && options.mcp !== null && isSafeCliToken(options.mcp.configPath) && /^[a-z][a-z0-9-]{0,40}$/.test(options.mcp.server) ? options.mcp : null;
+  const bypass = options.bypassPermissions === true;
   // Codex takes the bridge as two config overrides; a value that is not TOML is read as a string.
   const codexBridge = mcp !== null && mcp.url !== undefined && mcp.token !== undefined
     ? [`mcp_servers.${mcp.server}.url=${mcp.url}`, `mcp_servers.${mcp.server}.bearer_token_env_var=${CLI_BRIDGE_TOKEN_ENV}`].filter(isSafeCliToken)
@@ -124,10 +125,15 @@ export function cliArgs(id: CliAgentId, options: { readonly model: string; reado
       // allows every tool of that one server (Claude Code's permissions docs); ADCode's own
       // confirmation dialogs still stand in front of anything guarded. Both flags take
       // several values, so they go last, where only options can follow them.
-      return ["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits", ...(model ? ["--model", model] : []), ...(effort ? ["--effort", effort] : []), ...(session ? ["--resume", session] : []), ...(mcp ? ["--mcp-config", mcp.configPath, "--allowedTools", `mcp__${mcp.server}`] : [])];
+      //
+      // Full access is the one exception: the person switched it on for this turn, so the CLI
+      // runs with its own permission questions off. That is a real bypass: the turn has the
+      // CLI's full machine access, not merely ADCode's dialogs skipped.
+      return ["-p", "--output-format", "stream-json", "--verbose", ...(bypass ? ["--dangerously-skip-permissions"] : ["--permission-mode", "acceptEdits"]), ...(model ? ["--model", model] : []), ...(effort ? ["--effort", effort] : []), ...(session ? ["--resume", session] : []), ...(mcp ? ["--mcp-config", mcp.configPath, "--allowedTools", `mcp__${mcp.server}`] : [])];
     case "codex":
       // `-` reads the prompt from stdin. workspace-write: edits inside the project, no network.
-      return ["exec", ...(session ? ["resume", session] : []), "--json", "--skip-git-repo-check", ...(session ? [] : ["--sandbox", "workspace-write"]), ...(model ? ["-m", model] : []), ...(effort ? ["-c", `model_reasoning_effort=${effort}`] : []), ...(codexBridge.length === 2 ? codexBridge.flatMap((value) => ["-c", value]) : []), "-"];
+      // Full access drops both the sandbox and the approval prompts for this turn.
+      return ["exec", ...(session ? ["resume", session] : []), "--json", "--skip-git-repo-check", ...(bypass ? ["--dangerously-bypass-approvals-and-sandbox"] : session ? [] : ["--sandbox", "workspace-write"]), ...(model ? ["-m", model] : []), ...(effort ? ["-c", `model_reasoning_effort=${effort}`] : []), ...(codexBridge.length === 2 ? codexBridge.flatMap((value) => ["-c", value]) : []), "-"];
     case "opencode":
       return ["run", "--format", "json", ...(model ? ["-m", model] : []), ...(effort ? ["--variant", effort] : []), ...(session ? ["--session", session] : [])];
     case "gemini":
@@ -464,6 +470,15 @@ export interface CliProviderOptions {
   readonly mcp?: () => CliMcpServer | null;
   /** Each model's reasoning levels as the CLI reported them, so the person's choice maps onto them. */
   readonly modelEfforts?: Readonly<Record<string, readonly string[]>>;
+  /**
+   * The person's Full access switch, read per turn.
+   *
+   * True: the CLI runs with its own permission questions off (`--dangerously-skip-permissions`
+   * for Claude Code, `--dangerously-bypass-approvals-and-sandbox` for Codex), so that turn has
+   * the CLI's full machine access. Read per turn so turning Full access off in the chat
+   * applies to the very next message.
+   */
+  readonly bypassPermissions?: () => boolean;
 }
 
 /** The person's effort (low ... max) as the nearest level this model has, or nothing for Auto or a model with no levels. */
@@ -486,7 +501,7 @@ export function createCliProvider(options: CliProviderOptions): Provider {
       const prior = sessions.get(key);
       const resume = prior !== undefined && request.messages.length > prior.messages;
       const mcp = spec.id === "claude" || spec.id === "codex" || spec.id === "opencode" ? options.mcp?.() ?? null : null;
-      const process = options.spawn(spec.command, cliArgs(spec.id, { model: request.model, ...(resume ? { session: prior.id } : {}), mcp: spec.id === "claude" || spec.id === "codex" ? mcp : null, ...cliEffort(request, options.modelEfforts) }), { cwd: options.cwd(), env: cliEnv(spec.id, mcp), input: cliPrompt(request, resume) });
+      const process = options.spawn(spec.command, cliArgs(spec.id, { model: request.model, ...(resume ? { session: prior.id } : {}), mcp: spec.id === "claude" || spec.id === "codex" ? mcp : null, ...cliEffort(request, options.modelEfforts), bypassPermissions: options.bypassPermissions?.() === true }), { cwd: options.cwd(), env: cliEnv(spec.id, mcp), input: cliPrompt(request, resume) });
       const stop = (): void => process.kill();
       signal.addEventListener("abort", stop, { once: true });
       const parse = createCliLineParser(spec.id);

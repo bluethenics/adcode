@@ -147,3 +147,21 @@ describe("heading anchors", () => {
     expect(renderMarkdown('## Bad {#"><script>}')).not.toContain("<script>");
   });
 });
+
+describe("tables", () => {
+  it("renders a pipe table with column headers, row headers and escaped cells", () => {
+    const html = renderMarkdown(["| | ADCode | Codex |", "|---|---|:---:|", "| Price | **$0** | $20 |", "| Note | <b>x</b> | [plans](/pricing) |"].join("\n"));
+    expect(html).toContain('<div class="table-scroll" role="region" aria-label="Table" tabindex="0"><table>');
+    expect(html).toContain('<th scope="col">ADCode</th>');
+    expect(html).toContain('<th scope="row">Price</th><td><strong>$0</strong></td><td>$20</td>');
+    expect(html).toContain("&lt;b&gt;x&lt;/b&gt;");
+    expect(html).toContain('<a href="/pricing"');
+    expect(html).not.toContain("<b>x</b>");
+  });
+
+  it("ends the table at the first line that is not a row, and needs its divider", () => {
+    const html = renderMarkdown(["| a | b |", "|---|---|", "| 1 | 2 |", "After the table."].join("\n"));
+    expect(html).toContain("</table></div>\n<p>After the table.</p>");
+    expect(renderMarkdown("| not | a table |")).toBe("<p>| not | a table |</p>");
+  });
+});

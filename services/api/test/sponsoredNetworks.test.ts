@@ -53,19 +53,18 @@ describe("a Zeekend connection", () => {
 });
 
 describe("the sponsored page's partners", () => {
-  it("asks Zeekend first and Imprezia second, with Zeekend's public key and never Imprezia's", async () => {
+  it("asks Zeekend only, with its public key - a saved Imprezia connection is never listed", async () => {
     await save(imprezia, "api_pub_secret_imprezia");
     await save(zeekend, "pub_live_abc123XYZ");
     expect(await sponsoredNetworks({ adNetworks: store.adNetworks, encryptionKeys: () => [encryption] })).toEqual([
       { id: "zeekend", publisherKey: "pub_live_abc123XYZ", placementId: "chat-main" },
-      { id: "imprezia" },
     ]);
     // No sign-in: the sponsored page has none.
     const api = createFetchHandler({ store, clock: { now: () => 1_000 }, verifier, adNetworks: deps() });
     const response = await api(new Request("https://api.example.com/v1/sponsored/networks"));
     expect(response.status).toBe(200);
     const text = await response.text();
-    expect(JSON.parse(text)).toEqual({ networks: [{ id: "zeekend", publisherKey: "pub_live_abc123XYZ", placementId: "chat-main" }, { id: "imprezia" }] });
+    expect(JSON.parse(text)).toEqual({ networks: [{ id: "zeekend", publisherKey: "pub_live_abc123XYZ", placementId: "chat-main" }] });
     expect(text).not.toContain("api_pub_secret_imprezia");
   });
 

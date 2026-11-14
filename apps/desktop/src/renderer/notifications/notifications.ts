@@ -40,6 +40,8 @@ export interface NotificationCentre {
   showSponsored(toast: SponsoredToast): void;
   /** The ad partner's card, in a slot no direct campaign filled. Same one-at-a-time slot. */
   showPartner(toast: PartnerToast): void;
+  /** Take down the sponsored or partner card on screen now, leaving other notices alone. */
+  dismissSponsored(): void;
   dismissAll(): void;
   toggleInbox(): void;
   onUnreadChanged(listener: (count: number) => void): () => void;
@@ -480,8 +482,8 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
 
       // No box, no header, no drawn countdown: the card arrives on its own, as it does under a
       // chat reply, and its own "Ad" label is the disclosure. No earnings line either: partner
-      // cards are not credited to anyone's balance yet. The close button sits outside the
-      // card's edge, so nothing of ours ever covers Imprezia's card.
+      // cards credit $0.002 through the app (ads.ts notePartnerImpression), not a share. The close button sits outside the
+      // card's edge, so nothing of ours ever covers Zeekend's card.
       const close = iconButton("Dismiss", ICON.close, "toast-close");
       close.addEventListener("click", (event) => {
         event.stopPropagation();
@@ -511,10 +513,10 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
         arm();
       }
 
-      // The card is the same walled-off page as under a chat reply: Imprezia's SDK runs on
+      // The card is the same walled-off page as under a chat reply: Zeekend's SDK runs on
       // adcode.bluethenics.com, never in this window, and clicks open the browser.
       const frame = sponsoredReplyFrame(
-        { request: toast.request, response: toast.response, sessionId: toast.sessionId, theme: toast.theme, layout: "notification" },
+        { request: toast.request, response: toast.response, sessionId: toast.sessionId, theme: toast.theme, layout: "notification", ...(toast.turn === undefined ? {} : { turn: toast.turn }) },
         undefined,
         settle,
         (size) => {
@@ -536,6 +538,10 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
       live = { element: card, creativeId: toast.id, clearTimer: () => { clearTimer(); window.clearTimeout(giveUp); }, partner: true };
       // In the layer but still off-screen (`entering`), so the frame loads before it shows.
       host.append(card);
+    },
+
+    dismissSponsored(): void {
+      if (live !== null) teardown(live.creativeId, true);
     },
 
     dismissAll(): void {

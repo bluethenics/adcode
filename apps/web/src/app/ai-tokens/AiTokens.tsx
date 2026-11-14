@@ -13,13 +13,14 @@ import { AdcodeLoader } from "@/components/AdcodeLoader";
 import { useAuth } from "@/components/AuthProvider";
 import { SignInCard } from "@/components/SignInCard";
 import { apiFetch, MESSAGES } from "@/lib/api";
-import type { PlanId, PlanSpec } from "@adcode/api/src/aiPlans.ts";
+import type { PlanBilling, PlanId, PlanSpec } from "@adcode/api/src/aiPlans.ts";
 import { PLAN_SALES_OPEN, subscriptionBlocksCheckout, isPlanId } from "@adcode/api/src/aiPlans.ts";
-import { CodeRedeemer, InviteCard, PlanCards, planArrivalMessage, planName, planRequest, plansOnOffer } from "./Plans";
+import { BillingSwitch, CodeRedeemer, InviteCard, PlanCards, planArrivalMessage, planName, planRequest, plansOnOffer } from "./Plans";
 import { ModelWallet } from "./ModelWallet";
 import { dollars, formatTokens } from "./tokenFormatting";
 import { creditAmount } from "@adcode/api/src/aiEconomics.ts";
-import { topUpDescription, topUpName } from "@/lib/pricing";
+import { topUpDescription, topUpName, walletAmountFromQuery } from "@/lib/pricing";
+export { walletAmountFromQuery } from "@/lib/pricing";
 export { formatTokens } from "./tokenFormatting";
 
 export interface TokenPack { id: string; priceCents: number; tokens: number }
@@ -27,7 +28,7 @@ export interface TokensView { enabled: boolean; accounting?: "cost-v1"; legacyUn
 interface TokenOrderView { orderId: string; packId: string; priceCents: number; tokens: number; status: "pending" | "paid" | "refunded" | "abandoned"; createdAt: number; paidAt: number | null }
 interface TokenLedgerView { id: string; delta: number; kind: "purchase" | "usage" | "refund" | "grant"; note: string; createdAt: number }
 interface TokenActivityView { tokens: TokensView; orders: TokenOrderView[]; ledger: TokenLedgerView[]; subscription?: { plan: PlanId; status: string; periodEnd: number; active?: boolean } | null }
-interface PaidOffer { enabled: boolean; freeWeeklyTokens: number; packs: TokenPack[]; plans?: PlanSpec[] }
+interface PaidOffer { enabled: boolean; freeWeeklyTokens: number; packs: TokenPack[]; plans?: PlanSpec[]; plansOnSale?: boolean; yearly?: boolean }
 interface CheckoutReturn { order: string; plan: PlanId | null }
 
 const POLL_MS = 3_000;
@@ -40,13 +41,16 @@ const POLL_FOR_MS = 120_000;
  * final amount before anything is charged, so this skips a step, never a confirmation. A link
  * without `go=1` (an email, the low-balance notice) still only highlights the plan.
  */
-export function checkoutIntent(search: string): { readonly plan: PlanId | null; readonly pack: string | null } | null {
+export function checkoutIntent(search: string): { readonly plan: PlanId | null; readonly pack: string | null; readonly billing: PlanBilling; readonly amount: number | null } | null {
   const query = new URLSearchParams(search);
   if (query.get("go") !== "1" || query.has("order")) return null;
   const plan = query.get("plan");
   const pack = query.get("pack");
-  if (plan !== null && isPlanId(plan)) return { plan, pack: null };
-  if (pack !== null && /^[a-z0-9-]{1,40}$/.test(pack)) return { plan: null, pack };
+  const billing: PlanBilling = query.get("billing") === "year" ? "year" : "month";
+  const amount = walletAmountFromQuery(search);
+  if (plan !== null && isPlanId(plan)) return { plan, pack: null, billing, amount: null };
+  if (amount !== null) return { plan: null, pack: null, billing, amount };
+  if (pack !== null && /^[a-z0-9-]{1,40}$/.test(pack)) return { plan: null, pack, billing, amount: null };
   return null;
 }
 
@@ -156,12 +160,16 @@ export default function AiTokens() {
   const [now, setNow] = useState(() => Date.now());
   const [selectedPlan, setSelectedPlan] = useState<PlanId | null>(null);
   const [intent, setIntent] = useState<ReturnType<typeof checkoutIntent>>(null);
+  const [billing, setBilling] = useState<PlanBilling>("month");
   const account = user?.uid ?? null;
   const accountRef = useRef(account);
   accountRef.current = account;
 
   useEffect(() => { setCountry(guessCountry()); }, []);
-  useEffect(() => { setSelectedPlan(selectedPricingPlan(window.location.search)); setIntent(checkoutIntent(window.location.search)); }, []);
+  useEffect(() => {
+    setSelectedPlan(selectedPricingPlan(window.location.search)); setIntent(checkoutIntent(window.location.search));
+    if (new URLSearchParams(window.location.search).get("billing") === "year") setBilling("year");
+  }, []);
 
   const loadOffer = useCallback(async (): Promise<void> => {
     setOfferError(null);
@@ -176,7 +184,7 @@ export default function AiTokens() {
   useEffect(() => {
     if (process.env["NODE_ENV"] === "development" && new URLSearchParams(window.location.search).get("preview") === "signed-in") {
       void Promise.all([import("@adcode/api/src/paidTokens.ts"), import("@adcode/api/src/aiPlans.ts")]).then(([paid, plans]) => {
-        setOfferError(null); setOffer({ enabled: true, freeWeeklyTokens: paid.COST_PAID_CONFIG.freeWeeklyTokens, packs: [...paid.COST_PAID_CONFIG.packs], plans: [...plans.PLANS_ON_SALE] });
+        setOfferError(null); setOffer({ enabled: true, freeWeeklyTokens: paid.COST_PAID_CONFIG.freeWeeklyTokens, packs: [...paid.COST_PAID_CONFIG.packs], plans: [...plans.PLANS_ON_SALE], yearly: true });
       });
       return;
     }
@@ -257,12 +265,13 @@ export default function AiTokens() {
     finally { setBusy(null); }
   };
 
-  const choosePlan = async (plan: PlanSpec): Promise<void> => {
+  const choosePlan = async (plan: PlanSpec, chosen: PlanBilling = billing): Promise<void> => {
     if (busy !== null) return;
     if (needsSignIn(plan.id)) return;
     if (!/^[A-Z]{2}$/.test(country)) { setError("Enter your country as a two-letter code, like US or DE."); return; }
     setBusy(plan.id); setError(null);
-    try { const session = await planRequest<{ checkoutUrl: string }>("/ai/plans/checkout", await token(), { plan: plan.id, billingCountry: country }); window.location.assign(session.checkoutUrl); }
+    const yearly = chosen === "year" && offer?.yearly === true && plan.yearlyCents !== undefined;
+    try { const session = await planRequest<{ checkoutUrl: string }>("/ai/plans/checkout", await token(), { plan: plan.id, billingCountry: country, ...(yearly ? { billing: "year" } : {}) }); window.location.assign(session.checkoutUrl); }
     catch (error) { setError(error instanceof Error ? error.message : "Couldn't open subscription checkout. Try again."); }
     finally { setBusy(null); }
   };
@@ -278,6 +287,10 @@ export default function AiTokens() {
   const subscribed = subscription !== null && subscriptionBlocksCheckout(subscription.status, subscription.periodEnd, now);
 
   const checkoutBusy = authLoading || (user !== null && activity === null) ? "loading-account" : busy;
+  // An older API omits plansOnSale; then this build's own switch decides.
+  const salesOpen = PLAN_SALES_OPEN && offer?.plansOnSale !== false;
+  const currentPlan = activity?.tokens.plan !== undefined && activity.tokens.plan !== null && activity.tokens.plan.endsAt > now ? activity.tokens.plan.id : null;
+  const planChoices = salesOpen && offer?.plans !== undefined ? plansOnOffer(offer.plans, currentPlan) : [];
 
   // Signed out after a Pricing click: go straight to sign-in rather than leave it below the fold.
   useEffect(() => {
@@ -294,12 +307,13 @@ export default function AiTokens() {
     const url = new URL(window.location.href);
     url.searchParams.delete("go");
     window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
-    // Plans and packs are no longer sold: an old "Get Pro" or "Buy" link shows the notice and stops.
-    if (!PLAN_SALES_OPEN) return;
+    // A typed amount is the wallet's to open (ModelWallet reads the same link).
+    if (intent.amount !== null) return;
+    if (!salesOpen) return;
     if (intent.plan !== null) {
       const plan = offer.plans?.find((one) => one.id === intent.plan);
       if (plan === undefined || subscribed || activity.tokens.plan?.id === plan.id) return;
-      void choosePlan(plan);
+      void choosePlan(plan, intent.billing);
     } else if (intent.pack !== null) {
       const pack = offer.packs.find((one) => one.id === intent.pack);
       if (pack !== undefined) void buy(pack);
@@ -311,7 +325,7 @@ export default function AiTokens() {
   return (
     <>
       {/* Signed in and free to buy, the chosen card is outlined and badged; a sentence on top would only repeat it. */}
-      {(selectedPlan !== null || intent?.pack) && <p className="notice" role="status">Plans and credit packs are no longer sold. Every model is now paid from the USD credits below, at the price listed for it, and Tagflow AI stays free.</p>}
+      {intent?.pack && <p className="notice" role="status">One-time credit packs are no longer sold. Add USD credits below in any amount instead; Tagflow AI stays free.</p>}
           {error !== null && <div className="notice" data-tone="error" role="alert">{error}</div>}
           {arrival !== null && (
             <div className="notice" data-tone={arrival === "added" ? "success" : undefined} role="status">
@@ -320,12 +334,12 @@ export default function AiTokens() {
             </div>
           )}
 
-          {/* Daily credits only mean something to a plan paid for before plans ended. */}
+          {/* Daily credits only mean something to an account on a plan. */}
           {activity !== null && activity.tokens.plan && activity.tokens.plan.endsAt > now && <BalanceSummary tokens={activity.tokens} now={now} />}
           {(activity?.tokens.legacyUntil ?? 0) > now && <p className="notice">Your previous allowance on the original included models is protected until {new Date(activity!.tokens.legacyUntil!).toLocaleDateString()}. New model access uses the new plans. Renewals follow the credit allowances shown below.</p>}
           {balanceError !== null && <p className="notice" data-tone="error" role="alert">{balanceError} <button type="button" className="btn btn-outline btn-small" onClick={() => void refresh()}>Retry balance</button></p>}
           {user !== null && activity === null && balanceError === null && <p role="status" className="field-hint">Loading your AI access…</p>}
-          {subscription !== null && <div className="ai-plan-management"><p>{subscriptionAccess ? `Your ${planName(subscription.plan)} plan covers every model until ${new Date(subscription.periodEnd).toLocaleDateString()}. Plans have ended, so it will not renew and you will not be charged again. After that, models use the credits below.` : `Your ${planName(subscription.plan)} plan has ended. Plans are no longer sold; every model now uses the credits below.`} Invoices and payment details stay in Dodo.</p><button type="button" className="btn btn-outline" disabled={busy !== null} onClick={() => void managePlan()}>{busy === "portal" ? "Opening portal…" : "Manage subscription"}</button></div>}
+          {subscription !== null && <div className="ai-plan-management"><p>{subscriptionAccess ? `Your ${planName(subscription.plan)} plan covers every model until ${new Date(subscription.periodEnd).toLocaleDateString()}. Change or cancel it in your billing portal; access stays until the period ends.` : `Your ${planName(subscription.plan)} plan has ended. Choose a plan below, or use the credits below.`} Invoices and payment details stay in Dodo.</p><button type="button" className="btn btn-outline" disabled={busy !== null} onClick={() => void managePlan()}>{busy === "portal" ? "Opening portal…" : "Manage subscription"}</button></div>}
 
           {/* Checkout needs it for tax, so it sits right above where the buying happens. */}
           {user !== null && <div className="field ai-tokens-country">
@@ -334,8 +348,13 @@ export default function AiTokens() {
             <span id="t-country-help" className="field-hint">Two letters, like US or IN. Prices in USD; tax is shown before you pay.</span>
           </div>}
 
+          {planChoices.length > 0 && <section id="plans" className="ai-plans-section" aria-labelledby="ai-plans-heading">
+            <div className="ai-section-heading"><div><p className="ai-eyebrow">Plans</p><h2 id="ai-plans-heading">Fresh credits every day</h2><p className="ai-section-lead">Every plan covers every hosted model, premium ones included. Cancel any time; access stays until the period ends.</p></div>{offer?.yearly === true && <BillingSwitch billing={billing} onChange={setBilling} />}</div>
+            <PlanCards plans={planChoices} current={currentPlan} busy={checkoutBusy} subscribed={subscribed} selected={selectedPlan} billing={offer?.yearly === true ? billing : "month"} onChoose={(plan) => { if (subscribed) void managePlan(); else void choosePlan(plan); }} />
+          </section>}
+
           <ModelWallet country={country} />
-          <p className="ai-purchase-note">Prices in USD before applicable tax. Credits never expire and never renew; Tagflow AI stays free. Plans and one-time packs are no longer sold. For a refund of unused credits, <a href="/support">contact support</a>.</p>
+          <p className="ai-purchase-note">Prices in USD before applicable tax. Plans renew until cancelled; credits never expire and never renew. Tagflow AI stays free. For a refund question, <a href="/support">contact support</a>.</p>
           {!authLoading && user === null && <section id="ai-sign-in" className="ai-sign-in" tabIndex={-1} aria-label="Sign in to add credits"><SignInCard headingTag="h2" heading="Sign in to add credits" /></section>}
           {user !== null && <CodeRedeemer key={`code:${account}`} token={token} onRedeem={() => void refresh()} />}
 

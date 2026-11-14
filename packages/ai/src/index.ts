@@ -153,6 +153,8 @@ export * from "./requestScheduler.ts";
 export * from "./includedLimitRecovery.ts";
 export * from "./modelHandoff.ts";
 export * from "./requestSize.ts";
+export * from "./toolOutputPrune.ts";
+export * from "./toolLoading.ts";
 export * from "./compaction.ts";
 
 export {

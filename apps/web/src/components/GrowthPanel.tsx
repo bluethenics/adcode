@@ -69,7 +69,7 @@ function GrowthReport({ growth }: { growth: Growth }) {
       ? [growth.active7d.toLocaleString(), "Active, last 7 days", "Rolling 7 days", "active7d"]
       : [growth.returning7d.toLocaleString(), "Came back, last 7 days", `Of ${growth.active7d.toLocaleString()} active - seen again at least a day after first using the editor`, "returning7d"],
     [growth.active30d.toLocaleString(), "Active, last 30 days", "Rolling 30 days", "active30d"],
-    [growth.adsShown.toLocaleString(), "Ads shown", `${growth.adsShown7d.toLocaleString()} in 7 days · ${growth.clicks.toLocaleString()} clicks`, "adsShown"],
+    [growth.adsShown.toLocaleString(), "Ads shown", `${growth.adsShown7d.toLocaleString()} in 7 days${growth.networkAdsShown7d === null ? "" : ` (${growth.networkAdsShown7d.toLocaleString()} Zeekend)`} · ${growth.clicks.toLocaleString()} clicks`, "adsShown"],
     [dollars(growth.creditedMicros), "Earned by developers", "Credited from every billed view and click - not all of it withdrawn", "creditedMicros"],
     ...(growth.paidOutMicros === null ? [] : [[dollars(growth.paidOutMicros), "Paid out", "Withdrawals actually sent to developers", "paidOutMicros"] as [string, string, string, keyof GrowthDayValues]]),
   ];

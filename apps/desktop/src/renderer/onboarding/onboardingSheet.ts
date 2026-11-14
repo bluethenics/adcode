@@ -230,12 +230,12 @@ export function createOnboardingSheet(deps: OnboardingDeps): OnboardingSheet {
       const moveIn = document.createElement("button");
       moveIn.type = "button";
       moveIn.className = "onboarding-link";
-      moveIn.textContent = "Bring your accounts and chats";
+      moveIn.textContent = "Import from other apps";
       moveIn.addEventListener("click", () => {
         finish("welcome_done");
         deps.moveIn?.();
       });
-      existing.append(" Coming from Claude Code, Codex or OpenCode? ", moveIn, ".");
+      existing.append(" Coming from Claude Code, Codex or OpenCode? ", moveIn, " - your accounts and chats come with you.");
     }
 
     const ads = document.createElement("p");

@@ -29,6 +29,8 @@ export interface FundingDeps {
   webhookSecret: string;
   /** Configured provider products; overrides environment secrets in tests. */
   subscriptionProducts?: Partial<Record<PlanId, string>>;
+  /** The yearly products of the same plans; a yearly subscription grants the plan it is the year of. */
+  yearlySubscriptionProducts?: Partial<Record<PlanId, string>>;
   payments?: PaymentProvider;
 }
 
@@ -97,7 +99,8 @@ async function fund(deps: FundingDeps, parsed: unknown, headers: WebhookHeaders,
 
   if (event.type === "subscription") {
     const products = deps.subscriptionProducts ?? { weekly: process.env["DODO_PLAN_WEEKLY_ID"], monthly: process.env["DODO_PLAN_MONTHLY_ID"], pro: process.env["DODO_PLAN_PRO_ID"], max: process.env["DODO_PLAN_MAX_ID"], unlimited: process.env["DODO_PLAN_UNLIMITED_ID"] };
-    const productPlan = PLANS.find((plan) => products[plan.id] !== undefined && products[plan.id] === event.productId)?.id ?? null;
+    const yearly: Partial<Record<PlanId, string | undefined>> = deps.yearlySubscriptionProducts ?? (deps.subscriptionProducts !== undefined ? {} : { monthly: process.env["DODO_PLAN_MONTHLY_YEAR_ID"], pro: process.env["DODO_PLAN_PRO_YEAR_ID"], max: process.env["DODO_PLAN_MAX_YEAR_ID"] });
+    const productPlan = PLANS.find((plan) => [products[plan.id], yearly[plan.id]].some((id) => id !== undefined && id !== "" && id === event.productId))?.id ?? null;
     // Other subscriptions on the same merchant account must never mint an ADCode plan.
     // Metadata was authored by our checkout, but is still checked against the configured
     // provider product and a known account before it can grant access. The product

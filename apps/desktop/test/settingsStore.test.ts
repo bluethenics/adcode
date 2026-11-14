@@ -143,6 +143,26 @@ describe("persistence", () => {
 
     await expect(readFile(`${settingsFile()}.tmp`, "utf8")).rejects.toThrow();
   });
+
+  it("keeps full access for this session but never writes it to disk", async () => {
+    const store = createSettingsStore(dir);
+    await store.write("adcode.ai.fullAccess", true);
+    expect(store.current()["adcode.ai.fullAccess"]).toBe(true);
+
+    const raw = JSON.parse(await readFile(settingsFile(), "utf8")) as { values: Record<string, unknown> };
+    expect(raw.values["adcode.ai.fullAccess"]).toBe(false);
+    // The next launch starts with the guard rails up.
+    expect((await createSettingsStore(dir).read())["adcode.ai.fullAccess"]).toBe(false);
+  });
+
+  it("reads a settings file edited to say full access on as off", async () => {
+    await writeFile(
+      settingsFile(),
+      JSON.stringify({ version: SETTINGS_VERSION, values: { "adcode.ai.fullAccess": true } }),
+      "utf8",
+    );
+    expect((await createSettingsStore(dir).read())["adcode.ai.fullAccess"]).toBe(false);
+  });
 });
 
 describe("damaged files", () => {

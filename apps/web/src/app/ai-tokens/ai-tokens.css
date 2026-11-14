@@ -136,6 +136,15 @@
 .model-prices-empty p { margin: 8px 0 16px; color: var(--muted); font-size: 12px; }
 .model-prices-empty button { padding: 8px 12px; border: 1px solid var(--hairline); border-radius: 7px; background: var(--surface); color: var(--text); font: inherit; font-size: 12px; cursor: pointer; }
 .model-prices-cards { display: none; }
+/* A running price offer: the regular price, struck and faint, sits above the price you pay. */
+/* Relative, so its hidden screen-reader labels stay inside the table's scroll box. */
+.model-price-offer { position: relative; display: inline-grid; justify-items: end; gap: 1px; }
+.model-price-regular { color: var(--faint); font-size: 10px; font-weight: 400; text-decoration-thickness: 1px; }
+.model-prices-units .model-prices-offer-flag { justify-self: end; padding: 3px 8px; border-radius: 999px; background: var(--accent); color: var(--accent-text); font-size: 11px; font-weight: 550; font-variant-numeric: tabular-nums; }
+.model-price-card .model-price-offer { justify-items: start; }
+.ai-wallet-offer { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin: 18px 0 0; padding: 14px 18px; border: 1px solid var(--border-strong); border-radius: 12px; font-size: 14px; }
+.ai-wallet-offer strong { font-weight: 550; }
+.ai-wallet-offer span { color: var(--muted); font-size: 13px; }
 .model-prices-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @media (hover: hover) {
   .model-prices-table tbody tr:hover { background: color-mix(in srgb,var(--text) 3%,transparent); }
@@ -275,3 +284,15 @@
 .ai-tokens-history .ai-token-table-scroll table { width: 100%; }
 .ai-tokens-history { display: grid; gap: 12px; }
 .ai-tokens-history h2 { margin: 0; }
+
+/* Plans on sale again, with a monthly or yearly switch, and a typed credit amount. */
+.ai-plans-section { margin-block: 32px 48px; }
+.ai-billing { display: inline-flex; flex: none; padding: 4px; gap: 4px; border: 1px solid var(--hairline); border-radius: 999px; background: var(--card); }
+.ai-billing button { min-height: 36px; padding: 6px 14px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
+.ai-billing button[data-active="true"] { background: var(--accent); color: var(--accent-text); }
+.ai-billing button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.ai-wallet-custom { max-width: 520px; margin-bottom: 1.25rem; }
+.ai-wallet-custom-row { display: flex; align-items: center; gap: 8px; }
+.ai-wallet-custom-row > span { color: var(--muted); font-size: 18px; }
+.ai-wallet-custom-row .input { flex: 1; min-width: 0; font-variant-numeric: tabular-nums; }
+@media (max-width: 620px) { .ai-plans-section .ai-section-heading { flex-direction: column; align-items: start; } }

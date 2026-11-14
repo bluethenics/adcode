@@ -17,6 +17,10 @@ declare module "@zeekend/sdk" {
       dimensions?: { maxWidth?: number; maxHeight?: number };
     }): Promise<{ slot: ZeekendSlot | null; reason: string | null }>;
     render(slot: ZeekendSlot, mount: HTMLElement, options?: { theme?: Record<string, string> }): HTMLElement | null;
+    /** Report a viewable impression (half the unit on screen for a second) when drawing the slot yourself. Once per slot. */
+    impression(slot: ZeekendSlot): Promise<void>;
+    /** Report a click on a slot drawn yourself. Once per slot. */
+    click(slot: ZeekendSlot): Promise<void>;
   }
   export const Zeekend: {
     client(config: {

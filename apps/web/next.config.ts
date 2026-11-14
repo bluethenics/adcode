@@ -67,8 +67,9 @@ const config: NextConfig = {
   async headers() {
     return [
       /*
-       * The opt-in sponsored cards under AI replies (`/sponsored/chat`) are shown inside the
-       * desktop app's window, `app://adcode`, and nowhere else: that one embedder replaces DENY.
+       * Sponsored cards (`/sponsored/chat`) are shown inside the desktop app's window,
+       * `app://adcode`, and on Phone link's page, web.bluethenics.com, and nowhere else: those two
+       * embedders replace DENY. Keep in step with SPONSORED_EMBEDDERS (lib/sponsoredNetworks.ts).
        */
       {
         source: "/sponsored/:path*",
@@ -76,7 +77,7 @@ const config: NextConfig = {
           { key: "Strict-Transport-Security", value: "max-age=31536000" },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "no-referrer" },
-          { key: "Content-Security-Policy", value: "frame-ancestors app://adcode" },
+          { key: "Content-Security-Policy", value: "frame-ancestors app://adcode https://web.bluethenics.com" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
         ],
       },

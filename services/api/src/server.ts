@@ -20,6 +20,7 @@ import { handleAdNetworkAdmin, type AdNetworkRuntime } from "./adNetworks.ts";
 import { readAdNetworkArtwork } from "./adNetworkArtwork.ts";
 import { relayImprezia } from "./impreziaProxy.ts";
 import { sponsoredNetworks } from "./sponsoredNetworks.ts";
+import { creditNetworkImpression, parseNetworkImpression, withNetworkImpressions } from "./networkImpressions.ts";
 import { handleServe } from "./serve.ts";
 import { handleReceipts } from "./receipts.ts";
 import { handleBalance, handleLedger } from "./balance.ts";
@@ -84,7 +85,7 @@ import {
   type Outcome as PayoutOutcome,
   type PayoutError,
 } from "./withdrawals.ts";
-import { checkRate } from "./rateLimit.ts";
+import { checkRate, windowStartFor } from "./rateLimit.ts";
 import { corsHeaders } from "./cors.ts";
 import {
   campaignSeries,
@@ -169,6 +170,8 @@ export interface ApiServer {
 const MAX_BODY_BYTES = 1_000_000;
 const DEFAULT_PAGE_LIMIT = 50;
 const MAX_PAGE_LIMIT = 200;
+/** One address may report at most this many network impressions a minute - a card every two seconds. */
+const SPONSORED_IMPRESSIONS_PER_MINUTE = 30;
 
 function send(
   res: ServerResponse,
@@ -632,6 +635,25 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
         ...(options.adNetworks?.encryptionKeys === undefined ? {} : { encryptionKeys: options.adNetworks.encryptionKeys }),
       });
       send(res, 200, { networks }, { ...cors, "cache-control": "public, max-age=60" });
+      return;
+    }
+    // A Zeekend card the sponsored page saw counted (networkImpressions.ts), for the admin's
+    // "Ads shown". No sign-in, as above: rate limited per address, one count per slot.
+    if (path === "/v1/sponsored/impression" && req.method === "POST") {
+      const impressions = store.networkImpressions;
+      if (impressions === undefined) { send(res, 204, null, cors); return; }
+      let raw: unknown = null;
+      try { raw = JSON.parse(await readBody(req)); } catch { send(res, 400, { error: "invalid-body" }, cors); return; }
+      const impression = parseNetworkImpression(raw);
+      if (impression === null) { send(res, 400, { error: "invalid-impression" }, cors); return; }
+      const ip = firstHeader(req.headers["cf-connecting-ip"]) ?? firstHeader(req.headers["x-forwarded-for"])?.split(",")[0]?.trim() ?? "unknown";
+      const minute = windowStartFor(clock.now(), 60_000);
+      if ((await store.bumpRequestCount(`sponsored-ip:${ip}`, minute)) > SPONSORED_IMPRESSIONS_PER_MINUTE) {
+        send(res, 429, { error: "rate-limited" }, cors);
+        return;
+      }
+      const counted = await impressions.record(impression, clock.now()).catch(() => false);
+      send(res, 200, { counted }, { ...cors, "cache-control": "no-store" });
       return;
     }
 
@@ -1202,11 +1224,14 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
     if (path === "/v1/admin/growth" && req.method === "GET") {
       const now = clock.now();
       await store.writeAudit({ adminUid: auth.uid, action: "read-growth", subjectUid: "*", at: now });
-      const [stats, previous] = await Promise.all([
+      const [stats, previous, network] = await Promise.all([
         store.growthStats(now), store.growthDayBaseline?.(now - 86400000).catch(() => null) ?? Promise.resolve(null),
+        // Zeekend's cards count as ads shown too; a store without the table answers without them.
+        store.networkImpressions?.summary(now).catch(() => null) ?? Promise.resolve(null),
       ]);
-      send(res, 200, { ...growthToWire(stats), asOf: now, dayComparison: { asOf: now - 86400000,
-        previous: previous === null ? null : { ...previous, creditedMicros: previous.creditedMicros.toString(), paidOutMicros: previous.paidOutMicros?.toString() ?? null },
+      send(res, 200, { ...growthToWire(withNetworkImpressions(stats, network)), asOf: now, dayComparison: { asOf: now - 86400000,
+        // Yesterday's figure counts Zeekend's cards as of then, so the day-on-day change compares like with like.
+        previous: previous === null ? null : { ...previous, adsShown: previous.adsShown + (network === null ? 0 : Math.max(0, network.total - network.last1d)), creditedMicros: previous.creditedMicros.toString(), paidOutMicros: previous.paidOutMicros?.toString() ?? null },
       } }, { ...cors, "cache-control": "no-store" });
       return;
     }
@@ -2154,6 +2179,16 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
     if (path === "/v1/notices" && req.method === "GET") {
       const notices = await store.listNotices({ activeOnly: true });
       send(res, 200, { notices }, cors);
+      return;
+    }
+
+    // A Zeekend card the signed-in app saw counted: $0.002 to this account, once per slot,
+    // capped per day (networkImpressions.ts).
+    if (path === "/v1/sponsored/earn" && req.method === "POST") {
+      let raw: unknown = null;
+      try { raw = JSON.parse(await readBody(req)); } catch { send(res, 400, { error: "invalid-body" }, cors); return; }
+      const outcome = await creditNetworkImpression({ adNetworks: store.adNetworks, bumpDailyCount: (key, dayStart) => store.bumpRequestCount(key, dayStart), now: clock.now() }, auth.uid, raw);
+      send(res, outcome.credited || outcome.reason !== "invalid" ? 200 : 400, outcome, { ...cors, "cache-control": "no-store" });
       return;
     }
 

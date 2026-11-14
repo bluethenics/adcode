@@ -17,7 +17,7 @@ import {
   formatMicros,
   ECONOMICS,
 } from "./site";
-import { PAYG_SUMMARY } from "./pricing";
+import { PAYG_SUMMARY, PLANS_ON_SALE, creditAmount } from "./pricing";
 import { WALLET_TOPUPS_CENTS } from "@adcode/api/src/modelWallet.ts";
 import type { PaidPack } from "@adcode/api/src/paidTokens.ts";
 
@@ -181,6 +181,10 @@ export function pricingOffers(packs: readonly PaidPack[]): Node {
     offers: [
       { "@type": "Offer", name: "Free editor", price: "0", priceCurrency: "USD", url: url("/versions"),
         description: "The free editor and Tagflow AI, free for every signed-in account." },
+      ...PLANS_ON_SALE.map((plan) => ({
+        "@type": "Offer", name: `ADCode ${plan.name}`, price: dollars(plan.priceCents), priceCurrency: "USD", url: url("/pricing"),
+        description: `${creditAmount(plan.weeklyTokens)} AI credits every day on every hosted model, billed monthly; cancel any time.`,
+      })),
       ...WALLET_TOPUPS_CENTS.map((cents) => ({
         "@type": "Offer", name: `$${cents / 100} of AI credits`, price: dollars(cents), priceCurrency: "USD", url: url("/ai-tokens#wallet"),
         description: "USD credits for any paid model in ADCode at the price listed for it. One-time; never expire.",
@@ -319,11 +323,11 @@ export const FAQ: readonly { q: string; a: string }[] = [
   },
   {
     q: "How much does ADCode cost?",
-    a: `The editor is free with no subscription required. AI is pay as you go: ${PAYG_SUMMARY}. Prices are in USD before applicable tax. Every model's price is on the Pricing page.`,
+    a: `The editor is free; no plan is required. AI pricing: ${PAYG_SUMMARY}. Prices are in USD before applicable tax. Every model's price is on the Pricing page.`,
   },
   {
     q: "Is the AI in ADCode free?",
-    a: `Tagflow AI is free for every signed-in account, with no API key. Every other model is paid from USD credits at the price listed for it, with no subscription. Provider availability and context limits still apply. You can also connect your own provider or local model.`,
+    a: `Tagflow AI is free for every signed-in account, with no API key. Every other model is covered by a Builder, Pro or Max plan, or paid from USD credits at the price listed for it. Provider availability and context limits still apply. You can also connect your own provider or local model.`,
   },
   {
     q: "How much can you earn using ADCode?",

@@ -632,7 +632,6 @@ const rendererCount = (await (await fetch(`http://127.0.0.1:${PORT}/json/list`))
 socket = vibeSocket;
 const vibeModeAfter = await evaluate("document.body.dataset.workspaceMode");
 socket = ideSocket;
-vibeSocket.close();
 if (process.argv.includes("--visual-only")) {
   const response = await send("Page.captureScreenshot", { format: "png", fromSurface: true });
   if (typeof response.result?.data === "string") {
@@ -898,7 +897,7 @@ checks.adPartnerNoticeTells = await (async () => {
          const actions = card.querySelector('.pin-card-actions');
          return {
            title: card.querySelector('.pin-card-title')?.textContent ?? null,
-           namesBothPartners: /Zeekend, then Imprezia/.test(body?.textContent ?? ''),
+           namesZeekendOnly: /Zeekend, our only ad partner/.test(body?.textContent ?? '') && !/Imprezia/.test(body?.textContent ?? ''),
            disclosureFirst: body !== null && actions !== null && (body.compareDocumentPosition(actions) & 4) === 4,
            offersTurnOff: card.querySelector('.pin-card-never')?.textContent === 'Turn off',
          };
@@ -6040,8 +6039,8 @@ checks.earningsPopoverOpens = await evaluate(
          const full = uid.getAttribute('title') ?? '';
          return full.length > 20 && (uid.textContent ?? '').includes('…');
        })(),
-       // Four presets, from the server's own table.
-       presetRows: card.querySelectorAll('.earnings-preset').length,
+       // Nothing that forecasts pay: the panel reports confirmed money only.
+       projectionBoxes: card.querySelectorAll('.earnings-preset, .earnings-section').length,
        earningsSelected:
          document.getElementById('open-earnings')?.getAttribute('aria-pressed') === 'true',
      };
@@ -7712,7 +7711,24 @@ if (packaged) {
     return { checkedCurrent: checked.state === 'current', ignoresSimulation: checked.version !== '9.9.9', state: checked.state };
   })()`);
 } else {
-checks.updateReadyVisible = await evaluate(`(async () => {
+/*
+ * The card goes to one window: each renderer asks main to claim the notice, and the first
+ * one wins. This run has two windows and both emulate focus, so the ready card can land in
+ * the Vibe window while the check is reading the IDE one. Read both before deciding the
+ * card never appeared - that is the contract ("main hands each version to one window"),
+ * not a claim that it must be this window.
+ */
+const cardIn = `(() => {
+  const shown = [...document.querySelectorAll('.toast')].find((node) => /9\\.9\\.9 is ready/.test(node.textContent ?? ''));
+  return {
+    shown: shown !== undefined,
+    buttons: [...(shown?.querySelectorAll('.toast-actions button') ?? [])].map((b) => b.textContent).join('|'),
+    focused: document.hasFocus(),
+    visible: document.visibilityState === 'visible',
+    toasts: [...document.querySelectorAll('.toast')].map((node) => node.textContent ?? '').join(' | '),
+  };
+})()`;
+const updateHere = await evaluate(`(async () => {
   const wait = async (test) => { for (let i = 0; i < 60 && !test(); i++) await new Promise((r) => setTimeout(r, 100)); };
   const card = () => [...document.querySelectorAll('.toast')].find((node) => /9\\.9\\.9 is ready/.test(node.textContent ?? ''));
   const checked = await window.adcode.updates.check();
@@ -7722,17 +7738,37 @@ checks.updateReadyVisible = await evaluate(`(async () => {
   await new Promise((r) => setTimeout(r, 4200));
   window.dispatchEvent(new Event('focus'));
   await wait(() => card() !== undefined);
-  const shown = card();
-  const buttons = [...(shown?.querySelectorAll('.toast-actions button') ?? [])].map((b) => b.textContent);
+  const here = ${cardIn};
   const after = await window.adcode.updates.install();
   return {
     checkedReady: checked.state === 'ready' && checked.version === '9.9.9',
     statusBarSays: item?.textContent === 'Restart to update' && item.hidden === false && item.disabled === false,
-    cardShown: shown !== undefined,
-    cardOffersRestart: buttons.join('|') === 'Restart now|Later',
     restartAnswers: after.state === 'ready',
+    here,
   };
 })()`);
+if (typeof updateHere !== 'object' || updateHere === null) {
+  // A timeout or throw is already a failure string; keep it for the reporter.
+  checks.updateReadyVisible = updateHere;
+} else {
+  socket = vibeSocket;
+  const updateThere = await evaluate(cardIn);
+  socket = ideSocket;
+  vibeSocket.close();
+  const card = updateHere.here?.shown === true
+    ? updateHere.here
+    : typeof updateThere === 'object' && updateThere !== null && updateThere.shown === true ? updateThere : null;
+  checks.updateReadyVisible = {
+    checkedReady: updateHere.checkedReady,
+    statusBarSays: updateHere.statusBarSays,
+    cardShown: card !== null,
+    cardOffersRestart: card?.buttons === 'Restart now|Later',
+    restartAnswers: updateHere.restartAnswers,
+    cardWindow: card === null ? 'neither' : card === updateHere.here ? 'ide' : 'vibe',
+    ide: updateHere.here,
+    vibe: typeof updateThere === 'object' && updateThere !== null ? updateThere : { error: String(updateThere) },
+  };
+}
 }
 
 await send("Emulation.setDeviceMetricsOverride", {
@@ -7795,7 +7831,7 @@ const requiredEvidence = {
   updateReadyVisible: ["checkedReady", "statusBarSays", "cardShown", "cardOffersRestart", "restartAnswers"],
   packagedUpdateFeed: ["checkedCurrent", "ignoresSimulation"],
   licencesDialog: ["opened", "threeTabs", "showsApache", "closes"],
-  adPartnerNoticeTells: ["namesBothPartners", "disclosureFirst", "offersTurnOff", "bothOnByDefault", "dismissed"],
+  adPartnerNoticeTells: ["namesZeekendOnly", "disclosureFirst", "offersTurnOff", "bothOnByDefault", "dismissed"],
 };
 const failed = Object.entries(checks).filter(
   ([name, value]) =>

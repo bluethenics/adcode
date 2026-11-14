@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { networksFor, parseNetworks, withoutPrices, zeekendSessionId, zeekendTransport } from "../src/lib/sponsoredNetworks";
+import { networksFor, parseNetworks, SPONSORED_EMBEDDERS, withoutPrices, zeekendSessionId, zeekendTransport } from "../src/lib/sponsoredNetworks";
 
 describe("a Zeekend card without prices", () => {
   it("drops the price from the card and from every product, and nothing else", () => {
@@ -16,17 +16,21 @@ describe("a Zeekend card without prices", () => {
 });
 
 describe("which partners the sponsored page asks", () => {
-  it("reads the server's list in order and drops anything malformed", () => {
+  it("keeps Zeekend from the server's list, in order, and drops Imprezia and anything malformed", () => {
     expect(parseNetworks({ networks: [{ id: "zeekend", publisherKey: "pub_test", placementId: "chat-main" }, { id: "imprezia" }, { id: "other" }, { id: "zeekend" }] }))
-      .toEqual([{ id: "zeekend", publisherKey: "pub_test", placementId: "chat-main" }, { id: "imprezia" }]);
+      .toEqual([{ id: "zeekend", publisherKey: "pub_test", placementId: "chat-main" }]);
     expect(parseNetworks({})).toBeNull();
     expect(parseNetworks(null)).toBeNull();
   });
 
-  it("keeps Zeekend first under a reply, and only Imprezia in a notification", () => {
-    const both = [{ id: "zeekend" as const, publisherKey: "pub_test", placementId: "chat-main" }, { id: "imprezia" as const }];
-    expect(networksFor("reply", both).map((network) => network.id)).toEqual(["zeekend", "imprezia"]);
-    expect(networksFor("notification", both)).toEqual([{ id: "imprezia" }]);
+  it("asks Zeekend under a reply and in a notification alike", () => {
+    const zeekend = [{ id: "zeekend" as const, publisherKey: "pub_test", placementId: "chat-main" }];
+    expect(networksFor("reply", zeekend)).toEqual(zeekend);
+    expect(networksFor("notification", zeekend)).toEqual(zeekend);
+  });
+
+  it("lets only the desktop window and Phone link's page hand it an exchange", () => {
+    expect(SPONSORED_EMBEDDERS).toEqual(["app://adcode", "https://web.bluethenics.com"]);
   });
 });
 

@@ -13,6 +13,9 @@
 import { randomUUID } from "node:crypto";
 import { BrowserWindow, ipcMain } from "electron";
 import { CHANNELS, type ThemedConfirmRequest } from "../shared/api.ts";
+import { currentSettings } from "./settings.ts";
+import { fullAccessApplies } from "./fullAccess.ts";
+import { recordDebug } from "./debugLog.ts";
 
 const pending = new Map<string, { readonly contentsId: number; readonly settle: (answer: boolean) => void }>();
 let listening = false;
@@ -33,11 +36,21 @@ export function confirmInWindow(
   request: ThemedConfirmRequest,
   signal?: AbortSignal,
 ): Promise<boolean> {
+  // A turn already stopped gets a no, whatever the permission mode says.
+  if (signal?.aborted === true) return Promise.resolve(false);
+  // Full access answers this one for the person, but only inside a turn they switched it on
+  // for. Asked from elsewhere - the bridge, app startup, another program - it still asks.
+  if (fullAccessApplies(currentSettings())) {
+    // A permission that leaves no trace is one nobody can audit afterwards.
+    recordDebug("info", "ai:full-access", `Auto-approved: ${request.title}`);
+    return Promise.resolve(true);
+  }
   listen();
   const candidate = target !== null && !target.isDestroyed()
     ? target
     : BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows().find((window) => !window.isDestroyed()) ?? null;
-  if (candidate === null || candidate.isDestroyed() || signal?.aborted === true) return Promise.resolve(false);
+  // The abort check above still holds: nothing between there and here yields.
+  if (candidate === null || candidate.isDestroyed()) return Promise.resolve(false);
   const window = candidate;
   const contents = window.webContents;
   const id = randomUUID();

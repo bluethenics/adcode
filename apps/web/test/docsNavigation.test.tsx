@@ -179,11 +179,12 @@ describe("public documentation navigation", () => {
 
     expect(recent.length).toBe(4);
     expect(recent.every((page) => page.authored)).toBe(true);
+    // Pages published the same day are ordered by title.
     expect(recent.map((page) => page.slug)).toEqual([
-      "whats-new-2-5",
-      "whats-new-2-4-13",
-      "shared-github-projects",
-      "adcode-in-your-browser",
+      "coding-agent-token-benchmark",
+      "adcode-2-6-1-fewer-tokens",
+      "adcode-vs-claude-code-codex-opencode-t3-code",
+      "zeekend-sponsored-cards-phone-and-notifications",
     ]);
   });
 
@@ -191,12 +192,12 @@ describe("public documentation navigation", () => {
     const markup = await renderDocsIndex();
 
     expect(markup).toContain("New in the docs");
-    expect(markup).toContain("Oct 20, 2026");
+    expect(markup).toContain("Nov 14, 2026");
     // The sidebar links older pages earlier in the document, so compare positions
     // inside the shelf itself rather than across the whole page.
     const shelf = markup.slice(markup.indexOf("New in the docs"));
-    const first = shelf.indexOf("/docs/adcode-in-your-browser");
-    const second = shelf.indexOf("/docs/connectors");
+    const first = shelf.indexOf("/docs/adcode-vs-claude-code-codex-opencode-t3-code");
+    const second = shelf.indexOf("/docs/zeekend-sponsored-cards-phone-and-notifications");
     expect(first).toBeGreaterThan(-1);
     expect(second).toBeGreaterThan(-1);
     expect(first).toBeLessThan(second);

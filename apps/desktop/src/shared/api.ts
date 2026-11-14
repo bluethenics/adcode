@@ -13,7 +13,16 @@ export type LiveBrowserRequest =
   | { readonly kind: "open"; readonly url: string; readonly newTab: boolean }
   | { readonly kind: "select" | "close"; readonly tab: number }
   | { readonly kind: "popup"; readonly url: string }
-  | { readonly kind: "notice"; readonly text: string };
+  | { readonly kind: "notice"; readonly text: string }
+  /**
+   * Where the assistant's pointer is in a tab, in page pixels, so the panel can draw it.
+   * `width` is the page's viewport width, which maps page pixels onto the panel at any zoom;
+   * `ms` is how long the glide to it takes.
+   */
+  | { readonly kind: "cursor"; readonly tab: number; readonly x: number; readonly y: number; readonly width: number; readonly state: LiveBrowserCursorState; readonly ms: number };
+
+/** What the assistant's pointer is doing: a glide, a press held down, a click, typing, a scroll, or gone. */
+export type LiveBrowserCursorState = "move" | "down" | "up" | "click" | "type" | "scroll" | "hide";
 
 /**
  * Annotate: pins dropped on a page in the Browser or Preview panel, described for the assistant.
@@ -431,18 +440,20 @@ export interface PinResult {
  * connection to an advertiser, and there is no request that could carry the user's IP.
  */
 /**
- * A notification whose card comes from ADCode's ad partner (Imprezia), filling a slot no
- * direct campaign could. The window hands `request`/`response` to the sandboxed
- * /sponsored/chat frame and reports whether a card came back.
+ * A notification whose card comes from Zeekend, ADCode's ad partner, filling a slot no direct
+ * campaign could. The window hands `request`/`response` to the sandboxed /sponsored/chat
+ * frame and reports whether a card came back.
  */
 export interface PartnerToast {
   readonly id: string;
-  /** What the partner picks a card for: the project's topic tags in words, nothing more. */
+  /** What Zeekend picks a card for: the project's topic tags in words, nothing more. */
   readonly request: string;
   readonly response: string;
   readonly sessionId: string;
   readonly theme: "light" | "dark";
   readonly autoDismissMs: number;
+  /** Which notification of this session it is, for Zeekend's per-session pacing. A number only. */
+  readonly turn?: number;
 }
 
 export interface SponsoredToast {
@@ -713,6 +724,7 @@ export const CHANNELS = {
   adShow: "ads:show",
   adPartnerShow: "ads:partner-show",
   adPartnerResult: "ads:partner-result",
+  adPartnerImpression: "ads:partner-impression",
   adPainted: "ads:painted",
   adDismissed: "ads:dismissed",
   adClicked: "ads:clicked",
@@ -2762,6 +2774,8 @@ export interface AdcodeApi {
     onPartnerShow(listener: (toast: PartnerToast) => void): () => void;
     /** Whether the partner's frame came back with a card; "empty" hands the slot back. */
     partnerResult(id: string, outcome: "shown" | "empty"): void;
+    /** Zeekend counted an impression of this slot on screen: the main process claims its payout ($0.002). */
+    partnerImpression(slotId: string): void;
     onEarnings(listener: (earnings: EarningsSnapshot) => void): () => void;
     /**
      * The toast actually painted. One of the three conditions §1 requires before an

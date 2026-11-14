@@ -7,6 +7,14 @@
 :where(a, button, summary):focus-visible { outline: 2px solid var(--text); outline-offset: 4px; }
 :where(.table-scroll, .codebox pre) { max-width: 100%; overscroll-behavior-inline: contain; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
 :where(.table-scroll):focus-visible { outline: 2px solid var(--text); outline-offset: 4px; }
+/* Markdown tables (lib/markdown.ts): a wide one keeps readable columns and scrolls in its own
+   box on a narrow screen, instead of the prose's break-anywhere rule splitting words in half. */
+.prose .table-scroll { margin: 22px 0; border: 1px solid var(--hairline); border-radius: 12px; background: var(--surface); }
+.prose .table-scroll > table { display: table; width: 100%; min-width: 640px; margin: 0; overflow: visible; }
+.prose .table-scroll :is(th, td) { overflow-wrap: normal; word-break: normal; vertical-align: top; line-height: 1.5; }
+.prose .table-scroll thead th { color: var(--faint); font-size: 12px; font-weight: 650; white-space: nowrap; }
+.prose .table-scroll tbody th { min-width: 9em; }
+.prose .table-scroll tbody tr:last-child > * { border-bottom: 0; }
 :where(.prose, .release-body) :is(img, video, iframe) { max-width: 100%; }
 :where(.prose, .release-body) pre { max-width: 100%; overflow-x: auto; }
 

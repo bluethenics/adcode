@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { sponsoredMessage } from "../src/renderer/ai/sponsoredReply.ts";
 
 describe("what a sponsored card under a reply is given", () => {
@@ -125,5 +125,66 @@ describe("a card arriving under the last reply", () => {
     expect(chat.scrollTop).toBe(300);
     followSponsoredCard(chat, () => true)({ height: 0 });
     expect(chat.scrollTop).toBe(300);
+  });
+});
+
+describe("the ad box above the message box", () => {
+  it("asks the page for the banner layout, and for nothing it does not know", () => {
+    expect(sponsoredMessage({ request: "q", response: "a", sessionId: "s", theme: "dark", layout: "banner", turn: 3 })).toEqual({ type: "adcode-sponsored", request: "q", response: "a", sessionId: "s", theme: "dark", layout: "banner", turn: 3 });
+    expect(sponsoredMessage({ request: "q", response: "a", sessionId: "s", theme: "dark", layout: "reply" })).not.toHaveProperty("layout");
+  });
+
+  it("opens with a general developer's-day exchange that names nothing of the project", async () => {
+    const { OPENING_EXCHANGE, SPONSOR_ROTATE_MS } = await import("../src/renderer/ai/sponsoredReply.ts");
+    expect(OPENING_EXCHANGE.request.length).toBeGreaterThan(20);
+    expect(OPENING_EXCHANGE.response.length).toBeGreaterThan(20);
+    expect(SPONSOR_ROTATE_MS).toBe(30_000);
+  });
+});
+
+describe("the ad box keeps itself filled", () => {
+  class FakeElement {
+    readonly dataset: Record<string, string> = {};
+    readonly style: Record<string, string> & { setProperty(): void } = { setProperty: () => undefined } as never;
+    readonly children: FakeElement[] = [];
+    hidden = false;
+    className = "";
+    parentElement: FakeElement | null = null;
+    contentWindow = null;
+    setAttribute(): void {}
+    append(child: FakeElement): void { child.parentElement = this; this.children.push(child); }
+    remove(): void { const list = this.parentElement?.children; if (list) list.splice(list.indexOf(this), 1); this.parentElement = null; }
+    get isConnected(): boolean { return this.parentElement !== null; }
+  }
+
+  it("asks at once, then on every beat while on screen, and stops when told", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("document", { createElement: () => new FakeElement(), visibilityState: "visible", addEventListener: () => undefined, removeEventListener: () => undefined });
+    vi.stubGlobal("window", { addEventListener: () => undefined, removeEventListener: () => undefined });
+    try {
+      const { createSponsorStrip } = await import("../src/renderer/ai/sponsoredReply.ts");
+      const strip = createSponsorStrip("https://adcode.example");
+      const box = strip.element as unknown as FakeElement;
+      let onScreen = true;
+      let asked = 0;
+      const stop = strip.keepFilled(() => ({ request: "q", response: "a", sessionId: "s", theme: "dark", layout: "banner", turn: ++asked }), 30_000, () => onScreen);
+      expect(asked).toBe(1);
+      expect(box.hidden).toBe(false);
+      vi.advanceTimersByTime(30_000);
+      expect(asked).toBe(2);
+      // Hidden or minimised: no card is asked for, none counts.
+      onScreen = false;
+      vi.advanceTimersByTime(60_000);
+      expect(asked).toBe(2);
+      onScreen = true;
+      stop();
+      vi.advanceTimersByTime(90_000);
+      expect(asked).toBe(2);
+      // A newer card replaces one still on its way: one waiting frame at a time.
+      expect(box.children).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
   });
 });

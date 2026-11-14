@@ -72,7 +72,7 @@ revenue to the developer using it.
 
 ## Key facts
 
-- Pricing: the editor is free with no subscription. AI is pay as you go: ${PAYG_SUMMARY}. Every model's price is listed at https://adcode.bluethenics.com/pricing. Prices are USD before applicable tax.
+- Pricing: the editor is free. AI pricing: ${PAYG_SUMMARY}. Every model's price is listed at https://adcode.bluethenics.com/pricing. Prices are USD before applicable tax.
 - Compare plans, packs and free access: ${url("/pricing")}.
 - Editor: Monaco editing surface, integrated terminals, git, workspace search, plain-English
   compiler errors, live collaboration.

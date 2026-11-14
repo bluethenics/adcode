@@ -176,12 +176,12 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   "ai.buyTokens": {
     added: "2026-10-21",
     actions: [command("ai.buyTokens", "Buy credits")],
-    keywords: ["buy tokens", "buy credits", "top up", "pay", "purchase", "more tokens", "out of tokens", "glm", "qwen", "mimo", "50m", "pricing", "price", "paid ai", "dodo"],
+    keywords: ["buy tokens", "buy credits", "top up", "pay", "purchase", "more tokens", "out of tokens", "glm", "qwen", "mimo", "50m", "pricing", "price", "paid ai", "dodo", "custom amount", "any amount", "pay what you want", "choose amount", "pay as you go"],
   },
   "ai.plans": {
-    added: "2026-10-25",
+    added: "2026-11-13",
     actions: [command("ai.upgradePlan", "Upgrade plan")],
-    keywords: ["subscription", "subscribe", "monthly", "weekly", "pro plan", "promo code", "invite", "referral", "cancel subscription"],
+    keywords: ["subscription", "subscribe", "monthly", "weekly", "yearly", "annual", "builder", "pro plan", "max plan", "unlimited", "more usage", "daily credits", "promo code", "invite", "referral", "cancel subscription"],
   },
   "ai.projectInstructions": {
     actions: [command("ai.initInstructions", "Write AGENTS.md")],
@@ -342,10 +342,10 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   },
   "workbench.browser": {
     actions: [command("workspace.browser", "Open Browser"), command("browser.clearData", "Sign out and clear its data")],
-    keywords: ["browser", "web browser", "in-app browser", "built-in browser", "tabs", "address bar", "open a website", "google", "search the web", "agent browser", "agent-browser", "browse for me", "fill a form", "research", "sign in to a site", "cookies", "clear cookies", "webview", "docs", "dashboard"],
+    keywords: ["browser", "web browser", "in-app browser", "built-in browser", "tabs", "address bar", "open a website", "google", "search the web", "agent browser", "agent-browser", "browse for me", "fill a form", "research", "sign in to a site", "cookies", "clear cookies", "webview", "docs", "dashboard", "human-like", "visible cursor", "click like a person", "type like a person", "hold", "drag", "batch", "outreach", "find companies", "send an email", "write an email", "repeating task"],
   },
   "adcode.appearance.mascots": {
-    keywords: ["mascot", "mascots", "buck", "character", "hide mascot", "turn off mascot", "cute", "faces", "avatar", "quiet screen"],
+    keywords: ["mascot", "mascots", "buck", "character", "hide mascot", "turn off mascot", "cute", "faces", "avatar", "quiet screen", "ask buck", "talk to buck", "website helper"],
   },
   "adcode.power.whenDone": {
     added: "2026-11-13",
@@ -369,7 +369,7 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   },
   "ai.moveIn": {
     actions: [command("onboarding.moveIn", "Open Move in"), command("ai.importChats", "Import conversations"), command("onboarding.tour", "Show the welcome tour")],
-    keywords: ["move in", "onboarding", "import chats", "import conversations", "import from claude", "import from codex", "import from chatgpt", "import from opencode", "claude desktop", "bring my chats", "migrate", "switch from cursor", "chat history", "conversations.json", "scan this computer", "connect chatgpt", "connect claude", "connect opencode", "freebuff", "use my subscription", "existing subscription"],
+    keywords: ["move in", "onboarding", "import chats", "import conversations", "import from other apps", "bring accounts", "empty chat", "conversation list", "import from claude", "import from codex", "import from chatgpt", "import from opencode", "claude desktop", "bring my chats", "migrate", "switch from cursor", "chat history", "conversations.json", "scan this computer", "connect chatgpt", "connect claude", "connect opencode", "freebuff", "use my subscription", "existing subscription"],
   },
   "ai.richReplies": {
     actions: [command("ai.askMockup", "Ask for a mockup")],
@@ -412,7 +412,7 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
       command("ai.compactConversation", "Compact now"),
       command("ai.viewConversationSummary", "View summary"),
     ],
-    keywords: ["long memory", "remember conversation", "context", "context window", "compact", "auto compact", "summarise", "summarize", "summary", "long chat", "conversation too long", "forgot", "forgets", "token limit", "prompt too long"],
+    keywords: ["long memory", "remember conversation", "context", "context window", "compact", "auto compact", "summarise", "summarize", "summary", "long chat", "conversation too long", "forgot", "forgets", "token limit", "prompt too long", "fewer tokens", "save tokens", "token usage", "prompt cache", "cheaper ai"],
   },
   "ai.raceMode": {
     actions: [command("agents.race", "Start a race")],
@@ -480,6 +480,11 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   "adcode.ai.editPolicy": {
     keywords: ["auto apply", "apply automatically", "stop asking to approve", "approve edits", "review ai changes", "undo ai changes", "undo turn", "auto mode"],
   },
+  "adcode.ai.fullAccess": {
+    added: "2026-11-14",
+    actions: [command("ai.fullAccess", "Change full access")],
+    keywords: ["full access", "bypass permissions", "allow everything", "do anything", "stop asking", "no confirmations", "yolo mode", "trust the agent", "unattended", "autonomous", "permission bypass", "allow all", "agent permissions", "let it do anything", "no prompts"],
+  },
   "adcode.ai.chatWidget": {
     keywords: ["queue a message", "follow up while it works", "send while working", "message while busy", "send now", "queued message"],
   },
@@ -502,11 +507,11 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   },
   "adcode.ads.partnerNotifications": {
     added: "2026-11-04",
-    keywords: ["imprezia", "partner ads", "partner notifications", "sponsored notification", "ad network notification", "fill empty ad slot", "more ads", "turn off partner ads"],
+    keywords: ["zeekend", "partner ads", "partner notifications", "sponsored notification", "ad network notification", "fill empty ad slot", "more ads", "back to back ads", "turn off partner ads"],
   },
   "adcode.ads.chatSponsored": {
     added: "2026-10-28",
-    keywords: ["imprezia", "ads in chat", "sponsored reply", "ad under answer", "chat ads", "send my prompt to advertisers", "ad partner", "turn off chat ads"],
+    keywords: ["zeekend", "ads in chat", "sponsored reply", "ad under answer", "chat ads", "phone ads", "send my prompt to advertisers", "ad partner", "turn off chat ads"],
   },
   "ai.toolBridge": {
     added: "2026-11-11",

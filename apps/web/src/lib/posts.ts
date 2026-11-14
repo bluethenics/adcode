@@ -14,6 +14,7 @@
  */
 import { readApi } from "./apiRead";
 import { WEB_DOCS } from "./webDocs";
+import { REPORTS_2026_11 } from "./reports202611";
 
 export interface Post {
   slug: string;
@@ -51,6 +52,7 @@ const REVALIDATE_SECONDS = 60;
 
 const SOURCES: readonly PostSource[] = [
   ...WEB_DOCS.map((doc) => ({ ...doc, surface: "docs" as const })),
+  ...REPORTS_2026_11,
   {
     slug: "installing-adcode",
     title: "Installing ADCode",

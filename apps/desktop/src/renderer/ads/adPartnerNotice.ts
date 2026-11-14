@@ -33,7 +33,7 @@ export const AD_PARTNER_NOTICE = {
   title: "Sponsored cards that match your chats",
   body:
     "ADCode now shows one sponsored card under some AI replies, picked for that conversation, and lets our ad partner fill a sponsored message when no ADCode advertiser has one. " +
-    "Cards send your message and the reply to Zeekend, then Imprezia. Partner messages send only the names of the languages you have open. Nothing else from your project.",
+    "Cards send your message and the reply to Zeekend, our only ad partner. Partner messages send only the names of the languages you have open. Nothing else from your project.",
   link: "What is sent",
   turnOff: "Turn off",
   settings: "Settings",
@@ -41,10 +41,11 @@ export const AD_PARTNER_NOTICE = {
   turnedOff: "Off. Turn them back on in Settings > Ads.",
 } as const;
 
-/** Whether to tell this person: sponsored messages on, one of the two on, not told before. */
+/** Whether to tell this person: sponsored messages on, one of the two on, Frequency not Off, not told before. */
 export function shouldShowAdPartnerNotice(values: Readonly<Record<string, unknown>>, seen: boolean): boolean {
   if (seen) return false;
   if (values["adcode.ads.enabled"] === false) return false;
+  if (values["adcode.ads.frequency"] === "off") return false;
   return AD_PARTNER_SETTINGS.some((id) => values[id] === true);
 }
 

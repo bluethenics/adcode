@@ -156,7 +156,7 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     kind: "enum",
     label: "Frequency",
     description:
-      "Caps are enforced on this machine. The server may only ever tighten them, never loosen them.",
+      "How often ADCode's own sponsored message may appear in the corner of the window. Off stops every sponsored card, including the one above the message box and on a linked phone. Caps are enforced on this machine; the server may only ever tighten them, never loosen them.",
     default: "standard",
     available: true,
     options: [
@@ -170,7 +170,7 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     "adcode.ads.partnerNotifications",
     "ads",
     "Sponsored notifications from ADCode's ad partner",
-    "On unless you turn it off. When no ADCode advertiser has a card for you, a sponsored notification from Imprezia, ADCode's ad partner, can take the slot instead, on the same schedule and limits as other sponsored messages. Only your project's language and framework names are sent to choose it.",
+    "On unless you turn it off. When no ADCode advertiser has a card for you, a sponsored notification from Zeekend, ADCode's ad partner, takes the slot instead - one after another at your Frequency, on the same schedule and limits as other sponsored messages. Only your project's language and framework names are sent to choose it.",
     true,
     true,
   ),
@@ -178,7 +178,7 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     "adcode.ads.chatSponsored",
     "ads",
     "Sponsored cards under AI replies",
-    "On unless you turn it off. While on, your message and the assistant's reply are sent to ADCode's ad partners - Zeekend first, then Imprezia if Zeekend has nothing - to choose one relevant sponsored card shown under that reply. Nothing else from your project is sent.",
+    "On unless you turn it off. A box above the message box shows a sponsored card from Zeekend, ADCode's ad partner, and a fresh one every 30 seconds while the chat is on screen. Sponsored messages must be on too, and Frequency must not be Off. Your latest message and the assistant's reply are sent to Zeekend to choose relevant cards. Nothing else from your project is sent.",
     true,
     true,
   ),
@@ -582,6 +582,14 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
       { value: "review", label: "Review every change", detail: "Changes wait for Apply" },
     ],
   },
+  bool(
+    "adcode.ai.fullAccess",
+    "ai",
+    "Full access mode",
+    "While it is on, the assistant is not asked to confirm anything it does in a chat or agent run: it can start a connector's program, enable its tools, change guarded settings, run this project's approval-gated hooks, create an agent plan, and apply edits even in Review. A red shield at the bottom of the message box says it is on; click that shield to take back control. When the chat is answered by a connected coding CLI - Claude Code or Codex - that CLI also runs with its own permission questions off, so it acts with its full machine access. ADCode's own deny rules and hard blocks still apply to its own tools. It does not override a capability switch by itself, it never types passwords or card numbers, and the assistant cannot change this setting itself. It is session-only: closing ADCode turns it off, and it is off again on the next launch.",
+    false,
+    true,
+  ),
   bool(
     "adcode.ai.askBeforeConnectorTools",
     "ai",

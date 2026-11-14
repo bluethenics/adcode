@@ -158,6 +158,8 @@ export const ICON = {
   plug: "M6 2.5v3M10 2.5v3M4.5 5.5h7v2.5a3.5 3.5 0 0 1-7 0zM8 11.5v2",
   /** A padlock: body, shackle and keyhole, centred on (8, 8). For "kept encrypted". */
   lock: "M4.5 7h7v6h-7zM5.75 7V5.25a2.25 2.25 0 0 1 4.5 0V7M8 9.25v1.5",
+  /** A shield, outline only, symmetric about (8, 8). For permission state. */
+  shield: "M8 2l5 2v4c0 3-2.1 5.3-5 6-2.9-.7-5-3-5-6V4z",
   tool: "M10.5 2.5a3 3 0 0 0-2.8 4.1L2.8 11.5a1.2 1.2 0 0 0 1.7 1.7l4.9-4.9a3 3 0 0 0 4.1-2.8l-1.8 1.8-1.7-.3-.3-1.7z",
   /** A finished step. The tick's ink spans (3.5, 4.5)-(12.5, 11.5). */
   check: "M3.5 8.5l3 3 6-7",

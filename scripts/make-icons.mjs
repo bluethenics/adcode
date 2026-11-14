@@ -1,14 +1,25 @@
 /**
- * Rasterise `build/icon.svg` into the icons the installer and the app need.
+ * Draw every app icon from the ADCode logo, `build/logo.webp`.
  *
  * Run with Electron rather than plain Node - `npm run icons` - because the renderer is
- * already here and already rasterises SVG correctly. Reaching for an image library would
- * add a dependency, and a native one at that, to do something Chromium does anyway.
+ * already here and already decodes and scales images well. Reaching for an image library
+ * would add a dependency, and a native one at that, to do something Chromium does anyway.
  *
  * Writes:
  *   build/icon.ico   multi-size, for the Windows installer, the taskbar and Explorer
  *   build/icon.png   512px, electron-builder's fallback and the Linux icon
- *   build/appx/*.png the six tiles the Microsoft Store package needs
+ *   build/appx/*.png the Microsoft Store package's tiles, and its taskbar images
+ *
+ * Every icon is the logo's own folded mark on a black rounded tile - the logo's black, so
+ * the mark's glow meets the tile without a seam. At 48px and below the mark is drawn larger,
+ * because its fine fold does not survive at taskbar size otherwise.
+ *
+ * **The blue edge in the taskbar (reported 2026-11-13).** The Store package's taskbar icon
+ * is `Square44x44Logo`. Without "unplated" versions of it, Windows sets that image on a plate
+ * in the person's accent colour - blue by default - which showed round the tile's transparent
+ * corners as a blue rim. The `targetsize-N_altform-unplated` files below are what Windows
+ * takes for the taskbar instead, drawn on our own black tile; electron-builder copies them
+ * and indexes them (resources.pri) because their names carry `.targetsize-`.
  *
  * The .ico embeds PNGs rather than BMPs. That has been valid since Vista, and it is what
  * keeps the 256px entry from costing 256KB of uncompressed bitmap.
@@ -21,15 +32,18 @@ import { dirname, join } from "node:path";
 import process from "node:process";
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..");
-const SOURCE = join(REPO, "build", "icon.svg");
-/**
- * The same mark drawn for small sizes. Reported: in the taskbar the icon was a small grey
- * mark lost in a black square - the full artwork's glow and shading do not survive 24 pixels.
- */
-const SMALL_SOURCE = join(REPO, "build", "icon-small.svg");
-/** Up to and including this many pixels, the small drawing is used. */
-const SMALL_UP_TO = 48;
+const LOGO = join(REPO, "build", "logo.webp");
 const LOG = join(REPO, "build", "icons.log");
+
+/**
+ * Where the mark sits in logo.webp (1254px square), glow included: measured from the image's
+ * bright pixels (176-1075 across, 355-865 down) plus room for the glow, not guessed.
+ */
+const MARK = { x: 152, y: 331, width: 948, height: 558 };
+/** How much of the tile's width the mark takes: a little more when the icon is small. */
+const markShare = (side) => (side <= 48 ? 0.88 : 0.76);
+/** The tile's corner radius, as a share of its shorter side. */
+const CORNER = 0.22;
 
 /**
  * Progress goes to a file, not to stdout.
@@ -39,34 +53,26 @@ const LOG = join(REPO, "build", "icons.log");
  * a script that hangs indistinguishable from one that is silently working.
  */
 const log = (line) => {
-  appendFileSync(LOG, `${line}
-`);
-  process.stdout.write(`${line}
-`);
+  appendFileSync(LOG, `${line}\n`);
+  process.stdout.write(`${line}\n`);
 };
 
 /**
- * The sizes Windows actually asks for.
- *
- * 16 and 32 are the ones that get used most and scale worst, so they are rendered at
- * their own size rather than downsampled from 256 - Chromium's own layout at 16px keeps
- * the strokes on pixel boundaries in a way a resize cannot.
+ * The sizes Windows actually asks for. 16 and 32 are the ones that get used most and scale
+ * worst, so each is drawn at its own size rather than downsampled from 256.
  */
 const ICO_SIZES = [16, 24, 32, 48, 64, 128, 256];
 const PNG_SIZE = 512;
 
 /**
  * The tiles the Microsoft Store package needs, at the exact names electron-builder looks
- * for in `build/appx`.
+ * for in `build/appx`, then the taskbar's own images (see "The blue edge" above).
  *
  * Generated here rather than drawn by hand because electron-builder silently falls back to
  * its own bundled placeholders when a tile is missing - so a forgotten file does not fail
  * the build, it ships an Electron logo to the Store listing.
- *
- * `Wide310x150Logo` is the only non-square one. The mark is square, so it is centred on a
- * transparent canvas rather than stretched; a stretched logo is the tell of a rushed
- * submission and Store review does look.
  */
+const TASKBAR_SIZES = [16, 24, 32, 48, 256];
 const APPX_TILES = [
   { file: "StoreLogo.png", width: 50, height: 50 },
   { file: "Square44x44Logo.png", width: 44, height: 44 },
@@ -74,56 +80,22 @@ const APPX_TILES = [
   { file: "Square150x150Logo.png", width: 150, height: 150 },
   { file: "Square310x310Logo.png", width: 310, height: 310 },
   { file: "Wide310x150Logo.png", width: 310, height: 150 },
+  ...TASKBAR_SIZES.flatMap((size) => [
+    { file: `Square44x44Logo.targetsize-${size}.png`, width: size, height: size },
+    { file: `Square44x44Logo.targetsize-${size}_altform-unplated.png`, width: size, height: size },
+  ]),
 ];
 
 /**
- * One PNG of the mark, drawn onto a canvas inside the page.
+ * One PNG: the black rounded tile, and the mark cut from the logo and centred on it.
  *
- * Not `capturePage`. That screenshots the *compositor*, so it needs a window that is
- * actually being drawn: hidden and offscreen windows hang waiting for a frame, and a
- * window parked at negative coordinates throws `UnknownVizError` because nothing composites
- * there either. A canvas needs none of that - it rasterises in the renderer regardless of
- * whether a pixel ever reaches a screen - and it yields exact dimensions and real alpha
- * rather than whatever the display's scale factor happened to produce.
+ * Drawn on a canvas inside a hidden page - not `capturePage`, which screenshots the
+ * compositor and so needs a window that is actually being drawn.
  */
-async function render(window, svg, size) {
-  // The SVG carries only a viewBox; an `<img>` with no intrinsic size can decode to
-  // nothing, so the requested size is stamped on before it is handed over.
-  const sized = svg.replace("<svg ", `<svg width="${size}" height="${size}" `);
-  const source = `data:image/svg+xml;base64,${Buffer.from(sized).toString("base64")}`;
-
-  const base64 = await window.webContents.executeJavaScript(`
-    new Promise((resolve, reject) => {
-      const image = new Image();
-      image.onload = () => {
-        const canvas = document.createElement("canvas");
-        canvas.width = ${size};
-        canvas.height = ${size};
-        const context = canvas.getContext("2d");
-        context.clearRect(0, 0, ${size}, ${size});
-        context.drawImage(image, 0, 0, ${size}, ${size});
-        resolve(canvas.toDataURL("image/png").split(",")[1]);
-      };
-      image.onerror = () => reject(new Error("the SVG did not decode"));
-      image.src = ${JSON.stringify(source)};
-    })
-  `);
-
-  return Buffer.from(base64, "base64");
-}
-
-/**
- * The square mark, centred on a canvas of any shape.
- *
- * `render` above asks the SVG to decode at the size it wants, which only works while the
- * target is square. A 310x150 tile has to draw a 150x150 mark in the middle of a
- * transparent strip instead - scaling the mark to fill would distort it.
- */
-async function renderTile(window, svg, width, height) {
+async function render(window, logo, width, height, { corner = CORNER, share = markShare(Math.min(width, height)) } = {}) {
   const side = Math.min(width, height);
-  const sized = svg.replace("<svg ", `<svg width="${side}" height="${side}" `);
-  const source = `data:image/svg+xml;base64,${Buffer.from(sized).toString("base64")}`;
-
+  const markWidth = Math.round(side * share);
+  const markHeight = Math.round((markWidth * MARK.height) / MARK.width);
   const base64 = await window.webContents.executeJavaScript(`
     new Promise((resolve, reject) => {
       const image = new Image();
@@ -133,14 +105,19 @@ async function renderTile(window, svg, width, height) {
         canvas.height = ${height};
         const context = canvas.getContext("2d");
         context.clearRect(0, 0, ${width}, ${height});
-        context.drawImage(image, ${Math.round((width - side) / 2)}, ${Math.round((height - side) / 2)}, ${side}, ${side});
+        context.fillStyle = "#000";
+        context.beginPath();
+        context.roundRect(0, 0, ${width}, ${height}, ${Math.round(side * corner)});
+        context.fill();
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = "high";
+        context.drawImage(image, ${MARK.x}, ${MARK.y}, ${MARK.width}, ${MARK.height}, ${Math.round((width - markWidth) / 2)}, ${Math.round((height - markHeight) / 2)}, ${markWidth}, ${markHeight});
         resolve(canvas.toDataURL("image/png").split(",")[1]);
       };
-      image.onerror = () => reject(new Error("the SVG did not decode"));
-      image.src = ${JSON.stringify(source)};
+      image.onerror = () => reject(new Error("the logo did not decode"));
+      image.src = ${JSON.stringify(logo)};
     })
   `);
-
   return Buffer.from(base64, "base64");
 }
 
@@ -194,29 +171,35 @@ void app.whenReady().then(async () => {
 
   try {
     await window.loadURL("data:text/html,<!doctype html><html><body></body></html>");
-    const svg = await readFile(SOURCE, "utf8");
-    const small = await readFile(SMALL_SOURCE, "utf8");
-    const artFor = (size) => (size <= SMALL_UP_TO ? small : svg);
+    const logo = `data:image/webp;base64,${(await readFile(LOGO)).toString("base64")}`;
 
     const images = [];
     for (const size of ICO_SIZES) {
-      images.push({ size, png: await render(window, artFor(size), size) });
-      log(`  rendered ${size}x${size}${size <= SMALL_UP_TO ? " (small drawing)" : ""}`);
+      images.push({ size, png: await render(window, logo, size, size) });
+      log(`  rendered ${size}x${size}`);
     }
 
     await writeFile(join(REPO, "build", "icon.ico"), buildIco(images));
-    await writeFile(join(REPO, "build", "icon.png"), await render(window, svg, PNG_SIZE));
-
+    await writeFile(join(REPO, "build", "icon.png"), await render(window, logo, PNG_SIZE, PNG_SIZE));
     log(`build/icon.ico  ${ICO_SIZES.join(", ")}`);
     log(`build/icon.png  ${PNG_SIZE}x${PNG_SIZE}`);
 
-    // The Store tiles, from the same SVG, so a redrawn mark cannot leave them behind.
     const appx = join(REPO, "build", "appx");
     await mkdir(appx, { recursive: true });
     for (const tile of APPX_TILES) {
-      await writeFile(join(appx, tile.file), await renderTile(window, artFor(Math.min(tile.width, tile.height)), tile.width, tile.height));
+      await writeFile(join(appx, tile.file), await render(window, logo, tile.width, tile.height));
       log(`build/appx/${tile.file}  ${tile.width}x${tile.height}`);
     }
+
+    // Phone link's installable page. The maskable icon fills its square - the phone cuts its
+    // own shape - with the mark inside the 80% safe zone; the others are the rounded tile.
+    const phone = join(REPO, "apps", "desktop", "src", "phone", "public");
+    for (const size of [180, 192, 512]) {
+      await writeFile(join(phone, `icon-${size}.png`), await render(window, logo, size, size));
+      log(`phone/icon-${size}.png`);
+    }
+    await writeFile(join(phone, "icon-maskable-512.png"), await render(window, logo, 512, 512, { corner: 0, share: 0.62 }));
+    log("phone/icon-maskable-512.png");
 
     log("--- done ---");
     app.exit(0);

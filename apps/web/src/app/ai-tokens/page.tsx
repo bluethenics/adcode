@@ -8,7 +8,7 @@ export const metadata: Metadata = pageMetadata({
   path: "/ai-tokens",
   title: "AI credits: pay only for the models you use",
   socialTitle: "AI credits for ADCode",
-  description: "Add USD credits once and use any paid model in ADCode at the price listed for it. No subscription; credits never expire. Tagflow AI stays free.",
+  description: "Choose a Builder, Pro or Max plan for fresh credits every day on every hosted model, or add USD credits in any amount from $5. Credits never expire. Tagflow AI stays free.",
 });
 
 export default function Page() {

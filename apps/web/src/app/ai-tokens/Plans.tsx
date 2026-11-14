@@ -2,9 +2,9 @@
 
 /** Subscription, promo and invite controls. Access is only confirmed by the server. */
 import { useCallback, useEffect, useState } from "react";
-import { PLANS_ON_SALE, type PlanId, type PlanSpec } from "@adcode/api/src/aiPlans.ts";
+import { PLANS_ON_SALE, type PlanBilling, type PlanId, type PlanSpec } from "@adcode/api/src/aiPlans.ts";
 import { dollars } from "./tokenFormatting";
-import { PLAN_BENEFITS, agentStepsPerDay, pricePerDay, projectPlanBenefits } from "@/lib/pricing";
+import { PLAN_BENEFITS, agentStepsPerDay, pricePerDay, projectPlanBenefits, yearlyPerMonth } from "@/lib/pricing";
 import { Icon } from "@/components/Icon";
 import { ArrowUpRight, Check } from "lucide";
 
@@ -18,34 +18,48 @@ export function plansOnOffer(plans: readonly PlanSpec[], current: string | null)
   return plans.filter((plan) => PLANS_ON_SALE.some((sale) => sale.id === plan.id) || plan.id === current);
 }
 
-export function PlanCards({ plans, current, busy, onChoose, subscribed = false, selected = null }: {
+export function PlanCards({ plans, current, busy, onChoose, subscribed = false, selected = null, billing = "month" }: {
   plans: readonly PlanSpec[];
   current: string | null;
   busy: string | null;
   onChoose: (plan: PlanSpec) => void;
   subscribed?: boolean;
   selected?: PlanId | null;
+  /** Yearly shows each plan's yearly charge; a plan without one stays monthly. */
+  billing?: PlanBilling;
 }) {
   return <ul className="ai-plan-cards" aria-label="AI plans">
-    {plans.map((plan) => <li key={plan.id} className="ai-plan-card" data-plan={plan.id} data-featured={plan.id === "max"} data-current={current === plan.id} data-selected={selected === plan.id}>
-      <div className="ai-plan-title"><h3>{plan.name}</h3>{current === plan.id ? <span className="ai-plan-badge">Current plan</span> : selected === plan.id ? <span className="ai-plan-badge">Selected from pricing</span> : plan.id === "max" && <span className="ai-plan-badge">Best value</span>}</div>
+    {plans.map((plan) => {
+      const yearly = billing === "year" && plan.yearlyCents !== undefined;
+      return <li key={plan.id} className="ai-plan-card" data-plan={plan.id} data-featured={plan.id === "pro"} data-current={current === plan.id} data-selected={selected === plan.id}>
+      <div className="ai-plan-title"><h3>{plan.name}</h3>{current === plan.id ? <span className="ai-plan-badge">Current plan</span> : selected === plan.id ? <span className="ai-plan-badge">Selected from pricing</span> : plan.id === "pro" && <span className="ai-plan-badge">Recommended</span>}</div>
       <p className="ai-plan-audience">{PLAN_BENEFITS[plan.id].audience}</p>
-      <p className="ai-plan-price">{dollars(plan.priceCents)}<span>/{plan.interval} · {pricePerDay(plan.priceCents, plan.interval)} a day</span></p>
+      {yearly
+        ? <p className="ai-plan-price">${(plan.yearlyCents! / 100).toLocaleString("en-US")}<span>/year · {yearlyPerMonth(plan.yearlyCents!)} a month, 2 months free</span></p>
+        : <p className="ai-plan-price">{dollars(plan.priceCents)}<span>/{plan.interval} · {pricePerDay(plan.priceCents, plan.interval)} a day</span></p>}
       <p className="field-hint">{PLAN_BENEFITS[plan.id].description}</p>
       <ul className="ai-plan-features">
         <li><Icon node={Check} />{PLAN_BENEFITS[plan.id].allowance} - {agentStepsPerDay(plan.weeklyTokens).toLocaleString("en-US")}+ agent steps</li>
-        <li><Icon node={Check} />{plan.allModels === true || plan.id === "max" ? "All hosted models, premium included, under fair use" : "Automatic daily refill"}</li>
+        <li><Icon node={Check} />{plan.allModels === true ? "Every hosted model, premium ones included" : "Automatic daily refill"}</li>
         <li><Icon node={Check} />One account across devices</li>
         <li><Icon node={Check} />{projectPlanBenefits(plan.id).summary}</li>
         <li><Icon node={Check} />{projectPlanBenefits(plan.id).priority} when busy</li>
         {plan.invites > 0 && <li><Icon node={Check} />Invite {plan.invites} friends with AI rewards</li>}
       </ul>
-      <button type="button" className={`btn ${plan.id === "max" ? "btn-primary" : "btn-outline"}`} disabled={busy !== null || current === plan.id || subscribed} onClick={() => onChoose(plan)} aria-label={current === plan.id ? `${plan.name}: current plan` : `Choose ${plan.name}`}>
+      <button type="button" className={`btn ${plan.id === "pro" ? "btn-primary" : "btn-outline"}`} disabled={busy !== null || current === plan.id || subscribed} onClick={() => onChoose(plan)} aria-label={current === plan.id ? `${plan.name}: current plan` : `Choose ${plan.name}`}>
         {busy === plan.id ? "Opening checkout…" : current === plan.id ? "Current plan" : subscribed ? "Manage in portal" : <>Choose {plan.name} <Icon node={ArrowUpRight} /></>}
       </button>
-      <p className="ai-plan-renewal">Renews every {plan.interval}. Cancel any time in your billing portal; access stays until the period ends.</p>
-    </li>)}
+      <p className="ai-plan-renewal">Renews every {yearly ? "year" : plan.interval}. Cancel any time in your billing portal; access stays until the period ends.</p>
+    </li>;
+    })}
   </ul>;
+}
+
+/** Monthly or yearly, offered only when yearly can be bought. */
+export function BillingSwitch({ billing, onChange }: { billing: PlanBilling; onChange: (billing: PlanBilling) => void }) {
+  return <div className="ai-billing" role="radiogroup" aria-label="Billing">
+    {(["month", "year"] as const).map((one) => <button key={one} type="button" role="radio" aria-checked={billing === one} data-active={billing === one} onClick={() => onChange(one)}>{one === "month" ? "Monthly" : "Yearly, 2 months free"}</button>)}
+  </div>;
 }
 
 export class PlanRequestError extends Error {

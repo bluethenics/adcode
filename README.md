@@ -49,6 +49,20 @@ credited to you.
 
 The full terms are at [adcode.bluethenics.com/terms](https://adcode.bluethenics.com/terms).
 
+## AI models and pricing
+
+The editor is free, and Tagflow AI's sponsored models are free for every signed-in account,
+with no API key. For the other hosted models, premium ones included:
+
+- **Plans** give fresh credits every day on every hosted model: Builder $19, Pro $39 and Max
+  $149 a month (580, 1,190 and 4,500 credits a day), or two months free when paid yearly.
+  Cancel any time; the plan keeps working until the period you paid for ends.
+- **Credits** are US dollars you add once, any whole amount from $5 to $1,000. They never
+  expire and pay for each model at the price listed for it.
+
+Your own provider keys, coding CLIs and local models are always free to connect. Current
+prices for every model are on the [pricing page](https://adcode.bluethenics.com/pricing).
+
 ## Build from source
 
 You need Node 24 or newer and npm 11 or newer.

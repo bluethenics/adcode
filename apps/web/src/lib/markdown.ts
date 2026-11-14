@@ -2,7 +2,7 @@
  * A small markdown subset, rendered to HTML.
  *
  * Headings, paragraphs, quotes, unordered and ordered lists, fenced code blocks with a
- * copy button, images, video embeds, inline code, bold, and links. That is what the
+ * copy button, tables, images, video embeds, inline code, bold, and links. That is what the
  * posts use, and a full markdown library would be a runtime dependency carried for a
  * handful of features.
  *
@@ -170,6 +170,25 @@ export function renderMarkdown(source: string): string {
     quote = [];
   };
 
+  /*
+   * A pipe table: a header row, a `---` divider row, then body rows. The first column is the
+   * row's header, which is what lets a screen reader say "Price, Codex, $20" rather than read
+   * unlabelled cells. Cells are escaped and take inline markup like any other text, and the
+   * table scrolls sideways inside its own box on a phone instead of widening the page.
+   */
+  let table: string[][] = [];
+  const cells = (row: string): string[] => row.replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
+  const flushTable = (): void => {
+    if (table.length === 0) return;
+    const [head, ...body] = table;
+    const th = (head ?? []).map((cell) => `<th scope="col">${inline(escapeHtml(cell))}</th>`).join("");
+    const rows = body
+      .map((row) => `<tr>${row.map((cell, index) => (index === 0 ? `<th scope="row">${inline(escapeHtml(cell))}</th>` : `<td>${inline(escapeHtml(cell))}</td>`)).join("")}</tr>`)
+      .join("");
+    out.push(`<div class="table-scroll" role="region" aria-label="Table" tabindex="0"><table><thead><tr>${th}</tr></thead><tbody>${rows}</tbody></table></div>`);
+    table = [];
+  };
+
   const flushFence = (): void => {
     if (fence === null) return;
     const label = escapeHtml(codeLabel(fence.language));
@@ -184,11 +203,29 @@ export function renderMarkdown(source: string): string {
     flushParagraph();
     flushList();
     flushQuote();
+    flushTable();
     flushFence();
   };
 
-  for (const line of lines) {
+  for (let at = 0; at < lines.length; at++) {
+    const line = lines[at] as string;
     const trimmed = line.trim();
+
+    // A table row continues a table; anything else ends it.
+    if (table.length > 0) {
+      if (trimmed.startsWith("|") && fence === null) {
+        table.push(cells(trimmed));
+        continue;
+      }
+      flushTable();
+    }
+    // A table starts where a pipe row is followed by its divider row.
+    if (fence === null && trimmed.startsWith("|") && /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?$/.test((lines[at + 1] ?? "").trim())) {
+      flushAll();
+      table.push(cells(trimmed));
+      at += 1;
+      continue;
+    }
 
     // Inside a fenced block everything is literal until the closing fence, blank
     // lines included. An unclosed fence still renders at the end of the document

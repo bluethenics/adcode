@@ -439,6 +439,53 @@ describe("included Tagflow AI", () => {
       });
     });
 
+    describe("price offer", () => {
+      const start = (percent = 15, days = 14) => call("/admin/ai-plans/offer", "admin", { name: "Launch offer", percent, days });
+
+      it("starts from the admin, shows on the public config, and can be stopped early", async () => {
+        await save(paidConfig(true, 1));
+        expect(await (await call("/admin/ai-plans/offer", "admin")).json()).toMatchObject({ offer: null, active: false });
+        expect((await (await call("/ai/tagflow/config")).json() as { offer: unknown }).offer).toBeNull();
+        expect((await start()).status).toBe(200);
+        expect((await (await call("/ai/tagflow/config")).json() as { offer: unknown }).offer).toEqual({ name: "Launch offer", percent: 15, endsAt: now + 14 * 86_400_000 });
+        now += 1000;
+        expect((await call("/admin/ai-plans/offer", "admin", { stop: true })).status).toBe(200);
+        // Ended now rather than deleted, so its grace period still covers cached offer prices.
+        expect(await (await call("/admin/ai-plans/offer", "admin")).json()).toMatchObject({ offer: { name: "Launch offer", endsAt: now }, active: false });
+        expect((await (await call("/ai/tagflow/config")).json() as { offer: unknown }).offer).toBeNull();
+      });
+
+      it("ends by itself after its days", async () => {
+        await save(paidConfig(true, 1));
+        await start(10, 2);
+        now += 2 * 86_400_000;
+        expect((await (await call("/ai/tagflow/config")).json() as { offer: unknown }).offer).toBeNull();
+        expect(await (await call("/admin/ai-plans/offer", "admin")).json()).toMatchObject({ active: false });
+      });
+
+      it("survives saving the settings form, and a stale form cannot bring a stopped one back", async () => {
+        await save(paidConfig(true, 1));
+        await start();
+        expect((await call("/admin/tagflow", "admin", paidConfig(true, 5))).status).toBe(200);
+        expect(await (await call("/admin/ai-plans/offer", "admin")).json()).toMatchObject({ active: true });
+        const stale = (await (await call("/admin/tagflow", "admin")).json() as { config: object }).config;
+        now += 1000;
+        await call("/admin/ai-plans/offer", "admin", { stop: true });
+        expect((await call("/admin/tagflow", "admin", stale)).status).toBe(200);
+        expect(await (await call("/admin/ai-plans/offer", "admin")).json()).toMatchObject({ offer: { endsAt: now }, active: false });
+      });
+
+      it("is admin only and refuses a bad name, a percent below cost, or a bad length", async () => {
+        await save(paidConfig(true, 1));
+        expect((await call("/admin/ai-plans/offer", "user", { name: "x", percent: 15, days: 4 })).status).toBe(403);
+        expect((await call("/admin/ai-plans/offer", "user")).status).toBe(403);
+        expect((await call("/admin/ai-plans/offer", "admin", { name: "", percent: 15, days: 4 })).status).toBe(400);
+        expect((await start(26)).status).toBe(400);
+        expect((await start(0)).status).toBe(400);
+        expect((await start(15, 91)).status).toBe(400);
+      });
+    });
+
     it("uses purchased tokens after the free week", async () => {
       await save(paidConfig(true, 1));
       await store.grantTokens("user", 1_000_000, "admin-1", "test", now);
@@ -501,7 +548,7 @@ describe("included Tagflow AI", () => {
     it("publishes the plans", async () => {
       await save(paidConfig(true, 1));
       const published = await (await call("/ai/tagflow/config")).json() as { paid: { plans: { id: string; priceCents: number; weeklyTokens: number }[] } };
-      expect(published.paid.plans.map((p) => [p.id, p.priceCents, p.weeklyTokens])).toEqual([["weekly", 300, 20_000_000], ["monthly", 900, 100_000_000], ["pro", 2900, 0]]);
+      expect(published.paid.plans.map((p) => [p.id, p.priceCents, p.weeklyTokens])).toEqual([["weekly", 300, 20_000_000], ["monthly", 1900, 100_000_000], ["pro", 3900, 0]]);
     });
 
     it("names plans as well as tokens when the free week is spent", async () => {

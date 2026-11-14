@@ -146,6 +146,28 @@ async function collect(stream: AsyncIterable<AgentEvent>): Promise<AgentEvent[]>
 const kinds = (events: readonly AgentEvent[]): string[] => events.map((e) => e.kind);
 
 describe("a plain turn", () => {
+  it("holds the host context steady across the steps of one message, so the cached prefix keeps hitting", async () => {
+    let reads = 0;
+    const systems: string[] = [];
+    const provider = scriptedProvider([
+      [{ kind: "tool-call", call: call("1") }, { kind: "stop", reason: "tool-use" }],
+      [{ kind: "tool-call", call: call("2") }, { kind: "stop", reason: "tool-use" }],
+      [{ kind: "text", text: "Done" }, { kind: "stop", reason: "end-turn" }],
+    ]);
+    const agent = createAgent({
+      provider, model: "test", tools: [echoTool], runner: runner(),
+      // A cursor that moves on every read, as it does while somebody watches the work.
+      context: () => `Cursor on line ${String(++reads)}`,
+      beforeRequest: request => { systems.push(request.system); return null; },
+    });
+    await collect(agent.send("fix it"));
+    expect(systems).toHaveLength(3);
+    expect(new Set(systems).size).toBe(1);
+    expect(reads).toBe(1);
+    await collect(agent.send("and again"));
+    expect(systems.at(-1)).toContain("Cursor on line 2");
+  });
+
   it("refreshes host context without persisting it in conversation history", async () => {
     let context = "Open workspace: /first";
     const systems: string[] = [];

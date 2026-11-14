@@ -18,9 +18,11 @@ import { includedProvider, isCustomProviderUrl, modelProvider, providerConnectio
 import { DEFAULT_CREDIT_PLAN, creditCharge, creditsView, millicreditsFor, modelCreditRate, parseCreditPlan, untilText, type CreditPlan } from "./credits.ts";
 import { BUY_PACKS_URL, BUY_TOKENS_URL, DEFAULT_PAID_CONFIG, PACKS_ON_SALE, TOKEN_ORDER_PREFIX, isSponsoredTagflow, isPaidModel, tokensView } from "./paidTokens.ts";
 import { CREDIT_UNITS, includedCharge, subscriptionCharge } from "./aiEconomics.ts";
-import { DOWNLOAD_URL, WALLET_MARKUP_PERCENT, WALLET_ORDER_PREFIX, WALLET_TOPUPS_CENTS, WALLET_URL, walletCharge, walletRates } from "./modelWallet.ts";
-import type { PaymentProvider } from "./payments.ts";
-import { PLAN_SALES_OPEN, PLANS, LEGACY_PLANS, effectiveWeeklyAllowance, hasActivePlan, hasUnlimitedPlan, hasAllModelAccess, hasLegacyAllowance, LEGACY_MODEL_IDS, requiresSubscription, parsePromo, planById } from "./aiPlans.ts";
+import { DOWNLOAD_URL, WALLET_CUSTOM_MAX_CENTS, WALLET_CUSTOM_MIN_CENTS, WALLET_ORDER_PREFIX, WALLET_TOPUPS_CENTS, WALLET_URL, isWalletAmount, walletCharge, walletPriceFactor, walletRates } from "./modelWallet.ts";
+import { chargeDiscount, endOffer, offerDiscount, publicOffer, startOffer } from "./priceOffer.ts";
+import { BUCK_DAILY_LIMIT, BUCK_MESSAGE_MAX, BUCK_REPLY_MAX_TOKENS, BUCK_VISITOR_LIMIT, BUCK_VISITOR_WINDOW_MS, buckFallback, buckMessages, buckReplyText, parseBuckRequest, visitorKey } from "./buckChat.ts";
+import type { PaymentProvider, YearlyPlanProduct } from "./payments.ts";
+import { YEARLY_ORDER_PREFIX, isPlanBilling, planChargeCents, planOrderBilling, PLAN_SALES_OPEN, PLANS, LEGACY_PLANS, effectiveWeeklyAllowance, hasActivePlan, hasUnlimitedPlan, hasAllModelAccess, hasLegacyAllowance, LEGACY_MODEL_IDS, requiresSubscription, parsePromo, planById } from "./aiPlans.ts";
 import { activeCampaign, startCampaign } from "./usageCampaign.ts";
 import { MODEL_FEEDBACK_CATEGORIES, type ModelRequestOutcome, type ModelRequestRecord, type ModelRequestSource } from "./tagflowReportTypes.ts";
 import { completeModelReport, parseReportRange } from "./tagflowReports.ts";
@@ -107,12 +109,12 @@ export function createModelHealth(): { strike(id: string, now: number): void; an
 export function isTagflowPath(path: string): boolean {
   if (path === "/v1/ai/account/verify-email") return true;
   if (path === "/v1/ai/account/verification") return true;
-  return path === "/v1/ai/tagflow/config" || path === "/v1/ai/tagflow/usage" || path === "/v1/ai/tagflow/chat/completions" ||
+  return path === "/v1/ai/tagflow/config" || path === "/v1/ai/buck" || path === "/v1/ai/tagflow/usage" || path === "/v1/ai/tagflow/chat/completions" ||
     path === "/v1/ai/tagflow/feedback" || path === "/v1/ai/tagflow/audience" || path === "/v1/admin/tagflow/reports" ||
     path === "/v1/admin/tagflow" || path === "/v1/admin/tagflow/usage" || path === "/v1/admin/tagflow/keys" || path === "/v1/admin/tagflow/heabsy-models" || path === "/v1/admin/tagflow/submissions" || path === "/v1/admin/tagflow/submissions/decide" || path === "/v1/admin/tagflow/submissions/test" || /^\/v1\/admin\/tagflow\/users\/[^/]+$/.test(path) ||
     path === "/v1/ai/plans/checkout" || path === "/v1/ai/plans/portal" || path === "/v1/ai/promo/redeem" || path === "/v1/ai/invites" || path === "/v1/ai/invites/redeem" ||
-    ["reset", "boost", "gift", "promo", "subscriptions", "end-renewals", "campaign", "verification-test"].some((route) => path === `/v1/admin/ai-plans/${route}`) ||
-    path === "/v1/ai/wallet" || path === "/v1/ai/wallet/checkout" || path === "/v1/ai/tokens/checkout" || path === "/v1/ai/tokens/orders" || path === "/v1/admin/ai-tokens/grant" || path === "/v1/admin/ai-tokens/sales";
+    ["reset", "boost", "gift", "promo", "subscriptions", "end-renewals", "campaign", "offer", "verification-test"].some((route) => path === `/v1/admin/ai-plans/${route}`) ||
+    path === "/v1/ai/wallet" || path === "/v1/ai/wallet/checkout" || path === "/v1/ai/tokens/checkout" || path === "/v1/ai/tokens/orders" || path === "/v1/admin/ai-tokens/grant" || path === "/v1/admin/ai-tokens/sales" || path === "/v1/admin/ai-wallet/sales";
 }
 
 /** Tokens are no longer a limit; credits are. Passed where the stores still compare a day's tokens. */
@@ -430,6 +432,8 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
           ? `Free AI needs a verified email, and the verification email to ${email} could not be sent just now. Try again in about a minute. Opening an ADCode verification link verifies this account; GitHub's own email verification is a separate step.`
           : `Free AI needs a verified email. If you received an ADCode verification link at ${email}, open it and try again. Check spam or junk too. Successful sends are limited to one per hour; failed sends can be retried after about a minute.`);
     };
+    // Buck's question is read before anything that can fail, so a storage outage still gets one of his own answers.
+    const buckQuestion = url.pathname === "/v1/ai/buck" && request.method === "POST" ? parseBuckRequest(await readJson(request).catch(() => null)) : undefined;
     try {
       const saved = await deps.store.getTagflowConfig();
       let config = parseTagflowConfig(saved?.config ?? DEFAULT_TAGFLOW_CONFIG);
@@ -440,20 +444,54 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
       const day = new Date(deps.clock.now()).toISOString().slice(0, 10);
       const resetsAt = Date.parse(`${day}T00:00:00Z`) + 86_400_000;
       const remainingDay = { "retry-after": String(Math.max(1, Math.ceil((resetsAt - deps.clock.now()) / 1000))) };
+      // Every listed paid price: the markup, less a running price offer. Charges use the same percent.
+      const priceFactor = walletPriceFactor(offerDiscount(config.offer, deps.clock.now()));
       if (url.pathname === "/v1/ai/tagflow/config" && request.method === "GET") {
-        return json(200, { available, defaultModel: offeredModels.some((model) => model.id === config.defaultModel) ? config.defaultModel : offeredModels[0]?.id ?? config.defaultModel, models: available ? offeredModels.map((model) => ({ id: model.id, name: model.billing === "wallet" ? `${model.name} · Paid credits` : model.name, ...releaseOf(model), providerName: includedProvider(modelProvider(model), config.providers)?.name ?? "Included AI", contextWindow: Math.min(model.contextWindow, config.maxInputTokens), maxOutput: Math.min(model.maxOutput, config.maxOutputTokens), creditRate: config.paid?.accounting === "cost-v1" ? Math.max(model.inputPrice, model.outputPrice) : modelCreditRate(model, config), ...(config.paid?.accounting === "cost-v1" && model.billing !== "wallet" ? { inputCreditsPer1k: model.inputPrice, outputCreditsPer1k: model.outputPrice, cacheCreditsPer1k: model.cacheInputPrice ?? model.inputPrice } : {}), paid: model.billing === "wallet" || isPaidModel(model, config.paid), subscriptionRequired: requiresSubscription(model), ...(model.billing === "wallet" ? { billing: "wallet", markupPercent: WALLET_MARKUP_PERCENT, inputPrice: walletRates(model,deps.clock.now()).inputPrice * 1.35, outputPrice: walletRates(model,deps.clock.now()).outputPrice * 1.35, cacheInputPrice: (walletRates(model,deps.clock.now()).cacheInputPrice ?? model.inputPrice) * 1.35 } : {}) })) : [], requiresVerifiedAccount: true, unlimited: config.paid?.enabled !== true || activeCampaign(config.campaign, deps.clock.now()) !== null, credits: config.credits ?? DEFAULT_CREDIT_PLAN, paid: { ...(config.paid ?? DEFAULT_PAID_CONFIG), plans: config.paid?.accounting === "cost-v1" ? PLANS : LEGACY_PLANS }, campaign: activeCampaign(config.campaign, deps.clock.now()) });
+        // Whether Dodo's products really match each plan's price and interval (the checkout preflight, read-only and
+        // cached a minute). Yearly is offered only when all three yearly products pass, so a wrong id hides it instead of failing at checkout.
+        const salesOpen = deps.salesOpen ?? PLAN_SALES_OPEN;
+        const productReady = async (product: Parameters<NonNullable<PaymentProvider["canCreateCheckout"]>>[0]): Promise<boolean> => { try { return deps.payments?.hasProduct?.(product) === true && await deps.payments.canCreateCheckout?.(product) === true; } catch { return false; } };
+        const onSale = PLANS.filter((plan) => plan.onSale);
+        const [plansReady, yearlyReady] = salesOpen && config.paid?.accounting === "cost-v1"
+          ? await Promise.all([Promise.all(onSale.map((plan) => productReady(`plan-${plan.id}` as const))), Promise.all(onSale.filter((plan) => plan.yearlyCents !== undefined).map((plan) => productReady(`plan-${plan.id}-year` as YearlyPlanProduct)))]).then(([month, year]) => [month.length > 0 && month.every(Boolean), year.length > 0 && year.every(Boolean)])
+          : [false, false];
+        return json(200, { available, defaultModel: offeredModels.some((model) => model.id === config.defaultModel) ? config.defaultModel : offeredModels[0]?.id ?? config.defaultModel, models: available ? offeredModels.map((model) => ({ id: model.id, name: model.billing === "wallet" ? `${model.name} · Paid credits` : model.name, ...releaseOf(model), providerName: includedProvider(modelProvider(model), config.providers)?.name ?? "Included AI", contextWindow: Math.min(model.contextWindow, config.maxInputTokens), maxOutput: Math.min(model.maxOutput, config.maxOutputTokens), creditRate: config.paid?.accounting === "cost-v1" ? Math.max(model.inputPrice, model.outputPrice) : modelCreditRate(model, config), ...(config.paid?.accounting === "cost-v1" && model.billing !== "wallet" ? { inputCreditsPer1k: model.inputPrice, outputCreditsPer1k: model.outputPrice, cacheCreditsPer1k: model.cacheInputPrice ?? model.inputPrice } : {}), paid: model.billing === "wallet" || isPaidModel(model, config.paid), subscriptionRequired: requiresSubscription(model), ...(model.billing === "wallet" ? { billing: "wallet", inputPrice: walletRates(model,deps.clock.now()).inputPrice * priceFactor, outputPrice: walletRates(model,deps.clock.now()).outputPrice * priceFactor, cacheInputPrice: (walletRates(model,deps.clock.now()).cacheInputPrice ?? model.inputPrice) * priceFactor } : {}) })) : [], requiresVerifiedAccount: true, unlimited: config.paid?.enabled !== true || activeCampaign(config.campaign, deps.clock.now()) !== null, credits: config.credits ?? DEFAULT_CREDIT_PLAN, paid: { ...(config.paid ?? DEFAULT_PAID_CONFIG), plans: config.paid?.accounting === "cost-v1" ? PLANS : LEGACY_PLANS, plansOnSale: salesOpen, plansReady, yearly: yearlyReady }, campaign: activeCampaign(config.campaign, deps.clock.now()), offer: publicOffer(config.offer, deps.clock.now()) });
+      }
+      if (url.pathname === "/v1/ai/buck" && request.method === "POST") {
+        // Buck, the website mascot: anyone may ask, so it is capped per visitor and per day, and answers from its own knowledge when it cannot ask Tagflow.
+        const parsed = buckQuestion ?? null;
+        if (parsed === null) return fail(400, "bad-question", `Ask Buck a question of up to ${BUCK_MESSAGE_MAX} characters.`);
+        const now = deps.clock.now();
+        const fallback = (reason: string) => json(200, { reply: buckFallback(parsed.message), source: "buck", reason });
+        const visitor = await visitorKey(request.headers.get("cf-connecting-ip") ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown");
+        if (await deps.store.bumpRequestCount(visitor, Math.floor(now / BUCK_VISITOR_WINDOW_MS) * BUCK_VISITOR_WINDOW_MS) > BUCK_VISITOR_LIMIT) return fallback("visitor-limit");
+        if (await deps.store.bumpRequestCount("buck:site", Math.floor(now / 86_400_000) * 86_400_000) > BUCK_DAILY_LIMIT) return fallback("daily-limit");
+        const free = offeredModels.filter((one) => isSponsoredTagflow(one) && modelProvider(one) === "tagflow");
+        // A flash model answers a short question in seconds; the larger coding model took over 15 s for one sentence.
+        const model = free.find((one) => /flash/i.test(`${one.id} ${one.name}`)) ?? free[0];
+        const connection = includedProvider("tagflow", config.providers);
+        const apiKey = providerKey(config, "tagflow");
+        if (!config.enabled || model === undefined || connection === undefined || apiKey.length === 0 || !isTagflowUrl(config.baseUrl)) return fallback("unavailable");
+        try {
+          const keyHeader: Record<string, string> = connection.authentication === "bearer" ? { authorization: `Bearer ${apiKey}` } : { [connection.authentication]: apiKey };
+          const response = await fetchImpl(`${config.baseUrl}/chat/completions`, { method: "POST", headers: { "content-type": "application/json", ...keyHeader }, redirect: "manual", signal: AbortSignal.timeout(25_000),
+            body: JSON.stringify({ model: model.upstreamModel ?? model.id, messages: buckMessages(parsed), stream: false, temperature: 0.6, [connection.outputTokenField === "max_completion_tokens" ? "max_completion_tokens" : "max_tokens"]: BUCK_REPLY_MAX_TOKENS }) });
+          if (!response.ok) { console.warn("Buck: Tagflow refused", { status: response.status, model: model.id }); return fallback("upstream"); }
+          const reply = buckReplyText(await response.json());
+          return reply === null ? fallback("empty") : json(200, { reply, source: "tagflow", model: model.name });
+        } catch (error) { console.warn("Buck: Tagflow unavailable", { model: model.id, reason: error instanceof Error ? error.name : "unknown" }); return fallback("upstream"); }
       }
       const auth = await authenticate(deps, request.headers.get("authorization") ?? undefined);
       if (!auth.ok) return fail(auth.failure === "banned" ? 403 : 401, auth.failure, "Sign in to use included AI. Banned accounts cannot use it.");
       if (url.pathname.startsWith("/v1/admin/") && !auth.isAdmin) return fail(403, "not-admin", "Administrator access is required.");
       const audit = async (action: string, subjectUid = "*"): Promise<void> => deps.store.writeAudit({ adminUid: auth.uid, action, subjectUid, at: deps.clock.now() });
       if (url.pathname === "/v1/ai/wallet" && request.method === "GET") {
-        const models = config.models.filter(m => m.billing === "wallet" && m.enabled !== false).map(m => ({ id: m.id, name: m.name, provider: includedProvider(modelProvider(m),config.providers)?.name ?? "Provider", available: providerKey(config,modelProvider(m)).length > 0, inputPrice: walletRates(m,deps.clock.now()).inputPrice * 1.35, outputPrice: walletRates(m,deps.clock.now()).outputPrice * 1.35, cacheInputPrice: (walletRates(m,deps.clock.now()).cacheInputPrice ?? m.inputPrice)*1.35, cacheWritePrice:(walletRates(m,deps.clock.now()).cacheWritePrice ?? m.inputPrice)*1.35 }));
-        return json(200, { ...await deps.store.getModelWallet(auth.uid,deps.clock.now()), currency: "USD", markupPercent: WALLET_MARKUP_PERCENT, topupsCents: WALLET_TOPUPS_CENTS, models, checkoutEnabled: available && models.some(m=>m.available) && !(await deps.store.getTagflowPolicy(auth.uid))?.blocked && await deps.payments?.canCreateCheckout?.("ai-wallet") === true });
+        const models = config.models.filter(m => m.billing === "wallet" && m.enabled !== false).map(m => ({ id: m.id, name: m.name, provider: includedProvider(modelProvider(m),config.providers)?.name ?? "Provider", available: providerKey(config,modelProvider(m)).length > 0, inputPrice: walletRates(m,deps.clock.now()).inputPrice * priceFactor, outputPrice: walletRates(m,deps.clock.now()).outputPrice * priceFactor, cacheInputPrice: (walletRates(m,deps.clock.now()).cacheInputPrice ?? m.inputPrice)*priceFactor, cacheWritePrice:(walletRates(m,deps.clock.now()).cacheWritePrice ?? m.inputPrice)*priceFactor }));
+        return json(200, { ...await deps.store.getModelWallet(auth.uid,deps.clock.now()), currency: "USD", offer: publicOffer(config.offer, deps.clock.now()), topupsCents: WALLET_TOPUPS_CENTS, customCents: { min: WALLET_CUSTOM_MIN_CENTS, max: WALLET_CUSTOM_MAX_CENTS }, models, checkoutEnabled: available && models.some(m=>m.available) && !(await deps.store.getTagflowPolicy(auth.uid))?.blocked && await deps.payments?.canCreateCheckout?.("ai-wallet") === true });
       }
       if (url.pathname === "/v1/ai/wallet/checkout" && request.method === "POST") {
         const raw = await readJson(request);
-        if (!isRecord(raw) || Object.keys(raw).some(k=>!["priceCents","billingCountry"].includes(k)) || !WALLET_TOPUPS_CENTS.includes(raw["priceCents"] as never) || typeof raw["billingCountry"] !== "string" || !/^[A-Z]{2}$/.test(raw["billingCountry"])) return fail(400,"bad-topup","Choose a listed credit amount and a two-letter billing country.");
+        if (!isRecord(raw) || Object.keys(raw).some(k=>!["priceCents","billingCountry"].includes(k)) || !isWalletAmount(raw["priceCents"]) || typeof raw["billingCountry"] !== "string" || !/^[A-Z]{2}$/.test(raw["billingCountry"])) return fail(400,"bad-topup",`Choose a whole-dollar amount from $${WALLET_CUSTOM_MIN_CENTS/100} to $${(WALLET_CUSTOM_MAX_CENTS/100).toLocaleString("en-US")} and a two-letter billing country.`);
         const user = await deps.store.getUser(auth.uid);
         if (!user?.email || user.emailVerified !== true) { const refusal = await verificationRefusal(user,auth.uid,bearerFrom(request.headers.get("authorization") ?? undefined)); if (refusal) return refusal; }
         if (!user?.email) return fail(400,"missing-email","Add a verified email before buying credits.");
@@ -497,6 +535,8 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
         const selected = isRecord(raw) && typeof raw["plan"] === "string" ? planById(raw["plan"]) : null;
         if (!(deps.salesOpen ?? PLAN_SALES_OPEN)) return fail(410, "plans-retired", `Plans are no longer sold. Every model is paid from USD credits now: add them at ${WALLET_URL}.`);
         if (selected === null || !selected.onSale) return json(400, { error: "bad-plan" });
+        const billing = isRecord(raw) && raw["billing"] !== undefined ? raw["billing"] : "month";
+        if (!isPlanBilling(billing) || planChargeCents(selected, billing) === null) return json(400, { error: "bad-billing" });
         if ((selected.id === "max" || selected.id === "unlimited") && config.paid.accounting !== "cost-v1") return json(409, { error: "not-configured" });
         const country = isRecord(raw) ? raw["billingCountry"] : undefined;
         if (typeof country !== "string" || !/^[A-Z]{2}$/.test(country)) return json(400, { error: "bad-country" });
@@ -504,21 +544,21 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
         if (!buyer?.email || buyer.emailVerified !== true) return json(403, { error: "verify-account" });
         if (deps.payments === undefined) return json(503, { error: "not-configured" });
         const now = deps.clock.now();
-        const orderId = `aip_${randomUUID().replaceAll("-", "")}`;
-        const product = `plan-${selected.id}` as const;
+        const orderId = `${billing === "year" ? YEARLY_ORDER_PREFIX : "aip_"}${randomUUID().replaceAll("-", "")}`;
+        const product = billing === "year" ? `plan-${selected.id}-year` as YearlyPlanProduct : `plan-${selected.id}` as const;
         if (await deps.payments.canCreateCheckout?.(product) === false) return json(503, { error: "not-configured" });
         // A database claim, not an isolate-local count: two workers cannot issue two payable subscriptions.
         const claim = await deps.store.claimPlanCheckout(auth.uid, selected.id, country, orderId, now);
         if (claim.status === "subscribed") return json(409, { error: "already-subscribed" });
         if (claim.status === "existing") {
-          if (claim.checkout.plan !== selected.id) return json(409, { error: { code: "checkout-exists", message: `You already opened a ${planById(claim.checkout.plan)?.name ?? "plan"} checkout. Choose that plan again to resume it. Wait until the existing checkout expires before choosing a different plan.` }, expiresAt: claim.checkout.expiresAt });
+          if (claim.checkout.plan !== selected.id || planOrderBilling(claim.checkout.orderId) !== billing) return json(409, { error: { code: "checkout-exists", message: `You already opened a ${planOrderBilling(claim.checkout.orderId) === "year" ? "yearly" : "monthly"} ${planById(claim.checkout.plan)?.name ?? "plan"} checkout. Choose that plan and billing again to resume it. Wait until the existing checkout expires before choosing a different one.` }, expiresAt: claim.checkout.expiresAt });
           if (claim.checkout.checkoutUrl !== null) return json(200, { orderId: claim.checkout.orderId, checkoutUrl: claim.checkout.checkoutUrl });
           return json(409, { error: { code: "checkout-pending", message: "Your checkout is being prepared or its status is still being confirmed. Try again shortly. If it stays unavailable, contact support before starting another subscription." } }, { "retry-after": "30" });
         }
         const origin = deps.siteOrigin ?? "https://adcode.bluethenics.com";
         const session = await deps.payments.createCheckout({ orderId, product, advertiserId: auth.uid,
           advertiserName: buyer.displayName ?? buyer.email, advertiserEmail: buyer.email, billingCountry: country,
-          amountMicros: BigInt(selected.priceCents) * 10_000n, metadata: { uid: auth.uid, plan: selected.id },
+          amountMicros: BigInt(planChargeCents(selected, billing)!) * 10_000n, metadata: { uid: auth.uid, plan: selected.id, billing },
           returnUrl: `${origin}/ai-tokens?plan=${selected.id}&order=${orderId}`, cancelUrl: `${origin}/ai-tokens` });
         // A timeout can happen after Dodo creates a session. Retain the claim until that session expires.
         if (session === null) return json(502, { error: { code: "checkout-pending", message: "We couldn't confirm your checkout. Try again shortly. If it stays unavailable, contact support so we can check it before opening another subscription." } });
@@ -595,7 +635,8 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
           return json(200, { plans, subscriptions, nextCursor: rows.length > 50 ? subscriptions.at(-1)!.subscriptionId : null });
         }
         if (route === "campaign" && request.method === "GET") { await audit("read-usage-campaign"); return json(200, { campaign: config.campaign ?? null, active: activeCampaign(config.campaign, deps.clock.now()) !== null, now: deps.clock.now() }); }
-        if (request.method !== "POST" || !["reset", "boost", "gift", "promo", "campaign"].includes(route)) return json(405, { error: "method" });
+        if (route === "offer" && request.method === "GET") { await audit("read-price-offer"); return json(200, { offer: config.offer ?? null, active: offerDiscount(config.offer, deps.clock.now()) > 0, now: deps.clock.now() }); }
+        if (request.method !== "POST" || !["reset", "boost", "gift", "promo", "campaign", "offer"].includes(route)) return json(405, { error: "method" });
         const raw = await readJson(request);
         if (route === "campaign") {
           // Start (name + whole days, beginning now) or stop. Read-modify-write on the one config record.
@@ -606,6 +647,19 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
           const { campaign: _previous, ...rest } = config;
           await deps.store.putTagflowConfig({ config: started === null ? rest : { ...rest, campaign: started }, updatedAt: deps.clock.now(), updatedBy: auth.uid });
           return json(200, { campaign: started, active: started !== null });
+        }
+        if (route === "offer") {
+          // Start (name + percent + whole days, beginning now) or stop. Same record as the campaign.
+          // Stopping ends the offer now rather than deleting it, so its grace period still covers
+          // anyone charged while an offer price is still cached on their screen.
+          const stopping = isRecord(raw) && raw["stop"] === true;
+          const started = stopping || !isRecord(raw) ? null : startOffer(raw["name"], raw["percent"], raw["days"], deps.clock.now());
+          if (!stopping && started === null) return json(400, { error: "bad-offer" });
+          await audit(stopping ? "stop-price-offer" : "start-price-offer");
+          const { offer: previous, ...rest } = config;
+          const offer = started ?? (previous === undefined ? undefined : endOffer(previous, deps.clock.now()));
+          await deps.store.putTagflowConfig({ config: offer === undefined ? rest : { ...rest, offer }, updatedAt: deps.clock.now(), updatedBy: auth.uid });
+          return json(200, { offer: offer ?? null, active: started !== null });
         }
         if (route === "promo") {
           const promo = parsePromo(raw);
@@ -695,6 +749,11 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
         const days = Math.min(365, Math.max(1, Number(url.searchParams.get("days") ?? 30) || 30));
         return json(200, { days: await deps.store.tokenSales(deps.clock.now() - days * 86_400_000) });
       }
+      if (url.pathname === "/v1/admin/ai-wallet/sales" && request.method === "GET") {
+        const days = Math.min(365, Math.max(1, Number(url.searchParams.get("days") ?? 30) || 30));
+        const sales = await deps.store.walletSales?.(deps.clock.now() - days * 86_400_000) ?? [];
+        return json(200, { days: sales, range: { minCents: WALLET_CUSTOM_MIN_CENTS, maxCents: WALLET_CUSTOM_MAX_CENTS }, buttonsCents: WALLET_TOPUPS_CENTS });
+      }
       if (url.pathname === "/v1/admin/tagflow/heabsy-models" && request.method === "GET") {
         await audit("check-heabsy-model-access");
         const models = await heabsyAccess(providerKey(config, "custom-heabsy"), fetchImpl);
@@ -704,8 +763,10 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
         if (request.method === "GET") return json(200, { config, updatedAt: saved?.updatedAt ?? 0, updatedBy: saved?.updatedBy ?? "", keyConfigured: defaultKeyConfigured(config), connections: connections(config), keysManageable: secrets.configured() });
         if (request.method === "POST") {
           const body = await readJson(request);
-          // The settings form knows nothing about campaigns: saving it must not end one.
-          const next = parseTagflowConfig(isRecord(body) && body["campaign"] === undefined && config.campaign !== undefined ? { ...body, campaign: config.campaign } : body);
+          // The settings form knows nothing about campaigns or price offers: saving it must not end
+          // one, and a form loaded before an offer was stopped must not bring it back.
+          const { offer: _formOffer, ...form } = isRecord(body) ? body : {};
+          const next = parseTagflowConfig(isRecord(body) ? { ...(body["campaign"] === undefined && config.campaign !== undefined ? { ...form, campaign: config.campaign } : form), ...(config.offer === undefined ? {} : { offer: config.offer }) } : body);
           if (next === null) return fail(400, "bad-config", "Check the providers (custom ones need a public HTTPS API address), the Tagflow HTTPS base URL, unique model IDs, prices, and non-negative limits.");
           if (next.enabled && !defaultKeyConfigured(next)) {
             const provider = includedProvider(modelProvider(next.models.find((model) => model.id === next.defaultModel)!), next.providers);
@@ -983,7 +1044,10 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
       // Byte-count input is deliberately more conservative than the context estimate.
       const walletInput = Math.min(parsed.model.contextWindow,bytes(JSON.stringify({messages:parsed.body["messages"],tools:parsed.body["tools"] ?? []}))+((parsed.body["messages"] as unknown[]).length*16)+256);
       const quotedRates = walletRates(parsed.model,deps.clock.now(),walletInput);
-      const walletMaximum = walletModel ? Math.max(1,walletCharge({...quotedRates,inputPrice:Math.max(quotedRates.inputPrice,quotedRates.cacheWritePrice ?? 0)},walletInput,parsed.output)) : 0;
+      // A price offer running when the request starts (or ended within its grace period) applies
+      // to its hold and its final charge alike.
+      const walletDiscount = chargeDiscount(config.offer, deps.clock.now());
+      const walletMaximum = walletModel ? Math.max(1,walletCharge({...quotedRates,inputPrice:Math.max(quotedRates.inputPrice,quotedRates.cacheWritePrice ?? 0)},walletInput,parsed.output,0,undefined,0,walletDiscount)) : 0;
       const walletTest = walletModel && auth.isAdmin && request.headers.get("x-adcode-ai-source") === "admin-test";
       let walletHeld = false;
       if (walletModel && !walletTest) {
@@ -1053,7 +1117,7 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
           metric.toolCalls = observer.toolCalls.size; metric.finishReason = observer.finishReason;
         }
         try {
-          if (walletHeld) await deps.store.settleModelWallet(reservation.id, failed ? 0 : walletCharge(walletRates(served.model,reservation.minute*60_000,inputTokens),inputTokens,outputTokens,observer.cachedInput,modelProvider(served.model)==="openrouter" ? observer.providerCost : undefined,observer.cacheWritten),reported===null,deps.clock.now());
+          if (walletHeld) await deps.store.settleModelWallet(reservation.id, failed ? 0 : walletCharge(walletRates(served.model,reservation.minute*60_000,inputTokens),inputTokens,outputTokens,observer.cachedInput,modelProvider(served.model)==="openrouter" ? observer.providerCost : undefined,observer.cacheWritten,walletDiscount),reported===null,deps.clock.now());
           await deps.store.settleTagflow(reservation.id, result);
         }
         catch (error) { settlementFailed = true; throw error; }
@@ -1276,6 +1340,7 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
       });
       return new Response(stream, { headers: { ...headers, "content-type": "text/event-stream", "x-accel-buffering": "no" } });
     } catch (error) {
+      if (buckQuestion) return json(200, { reply: buckFallback(buckQuestion.message), source: "buck", reason: "unavailable" });
       await finishMetric("relay_error","storage-or-relay");
       if (error instanceof SyntaxError || error instanceof URIError) return fail(400, "bad-request", "Send a valid request.");
       // Keep transport memory bounded while allowing the provider's larger context windows.

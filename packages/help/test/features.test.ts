@@ -177,6 +177,6 @@ describe("new features", () => {
     expect(isNewFeature({ added: "2026-10-25" }, shipped + 45 * 86_400_000)).toBe(false);
     expect(isNewFeature({ added: "2026-10-25" }, shipped - 1)).toBe(false);
     expect(isNewFeature({}, shipped)).toBe(false);
-    expect(featureFor("ai.plans")?.added).toBe("2026-10-25");
+    expect(featureFor("ai.plans")?.added).toBe("2026-11-13");
   });
 });

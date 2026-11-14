@@ -153,3 +153,13 @@ describe("review mode context", () => {
     expect(context).not.toContain("Your edits apply directly");
   });
 });
+
+describe("full access context", () => {
+  it("tells the model to act instead of asking, and keeps the hard limits named", () => {
+    const context = aiWorkspaceContext("/project", null, null, "direct", true);
+    expect(context).toContain("Full access is on for this turn");
+    expect(context).toContain("blocked destructive shell commands");
+    expect(context).toContain("password or card fields");
+    expect(aiWorkspaceContext("/project", null, null, "direct", false)).not.toContain("Full access is on");
+  });
+});

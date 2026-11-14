@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "@/components/IntentLink";
 import { Buck } from "./Buck";
 import type { AdcodeMascot } from "./adcodeMascot";
+import { BUCK_ASK_EVENT } from "./AskBuck";
 
 /**
  * Buck, keeping you company in the corner of the public site.
@@ -21,17 +22,33 @@ import type { AdcodeMascot } from "./adcodeMascot";
  * leaves just the top of his head peeking up, remembered on this browser, and a tap brings him
  * back. Off on the admin, portal and account pages, where people are working, and in print.
  * Section changes are watched with IntersectionObserver, not scroll events.
+ *
+ * Buck also talks: his bubble has a short question box, answered through Tagflow AI by
+ * /v1/ai/buck (the server holds the key and caps the use). A page can hand him a question with
+ * an Ask Buck button (AskBuck.tsx). While a conversation is open the bubble stays until closed.
  */
 
 const QUIET: readonly string[] = ["/admin", "/portal", "/dashboard", "/email-preview", "/loader-preview", "/desktop-sign-in", "/i/"];
 const IDLE_MS = 30_000;
 const TIP_MS = 9_000;
+const MESSAGE_MAX = 400;
 
 interface Tip { readonly text: string; readonly href?: string; readonly link?: string }
+interface Turn { readonly role: "user" | "assistant"; readonly content: string; readonly tagflow?: boolean }
+
+/** Which page Buck is on, in the server's words, so his answer can fit it. */
+export function buckPage(path: string): "home" | "pricing" | "credits" | "docs" | "download" | "other" {
+  if (path === "/") return "home";
+  if (path.startsWith("/pricing")) return "pricing";
+  if (path.startsWith("/ai-tokens")) return "credits";
+  if (path.startsWith("/docs")) return "docs";
+  if (path.startsWith("/versions")) return "download";
+  return "other";
+}
 
 function tipFor(path: string): Tip {
   if (path === "/") return { text: "Hi, I'm Buck. ADCode is a full code editor that pays you a share of its ad revenue.", href: "/versions", link: "Get the app" };
-  if (path.startsWith("/pricing")) return { text: "The editor and Tagflow AI are free. Other models are pay as you go, with nothing that renews.", href: "/ai-models", link: "See the models" };
+  if (path.startsWith("/pricing")) return { text: "Most people who code every day pick Pro. Not sure? Ask me below, or start free.", href: "/ai-tokens?plan=pro&go=1#plans", link: "Get Pro" };
   if (path === "/docs/phone-link") return { text: "Try it: in ADCode, run Phone Link: Chat From Your Phone and scan the code." };
   if (path === "/docs/power-when-done") return { text: "I nap when the work's done. Your computer can too." };
   if (path.startsWith("/docs")) return { text: "Every feature has a guide here. New this month: chat from your phone, and sleep when done.", href: "/docs/phone-link", link: "Phone link" };
@@ -52,12 +69,57 @@ export function BuckGuide() {
   const [tip, setTip] = useState<Tip | null>(null);
   const buck = useRef<AdcodeMascot | null>(null);
   const tipTimer = useRef<number | null>(null);
+  const [chat, setChat] = useState<Turn[] | null>(null);
+  const [draft, setDraft] = useState("");
+  const [thinking, setThinking] = useState(false);
+  const chatRef = useRef<Turn[]>([]);
+  const log = useRef<HTMLDivElement>(null);
 
   const showTip = useCallback((next: Tip) => {
     setTip(next);
     if (tipTimer.current !== null) window.clearTimeout(tipTimer.current);
     tipTimer.current = window.setTimeout(() => setTip(null), TIP_MS);
   }, []);
+
+  /** Opens the conversation; the tip's timer stops, so the bubble stays until it is closed. */
+  const openChat = useCallback(() => {
+    if (tipTimer.current !== null) window.clearTimeout(tipTimer.current);
+    setTip(null);
+    setChat((current) => current ?? []);
+    setState("shown");
+    remember.set("shown");
+  }, []);
+
+  const ask = useCallback(async (raw: string) => {
+    const message = raw.trim().slice(0, MESSAGE_MAX);
+    if (message === "" || thinking) return;
+    openChat();
+    const history = chatRef.current.slice(-6).map(({ role, content }) => ({ role, content: content.slice(0, MESSAGE_MAX * 2) }));
+    const asked = [...chatRef.current, { role: "user", content: message } as Turn];
+    chatRef.current = asked; setChat(asked); setDraft(""); setThinking(true);
+    buck.current?.setMood("thinking");
+    let reply: Turn;
+    try {
+      const response = await fetch("/v1/ai/buck", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message, page: buckPage(path), history }) });
+      const body = await response.json() as { reply?: string; source?: string };
+      reply = typeof body.reply === "string" ? { role: "assistant", content: body.reply, tagflow: body.source === "tagflow" } : { role: "assistant", content: "I lost my train of thought. Try asking that a different way, or see /support." };
+    } catch {
+      reply = { role: "assistant", content: "I can't reach the server right now. The guides at /docs have the answers too." };
+    }
+    chatRef.current = [...chatRef.current, reply]; setChat(chatRef.current); setThinking(false);
+    buck.current?.setMood("idle"); buck.current?.play("wink", 1200);
+  }, [openChat, path, thinking]);
+
+  // A page's Ask Buck button hands over its question.
+  useEffect(() => {
+    if (quiet) return;
+    const listen = (event: Event): void => { const question = (event as CustomEvent<unknown>).detail; if (typeof question === "string") void ask(question); };
+    window.addEventListener(BUCK_ASK_EVENT, listen);
+    return () => window.removeEventListener(BUCK_ASK_EVENT, listen);
+  }, [ask, quiet]);
+
+  // The newest line stays in view.
+  useEffect(() => { log.current?.scrollTo({ top: log.current.scrollHeight }); }, [chat, thinking]);
 
   // Arrives a moment after the page, so the first thing a reader sees is the page itself.
   useEffect(() => {
@@ -133,23 +195,49 @@ export function BuckGuide() {
 
   if (quiet) return null;
 
-  const tuck = (): void => { remember.set("tucked"); setTip(null); setState("tucked"); };
+  const tuck = (): void => { remember.set("tucked"); setTip(null); setChat(null); setState("tucked"); };
   const poke = (): void => {
     if (state === "tucked") { remember.set("shown"); setState("shown"); buck.current?.play("greeting", 1400); return; }
+    if (chat !== null) return;
     if (tip === null) showTip(tipFor(path));
     else setTip(null);
   };
+  const closeChat = (): void => { setChat(null); chatRef.current = []; setDraft(""); };
 
   return (
     <aside className="buck-guide" data-state={state} aria-label="Buck, the ADCode mascot">
       <div className="buck-guide-body" onClickCapture={poke}>
-        <Buck size={64} interactive label={state === "tucked" ? "Bring Buck back" : "Buck. Tap for a tip."} onReady={(instance) => { buck.current = instance; }} />
+        <Buck size={64} interactive label={state === "tucked" ? "Bring Buck back" : chat !== null ? "Buck" : "Buck. Tap for a tip."} onReady={(instance) => { buck.current = instance; }} />
       </div>
-      {tip !== null && state === "shown" && (
+      {chat !== null && state === "shown" ? (
+        <div className="buck-bubble buck-chat" role="dialog" aria-label="Ask Buck">
+          <div className="buck-chat-log" ref={log} aria-live="polite">
+            {chat.length === 0 && <p className="buck-chat-hint">Ask me about plans, credits, or what&apos;s free.</p>}
+            {chat.map((turn, index) => (
+              <p key={index} className="buck-chat-turn" data-role={turn.role}>
+                {turn.content}
+                {turn.tagflow === true && <span className="buck-chat-source">Answered with Tagflow AI</span>}
+              </p>
+            ))}
+            {thinking && <p className="buck-chat-turn" data-role="assistant" aria-label="Buck is thinking"><span className="buck-chat-dots" aria-hidden="true"><i /><i /><i /></span></p>}
+          </div>
+          <form className="buck-chat-form" onSubmit={(event) => { event.preventDefault(); void ask(draft); }}>
+            <label className="sr-only" htmlFor="buck-chat-input">Your question for Buck</label>
+            <input id="buck-chat-input" value={draft} maxLength={MESSAGE_MAX} placeholder="Ask Buck…" autoComplete="off" disabled={thinking}
+              onFocus={() => buck.current?.setMood("listening")} onBlur={() => buck.current?.setMood("idle")} onChange={(event) => setDraft(event.target.value)} />
+            <button type="submit" disabled={thinking || draft.trim() === ""}>Ask</button>
+          </form>
+          <div className="buck-bubble-actions">
+            <button type="button" onClick={closeChat}>Close</button>
+            <button type="button" onClick={tuck}>Tuck Buck away</button>
+          </div>
+        </div>
+      ) : tip !== null && state === "shown" && (
         <div className="buck-bubble" role="status">
           <p>{tip.text}</p>
           <div className="buck-bubble-actions">
             {tip.href !== undefined && <Link href={tip.href}>{tip.link}</Link>}
+            <button type="button" onClick={openChat}>Ask Buck</button>
             <button type="button" onClick={tuck}>Tuck Buck away</button>
           </div>
         </div>

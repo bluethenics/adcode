@@ -168,7 +168,9 @@ describe("what every request carries", () => {
   it("keeps the two newest tools and the chat-format note within a budget", () => {
     // Characters, about three to a token: descriptions are paid for on every request.
     const size = (name: string): number => JSON.stringify(ADCODE_APP_TOOLS.find((tool) => tool.name === name)).length;
-    expect(size("adcode_browser")).toBeLessThan(1500);
+    // The browser tool grew a batch and a full pointer/keyboard vocabulary so the assistant
+    // can do a real form (or an email) in one call; the added surface is still bounded.
+    expect(size("adcode_browser")).toBeLessThan(3000);
     expect(size("adcode_room")).toBeLessThan(1100);
     expect(CHAT_FORMATS.length).toBeLessThan(420);
     // The rules that keep them safe survived the trim.

@@ -102,7 +102,7 @@ Facts, stated once:
   with no personal cloud time limit.
 - Tagflow AI and other free included models share ${creditAmount(FREE_WEEKLY_TOKENS)} free credits each day; All Heabsy models are available on the free plan. No API key is needed for included models. Provider availability and context limits apply.
   Your own provider key follows that provider's billing; local models run in the desktop app.
-- The editor is free with no subscription. AI is pay as you go: ${PAYG_SUMMARY}. Every model's price is listed at https://adcode.bluethenics.com/pricing. Prices are USD before applicable tax.
+- The editor is free. AI pricing: ${PAYG_SUMMARY}. Every model's price is listed at https://adcode.bluethenics.com/pricing. Prices are USD before applicable tax.
 - Compare plans, packs and free access: ${url("/pricing")}.
 - Advertisers bid in a second-price auction from ${formatMicros(ECONOMICS.floorBlockMicros, 2)}
   per 500 impressions. The developer receives ${ECONOMICS.revSharePercent}% of the clearing price.

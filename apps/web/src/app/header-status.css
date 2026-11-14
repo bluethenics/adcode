@@ -423,3 +423,46 @@
   .header-status-trigger:active,
   .header-status-retry:active { transform: none; }
 }
+
+/*
+ * A running price offer, beside the model status: the same 34px pill, outlined a step stronger
+ * so it reads as news rather than chrome. It fits inside the header's fixed height, so it
+ * never moves the page when it appears. On the narrowest phones it lives in the menu instead.
+ */
+.offer-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  color: var(--text);
+  font: 500 11.5px/1 var(--font-body), sans-serif;
+  letter-spacing: -.005em;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  transition: background-color 140ms ease, border-color 140ms ease, transform 140ms cubic-bezier(.23, 1, .32, 1);
+}
+.offer-pill strong { font-weight: 650; }
+.offer-pill-label { color: var(--muted); }
+.offer-pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.offer-pill:active { transform: scale(.97); }
+@media (hover: hover) and (pointer: fine) {
+  .offer-pill:hover { background: var(--control); border-color: var(--text); }
+}
+.glass-mobile-sheet .offer-sheet-link { color: var(--text); font-weight: 600; }
+/*
+ * Measured, not guessed: the header is already full between 1024px and 1279px, where the
+ * section links show, so the pill steps aside there (Pricing is one of those links). Below
+ * 1280px it drops its label, and below 760px it matches the 38px icon buttons beside it.
+ */
+@media (max-width: 1279px) { .offer-pill-label { display: none; } }
+@media (min-width: 1024px) and (max-width: 1279px) { .offer-pill { display: none; } }
+@media (max-width: 760px) { .offer-pill { height: 38px; } }
+@media (max-width: 420px) { .offer-pill { display: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .offer-pill { transition: none; }
+  .offer-pill:active { transform: none; }
+}

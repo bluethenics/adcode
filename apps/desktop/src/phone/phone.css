@@ -274,6 +274,25 @@ h1, h2 { font-family: "Space Grotesk", "Manrope", sans-serif; letter-spacing: -0
 .send:active:not(:disabled) { transform: scale(0.9); }
 .send:disabled { opacity: 0.4; }
 
+/* ── Sponsored card ────────────────────────────────────────────────────────── */
+/* One Zeekend card above the message box. A waiting card has no height and is never seen;
+   it rises in once it has arrived, and the one it replaces fades out. */
+.chat-sponsor-strip { display: grid; padding: 0 10px; flex: none; }
+.chat-sponsor-strip[hidden] { display: none; }
+.chat-sponsor-strip[data-filled="true"] { padding-bottom: 6px; }
+.chat-sponsored-frame { display: block; width: 100%; border: 0; background: transparent; color-scheme: normal; }
+.chat-sponsor-strip > .chat-sponsored-frame {
+  grid-area: 1 / 1; align-self: end; margin: 0; max-height: 180px; opacity: 0;
+  transition: height 220ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 160ms ease;
+}
+.chat-sponsor-strip > .chat-sponsored-frame[data-state="in"] { opacity: 1; animation: phone-sponsor-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.chat-sponsor-strip > .chat-sponsored-frame[data-state="out"] { opacity: 0; pointer-events: none; }
+@keyframes phone-sponsor-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .chat-sponsor-strip > .chat-sponsored-frame { transition: none; }
+  .chat-sponsor-strip > .chat-sponsored-frame[data-state="in"] { animation: none; }
+}
+
 /* ── Model ─────────────────────────────────────────────────────────────────── */
 .model-slot:empty { display: none; }
 .model-slot { padding: 10px 16px 0; }

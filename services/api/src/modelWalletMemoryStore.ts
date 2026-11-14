@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { WalletStore, WalletView, WalletEvent } from "./modelWallet.ts";
+import { summarizeWalletSales, type WalletStore, type WalletView, type WalletEvent } from "./modelWallet.ts";
 
 export function createModelWalletMemoryStore(): WalletStore {
   const balances = new Map<string, number>();
@@ -44,6 +44,7 @@ export function createModelWalletMemoryStore(): WalletStore {
       holds.set(id,{uid,model,amount,createdAt:now,done:false}); return true;
     },
     async settleModelWallet(id, micros, estimated, now) { const h=holds.get(id); if (!h || h.done) return; h.done=true; const used=Math.max(0,Math.min(h.amount,micros)); if (used>0) move(h.uid,-used,"usage",h.model,now,estimated); },
+    async walletSales(sinceMs) { return summarizeWalletSales([...orders.values()].filter(o=>o.createdAt>=sinceMs)); },
   };
   return store;
 }

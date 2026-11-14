@@ -32,6 +32,7 @@ import {
   isOfferedModel,
   type HostMessage,
   type PhoneChatSummary,
+  type PhoneDevice,
   type PhonePowerState,
   type PhoneRequest,
 } from "../shared/phoneProtocol.ts";
@@ -119,11 +120,24 @@ async function chatList(): Promise<PhoneChatSummary[]> {
     .map((session) => ({ id: session.id, title: session.title, updatedAt: session.updatedAt, running: running.has(session.id) }));
 }
 
+/**
+ * Whether the phone may show a Zeekend card under a finished reply: the same switch as under a
+ * reply on this computer, Sponsored cards under AI replies, with sponsored messages on and
+ * Frequency not set to Off.
+ */
+const sponsoredOnPhone = (values: Readonly<Record<string, unknown>> = currentSettings()): boolean =>
+  values["adcode.ads.enabled"] !== false && values["adcode.ads.chatSponsored"] === true
+  && values["adcode.ads.frequency"] !== "off";
+
+function deviceSummary(): PhoneDevice {
+  const summary = aiPhoneSummary();
+  return { name: deviceName(), platform: process.platform, project: summary.project, model: summary.model, sponsored: sponsoredOnPhone() };
+}
+
 async function answer(phone: string, request: PhoneRequest): Promise<void> {
   switch (request.t) {
     case "hello": {
-      const summary = aiPhoneSummary();
-      sendTo(phone, { t: "hello", device: { name: deviceName(), platform: process.platform, project: summary.project, model: summary.model }, chats: await chatList(), power: powerSummary() });
+      sendTo(phone, { t: "hello", device: deviceSummary(), chats: await chatList(), power: powerSummary() });
       return;
     }
     case "chats":
@@ -305,9 +319,16 @@ export function startPhoneLink(): void {
   });
   let was = enabled();
   let modelWas = `${String(currentSettings()["adcode.ai.provider"] ?? "")}/${String(currentSettings()["adcode.ai.model"] ?? "")}`;
+  let sponsoredWas = sponsoredOnPhone();
   onSettingsChanged((values) => {
     const modelNow = `${String(values["adcode.ai.provider"] ?? "")}/${String(values["adcode.ai.model"] ?? "")}`;
     if (modelNow !== modelWas) { modelWas = modelNow; void announceModels().catch(() => undefined); }
+    // Switching sponsored cards off here takes them off every connected phone at once.
+    const sponsoredNow = sponsoredOnPhone(values);
+    if (sponsoredNow !== sponsoredWas) {
+      sponsoredWas = sponsoredNow;
+      void chatList().then((chats) => sendTo(null, { t: "hello", device: deviceSummary(), chats, power: powerSummary() })).catch(() => undefined);
+    }
     const now = values[PHONE_LINK_SETTING] === true;
     if (now === was) return;
     was = now;

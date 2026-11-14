@@ -105,14 +105,14 @@ export const LANDINGS: readonly Landing[] = [
       {
         heading: "What 'free' means here, precisely",
         body: [
-          `The editor requires no subscription and has no trial expiry. ${includedAiSummary} Sign in with a verified account to use included AI. Browser workspaces have no personal time quota and sleep when idle.`,
+          `The editor is free and has no trial expiry. ${includedAiSummary} Sign in with a verified account to use included AI. Browser workspaces have no personal time quota and sleep when idle.`,
           "The funding comes from a sponsored card that appears in the corner of the window at a cadence you control. That is the trade, stated plainly: an occasional advertisement instead of a monthly charge. Half of what the advertiser pays is credited to the developer who saw it, which is the part that makes the arrangement different from simply putting ads in a product.",
         ],
         points: [
-          "No subscription or card required to start using the editor.",
+          "No plan or card required to start using the editor.",
           `Tagflow AI and other free included models share ${creditAmount(FREE_WEEKLY_TOKENS)} credits a day. Provider availability and context limits still apply.`,
           `Browser workspaces have no personal time quota and sleep when idle. Desktop projects run on your computer.`,
-          `AI is pay as you go: ${PAYG_SUMMARY}.`,
+          `AI pricing: ${PAYG_SUMMARY}.`,
           "Ads can be reduced or switched off entirely in settings; the earnings stop with them.",
         ],
       },
@@ -156,7 +156,7 @@ export const LANDINGS: readonly Landing[] = [
     faq: [
       {
         q: "Is ADCode actually free, or free for a limited time?",
-        a: `The editor is free with no subscription or trial expiry. Sponsored cards help fund it. AI is pay as you go: ${PAYG_SUMMARY}. None of it is required to use the editor.`,
+        a: `The editor is free, with no trial expiry. Sponsored cards help fund it. AI pricing: ${PAYG_SUMMARY}. None of it is required to use the editor.`,
       },
       {
         q: "Do I need to pay for the AI features in ADCode?",

@@ -4,6 +4,7 @@ import { createFetchHandler } from "../src/fetchHandler.ts";
 import { DEFAULT_TAGFLOW_CONFIG } from "../src/tagflowConfig.ts";
 import { DEFAULT_PAID_CONFIG } from "../src/paidTokens.ts";
 import { walletCharge, walletRates } from "../src/modelWallet.ts";
+import { OFFER_GRACE_MS } from "../src/priceOffer.ts";
 import type { TagflowConfig } from "../src/tagflowTypes.ts";
 
 const NOW=Date.parse("2026-10-29T12:00:00Z");
@@ -114,6 +115,31 @@ describe("paid model dollar wallet",()=>{
   expect((await store.getModelWallet("u",NOW)).orders).toHaveLength(0);
  });
  it("publishes explicit prices and keeps other accounts' balances private",async()=>{
-  await fund();const response=await call('/ai/wallet');expect(await response.json()).toMatchObject({availableMicros:10_000_000,markupPercent:35,models:[{id:"paid",inputPrice:1.35,outputPrice:6.75}]});expect((await store.getModelWallet("another",NOW)).balanceMicros).toBe(0);
+  await fund();const response=await call('/ai/wallet');const body=await response.json();expect(body).toMatchObject({availableMicros:10_000_000,offer:null,models:[{id:"paid",inputPrice:1.35,outputPrice:6.75}]});expect(body).not.toHaveProperty("markupPercent");expect((await store.getModelWallet("another",NOW)).balanceMicros).toBe(0);
+ });
+ it("takes a running price offer off every listed price and every charge, and stops when it ends",async()=>{
+  const offer={name:"Launch offer",percent:15,startsAt:NOW-1000,endsAt:NOW+86_400_000};
+  await store.putTagflowConfig({config:{...config,offer},updatedAt:NOW,updatedBy:"admin"});
+  await fund();
+  const wallet=await (await call('/ai/wallet')).json() as {offer:unknown;models:{inputPrice:number;outputPrice:number;cacheInputPrice:number}[]};
+  expect(wallet.offer).toEqual({name:"Launch offer",percent:15,endsAt:NOW+86_400_000});
+  expect(wallet.models[0]!.inputPrice).toBeCloseTo(1.1475,10);expect(wallet.models[0]!.outputPrice).toBeCloseTo(5.7375,10);expect(wallet.models[0]!.cacheInputPrice).toBeCloseTo(0.11475,10);
+  const listed=await (await call('/ai/tagflow/config')).json() as {offer:unknown;models:{id:string;inputPrice?:number;markupPercent?:number}[]};
+  expect(listed.offer).toEqual({name:"Launch offer",percent:15,endsAt:NOW+86_400_000});
+  const paid=listed.models.find(m=>m.id==="paid")!;expect(paid.inputPrice).toBeCloseTo(1.1475,10);expect(paid).not.toHaveProperty("markupPercent");
+  // $0.0002 of provider cost: 270 microdollars at the regular price, 230 with 15% off.
+  expect((await chat()).status).toBe(200);
+  expect((await store.getModelWallet("u",NOW)).activity[0]).toMatchObject({kind:"usage",deltaMicros:-230});
+  // Just ended: listed prices are regular at once, but an offer price may still be cached on
+  // someone's screen, so requests in the grace period are still charged the offer price.
+  await store.putTagflowConfig({config:{...config,offer:{...offer,endsAt:NOW}},updatedAt:NOW,updatedBy:"admin"});
+  const ended=await (await call('/ai/wallet')).json() as {offer:unknown;models:{inputPrice:number}[]};
+  expect(ended.offer).toBeNull();expect(ended.models[0]!.inputPrice).toBe(1.35);
+  const answer=()=>fetcher.mockResolvedValue(Response.json({choices:[{message:{content:"OK"},finish_reason:"stop"}],usage:{prompt_tokens:100,completion_tokens:10,cost:0.0002}}));
+  answer();expect((await chat()).status).toBe(200);
+  expect((await store.getModelWallet("u",NOW)).activity[0]).toMatchObject({kind:"usage",deltaMicros:-230});
+  await store.putTagflowConfig({config:{...config,offer:{...offer,startsAt:NOW-OFFER_GRACE_MS-1000,endsAt:NOW-OFFER_GRACE_MS}},updatedAt:NOW,updatedBy:"admin"});
+  answer();expect((await chat()).status).toBe(200);
+  expect((await store.getModelWallet("u",NOW)).activity[0]).toMatchObject({kind:"usage",deltaMicros:-270});
  });
 });

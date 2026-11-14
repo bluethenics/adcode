@@ -24,10 +24,13 @@ export interface CheckoutRequest {
   returnUrl: string;
   cancelUrl: string;
   /** Which Dodo product the payment is for; missing is an advertiser deposit. */
-  product?: "advertiser" | "ai-tokens" | "ai-wallet" | "plan-weekly" | "plan-monthly" | "plan-pro" | "plan-max" | "plan-unlimited";
+  product?: "advertiser" | "ai-tokens" | "ai-wallet" | "plan-weekly" | "plan-monthly" | "plan-pro" | "plan-max" | "plan-unlimited" | YearlyPlanProduct;
   /** Server-authored subscription identity; never copied from an untrusted request. */
   metadata?: Record<string, string>;
 }
+
+/** A plan paid once a year: its own Dodo product, priced at the plan's yearlyCents. */
+export type YearlyPlanProduct = "plan-monthly-year" | "plan-pro-year" | "plan-max-year";
 
 /** Two uppercase letters. Anything else is refused rather than sent on to the provider. */
 export function parseCountry(raw: unknown): string | null {
@@ -43,6 +46,8 @@ export interface CheckoutSession {
 export interface PaymentProvider {
   /** Read the authoritative paid period when a lifecycle webhook was missed. */
   getSubscription?(subscriptionId: string): Promise<unknown | null>;
+  /** Whether a product is configured at all (its id is set), without asking the provider. */
+  hasProduct?(product: NonNullable<CheckoutRequest["product"]>): boolean;
   /** Preflight known missing credentials/products before reserving a subscription checkout. */
   canCreateCheckout?(product: NonNullable<CheckoutRequest["product"]>): boolean | Promise<boolean>;
   /** Null on any provider failure; the caller turns that into a 502 rather than a 500. */

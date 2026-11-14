@@ -26,7 +26,7 @@ import { createAgentViewCard, createPlanCard, planStepsFrom, type AgentViewCard,
 import { createChatLiveRoom } from "../liveAgents/chatLiveRoom.ts";
 import { createTaskDetailsDialog } from "./taskDetailsDialog.ts";
 import { createTasksPopupDialog } from "./tasksPopupDialog.ts";
-import { SPONSORED_SETTING, createSponsorStrip } from "./sponsoredReply.ts";
+import { OPENING_EXCHANGE, SPONSORED_SETTING, SPONSOR_ROTATE_MS, createSponsorStrip, type SponsoredExchange } from "./sponsoredReply.ts";
 import { exportConversationText } from "./chatExport.ts";
 import { DONE_SOUND_SETTING, playDoneSound, shouldChime } from "./doneSound.ts";
 import { createDotField } from "../onboarding/dotField.ts";
@@ -186,6 +186,11 @@ export interface ChatWidget {
   addContext(name: string, text: string): void;
   /** Bring the composer forward with its `/` command menu or `@` file menu open. */
   openComposerMenu(trigger: "/" | "@"): void;
+  /**
+   * Open the warning card that turns full access on. When it is already on, this is the
+   * same as the strip's switch: it turns it off at once, with no second dialog.
+   */
+  requestFullAccess(): void;
   setWorkspace(root: string | null): void;
   /**
    * Fires whenever the card opens or closes.
@@ -261,6 +266,12 @@ export interface ChatWidgetDeps {
    * sent to find one. Resolves true once the new folder is the open one.
    */
   readonly createProjectFor?: (idea: string) => Promise<boolean>;
+  /**
+   * Open Move in - the popup that brings accounts and conversations from Claude Code, Codex,
+   * OpenCode and other tools. The welcome area and an empty history offer it, so somebody
+   * arriving from another app does not have to find a command.
+   */
+  readonly moveIn?: () => void;
 }
 
 export function dispatchChatSend(
@@ -321,16 +332,41 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   let sponsoredReplies = false;
   let doneSound = false;
   const sponsorStrip = createSponsorStrip();
-  // Zeekend is the main source (2026-11-13): its strip keeps its card and asks after every reply,
-  // even while one of ADCode's own direct cards is showing in the corner.
+  /*
+   * The ad box above the message box (2026-11-13): Zeekend only, never stopping. It fills as
+   * soon as the chat is on screen and takes a fresh card every SPONSOR_ROTATE_MS, from the
+   * latest finished exchange - or a general developer's-day one before there is any - and at
+   * once after each reply. It keeps going while one of ADCode's own direct cards shows in the
+   * corner. The setting, or sponsored messages off, stops it and clears the box.
+   */
+  let sponsorExchange: { request: string; response: string } | null = null;
+  let sponsorAsks = 0;
+  let stopSponsorLoop: (() => void) | null = null;
+  const launchSponsorSession = `chat-${Date.now().toString(36)}`;
+  const nextSponsorExchange = (): SponsoredExchange => ({
+    ...(sponsorExchange ?? OPENING_EXCHANGE),
+    sessionId: activeSessionId ?? launchSponsorSession,
+    theme: document.documentElement.dataset["theme"] === "light" ? "light" : "dark",
+    // Every card asked for is a turn of its own for Zeekend's pacing, so a rotation is never refused as a repeat.
+    turn: Math.min(10_000, ++sponsorAsks),
+    layout: "banner",
+  });
+  const sponsorOnScreen = (): boolean => document.visibilityState === "visible" && sponsorStrip.element.parentElement?.offsetParent !== null && sponsorStrip.element.isConnected;
   const readSponsored = (): void => {
     void window.adcode.settings.read().then((values) => {
       const record = values as Record<string, unknown>;
       // Desktop only: the web workspace's own policy does not admit the sponsored frame yet.
-      sponsoredReplies = !isWebSurface() && record[SPONSORED_SETTING] === true && record["adcode.ads.enabled"] !== false;
+      // Frequency Off is the "no sponsored cards anywhere" choice, so it stops this box too.
+      sponsoredReplies = !isWebSurface() && record[SPONSORED_SETTING] === true
+        && record["adcode.ads.enabled"] !== false && record["adcode.ads.frequency"] !== "off";
       doneSound = record[DONE_SOUND_SETTING] === true;
+      if (sponsoredReplies && stopSponsorLoop === null) stopSponsorLoop = sponsorStrip.keepFilled(nextSponsorExchange, SPONSOR_ROTATE_MS, sponsorOnScreen);
       // Turning the setting off stops the cards already on screen, not just the next reply.
-      if (!sponsoredReplies) sponsorStrip.clear();
+      if (!sponsoredReplies) {
+        stopSponsorLoop?.();
+        stopSponsorLoop = null;
+        sponsorStrip.clear();
+      }
     }, () => { sponsoredReplies = false; });
   };
   readSponsored();
@@ -1402,6 +1438,17 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           ? "No chats yet. Start one below - it stays on this machine, per project."
           : "Nothing matches that.";
       historyList.append(empty);
+      // Somebody who used another AI tool yesterday has conversations there. Offer the
+      // door where they are already looking for their history, not only in the palette.
+      if (saved.length === 0 && deps.moveIn !== undefined) {
+        const bring = document.createElement("button");
+        bring.type = "button";
+        bring.className = "chat-history-import";
+        bring.textContent = "Import from other apps";
+        bring.title = "Bring conversations and accounts from Claude Code, Codex, OpenCode and other tools";
+        bring.addEventListener("click", () => deps.moveIn?.());
+        historyList.append(bring);
+      }
       return;
     }
 
@@ -2128,18 +2175,44 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   // The defaults, until the saved settings arrive: edits land, and it keeps going.
   let editPolicy: "review" | "trusted" = "trusted";
   let keepGoing = true;
+  let fullAccess = false;
+  /*
+   * The shield that keeps full access visible for as long as it is on. A mode that removes
+   * every question must not itself be invisible, but a full-width strip above the message
+   * box took a line of the conversation for as long as it stayed on. The shield sits in the
+   * composer's bottom row instead, turns red in this mode, and one click turns it off with
+   * no dialog - a permission mode must be easier to leave than to enter.
+   */
+  const fullAccessShield = document.createElement("button");
+  fullAccessShield.type = "button";
+  fullAccessShield.className = "chat-full-access-shield";
+  fullAccessShield.hidden = true;
+  fullAccessShield.append(createIcon(ICON.shield));
+  fullAccessShield.addEventListener("click", () => setFullAccess(false));
   const paintApproval = (): void => {
     const auto = editPolicy === "trusted";
-    modePill.textContent = auto ? "Auto" : "Review";
-    modePill.dataset["mode"] = auto ? "auto" : "review";
-    modePill.title = auto
-      ? "Edits apply as the assistant works; undo any turn from the chat. Click to change."
-      : "Each turn's edits wait for you to apply them. Click to change.";
-    modePill.setAttribute("aria-label", `AI edit approval: ${auto ? "Apply automatically" : "Review every change"}${keepGoing ? ", keep going until done" : ""}. Change`);
+    if (fullAccess) {
+      modePill.textContent = "Full access";
+      modePill.dataset["mode"] = "full";
+      modePill.title = "The assistant can do anything in any chat without asking. Click to take back control.";
+    } else {
+      modePill.textContent = auto ? "Auto" : "Review";
+      modePill.dataset["mode"] = auto ? "auto" : "review";
+      modePill.title = auto
+        ? "Edits apply as the assistant works; undo any turn from the chat. Click to change."
+        : "Each turn's edits wait for you to apply them. Click to change.";
+    }
+    modePill.setAttribute("aria-label", `AI permissions: ${fullAccess ? "full access" : auto ? "Apply automatically" : "Review every change"}${keepGoing ? ", keep going until done" : ""}. Change`);
+    fullAccessShield.hidden = !fullAccess;
+    fullAccessShield.title = fullAccess
+      ? "Full access is on. Click the shield to take back control; the assistant asks again before it does anything guarded."
+      : "";
+    fullAccessShield.setAttribute("aria-label", fullAccess ? "Full access is on. Take back control." : "AI permissions");
   };
   const adoptApproval = (values: Record<string, unknown>): void => {
     editPolicy = values["adcode.ai.editPolicy"] === "review" ? "review" : "trusted";
     keepGoing = values["adcode.ai.keepGoing"] !== false;
+    fullAccess = values["adcode.ai.fullAccess"] === true;
     paintApproval();
   };
   void window.adcode.settings.read().then(adoptApproval, () => paintApproval());
@@ -2164,9 +2237,17 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     const rect = modePill.getBoundingClientRect();
     modePill.setAttribute("aria-expanded", "true");
     approvalMenu.open(rect.left, rect.top - 4, [
+      { kind: "heading", label: "Permissions" },
+      {
+        label: fullAccess ? "Full access is on · take back control" : "Full access · do anything without asking",
+        accelerator: fullAccess ? "✓" : "",
+        danger: true,
+        run: () => requestFullAccess(),
+      },
       { kind: "heading", label: "When the assistant edits files" },
       { label: "Apply automatically · undo any turn", accelerator: editPolicy === "trusted" ? "✓" : "", run: () => setEditPolicy("trusted") },
       { label: "Review every change", accelerator: editPolicy === "review" ? "✓" : "", run: () => setEditPolicy("review") },
+      ...(fullAccess ? [{ label: "Full access applies edits even in Review", disabled: true, run: () => undefined }] : []),
       { kind: "heading", label: "Automation" },
       {
         label: "Keep going until done",
@@ -2192,6 +2273,87 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     note.textContent = text;
     transcript.append(note);
     scrollToEnd(true);
+  }
+
+  /*
+   * Full access, from the chat.
+   *
+   * Turning it on never happens on the click alone: the card lists exactly which questions
+   * stop being asked, and its button is the one that writes the setting. Turning it off is
+   * immediate, from either the menu or the strip - a permission mode must be easier to leave
+   * than to enter.
+   */
+  function requestFullAccess(): void {
+    if (fullAccess) { setFullAccess(false); return; }
+    showFullAccessCard();
+  }
+
+  function setFullAccess(next: boolean): void {
+    if (next) { showFullAccessCard(); return; }
+    void window.adcode.settings.write("adcode.ai.fullAccess", false).then((values) => {
+      adoptApproval(values);
+      modeNote("Full access is off. The assistant asks again before it does anything guarded.");
+    }, () => undefined);
+  }
+
+  function showFullAccessCard(): void {
+    transcript.querySelector(".chat-full-access-card")?.remove();
+    const card = document.createElement("section");
+    card.className = "chat-full-access-card";
+    card.setAttribute("role", "alertdialog");
+    card.setAttribute("aria-label", "Turn on full access?");
+    const title = document.createElement("h3");
+    title.className = "chat-full-access-title";
+    title.textContent = "Turn on full access?";
+    const lead = document.createElement("p");
+    lead.className = "chat-full-access-text";
+    lead.textContent = "Until you turn it off, the assistant stops asking before guarded actions. For example, it:";
+    const list = document.createElement("ul");
+    list.className = "chat-full-access-list";
+    for (const line of [
+      "starts a connector's program, enables its tools, or removes the connector",
+      "changes guarded settings such as where edits land, how the app updates, or which model answers",
+      "runs this project's approval-gated hooks",
+      "creates or updates an agent plan",
+      "applies edits even when AI edit approval is set to Review",
+      "runs a connected coding CLI used as the model (Claude Code or Codex) with its own permission questions off, so that turn has the CLI's full machine access",
+    ]) {
+      const item = document.createElement("li");
+      item.textContent = line;
+      list.append(item);
+    }
+    const fine = document.createElement("p");
+    fine.className = "chat-full-access-fine";
+    fine.textContent = "It still refuses passwords and card numbers in ADCode's Browser, does not override capabilities you turned off by itself, keeps ADCode's own shell list of machine-destroying commands blocked, and cannot turn this setting on or off itself. A red shield at the bottom of the message box stays visible while it is on.";
+    const actions = document.createElement("div");
+    actions.className = "chat-full-access-actions";
+    const confirm = document.createElement("button");
+    confirm.type = "button";
+    confirm.className = "chat-full-access-confirm";
+    confirm.textContent = "Turn on full access";
+    confirm.addEventListener("click", () => {
+      void window.adcode.settings.write("adcode.ai.fullAccess", true).then((values) => {
+        adoptApproval(values);
+        card.remove();
+        modeNote("Full access is on. The assistant will not ask before guarded actions in any chat. Click the red shield at the bottom of the message box to take back control at any time.");
+      }, () => undefined);
+    });
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "chat-full-access-cancel";
+    cancel.textContent = "Cancel";
+    cancel.addEventListener("click", () => card.remove());
+    actions.append(confirm, cancel);
+    card.append(title, lead, list, fine, actions);
+    card.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      // Escape while the card is focused closes the card, not the running turn.
+      event.stopPropagation();
+      card.remove();
+    });
+    transcript.append(card);
+    scrollToEnd(true);
+    confirm.focus();
   }
   paintApproval();
 
@@ -2340,7 +2502,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   });
   const composerHints = document.createElement("div");
   composerHints.className = "composer-hints";
-  composerHints.append(composerHelp, disclaimer);
+  composerHints.append(fullAccessShield, composerHelp, disclaimer);
   // How full the model's context is, and the way to make room on purpose.
   const meterMenu = createContextMenu(document.body);
   attachContextMenuDismissal(meterMenu, () => contextMeter.element.focus());
@@ -2656,6 +2818,22 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   setupSteps.append(setupConnectItem, setupAskItem, setupFolderItem);
   /*
+   * The other front door for somebody who already uses an AI tool: their chats and accounts
+   * are over there. It opens Move in, the same popup the palette and welcome tour use, and
+   * it stays visible beside the setup steps because it is a choice, not a missing step.
+   */
+  const welcomeImport = document.createElement("button");
+  welcomeImport.type = "button";
+  welcomeImport.className = "chat-welcome-import";
+  welcomeImport.hidden = deps.moveIn === undefined;
+  const welcomeImportLabel = document.createElement("strong");
+  welcomeImportLabel.textContent = "Import from other apps";
+  const welcomeImportHint = document.createElement("span");
+  welcomeImportHint.textContent = "Bring chats and accounts from Claude Code, Codex, OpenCode and more";
+  welcomeImport.append(welcomeImportLabel, welcomeImportHint);
+  welcomeImport.setAttribute("aria-label", "Import conversations and accounts from other AI apps");
+  welcomeImport.addEventListener("click", () => deps.moveIn?.());
+  /*
    * Which steps are still to do. Vibe shows the list only while something is missing -
    * a returning user with a folder and a model should see the prompt, not a checklist.
    * Connecting comes first because it is the one thing that blocks everything else.
@@ -2775,7 +2953,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
    */
   const welcomeField = createDotField({ pitch: 9, mood: "calm" });
   welcomeField.element.classList.add("chat-welcome-field");
-  welcome.append(welcomeField.element, welcomeBuck.element, welcomeTitle, welcomeText, setupSteps);
+  welcome.append(welcomeField.element, welcomeBuck.element, welcomeTitle, welcomeText, setupSteps, welcomeImport);
   // A canvas field is too short to show anything along a 12px edge, so this one is CSS:
   // a dotted line with a bright band sweeping along it (dotDetails.css).
   const busyDots = document.createElement("span");
@@ -5049,16 +5227,11 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           scrollToEnd();
         }
         // The sponsor strip (sponsoredReply.ts): a live finished reply only, never a replay.
+        // The box keeps rotating on its own (keepFilled); a finished reply asks at once, about it.
         if (finished && !replaying && sponsoredReplies) {
-          sponsorStrip.show({
-            request: lastUserPrompt,
-            response: messageSources.get(finished) ?? "",
-            sessionId: eventSession ?? activeSessionId ?? "",
-            theme: document.documentElement.dataset["theme"] === "light" ? "light" : "dark",
-            // Which question of this conversation the reply answers - Zeekend paces by it.
-            turn: transcript.querySelectorAll(".chat-bubble-user").length,
-            layout: "notification",
-          });
+          const response = messageSources.get(finished) ?? "";
+          if (lastUserPrompt.trim() !== "" && response.trim() !== "") sponsorExchange = { request: lastUserPrompt, response };
+          sponsorStrip.show({ ...nextSponsorExchange(), sessionId: eventSession ?? activeSessionId ?? launchSponsorSession });
         }
         void refreshHistory();
         // A follow-up typed while this turn ran goes now.
@@ -5709,6 +5882,12 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         }
         refreshComposerMenu();
       }));
+    },
+
+    requestFullAccess(): void {
+      api.open();
+      if (fullAccess) setFullAccess(false);
+      else showFullAccessCard();
     },
 
     setWorkspace(root: string | null): void {

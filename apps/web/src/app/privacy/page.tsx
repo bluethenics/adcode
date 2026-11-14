@@ -38,8 +38,9 @@ This explains what ADCode collects, what it does not, and why. It covers the ADC
 - ADCode's **advertising, earnings, and analytics services never receive file contents, file paths, or project names.**
 - AI features may send source text and prompts to the provider you select. ADCode explains and limits that separate path below.
 - Ads are targeted using a fixed list of **45 generic tags** describing the language or framework you have open.
-- **Sponsored cards under AI replies are on unless you turn them off** (since ADCode 2.5.1, which tells you once when it turns them on). While on, your message and the assistant's reply under which the card appears go to our ad partners, Zeekend and then Imprezia, to choose that card. See below.
-- **Sponsored notifications from our ad partner are on unless you turn them off** (since ADCode 2.5.1). While on, only the names of the languages and frameworks you have open go to Imprezia, to choose a notification when no ADCode advertiser has one. See below.
+- **Sponsored cards under AI replies are on unless you turn them off** (since ADCode 2.5.1, which tells you once when it turns them on). While on, your message and the assistant's reply under which the card appears go to our ad partner, Zeekend, to choose that card. The same applies to a card under the computer's reply on Phone link. See below.
+- **Sponsored notifications from our ad partner are on unless you turn them off** (since ADCode 2.5.1). While on, only the names of the languages and frameworks you have open go to Zeekend, to choose a notification when no ADCode advertiser has one. See below.
+- **Zeekend is our only ad partner.** We no longer send anything to Imprezia.
 - You are identified by an **anonymous account created automatically**, with no email, name, or password, unless you choose to add one.
 - We do not sell personal data. There are no third-party advertising trackers in the editor or on this site, except inside a sponsored card under an AI reply or a partner notification, both described below, and both off as soon as you turn them off.
 
@@ -49,13 +50,13 @@ This explains what ADCode collects, what it does not, and why. It covers the ADC
 
 A request contains three things: the tags for what you have open, whether your theme is light or dark, and how many cards to return.
 
-When no direct campaign fills the card, ADCode's server may ask our ad partner Imprezia for one. Imprezia then receives the same generic tags and a daily one-way code that cannot be traced back to you - never your code, prompts, or account.
+When no direct campaign fills the card, ADCode's server may ask an ad network our administrators connected for one. That network then receives the same generic tags and a daily one-way code that cannot be traced back to you - never your code, prompts, or account.
 
 ### Sponsored cards under AI replies (on unless you turn them off) {#sponsored-cards}
 
 **Settings → Ads → Sponsored cards under AI replies** is on by default since ADCode 2.5.1, which shows a one-time notice with a Turn off button when it turns it on. Turning it off stops everything in this section at once. If you switched sponsored messages off altogether, it stays off.
 
-When it is on, after the assistant answers in the desktop app, ADCode shows at most one sponsored card chosen for that exchange under the reply. It asks Zeekend first and, only if Zeekend has no card, Imprezia.
+When it is on, after the assistant answers in the desktop app, ADCode shows at most one sponsored card chosen for that exchange, just above the message box. Zeekend chooses it. With Phone link on, a card chosen the same way can appear under the computer's reply on your phone.
 
 To choose its card, **Zeekend** receives:
 
@@ -65,25 +66,19 @@ To choose its card, **Zeekend** receives:
 
 Zeekend matches products to the conversation with a language model from Anthropic, so your message and the reply are processed by Anthropic as Zeekend's sub-processor.
 
-To choose its card, **Imprezia** receives:
-
-- **your message and the assistant's reply** under which the card appears, cut to the first 4,000 characters of each;
-- **an identifier for that conversation**, so the cards in one conversation are chosen together. It is not your account, and a new conversation has a new one;
-- **your IP address and your browser's user-agent string**, which Imprezia uses for location targeting and to detect fraud.
-
-Nothing else from your project is sent: no other files, file paths, or project names. The card is a separate page from adcode.bluethenics.com, shown inside the editor but walled off from it, so neither partner nor anyone it works with can reach your files or the rest of the editor. Each partner's own code, and Imprezia's measurement partners, may load inside that card to count views and clicks. ADCode does not store the message or the reply for this.
+Nothing else from your project is sent: no other files, file paths, or project names. The card is a separate page from adcode.bluethenics.com, shown inside the editor (or the Phone link page) but walled off from it, so neither Zeekend nor anyone it works with can reach your files or the rest of the editor. Zeekend's own code loads inside that card to count views and clicks. ADCode does not store the message or the reply for this.
 
 ### Sponsored notifications from our ad partner (on unless you turn them off) {#partner-notifications}
 
 **Settings → Ads → Sponsored notifications from ADCode's ad partner** is on by default since ADCode 2.5.1. Turning it off stops everything in this section at once. If you switched sponsored messages off altogether, it stays off.
 
-When it is on and no ADCode advertiser has a sponsored message for you at a moment one may be shown, the desktop app can show a notification chosen by Imprezia instead. It follows the same schedule, daily limit and quiet times as every other sponsored message. To choose it, Imprezia receives:
+When it is on and no ADCode advertiser has a sponsored message for you at a moment one may be shown, the desktop app can show a notification chosen by Zeekend instead. It follows the same schedule, daily limit and quiet times as every other sponsored message. To choose it, Zeekend receives:
 
-- **a sentence naming the languages and frameworks you have open**, such as "typescript, react, docker" - the same tags described below, without their prefixes. Never file contents, file names, paths, code, prompts or project names;
-- **an identifier for that run of the app**, which changes every time ADCode starts and is not your account;
-- **your IP address and your browser's user-agent string**, which Imprezia uses for location targeting and to detect fraud.
+- **a short question and answer naming the languages and frameworks you have open**, such as "typescript, react, docker" - the same tags described below, without their prefixes. Never file contents, file names, paths, code, prompts or project names;
+- **an identifier for that run of the app**, which changes every time ADCode starts and is not your account, and **which notification of that run it is** (a number);
+- **your language setting, your IP address and your browser's user-agent string.**
 
-The notification's card is the same walled-off page from adcode.bluethenics.com as a card under an AI reply, so neither Imprezia nor its measurement partners can reach your files or the editor. These notifications are not credited to your earnings yet.
+The notification's card is the same walled-off page from adcode.bluethenics.com as a card under an AI reply, so Zeekend cannot reach your files or the editor. Each Zeekend card you are shown credits $0.002 to your ADCode earnings, up to 300 cards a day. To pay you, the desktop app tells our server which Zeekend card was shown (its slot id) along with your anonymous account.
 
 Tags come from a closed vocabulary compiled into the editor — values like \`lang:rust\`, \`fw:react\`, \`tool:docker\`, \`platform:backend\`. There are 45 of them. The server cannot add to the list, and any tag the editor does not recognise is never sent.
 
@@ -190,11 +185,11 @@ When ADCode asks you to verify your email before using free AI, ADCode sends a v
 
 ## Sharing
 
-We share personal data for advertising only through sponsored cards under AI replies and sponsored notifications from our ad partner, while those are on. Then Zeekend and Imprezia receive what those sections list, to choose and measure those cards. With both off, we share personal data with nobody for advertising purposes.
+We share personal data for advertising only through sponsored cards under AI replies and sponsored notifications from our ad partner, while those are on. Then Zeekend receives what those sections list, to choose and measure those cards. With both off, we share personal data with nobody for advertising purposes.
 
 Advertisers receive **aggregate** reporting: how many times their campaign was served, viewed, and clicked. They never receive your identifier, your tags, or anything that identifies you individually.
 
-Zeekend and Imprezia are our ad partners. Zeekend receives the exchange described above only while sponsored cards under AI replies are on. Imprezia receives generic tags when it fills a sponsored card, the exchange described above only while sponsored cards under AI replies are on, and your open languages and frameworks only while its sponsored notifications are on. We use Google Cloud and Firebase to run the service, Dodo Payments to take payment from advertisers, and Wise to send withdrawals. Each receives only what it needs to do its part — Wise receives your payout details and the amount, and nothing about how you earned it.
+Zeekend is our only ad partner. It receives the exchange described above only while sponsored cards under AI replies are on, and your open languages and frameworks only while its sponsored notifications are on. We no longer send anything to Imprezia, which was our ad partner before November 2026. We use Google Cloud and Firebase to run the service, Dodo Payments to take payment from advertisers, and Wise to send withdrawals. Each receives only what it needs to do its part — Wise receives your payout details and the amount, and nothing about how you earned it.
 
 ## Your choices
 

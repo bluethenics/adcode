@@ -10,6 +10,7 @@ import { signOutNow } from "@/lib/firebase";
 import { Mark } from "./Mark";
 import { useAuth } from "./AuthProvider";
 import { HeaderStatus } from "./HeaderStatus";
+import { OfferPill } from "./OfferPill";
 import { PortalActions } from "./PortalActions";
 import { ThemePicker } from "./ThemeProvider";
 import { TEAM, WEB_VERSION_URL } from "@/lib/site";
@@ -107,6 +108,7 @@ export function Nav() {
 
   const mobileLinks = (
     <>
+      <OfferPill variant="sheet" />
       <Link href="/#product" className="glass-nav-link">Product</Link>
       <Link href="/pricing" className="glass-nav-link" aria-current={pathname === "/pricing" ? "page" : undefined}>Pricing</Link>
       <Link href="/ai-models" className="glass-nav-link" aria-current={pathname === "/ai-models" ? "page" : undefined}>AI models</Link>
@@ -141,6 +143,7 @@ export function Nav() {
       <div className="marketplace-wrap marketplace-nav-inner">
         <Link href="/" className="marketplace-brand" aria-label="ADCode home"><Mark /><span>ADCode</span></Link>
         <nav className="glass-nav" aria-label="Main navigation">
+          <OfferPill />
           <span className="glass-nav-secondary">{desktopLinks}</span>
           <HeaderStatus />
           <ThemePicker />

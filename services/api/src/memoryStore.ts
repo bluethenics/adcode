@@ -29,6 +29,7 @@ import {
 import type { ModelCatalogRecord } from "./modelCatalog.ts";
 import type { ModelOutcomeRow } from "./modelOutcomes.ts";
 import type { StatusIncidentRecord, StatusIncidentUpdateRecord } from "./status.ts";
+import { createMemoryNetworkImpressionStore } from "./networkImpressions.ts";
 import type {
   ActivityDay,
   AdminRecord,
@@ -151,6 +152,7 @@ export function createMemoryStore(): Store & { reset(): void } {
   return {
     ...tagflow,
     adNetworks,
+    networkImpressions: createMemoryNetworkImpressionStore(),
     reset() {
       tagflow.resetTagflow();
       adNetworks.reset();

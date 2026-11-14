@@ -712,6 +712,8 @@ export interface Store extends TagflowStore {
   recordReceiptPayment?(payment: import("./purchaseReceiptPayments.ts").ReceiptPayment): Promise<void>;
   /** External ad demand is optional on legacy persistence adapters. */
   adNetworks?: import("./adNetworkConfig.ts").AdNetworkStore;
+  /** Zeekend cards seen on the sponsored page, for the admin's "Ads shown" (networkImpressions.ts). */
+  networkImpressions?: import("./networkImpressions.ts").NetworkImpressionStore;
   /**
    * Anonymous lifetime totals, plus accounts created in the seven days before `now`.
    * Excludes zero-cost test receipts; counts active users only; no account data.

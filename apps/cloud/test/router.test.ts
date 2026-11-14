@@ -158,6 +158,8 @@ describe("the page", () => {
     const csp = response.headers.get("content-security-policy") ?? "";
     expect(csp).toContain("default-src 'none'");
     expect(csp).toContain("frame-src https://*.web.bluethenics.com https://adcode-test.firebaseapp.com");
+    // The sponsored card under a reply on the /phone page, and no other ad origin.
+    expect(csp).toMatch(/frame-src [^;]*https:\/\/adcode\.bluethenics\.com/);
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain(WEB_APP_SCHEMA_CSP);
     expect(csp).not.toContain(LEGACY_WEB_APP_SCHEMA_CSP);

@@ -1,5 +1,5 @@
 import type { PlanCheckout, PromoView, TagflowConfigRecord, TagflowReservation, TagflowStore, TagflowUsage, TagflowUserPolicy, TokenLedgerEntry, TokenOrder, TokenSalesDay } from "./tagflowTypes.ts";
-import { INVITE_REWARD_TOKENS, planRank, PLAN_CHECKOUT_GUARD_MS, PLANS, planById, subscriptionBlocksCheckout, type PlanId } from "./aiPlans.ts";
+import { INVITE_REWARD_TOKENS, OLD_PRICE_PERIODS_END, planRank, PLAN_CHECKOUT_GUARD_MS, PLANS, planById, subscriptionBlocksCheckout, type PlanId } from "./aiPlans.ts";
 
 /** Uses of one Pro subscriber's invite code. */
 const INVITE_MAX_USES = 2;
@@ -303,9 +303,12 @@ export function createTagflowMemoryStore(): TagflowStore & { resetTagflow(): voi
           endsAt: one.endsAt, cancelAtPeriodEnd: one.status === "cancelled" }));
     },
     async subscriptionSummary(now) {
-      const totals = new Map<PlanId, number>();
-      for (const one of subscriptions.values()) if (one.endsAt > now) totals.set(one.plan, (totals.get(one.plan) ?? 0) + 1);
-      return PLANS.filter((plan) => totals.has(plan.id)).map((plan) => ({ plan: plan.id, active: totals.get(plan.id)!, mrrCents: monthlyCents(plan.id) * totals.get(plan.id)! }));
+      const totals = new Map<PlanId, { active: number; mrrCents: number }>();
+      for (const one of subscriptions.values()) if (one.endsAt > now) {
+        const row = totals.get(one.plan) ?? { active: 0, mrrCents: 0 };
+        totals.set(one.plan, { active: row.active + 1, mrrCents: row.mrrCents + subscriptionMonthlyCents(one.plan, one.endsAt, now) });
+      }
+      return PLANS.filter((plan) => totals.has(plan.id)).map((plan) => ({ plan: plan.id, ...totals.get(plan.id)! }));
     },
   };
 }
@@ -313,3 +316,10 @@ export function createTagflowMemoryStore(): TagflowStore & { resetTagflow(): voi
 
 /** A weekly plan's monthly revenue: 52 weeks a year over 12 months. */
 const monthlyCents = (id: PlanId): number => { const plan = planById(id)!; return plan.interval === "week" ? Math.round((plan.priceCents * 52) / 12) : plan.priceCents; };
+/** What the SQL summary counts (migration 20261113180000): the old price, a twelfth of a year, or the month. */
+const OLD_MONTHLY_CENTS: Readonly<Record<PlanId, number>> = { weekly: 1300, monthly: 900, pro: 2900, max: 5900, unlimited: 29900 };
+function subscriptionMonthlyCents(id: PlanId, endsAt: number, now: number): number {
+  if (endsAt <= OLD_PRICE_PERIODS_END) return OLD_MONTHLY_CENTS[id];
+  const yearly = planById(id)?.yearlyCents;
+  return endsAt > now + 40 * 86_400_000 && yearly !== undefined ? Math.floor(yearly / 12) : monthlyCents(id);
+}

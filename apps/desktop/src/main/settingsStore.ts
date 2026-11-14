@@ -45,7 +45,19 @@ export function createSettingsStore(directory: string, io: {
   let recoveredFromBackup = false;
   let serial = Promise.resolve();
   const listeners: ((values: SettingsValues) => void)[] = [];
-  const encode = (values: SettingsValues): string => JSON.stringify({ version: SETTINGS_VERSION, values }, null, 2);
+  /*
+   * Full access removes every confirmation, so it must not survive a restart. It is a
+   * decision for this run: the live value changes, but the copy on disk is always written
+   * back as off, and a file that was edited to say on is read as off. That also means an
+   * assistant that found a way to edit the settings file itself cannot make the mode
+   * permanent - the next launch starts with the guard rails up.
+   */
+  const encode = (values: SettingsValues): string => {
+    const stored: SettingsValues = values["adcode.ai.fullAccess"] === true
+      ? { ...values, "adcode.ai.fullAccess": false }
+      : values;
+    return JSON.stringify({ version: SETTINGS_VERSION, values: stored }, null, 2);
+  };
 
   async function persist(values: SettingsValues, previous: SettingsValues): Promise<void> {
     await mkdir(directory, { recursive: true });
@@ -84,6 +96,8 @@ export function createSettingsStore(directory: string, io: {
         // A parallel first read may finish after a successful write initialized cache.
         if (cache !== null) return cache;
         cache = migrate({ version: stored.version, values: stored.values ?? {} }).values;
+        // Full access is session-only, whoever wrote it down.
+        cache["adcode.ai.fullAccess"] = false;
         recoveredFromBackup = file === backup;
         return cache;
       } catch { /* A copy interrupted mid-write can recover from the validated backup. */ }

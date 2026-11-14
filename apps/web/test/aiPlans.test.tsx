@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PLANS, subscriptionBlocksCheckout } from "../../../services/api/src/aiPlans.ts";
+import { PLANS, PLANS_ON_SALE, subscriptionBlocksCheckout } from "../../../services/api/src/aiPlans.ts";
 import { CodeRedeemer, PlanCards, PlanRequestError, codeMessage, planArrivalMessage, planRequest } from "../src/app/ai-tokens/Plans";
 import { BalanceSummary, checkoutArrived } from "../src/app/ai-tokens/AiTokens";
 import { UsageCampaignAdmin, campaignStatus } from "../src/components/UsageCampaignAdmin";
+import { PriceOfferAdmin, offerStatus } from "../src/components/PriceOfferAdmin";
 import { ActiveSubscribersTable, PlansAdmin, PromoAdminTable, SubscriptionSummaryTable, newResetProgress, resetEveryoneInBatches, resetHasMore, resetResultMessage } from "../src/components/PlansAdmin";
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
@@ -26,10 +27,17 @@ describe("AI plans on the website", () => {
   it("shows the real prices, daily allowances, Pro invites, and current plan", () => {
     const html = renderToStaticMarkup(<PlanCards plans={PLANS} current="monthly" busy={null} onChoose={() => undefined} />);
     expect(html).toContain("$3"); expect(html).toContain("/week");
-    expect(html).toContain("$9"); expect(html).toContain("$29"); expect(html).toContain("/month");
-    expect(html).toContain("975 credits a day"); expect(html).toContain("300 credits a day"); expect(html).toContain("$0.97 a day");
-    expect(html).toContain("Invite 2 friends"); expect(html).toContain("Current plan");
+    expect(html).toContain("$19"); expect(html).toContain("$39"); expect(html).toContain("$149"); expect(html).toContain("/month");
+    expect(html).toContain("1,190 credits a day"); expect(html).toContain("580 credits a day"); expect(html).toContain("$1.30 a day");
+    expect(html).toContain("Invite 2 friends"); expect(html).toContain("Current plan"); expect(html).toContain("Recommended");
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Builder: current plan"/);
+  });
+
+  it("shows each plan's yearly charge when yearly billing is chosen", () => {
+    const html = renderToStaticMarkup(<PlanCards plans={PLANS_ON_SALE} current={null} busy={null} billing="year" onChoose={() => undefined} />);
+    for (const yearly of ["$190", "$390", "$1,490"]) expect(html).toContain(yearly);
+    expect(html).toContain("$32.50 a month, 2 months free");
+    expect(html).toContain("Renews every year");
   });
 
   it("prevents duplicate plan purchases while a subscription or checkout is active", () => {
@@ -137,9 +145,20 @@ describe("admin plans and promotions", () => {
     const html = renderToStaticMarkup(<UsageCampaignAdmin call={async <T,>() => ({} as T)} />);
     expect(html).toContain("Start campaign"); expect(html).toContain("Days, starting now");
   });
-  it("has independently submitted allowance, promo and campaign forms and visible loading states", () => {
+  it("says whether a price offer is running, ended or absent, and offers to start one capped above cost", () => {
+    const offer = { name: "Launch offer", percent: 15, startsAt: 0, endsAt: Date.UTC(2026, 10, 27, 13) };
+    expect(offerStatus(null)).toBe("Loading…");
+    expect(offerStatus({ offer: null, active: false })).toContain("No offer is running");
+    expect(offerStatus({ offer, active: true })).toContain("Launch offer is running until 2026-11-27 13:00 UTC: every paid model is 15% off");
+    expect(offerStatus({ offer, active: false })).toContain("ended 2026-11-27 13:00 UTC");
+    const html = renderToStaticMarkup(<PriceOfferAdmin call={async <T,>() => ({} as T)} />);
+    expect(html).toContain("Start offer"); expect(html).toContain("Percent off"); expect(html).toContain('max="25"');
+    expect(html).toContain("$1.00 becomes $0.85");
+  });
+  it("has independently submitted offer, allowance, promo and campaign forms and visible loading states", () => {
     const html = renderToStaticMarkup(<PlansAdmin call={async <T,>() => ({} as T)} />);
-    expect(html.match(/<form/g)).toHaveLength(3);
+    expect(html.match(/<form/g)).toHaveLength(4);
+    expect(html).toContain("Price offer");
     expect(html).toContain("Reset daily usage"); expect(html).toContain("Boost daily allowance"); expect(html).toContain("Gift a plan");
     expect(html).toContain("Everyone"); expect(html).toContain("Loading subscriptions"); expect(html).toContain("Loading promo codes");
   });

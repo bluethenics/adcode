@@ -6,6 +6,7 @@ import {
   parsePhoneRequest,
   phoneEventFor,
   phoneMessages,
+  phoneSponsoredExchange,
   timelineFromChat,
   toolLabel,
   withUserMessage,
@@ -145,5 +146,41 @@ describe("switching the model from the phone", () => {
     expect(parsePhoneRequest({ t: "model", provider: "../x", model: "gpt" })).toBeNull();
     expect(parsePhoneRequest({ t: "model", provider: "openai", model: "" })).toBeNull();
     expect(parsePhoneRequest({ t: "model", provider: "openai", model: "a\nb" })).toBeNull();
+  });
+});
+
+describe("a sponsored card under a reply on the phone", () => {
+  const finished = {
+    items: [
+      { kind: "user" as const, text: "Make the header sticky" },
+      { kind: "tool" as const, text: "Edited header.css" },
+      { kind: "assistant" as const, text: "Done - the header now stays at the top." },
+      { kind: "user" as const, text: "And add a dark mode toggle" },
+      { kind: "tool" as const, text: "Edited theme.ts" },
+      { kind: "assistant" as const, text: "Added a toggle in the header." },
+    ],
+    running: false,
+    activity: "",
+  };
+
+  it("is chosen from the last message and its finished reply, with that message's turn", () => {
+    expect(phoneSponsoredExchange(finished, true)).toEqual({ request: "And add a dark mode toggle", response: "Added a toggle in the header.", turn: 2 });
+  });
+
+  it("is never asked for while the computer has sponsored cards off, or on an older computer", () => {
+    expect(phoneSponsoredExchange(finished, false)).toBeNull();
+    expect(phoneSponsoredExchange(finished, undefined)).toBeNull();
+  });
+
+  it("waits until the reply has finished", () => {
+    expect(phoneSponsoredExchange({ ...finished, running: true }, true)).toBeNull();
+    const streaming = { ...finished, items: [...finished.items.slice(0, -1), { kind: "assistant" as const, text: "Adding", open: true }] };
+    expect(phoneSponsoredExchange(streaming, true)).toBeNull();
+  });
+
+  it("has nothing to show for a message still waiting for its reply, or a reply to nothing", () => {
+    expect(phoneSponsoredExchange({ ...finished, items: [...finished.items, { kind: "user", text: "One more thing" }] }, true)).toBeNull();
+    expect(phoneSponsoredExchange({ items: [{ kind: "assistant", text: "Hello" }], running: false, activity: "" }, true)).toBeNull();
+    expect(phoneSponsoredExchange(null, true)).toBeNull();
   });
 });

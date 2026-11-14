@@ -61,7 +61,7 @@ const INSTALL_FAQ: readonly { q: string; a: string }[] = [
   },
   {
     q: "Is ADCode free to download?",
-    a: `Yes. The editor is free with no subscription or trial expiry. Sponsored cards help fund it, and half of eligible ad revenue is credited to you. AI is pay as you go: ${PAYG_SUMMARY}. None of it is required to use the editor.`,
+    a: `Yes. The editor is free, with no trial expiry. Sponsored cards help fund it, and half of eligible ad revenue is credited to you. AI pricing: ${PAYG_SUMMARY}. None of it is required to use the editor.`,
   },
   {
     q: "Is it safe to install ADCode?",
@@ -98,7 +98,7 @@ export default async function VersionsPage() {
           <Buck mood="greeting" size={80} interactive greet="dancing" hoverMood="proud" reactTo=".public-glass-hero" label="Buck, ready to be installed. Tap him." />
           <span className="glass-kicker">ADCode desktop · free AI code editor</span>
           <h1>Download ADCode</h1>
-          <p>The editor is free, with no account needed to start. Paid AI models are pay as you go, with no subscription. Windows installs from the Microsoft Store; Linux has a .deb and an AppImage.</p>
+          <p>The editor is free, with no account needed to start. For AI beyond the free models, pick a plan or pay as you go. Windows installs from the Microsoft Store; Linux has a .deb and an AppImage.</p>
           {latest !== null && <small>Latest release · {latest.version} · <time dateTime={latest.published}>{latest.published}</time></small>}
         </header>
 

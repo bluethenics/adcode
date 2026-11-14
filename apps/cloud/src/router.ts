@@ -82,6 +82,9 @@ export function relayOrigin(env: Env): string {
   return env.PHONE_RELAY_ORIGIN ?? "https://projects.bluethenics.com";
 }
 
+/** Where the sponsored card page lives (apps/web /sponsored/chat); it allows this host to embed it. */
+export const SPONSORED_CARD_ORIGIN = "https://adcode.bluethenics.com";
+
 /** ADCode Remote, the Phone link page: its own small app under /phone/, never a soft 404. */
 export function isPhonePage(pathname: string): boolean {
   return pathname === "/phone/" || pathname === "/phone/index.html";
@@ -99,7 +102,9 @@ export function contentSecurityPolicy(env: Env, includeLegacySchema = false): st
     "worker-src 'self' blob:",
     // The relay is Phone link's: the /phone page talks to the person's own computer through it.
     `connect-src 'self' wss://${env.APP_HOST} ${relayOrigin(env)} ${relayOrigin(env).replace(/^https:/, "wss:")} https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com`,
-    `frame-src ${previews} https://${env.FIREBASE_AUTH_DOMAIN} https://accounts.google.com`,
+    // adcode.bluethenics.com: the sponsored card under a reply on the /phone page, a sandboxed
+    // page of ADCode's own site where Zeekend's code runs instead of here.
+    `frame-src ${previews} https://${env.FIREBASE_AUTH_DOMAIN} https://accounts.google.com ${SPONSORED_CARD_ORIGIN}`,
     "manifest-src 'self'",
     "object-src 'none'",
     "base-uri 'none'",

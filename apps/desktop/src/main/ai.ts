@@ -143,6 +143,7 @@ import { ASSISTANT_EXTENSION_TOOLS, bridgeAppTools, offeredAppTools, withAssista
 import { memoryForWorkspace } from "./memory.ts";
 import { currentSettings, writeSetting } from "./settings.ts";
 import { confirmInWindow } from "./themedConfirm.ts";
+import { fullAccessApplies, isFullAccessOn, runAgentTurn } from "./fullAccess.ts";
 import { describeDebugContext, recordDebug } from "./debugLog.ts";
 import { agentRulesContext, agentSessionStart, agentStopHooks, withAgentRules } from "./agentRules.ts";
 import { currentWorkspace } from "./workspace.ts";
@@ -187,7 +188,7 @@ import { toAiAutomationView } from "./aiAutomationViews.ts";
 import { askOllama, localModels, startOllama } from "./localModels.ts";
 import { cliModels, detectCliAgents, forgetCliModels, spawnCli } from "./cliAgents.ts";
 import { claudeToolBridge } from "./toolBridge.ts";
-import { AUDIT_PAGE, CLI_AGENTS, OPEN_PREVIEW, VIEW_PAGE, cliAgentFor, cliProviderId, createCliProvider } from "@adcode/ai";
+import { AUDIT_PAGE, CLI_AGENTS, DEFERRED_TOOL_NAMES, OPEN_PREVIEW, VIEW_PAGE, cliAgentFor, cliProviderId, createCliProvider } from "@adcode/ai";
 import { apiBaseUrl } from "./backend.ts";
 import { buildTagflowProvider, refreshTagflowModels, tagflowCatalogue, tagflowDefaultModel } from "./tagflowAi.ts";
 import { recordModelOutcome } from "./modelOutcomes.ts";
@@ -651,14 +652,25 @@ async function ensureToolWorkspace() {
   return { taskId: "", sandboxRoot: human, humanRoot: human };
 }
 
-/** Automatic unless the user chose Review: edits land as the assistant works, undoable per turn. */
-function configuredEditPolicy(): "review" | "trusted" {
-  return currentSettings()["adcode.ai.editPolicy"] === "review" ? "review" : "trusted";
+/** Full access is switched on and this work is one of ADCode's own agent turns. */
+function fullAccessActive(): boolean {
+  return fullAccessApplies(currentSettings());
 }
 
-/** Review mode stages a turn's edits in one task for Apply: one chat at a time there. */
+/**
+ * Automatic unless the user chose Review: edits land as the assistant works, undoable per
+ * turn. Full access wins over Review, because Review is a permission gate like any other.
+ */
+function configuredEditPolicy(): "review" | "trusted" {
+  return currentSettings()["adcode.ai.editPolicy"] === "review" && !fullAccessActive() ? "review" : "trusted";
+}
+
+/**
+ * Review mode stages a turn's edits in one task for Apply: one chat at a time there.
+ * Full access outranks Review even when this is read outside a turn (a manual fork, say).
+ */
 function maxParallelChats(): number {
-  return configuredEditPolicy() === "review" ? 1 : MAX_PARALLEL_CHATS;
+  return currentSettings()["adcode.ai.editPolicy"] === "review" && !isFullAccessOn(currentSettings()) ? 1 : MAX_PARALLEL_CHATS;
 }
 
 // The debug log names the selected provider and model - ids only, never keys.
@@ -1118,7 +1130,7 @@ export async function buildProvider(
     let sessions = cliSessions.get(cli.id);
     if (sessions === undefined) cliSessions.set(cli.id, sessions = new Map());
     const listedModels = await cliModels(cli, homedir());
-    return createCliProvider({ spec: cli, models: listedModels.map((model) => model.id), modelEfforts: Object.fromEntries(listedModels.filter((model) => model.efforts !== undefined).map((model) => [model.id, model.efforts!])), spawn: spawnCli, cwd: () => currentWorkspace()?.root ?? homedir(), sessions, mcp: claudeToolBridge });
+    return createCliProvider({ spec: cli, models: listedModels.map((model) => model.id), modelEfforts: Object.fromEntries(listedModels.filter((model) => model.efforts !== undefined).map((model) => [model.id, model.efforts!])), spawn: spawnCli, cwd: () => currentWorkspace()?.root ?? homedir(), sessions, mcp: claudeToolBridge, bypassPermissions: () => fullAccessActive() });
   }
   const key = offeredKey ?? (KEYLESS.has(id) ? "" : ((await keys.get(id)) ?? ""));
   const paced = (provider: Provider) => requestScheduler.wrap(provider, id, () => connections().find(item => item.id === id)?.rpm ?? 6000);
@@ -1804,7 +1816,7 @@ async function ensureChatAgent(thread: ChatThread, providerId: string, model: st
       }
       return [
         collabIsJoined() ? "You are in a shared GitHub project. File tools run on the host workspace. Always use project-relative paths and read the current host file before editing. Other people and agents may edit concurrently. Commands, memory and external tools are unavailable to guests; ask the host to run checks and review commits." : null,
-        aiWorkspaceContext(root, blocker, thread.editorContext, configuredEditPolicy() === "review" ? "review" : "direct"),
+        aiWorkspaceContext(root, blocker, thread.editorContext, configuredEditPolicy() === "review" ? "review" : "direct", fullAccessActive()),
         // In a live room, every member's assistant works from the same picture of it.
         ...(liveRoomContext() === "" ? [] : [liveRoomContext()]),
         lean && root !== null ? await projectFilesHint(root) : null,
@@ -1868,6 +1880,8 @@ async function ensureChatAgent(thread: ChatThread, providerId: string, model: st
     model,
     tools,
     lean: () => lean,
+    // The rarely used tools travel as one line each until the model loads them (toolLoading.ts).
+    ...(lean ? {} : { deferredTools: DEFERRED_TOOL_NAMES }),
     effort: configuredEffort(),
     ...outputBudget(providerId, model),
     compaction: compactionFor(providerId, model),
@@ -1983,6 +1997,18 @@ export async function aiSend(
   attachments: readonly AiAttachmentView[] = [],
   editor: AiEditorContextView | null = null,
   sessionId?: string,
+): Promise<boolean> {
+  // Everything this message causes - model calls, tools, helper agents, confirmations -
+  // runs inside one agent turn. That scope is the only place full access can answer a
+  // dialog on the person's behalf; the tool bridge and app startup stay outside it.
+  return runAgentTurn(() => sendMessage(text, attachments, editor, sessionId));
+}
+
+async function sendMessage(
+  text: string,
+  attachments: readonly AiAttachmentView[],
+  editor: AiEditorContextView | null,
+  sessionId: string | undefined,
 ): Promise<boolean> {
   let chat: ChatSession;
   if (sessionId !== undefined) {
@@ -2464,7 +2490,12 @@ export function aiCancelCompletion(requestId: number): void {
  * configured plans cannot reach a provider merely by existing.
  */
 export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
-  return async (input) => {
+  // A Team role is an ADCode-started agent run too, so full access covers its confirmations
+  // exactly while the role is working - and stops covering them when the person switches it off.
+  return (input) => runAgentTurn(() => runTeamNode(input));
+}
+
+async function runTeamNode(input: Parameters<AiTeamNodeRunner>[0]) {
     const provider = await buildProvider(input.route.providerId,undefined,"agent",input.context.role.id);
     if (provider === null) throw new Error(`No connection for ${input.route.providerId}`);
     const service = await readyAiWorkspaceService();
@@ -2535,6 +2566,8 @@ export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
       "If the work has more than two steps, post your plan with update_plan and keep it current.",
       "Report only what your tool results show: never claim a check passed, a file changed or something works, and never claim ADCode lacks a feature, without a result that says so.",
       "Before you finish, prove it works: run the project's own checks that apply - its tests, type checker or linter (look in package.json or the equivalent) - with run_command, and fix any failure you caused. If there are none, say so plainly.",
+      // Without this a role keeps waiting for a dialog that full access has already answered.
+      ...(fullAccessActive() ? ["Full access is on for this run: the user authorised guarded actions, so do the work instead of asking for permission. Capabilities they switched off, destructive shell commands, and password or card fields are still refused."] : []),
     ];
     const teammates = roles.filter((role) => role.id !== input.context.role.id);
     // Read once per run: an agent's tools are fixed when it starts.
@@ -2650,7 +2683,6 @@ export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
     } finally {
       live({ kind: "end", ok: liveOk });
     }
-  };
 }
 
 async function routeCurrentTeamModel(team: Parameters<import("./aiTeamCoordinator.ts").AiTeamCoordinatorOptions["resolveRoute"]>[0], node: Parameters<import("./aiTeamCoordinator.ts").AiTeamCoordinatorOptions["resolveRoute"]>[1]) {
@@ -2707,7 +2739,9 @@ async function settleSoloRun(id: string, coordinator: AiTeamCoordinator): Promis
     if (finished.plan.kind !== "solo" || finished.state !== "review") return;
     // A race is decided by comparing its lanes; none of them lands on its own.
     if (finished.plan.group !== undefined) return;
-    if (currentSettings()["adcode.ai.editPolicy"] === "review") return;
+    // This runs after the agent's turn has ended, so the turn-scoped check would say no;
+    // full access still outranks Review, which is what the person asked for.
+    if (currentSettings()["adcode.ai.editPolicy"] === "review" && !isFullAccessOn(currentSettings())) return;
     const taskId = finished.merge.combinedTaskId;
     if (taskId === null) return;
     const changes = await aiWorkspaceChanges(taskId);

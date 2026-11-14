@@ -56,8 +56,6 @@ export interface SettingsViewDeps {
     value: SettingValue,
   ) => Promise<Record<string, SettingValue>>;
   readonly reset: () => Promise<Record<string, SettingValue>>;
-  /** Projected hourly earnings per frequency preset, from the server (deviation D1). */
-  readonly projections?: () => Record<string, string> | null;
   /** How to connect an external agent to the shared memory (§5.2). */
   readonly mcpConnection?: () => Promise<McpConnectionInfo>;
 }
@@ -433,7 +431,13 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
       values = updated;
       if (rerender) renderBody();
       markSave(settingId, "saved");
-    }, () => markSave(settingId, "failed"));
+    }, () => {
+      // The control moved because it was clicked, not because the value was stored. Rebuild
+      // from what is actually on disk, then say it did not save - a switch that stays flipped
+      // after a failed write claims something that is not true.
+      renderBody();
+      markSave(settingId, "failed");
+    });
   }
 
   function rowFor(setting: Setting): HTMLElement {
@@ -531,25 +535,9 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
         ),
       );
     } else {
-      // §8.1: show projected hourly earnings beside each frequency option. The figure is
-      // computed by the server and selected here - the client never multiplies money.
-      const projections =
-        setting.id === "adcode.ads.frequency"
-          ? (deps.projections?.() ?? null)
-          : null;
-
-      const options = setting.options.map((option) => ({
-        value: option.value,
-        label: option.label,
-        detail:
-          projections !== null && projections[option.value] !== undefined
-            ? `${projections[option.value]}/hr`
-            : option.detail,
-      }));
-
       row.classList.add("settings-row-stacked");
       row.append(
-        segmented(options, String(current), !setting.available, (next) => {
+        segmented(setting.options, String(current), !setting.available, (next) => {
           save(setting.id, next, true);
         }),
       );

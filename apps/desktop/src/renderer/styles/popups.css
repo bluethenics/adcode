@@ -90,9 +90,7 @@
 .earnings-balance-label { color: var(--text-secondary); font-size: var(--text-xs); font-weight: 600; }
 .earnings-body .earnings-hero { padding: 18px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--bg-editor); }
 .earnings-body .earnings-facts { padding: 10px 12px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--bg-editor); }
-.earnings-body .earnings-section { padding: 12px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--bg-editor); }
 .earnings-body .earnings-facts:empty { display: none; }
-.earnings-empty { margin: 8px 0 0; color: var(--text-secondary); font-size: var(--text-xs); line-height: 1.5; }
 
 .structure-tab {
   padding: 7px 14px 9px;

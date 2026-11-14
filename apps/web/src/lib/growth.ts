@@ -59,6 +59,9 @@ export interface Growth {
   paidOutMicros: bigint | null;
   /** Seen in the window at least a day after sign-up. Null from an older API. */
   returning1d: number | null;
+  /** Of `adsShown`, the cards Zeekend served (counted since 13 Nov 2026); null from an older API. */
+  networkAdsShown: number | null;
+  networkAdsShown7d: number | null;
   returning7d: number | null;
   cohorts: GrowthCohort[];
   funnel: GrowthFunnel | null;
@@ -138,6 +141,8 @@ export function parseGrowth(value: unknown): Growth | null {
     ...counts,
     accounts: isCount(data.accounts) ? data.accounts : null,
     returning1d: isCount(data.returning1d) ? data.returning1d : null,
+    networkAdsShown: isCount(data.networkAdsShown) ? data.networkAdsShown : null,
+    networkAdsShown7d: isCount(data.networkAdsShown7d) ? data.networkAdsShown7d : null,
     returning7d: isCount(data.returning7d) ? data.returning7d : null,
     cohorts,
     funnel,

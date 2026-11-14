@@ -35,3 +35,70 @@ body:has(.sponsored-chat) main {
   display: flow-root;
   padding: 0;
 }
+
+/*
+ * The ad box above the message box (layout "banner"): one tinted box, the product's picture,
+ * headline with Zeekend's disclosure, one line of copy, and a button - the whole box is the
+ * link. The tint is the same in both themes, so the ad reads as an ad and never as a message.
+ */
+.sponsored-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 64px;
+  margin: 0;
+  padding: 10px 12px;
+  box-sizing: border-box;
+  border: 1px solid rgb(60 110 70 / .28);
+  border-radius: 12px;
+  background: #c2dfb8;
+  color: #17251a;
+  font: 14px/1.35 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  text-decoration: none;
+  overflow: hidden;
+  transition: background-color 160ms ease;
+}
+.sponsored-banner:hover { background: #b8d9ad; }
+.sponsored-banner:focus-visible { outline: 2px solid #17251a; outline-offset: 2px; }
+.sponsored-banner-image {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 9px;
+  object-fit: cover;
+  background: #fff;
+}
+.sponsored-banner-text { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+.sponsored-banner-title { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.sponsored-banner-headline {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 600;
+}
+.sponsored-banner-disclosure { flex: none; color: #4b5f4f; font-size: 12px; }
+.sponsored-banner-body {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #3b4d3f;
+  font-size: 13px;
+}
+.sponsored-banner-cta {
+  flex: none;
+  padding: 9px 16px;
+  border-radius: 9px;
+  background: #1b221d;
+  color: #f4f7f2;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+@media (max-width: 420px) {
+  .sponsored-banner { gap: 10px; padding: 8px 10px; }
+  .sponsored-banner-image { width: 38px; height: 38px; }
+  .sponsored-banner-cta { padding: 8px 12px; font-size: 13px; }
+}
+@media (prefers-reduced-motion: reduce) { .sponsored-banner { transition: none; } }

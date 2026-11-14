@@ -63,8 +63,8 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Choose the user's payout in dollars per verified view and click. Save the connection disabled, then save its API key separately. The saved key cannot be read back.",
       "Use Test to check a preview. A preview creates no user delivery or payout. Enable a generic connection after its delivery and event-verification formats are correct. Lower priority numbers are tried first; direct campaigns take priority.",
       "For beehiiv, supply the publication ID and offer ID, save the API key, and test the newsletter content preview. This endpoint supplies newsletter content, not desktop delivery or verified earnings.",
-      "When Imprezia sends the production key, paste it into the Imprezia partner ads panel at the top of the page and press Save key and go live. ADCode creates the Imprezia connection if there is none, encrypts the key and turns delivery on at once. The panel then reads Live. A sandbox key (api_pub_sandbox_…) is refused there, because it serves test ads that earn nothing; the table's Status column also says which kind of key is saved.",
-      "For Imprezia, choose Add Imprezia Chat Ads, save the publisher API key, then Test the saved connection. The preview runs Imprezia's SDK with a sample conversation, including while the connection is disabled. Turn on sponsored chat cards after testing. From ADCode 2.5.1 the setting is on for everyone who has not switched sponsored messages off, and each person can turn it off in Settings; their message and reply go through ADCode's server relay to Imprezia. The SDK handles ad requests, rendering, clicks and view measurement. Imprezia does not fill the native desktop sponsored card. Sandbox ads never pay users, and SDK cards do not automatically credit ADCode user balances. Imprezia's reports record provider revenue.",
+      "When Zeekend sends the production key (pub_live_…), paste it into the Zeekend partner ads panel at the top of the page and press Save key and go live. ADCode creates the Zeekend connection if there is none, encrypts the key and turns delivery on at once. The panel then reads Live. Test keys (pub_test, pub_sandbox, pub_demo) are refused there, because their placements earn nothing.",
+      "Zeekend is ADCode's only ad partner: it fills the card under AI replies, sponsored notifications when no direct campaign has one, and the card under replies on Phone link. Zeekend's SDK handles requests, rendering, clicks and view measurement on adcode.bluethenics.com, never inside the editor. Its dashboard's pacing (first turn, turn gap, per-session cap) applies on top of each person's Frequency. Imprezia connections may stay saved, but ADCode no longer asks Imprezia for any card.",
     ],
     benefits: ["Provider credentials stay on the server and are encrypted in storage.", "Payout amounts are fixed when an ad is served, and duplicate provider events cannot pay twice.", "Existing sponsored-message preferences and direct campaigns still control delivery."],
     betterThan: "A configurable JSON connection lets administrators integrate compatible providers without changing the app for each response format. It still requires the provider's real API contract; an arbitrary API key cannot make incompatible services work.",
@@ -777,14 +777,16 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     steps: [
       "From ADCode 2.5.1 it is on, unless you switched sponsored messages off. The app says so once in a card at the bottom right, with a Turn off button.",
       "To turn it off or back on, open Settings, choose Ads, and switch Sponsored notifications from ADCode's ad partner. Sponsored messages must be on as well.",
-      "Keep working. When a sponsored message is due and no ADCode advertiser has one for you, the desktop app asks ADCode's ad partner, Imprezia, telling it only the names of the languages and frameworks you have open.",
-      "If Imprezia has a card, it slides in at the top right like any sponsored message. Hover it to pause the countdown; close it with the X. Clicking the card opens your browser.",
-      "If Imprezia has nothing, nothing appears, and that moment does not count toward your daily limit.",
+      "Keep working. When a sponsored message is due and no ADCode advertiser has one for you, the desktop app asks Zeekend, ADCode's ad partner, telling it only the names of the languages and frameworks you have open.",
+      "If Zeekend has a card, it slides in at the top right like any sponsored message. Hover it to pause the countdown; close it with the X. Clicking the card opens your browser.",
+      "The next one follows as soon as your Frequency allows - every 5 minutes on Max, 10 on Standard, 30 on Light - with no extra wait in between. Change the pace in Settings > Ads > Frequency.",
+      "If Zeekend has nothing, nothing appears, that moment does not count toward your daily limit, and ADCode asks again about 20 seconds later.",
       "To stop, switch it off in the same place. The next empty moment asks nobody.",
     ],
     benefits: [
-      "No more interruptions than before: it uses the same schedule, daily limit and quiet times as every sponsored message, and only fills moments that would otherwise be empty.",
-      "ADCode advertisers always come first; the partner only fills what they leave.",
+      "Cards arrive back to back at the pace you picked, not whenever a timer happens to fire: the app wakes the moment the next slot opens.",
+      "No more interruptions than you chose: it uses the same schedule, daily limit and quiet times as every sponsored message, and only fills moments that would otherwise be empty.",
+      "ADCode advertisers always come first; Zeekend only fills what they leave.",
       "Only language and framework names are sent - never file names, paths, code, prompts or project names.",
       "The card is a separate, walled-off page from adcode.bluethenics.com, so the ad partner cannot reach your files or the editor.",
     ],
@@ -796,14 +798,16 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     steps: [
       "From ADCode 2.5.1 it is on, unless you switched sponsored messages off. The app says so once in a card at the bottom right that lists what is sent, with Turn off, Settings and OK.",
       "To turn it off or back on, open Settings, choose Ads, and switch Sponsored cards under AI replies. Sponsored messages must be on as well.",
-      "Ask the assistant something in the desktop app. When it finishes answering, ADCode asks its ad partners for one card: Zeekend first, then Imprezia if Zeekend has nothing. Each receives your message and its reply to pick a sponsored card for that conversation, or none.",
-      "If there is a card, it appears under the reply. Clicking it opens your browser; the editor itself never navigates.",
+      "Ask the assistant something in the desktop app. When it finishes answering, ADCode asks Zeekend, its only ad partner, for one card. Zeekend receives your message and the reply to pick a sponsored card for that conversation, or none.",
+      "The card sits in a box just above the message box: picture, name, Zeekend's Sponsored label, one line and a button. It changes to a fresh card every 30 seconds while the window is on screen, and right after each reply. Clicking it opens your browser; the editor itself never navigates.",
+      "Every Zeekend card you are shown credits $0.002 to your earnings, once per card, up to 300 cards ($0.60) a day.",
+      "On your phone, with Phone link on, a card can appear under the computer's reply in the same way.",
       "To stop, switch it off in the same place. The next reply sends nothing.",
     ],
     benefits: [
       "A card about what you are actually asking, rather than one picked from the language you have open.",
-      "Nothing else from your project is sent: no other files, file paths or project names, and only the start of your message and of the reply (Zeekend takes 2,000 and 4,000 characters, Imprezia 4,000 of each).",
-      "One card per reply at most, from whichever partner has one: never two ads stacked under an answer.",
+      "Nothing else from your project is sent: no other files, file paths or project names, and only the start of your message and of the reply (Zeekend takes 2,000 and 4,000 characters).",
+      "One card per reply at most: never two ads stacked under an answer.",
       "The card is a separate, walled-off page from adcode.bluethenics.com, so the ad partner and its measurement partners cannot reach your files or the editor.",
       "No API key ships in the app: the administrator saves each partner's key on ADCode's server and can switch either partner off.",
     ],
@@ -1168,6 +1172,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     ],
     benefits: [
       "A long conversation never dies at the model's limit - it keeps going for as long as the work does.",
+      "Fewer tokens per task before compaction is ever needed: stale file reads are sent as a one-line note, and the editor's context is held for the whole message so the provider's cache keeps hitting. On a measured 23-step task that is about 44% fewer billed input tokens, and one message can run 100 steps.",
       "No re-explaining: reopening a chat or switching model keeps what the assistant knew.",
       "The summary is readable and saved with the conversation, so you can see exactly what the assistant carries forward.",
       "Long Agents-board runs compact the same way instead of stopping halfway through a big task.",
@@ -1199,19 +1204,21 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Type an address or a search into the bar and press Enter. Ctrl+T opens another tab, Ctrl+W closes one, Ctrl+L jumps to the address bar and Ctrl+R reloads.",
       "Sign in to the sites you use, as you would in any browser. Sign-ins are remembered between launches and are kept apart from your everyday browser.",
       "Hand a web task to the assistant in plain words: \"open the Cloudflare dashboard and find my zone ID\", \"read the Stripe webhook docs and summarise the signature check\".",
-      "Watch it work. The panel comes forward, a green outline and an Assistant is browsing label show while it acts, and every step appears in the chat.",
-      "Take over whenever you like: click into the page and carry on. Type any password or card number yourself; the assistant is told never to.",
+      "Ask for work with more than one step in it: \"find five dental clinics in Leeds, open each site, note the practice email, then write and send a short introduction from my Gmail\". It batches the clicks, typing and page reads and repeats the pattern for each company.",
+      "Watch the pointer. A blue ADCode cursor moves across the page in a curve, dips when it clicks, pulses where the press lands, scrolls, holds and drags; typing appears key by key. It tracks the assistant's real clicks and keys, so the page reacts exactly as it would to your hand.",
+      "Take over whenever you like: click into the page and carry on. Type any password or card number yourself; the assistant refuses those fields.",
       "To sign out of everything at once, run Browser: Sign Out of Everything and Clear Its Data.",
       "To keep the Browser to yourself, switch off Let the assistant use the Browser in Settings, under Assistant."
     ],
     benefits: [
       "Docs, dashboards and your deployed site sit beside the code instead of in another window.",
       "The assistant can finish tasks that need the web, in a tab you can see, rather than describing clicks for you to make.",
-      "It reads a page as its real buttons, links and fields, so it acts on what is there instead of guessing at selectors.",
+      "It reads a page as its real buttons, links and fields, so it acts on what is there instead of guessing at selectors - and can also point at a place on the screenshot when a control has no accessible name.",
+      "Repeated work is one request: a batch can carry a whole form or email, and the same instructions can be run for each company, lead or order.",
       "Downloads, pop-up windows, and camera, microphone and location requests are refused; pages can only be web addresses.",
       "Links in chat replies open here, one click from the answer that mentioned them."
     ],
-    betterThan: "Agent browsers usually run somewhere you cannot see, signed out, and report back a summary. Embedded browsers in editors are usually for people only. This is one tab for both: you are signed in, the assistant acts in front of you, and you can stop it by clicking. The trade-off is honest too - it is not a download manager or a replacement for your main browser, and it has no extensions.",
+    betterThan: "Agent browsers usually run somewhere you cannot see, signed out, and report back a summary. Embedded browsers in editors are usually for people only. This is one tab for both: you are signed in, the assistant acts in front of you with a cursor you can follow, and you can stop it by clicking. The trade-off is honest too - it is not a download manager or a replacement for your main browser, and it has no extensions.",
   },
 
   "browser-agent-control": {
@@ -1223,14 +1230,36 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     ],
     benefits: [
       "One switch decides whether an assistant can act in tabs that hold your sign-ins.",
+      "With it on you can watch every move: a blue cursor travels, clicks, scrolls, holds, drags and types key by key, and a whole form or repeated outreach can run as one batch.",
       "Turning it off costs nothing else: page checks of your own app keep working."
     ],
     betterThan: "Most tools that let an AI browse give you a single on/off for the whole feature. Here checking your own app and acting on the open web are separate, so you can keep the first and refuse the second.",
   },
 
+  "ai-full-access": {
+    steps: [
+      "Open the chat and click the approval pill at the foot of the message box - it reads Auto or Review. Under Permissions, choose Full access.",
+      "Read the card that appears: it lists the questions that stop being asked - starting a connector's program, enabling its tools or removing it, changing guarded settings, running the project's approval-gated hooks, creating an agent plan, and applying edits even in Review. Press Turn on full access, or Cancel.",
+      "A red shield appears at the bottom of the message box and the pill reads Full access. Send the job as usual; the assistant works through those steps without stopping for a dialog.",
+      "If the chat is answered by a connected coding CLI - Claude Code or Codex - that CLI also runs with its own permission questions off for those turns (Claude Code's bypass mode, Codex's bypass-approvals-and-sandbox mode). That turn has the CLI's full machine access; ADCode's own deny rules and hard blocks still apply to its own tools.",
+      "Watch the result instead of the dialogs: the live timeline still shows every tool call and its output, and Undo still takes back a turn's file edits.",
+      "To stop at any moment, click the red shield at the bottom of the message box (or click the pill and choose it). The next guarded action asks again; a turn already running does not need to be restarted.",
+      "Prefer Settings? Open Settings, choose Assistant, and switch Full access mode on or off there. It is off by default, it is session-only - closing ADCode turns it off and the next launch starts with it off - the assistant cannot change it, and the tool bridge never inherits it."
+    ],
+    benefits: [
+      "A long setup - connect a server, start it, enable its tools, change two settings - becomes one request instead of five approvals.",
+      "Works through a connected coding CLI's own permission system too: Claude Code and Codex stop asking their own questions for the turn, not just ADCode's dialogs.",
+      "Files still apply with a per-turn Undo, and the Browser still refuses password and card fields.",
+      "The mode is always visible: a red shield at the bottom of the composer and a red Full access pill, so it cannot be left on by accident.",
+      "Leaving is one click, with no confirmation dialog, and takes effect immediately even mid-turn.",
+      "The assistant cannot grant itself full access: its own action tool refuses that setting outright."
+    ],
+    betterThan: "A global \"trust every tool\" switch in other agents is often invisible, persists across restarts and applies to everything on the machine. ADCode's full access is explicit, shown for as long as it is on, limited to ADCode's own chat and agent runs, never inherited by other programs through the tool bridge, and impossible for the model to switch on. The trade-off is honest: you are giving up the confirmation step - and through a connected coding CLI, its own permission questions too - so the live timeline and Undo are what you have left to check the work.",
+  },
+
   "ai-move-in": {
     steps: [
-      "Run Move In from the command palette, or choose Bring your accounts and chats on the welcome screen.",
+      "On an empty conversation, press Import from other apps under the greeting; an empty conversation list has the same button. It opens Move in. You can also run Move In from the command palette or choose Import from other apps on the welcome screen.",
       "Under Your AI accounts, find the tools you already pay for: Claude Code, Codex (your ChatGPT account), OpenCode, Gemini CLI, Freebuff.",
       "Press Use in ADCode on an installed one. It becomes a model in ADCode's chat, answering with its own subscription. Press Sign in or Install to open a terminal with the right command if it is not ready; then Check again.",
       "Under Your conversations, press Scan this computer. ADCode looks only in the folders Claude Code, Codex and OpenCode keep their sessions in.",
@@ -1356,6 +1385,24 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     ],
     betterThan:
       "Agent lists in other tools are rows of identical text. A face that changes with the work tells you where to look first.",
+  },
+
+  "appearance-mascots": {
+    steps: [
+      "In ADCode, open Settings, choose Appearance, and switch Mascots. Off hides Buck and the agents' faces everywhere and keeps the words beside them.",
+      "To keep them but stop them moving, set Motion to Reduce instead.",
+      "On adcode.bluethenics.com, Buck waits in the bottom corner. Tap him for the page's tip, then choose Ask Buck.",
+      "Type a short question about plans, credits or what is free, and press Ask. Buck answers in a sentence or three; Answered with Tagflow AI under a reply says it came from Tagflow's model rather than his built-in answers.",
+      "On the Pricing page, the Ask Buck buttons above the questions hand him a common question in one tap.",
+      "Close ends the conversation. Tuck Buck away leaves just the top of his head showing on that browser; tap it to bring him back.",
+    ],
+    benefits: [
+      "A quick answer about plans and credits without searching the page or writing to support.",
+      "Buck only quotes the prices the site itself shows, and says so when he does not know.",
+      "Nothing to install and no account needed to ask; your question is not tied to you.",
+    ],
+    betterThan:
+      "Most pricing pages either leave you to read the small print or open a sales chat that wants your email first. Buck answers in place, from the same price tables the page renders, and points you to the docs or support when a question goes beyond them.",
   },
 
   "ai-parallel-agents": {
@@ -1663,12 +1710,14 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
   "ai-buy-tokens": {
     steps: [
       "Open adcode.bluethenics.com/ai-tokens, or run AI: Buy AI Credits in ADCode, and sign in with the same account you use in the editor.",
-      "Check your billing country (two letters, like US or IN) and choose $10, $20, $50 or $100. Dodo shows the final amount, with any tax, before you pay.",
+      "Check your billing country (two letters, like US or IN), then press $10, $20, $50 or $100, or type any whole amount from $5 to $1,000 and press Add. The Pricing page has the same box with a slider; its Add button brings you here with the amount filled in and opens checkout once you are signed in. Dodo shows the final amount, with any tax, before you pay.",
       "Back on the page, your credits show within seconds of payment. A task that paused for credits carries on when you send your next message.",
       "Pick any paid model in the model picker; its price per million tokens is shown beside it, and on the pricing page.",
+      "When a price offer is running, the pricing page and AI credits say so, and the site header shows it. Every listed price is then the offer price, with the regular price struck through beside it, and each request you make before the offer's end date is charged that lower price.",
       "Watch your balance and every charge on the same page. Credits never expire, and nothing renews.",
     ],
     benefits: [
+      "Pay exactly the amount you want, from $5 to $1,000, instead of the nearest pack.",
       "Pay only for what each request used: the maximum is held while it runs and the rest is released.",
       "One balance for every paid model, Heabsy's included, with no provider account or API key.",
       "Tagflow AI stays free, so credits are only ever for the models you choose.",
@@ -1677,18 +1726,22 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
   },
   "ai-plans": {
     steps: [
-      "Plans ended on 6 November 2026. If you had one, open adcode.bluethenics.com/ai-tokens with the same account: it says until when your plan still covers every model.",
-      "Until that date, use any model as before; nothing is charged. Your plan does not renew.",
-      "After it, Tagflow AI stays free and every other model uses USD credits: add them on the same page from $10.",
-      "Unused credits from one-time packs were added to your USD credits at the price you paid; your balance shows them.",
-      "To redeem a promo code, enter it in the promo-code box on the same page and select Redeem.",
+      "Open adcode.bluethenics.com/pricing, or run AI: Upgrade Plan in ADCode.",
+      "Not sure which plan? Move the slider under the plans to how much you build on a typical day, and the page names the smallest plan that covers it. You can also ask Buck in the corner.",
+      "Where yearly billing is offered, choose Monthly or Yearly at the top of the plans. Yearly is ten months' price for twelve months, shown as the amount charged today.",
+      "Press Get Builder ($19 a month, 580 credits a day), Get Pro ($39, 1,190) or Get Max ($149, 4,500). Sign in with the same account you use in the editor if asked; checkout opens by itself.",
+      "Enter your billing country and pay on Dodo's page, which shows the amount and any tax first. Back on AI credits, your plan shows as soon as payment is confirmed.",
+      "Use any hosted model, premium ones included. Your daily credits refill every day; requests pause at the allowance and continue at the refill, never with an overage bill.",
+      "To change or cancel, open AI credits and press Manage subscription. A cancelled plan keeps working until the end of the period you paid for.",
+      "To redeem a promo code, enter it in the promo-code box on AI credits and select Redeem.",
     ],
     benefits: [
-      "No subscription to manage: nothing renews and nothing is charged automatically.",
-      "What you already paid for is honoured to the last day, on every model.",
-      "Every model's price is public, so you know what a request costs before you send it.",
+      "Fresh credits every day on every hosted model, premium included, for one known price.",
+      "Pro is $1.30 a day for 1,190 credits, about 175 uncached agent steps; Max, at $4.97 a day, is for building all day.",
+      "No overage bill, ever: at the allowance, requests pause until the refill.",
+      "Cancel any time and keep what you paid for until the period ends.",
     ],
-    betterThan: "A subscription charges the same whether you code every day or not at all. Paying per model from credits that never expire charges only for the work you did, at prices listed model by model.",
+    betterThan: "Paying each model company separately means one account, card and API key per provider, and a bill that grows with every long agent session. A plan covers every hosted model from one daily allowance at a fixed price, and when you only need AI now and then, credits in any amount from $5 are still there instead.",
   },
   "ai-status-alerts": {
     steps: [
@@ -2526,9 +2579,9 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
   "ads-frequency": {
     steps: [
       "Open Settings > Frequency.",
-      "Standard caps cards at one per 30 minutes, 8 a day - that is the default.",
-      "Light is one an hour and 4 a day; Max is one per 15 minutes and 20 a day.",
-      "Off stops cards entirely (see Sponsored messages).",
+      "Standard is the default: at most one every 10 minutes and 24 a day.",
+      "Light is one every 30 minutes and 8 a day; Max is one every 5 minutes and 60 a day.",
+      "Off stops every sponsored card, including the one above the message box and on a linked phone.",
     ],
     benefits: [
       "The cadence is counted on your machine, not promised from a server.",

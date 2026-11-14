@@ -2,6 +2,7 @@ import type { TagflowConfig, TagflowLimits, TagflowModel } from "./tagflowTypes.
 import { isCreditRate, parseCreditPlan } from "./credits.ts";
 import { parsePaidConfig } from "./paidTokens.ts";
 import { parseCampaign } from "./usageCampaign.ts";
+import { parseOffer } from "./priceOffer.ts";
 import { MAX_CUSTOM_PROVIDERS, OUTPUT_TOKEN_FIELDS, PROVIDER_AUTHENTICATION, isCustomProviderId, isCustomProviderUrl, modelProvider, providerConnections, type CustomProvider, type IncludedProviderId, type OutputTokenField, type ProviderAuthentication } from "./includedProviders.ts";
 
 /** Models one catalogue may hold. The admin page reads this; it used to stop at 50 on its own. */
@@ -67,7 +68,7 @@ export function parseCustomProviders(raw: unknown): CustomProvider[] | null {
 }
 
 export function parseTagflowConfig(raw: unknown): TagflowConfig | null {
-  if (!record(raw) || !fields(raw, ["enabled", "baseUrl", "defaultModel", "models", "limits", "maxInputTokens", "maxOutputTokens", "providers", "credits", "paid", "campaign"])) return null;
+  if (!record(raw) || !fields(raw, ["enabled", "baseUrl", "defaultModel", "models", "limits", "maxInputTokens", "maxOutputTokens", "providers", "credits", "paid", "campaign", "offer"])) return null;
   const { enabled, defaultModel, maxInputTokens, maxOutputTokens } = raw;
   if (typeof enabled !== "boolean" || typeof raw["baseUrl"] !== "string" || typeof defaultModel !== "string") return null;
   const baseUrl = raw["baseUrl"].trim().replace(/\/+$/, "");
@@ -81,6 +82,8 @@ export function parseTagflowConfig(raw: unknown): TagflowConfig | null {
   if (paid === null) return null;
   const campaign = raw["campaign"] === undefined ? undefined : parseCampaign(raw["campaign"]);
   if (campaign === null) return null;
+  const offer = raw["offer"] === undefined ? undefined : parseOffer(raw["offer"]);
+  if (offer === null) return null;
   if (limits === null || providers === null || !Array.isArray(raw["models"]) || raw["models"].length > MAX_TAGFLOW_MODELS) return null;
   const models: TagflowModel[] = [];
   for (const item of raw["models"]) {
@@ -110,7 +113,7 @@ export function parseTagflowConfig(raw: unknown): TagflowConfig | null {
   }
   if (defaultModel !== "" && !models.some((model) => model.id === defaultModel && model.enabled !== false)) return null;
   if (enabled && (defaultModel === "" || models.length === 0 || baseUrl === "" && models.some((model) => modelProvider(model) === "tagflow"))) return null;
-  return { enabled, baseUrl, defaultModel, models, limits, maxInputTokens, maxOutputTokens, ...(providers.length === 0 ? {} : { providers }), ...(credits === undefined ? {} : { credits }), ...(paid === undefined ? {} : { paid }), ...(campaign === undefined ? {} : { campaign }) };
+  return { enabled, baseUrl, defaultModel, models, limits, maxInputTokens, maxOutputTokens, ...(providers.length === 0 ? {} : { providers }), ...(credits === undefined ? {} : { credits }), ...(paid === undefined ? {} : { paid }), ...(campaign === undefined ? {} : { campaign }), ...(offer === undefined ? {} : { offer }) };
 }
 
 /**

@@ -1,7 +1,7 @@
 import { Icon } from "@/components/Icon";
 import { ArrowUpRight } from "lucide";
 import Link from "next/link";
-import { WALLET_TOPUPS_CENTS } from "@adcode/api/src/modelWallet.ts";
+import { WALLET_CUSTOM_MIN_CENTS } from "@adcode/api/src/modelWallet.ts";
 
 export function FreePlan() {
   return (
@@ -22,10 +22,10 @@ export function FreePlan() {
         </div>
         <div>
           <dt>Credits</dt>
-          <dd><strong>From ${WALLET_TOPUPS_CENTS[0] / 100}</strong> once, never expire</dd>
+          <dd><strong>Any amount from ${WALLET_CUSTOM_MIN_CENTS / 100}</strong> once, never expire</dd>
         </div>
       </dl>
-      <p className="free-plan-limit">No plans and nothing renews: add credits when you want them, and each request is charged only for what it used. Your own provider key, a coding CLI you already pay for, or a local model also work, billed by their own provider. Provider availability and model context limits still apply.</p>
+      <p className="free-plan-limit">Need more? A plan adds fresh credits every day, or add credits in any amount when you want them; each request is charged only for what it used. Your own provider key, a coding CLI you already pay for, or a local model also work, billed by their own provider. Provider availability and model context limits still apply.</p>
       <p className="free-plan-foot"><Link href="/pricing" className="home-text-link">See every model&apos;s price <Icon node={ArrowUpRight} /></Link></p>
       <details className="free-plan-details">
         <summary>How free use works</summary>

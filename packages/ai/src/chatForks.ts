@@ -110,8 +110,8 @@ export function chatForkBriefing(input: {
  * job by itself instead of grinding through it serially (owner's request, 3 November 2026).
  */
 export const AUTO_FORK_GUIDANCE = [
-  "Parallel work: when the user's request has two or more independent parts that each need several steps of real work - separate features, separate files or areas, an investigation alongside a build, tests alongside the code - start them as fork chats with fork_chats instead of doing them one after another, and say in one line which forks you started.",
-  "Keep small, quick or tightly connected work in this chat, and do not fork just to read a few files. Give each fork the files it owns so two forks never edit the same file, then collect their reports with wait_for_chat_forks, check the result, and summarise it for the user.",
+  "Parallel work: when a request has two or more independent parts that each need several steps (separate features or areas, an investigation alongside a build), start them as fork chats with fork_chats (load it first), each owning its own files, and say in one line which you started.",
+  "Keep small or connected work in this chat and never fork just to read files. Collect the reports with wait_for_chat_forks, check them, and summarise.",
 ].join(" ");
 
 export const FORK_CHATS: ToolDefinition = {

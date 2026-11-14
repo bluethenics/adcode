@@ -95,6 +95,54 @@ describe("adcode_action", () => {
     expect(answer.isError).toBe(true);
     expect(written).toEqual([]);
   });
+
+  it("refuses to change the one setting that would let it switch off its own guard rails", async () => {
+    const { tools, written, confirms } = harness();
+    const on = await tools.run(call("adcode_action", { setting: "adcode.ai.fullAccess", value: true }), signal);
+    expect(on.isError).toBe(true);
+    expect(on.content).toContain("only the person");
+    const off = await tools.run(call("adcode_action", { setting: "adcode.ai.fullAccess", value: false }), signal);
+    expect(off.isError).toBe(true);
+    expect(written).toEqual([]);
+    expect(confirms).toEqual([]);
+  });
+
+  it("refuses to run the command that opens the person's full access card", async () => {
+    const { tools, commands } = harness();
+    const answer = await tools.run(call("adcode_action", { command: "ai.fullAccess" }), signal);
+    expect(answer.isError).toBe(true);
+    expect(commands).toEqual([]);
+  });
+
+  it("runs several commands and settings in one call, in order", async () => {
+    const { tools, commands, written } = harness();
+    const answer = await tools.run(call("adcode_action", {
+      steps: [
+        { command: "ai.showUsage" },
+        { setting: "adcode.appearance.motion", value: "reduce" },
+      ],
+    }), signal);
+    expect(answer.isError, answer.content).toBe(false);
+    expect(commands).toEqual(["ai.showUsage"]);
+    expect(written).toEqual([["adcode.appearance.motion", "reduce"]]);
+    expect(answer.content).toContain("Step 1");
+    expect(answer.content).toContain("Step 2");
+  });
+
+  it("stops a batch at the first failing step and says which one", async () => {
+    const { tools, commands, written } = harness();
+    const answer = await tools.run(call("adcode_action", {
+      steps: [
+        { command: "ai.showUsage" },
+        { command: "app.quit" },
+        { setting: "adcode.appearance.motion", value: "reduce" },
+      ],
+    }), signal);
+    expect(answer.isError).toBe(true);
+    expect(answer.content).toContain("Step 2");
+    expect(commands).toEqual(["ai.showUsage"]);
+    expect(written).toEqual([]);
+  });
 });
 
 describe("adcode_connectors", () => {
