@@ -3,6 +3,18 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
+## 2.6.1 — 2026-11-14
+
+- **The same work for 44% fewer billed tokens.** Every request in a message now keeps the provider's prompt cache: the project context is read once when the message starts instead of changing under the conversation, rarely used tools travel as one line each until the assistant asks for them, and file reads or command output it no longer needs are replaced by a one-line note in batches small enough that the cache still hits. On a measured 23-step task ADCode sends 20% fewer tokens and the provider bills 44% fewer; one message may also run 100 steps instead of 50, so a long task finishes instead of stopping half done. Nothing to switch on.
+- **Sponsored cards from Zeekend only.** Under AI replies, in sponsored notifications and on Phone link, every card now comes from Zeekend; Imprezia is no longer used. Notifications keep exactly the frequency you chose, follow each other without dead time, and back off after an empty answer. Every Zeekend card you are shown credits you $0.002.
+- **Three plans, monthly or yearly.** Builder $19, Pro $39 and Max $149 a month give 580, 1,190 and 4,500 credits every day on every hosted model, premium ones included, with two months free when paid yearly. Cancel any time and keep the plan to the end of the period you paid for; a plan bought before 6 November keeps its allowance until it ends.
+- **AI credits in any amount.** Add any whole amount from $5 to $1,000 instead of picking a fixed pack. Credits never expire and pay for each model at its listed price.
+- **Full access.** Click the permissions pill at the foot of the message box (it reads Auto or Review) and choose Full access when you want a job done without dialogs. It applies only to the agent turn you started, is off by default and at every launch, the assistant cannot turn it on, and the tool bridge never inherits it. A red shield stays visible and takes it back in one click; switching it off brings the dialogs back for the rest of a running turn.
+- **Task agents.** A saved agent can run helper work on its own provider and model, so a strong model can lead while a cheaper one writes the boilerplate. Ask in plain words ("use DeepSeek for all coding work") and the chat sets one up after you confirm; each helper's usage is charged to the model that ran it.
+- **A Browser panel that works like you do.** The assistant now moves the pointer, clicks, types and scrolls in the tab you see, takes a screenshot to check the result, and refuses password and card fields. You can watch every step and take over at any time.
+- **Phone link and partner notifications.** The phone page shows more of each chat, and partner notifications pace themselves from the frequency you chose instead of a fixed timer.
+- **Website and servers**, already live for every version: the rebuilt pricing page with a plan finder and any-amount credits, Buck answering questions in the corner of the site, Zeekend-only cards across the site, and public reports on ADCode's token use against Claude Code, Codex, OpenCode, T3 Code and DeepSeek Harness.
+
 ## 2.6.0 — 2026-11-13
 
 - **Sleep or shut down when the work is done.** In the chat box, open Tools and choose **When done** (or type /sleep): pick Sleep, Hibernate, Shut down or Lock, for the next time only or every time. Once every chat has finished, a one-minute countdown you can cancel shows over the window; pressing Stop yourself never triggers it, and open files are saved before a shutdown.
