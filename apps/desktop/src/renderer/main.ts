@@ -6354,6 +6354,8 @@ function registerCommands(): void {
   add("ads.openNetworks", "Ads: Open Network Settings", () => void window.open("https://adcode.bluethenics.com/admin/ad-networks", "_blank", "noopener"));
   add("ai.showCacheSavings", "AI: Show Prompt Cache Savings", () => void openUsageDialog({ view: "tokens", showConversations: () => chat.showConversations(), openChat: (id) => chat.openConversation(id) }));
   add("ai.delegate", "AI: Split a Task Across Helpers", () => { showChatSurface(); chat.draft("/helpers "); });
+  // Task agents: the chat makes one with create_agent once the person names the model.
+  add("ai.taskAgents", "AI: Use a Cheaper Model for Coding", () => { showChatSurface(); chat.draft("Make a task agent for all coding work on this model, and keep the current model to plan and check: "); });
   add("ai.initInstructions", "AI: Write Project Instructions (AGENTS.md)", () => { showChatSurface(); chat.ask("/init"); });
   // The agents' rules and hooks: opened in the editor, created with a commented starter if missing.
   const openAgentSettings = async (scope: "project" | "user"): Promise<void> => {

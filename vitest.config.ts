@@ -19,6 +19,7 @@ const alias = {
   "@adcode/ai/connections": resolve(import.meta.dirname, "packages/ai/src/connections.ts"),
   "@adcode/ai/agents": resolve(import.meta.dirname, "packages/ai/src/agents.ts"),
   "@adcode/ai/toolAccess": resolve(import.meta.dirname, "packages/ai/src/toolAccess.ts"),
+  "@adcode/ai/taskAgents": resolve(import.meta.dirname, "packages/ai/src/taskAgents.ts"),
   "@adcode/ai/adapter": resolve(import.meta.dirname, "packages/ai/src/adapter.ts"),
   "@adcode/ai/continuation": resolve(import.meta.dirname, "packages/ai/src/continuation.ts"),
   "@adcode/ai/terminalTeam": resolve(import.meta.dirname, "packages/ai/src/terminalTeam.ts"),

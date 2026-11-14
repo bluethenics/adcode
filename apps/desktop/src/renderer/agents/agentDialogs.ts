@@ -359,6 +359,22 @@ export function openAgentEditorDialog(options: {
     const afterLabel = el("label", "agents-check");
     afterLabel.append(after, document.createTextNode("In a Team, run after teammates (receive their handoffs)"));
 
+    // Task agents: the chat leads on its own model and hands this kind of work to this agent's.
+    const helperFor = el("select", "form-select");
+    helperFor.setAttribute("aria-label", "Chat helper for");
+    for (const [value, labelText] of [
+      ["", "Only when the chat names it"],
+      ["build", "Coding tasks"],
+      ["explore", "Research tasks"],
+      ["build,explore", "Coding and research tasks"],
+    ] as const) {
+      const option = el("option", "", labelText);
+      option.value = value;
+      helperFor.append(option);
+    }
+    helperFor.value = (existing?.helperFor ?? []).join(",");
+    const helperField = field("Chat helper for", helperFor, "The chat sends this work to this agent's model instead of its own");
+
     const notice = el("p", "form-notice");
     notice.setAttribute("role", "alert");
     notice.hidden = true;
@@ -380,7 +396,7 @@ export function openAgentEditorDialog(options: {
       advanced.append(el("summary", "", "Agent settings"), advancedBody);
       form.append(advanced);
     } else {
-      form.append(lookRow, field("Name", name), field("Instructions", instructions), currentModelLabel, route, access, capField, afterLabel);
+      form.append(lookRow, field("Name", name), field("Instructions", instructions), currentModelLabel, route, helperField, access, capField, afterLabel);
     }
     form.append(models, notice, buttons);
     card.append(form);
@@ -404,7 +420,16 @@ export function openAgentEditorDialog(options: {
         mascot: look,
         ...(toolAccess === "all" ? {} : { toolAccess }),
         ...(capInput.value.trim() === "" ? {} : { capDollars: Number(capInput.value) }),
+        // Run with changes edits a run, not the chat's routing: keep what the agent had.
+        ...(options.run
+          ? existing?.helperFor === undefined ? {} : { helperFor: existing.helperFor }
+          : helperFor.value === "" ? {} : { helperFor: helperFor.value.split(",") as ("build" | "explore")[] }),
       };
+      if (!options.run && toolAccess === "read-only" && helperFor.value.includes("build")) {
+        notice.hidden = false;
+        notice.textContent = "A read-only agent cannot take coding tasks - it could not edit anything. Pick Research tasks, or give it more tools.";
+        return;
+      }
       if (capInput.value.trim() !== "" && !(Number(capInput.value) >= 0.05 && Number(capInput.value) <= 1_000)) {
         notice.hidden = false;
         notice.textContent = "A usual cost cap is between 0.05 and 1000 dollars - or leave it empty.";

@@ -1,6 +1,7 @@
 /** Nonsecret reusable profiles and their mapping to the existing isolated Team runner. */
 import type { AiTeamConfigureInputView } from "../../shared/api.ts";
 import { parseToolAccess, type ToolAccess } from "@adcode/ai/toolAccess";
+import { parseHelperFor, type HelperDuty } from "@adcode/ai/taskAgents";
 import { parseMascot, type MascotLook } from "../agents/mascotStyle.ts";
 
 export const AGENT_PROFILES_SETTING = "adcode.ai.agentProfiles";
@@ -19,6 +20,8 @@ export interface AgentProfile {
   readonly toolAccess?: ToolAccess;
   /** The cost cap New task suggests for this agent, in US dollars. Absent: no cap. */
   readonly capDollars?: number;
+  /** The chat's delegated work it takes by default: coding (build), research (explore). Absent: only when named. */
+  readonly helperFor?: readonly HelperDuty[];
 }
 
 function profile(value: unknown): AgentProfile {
@@ -53,6 +56,9 @@ function profile(value: unknown): AgentProfile {
   // A suggestion, not a boundary: an unreadable cap is dropped rather than the agent.
   const cap = raw["capDollars"];
   const capDollars = typeof cap === "number" && Number.isFinite(cap) && cap >= 0.05 && cap <= 1_000 ? cap : undefined;
+  // Routing, not a boundary: an unreadable value is dropped, and a read-only agent never codes.
+  const duties = parseHelperFor(raw["helperFor"]);
+  const helperFor = toolAccess === "read-only" ? duties?.filter(duty => duty !== "build") : duties;
   return {
     id,
     name: field("name", 80),
@@ -64,6 +70,7 @@ function profile(value: unknown): AgentProfile {
     ...(mascot === null ? {} : { mascot }),
     ...(toolAccess === undefined ? {} : { toolAccess }),
     ...(capDollars === undefined ? {} : { capDollars }),
+    ...(helperFor === undefined || helperFor.length === 0 ? {} : { helperFor }),
   };
 }
 
@@ -87,6 +94,21 @@ export function saveAgentProfile(profiles: readonly AgentProfile[], value: Agent
   return profiles.some(item => item.id === agent.id)
     ? profiles.map(item => item.id === agent.id ? agent : item)
     : [...profiles, agent];
+}
+
+/**
+ * Save an agent that takes the chat's coding or research work: whichever agent took that work
+ * before gives it up, so exactly one agent is the default for each.
+ */
+export function saveAgentProfileWithDuties(profiles: readonly AgentProfile[], value: AgentProfile): AgentProfile[] {
+  const taken = new Set(value.helperFor ?? []);
+  const others = taken.size === 0 ? profiles : profiles.map(item => {
+    if (item.id === value.id || item.helperFor === undefined || !item.helperFor.some(duty => taken.has(duty))) return item;
+    const left = item.helperFor.filter(duty => !taken.has(duty));
+    const { helperFor: _dropped, ...rest } = item;
+    return left.length === 0 ? rest : { ...rest, helperFor: left };
+  });
+  return saveAgentProfile(others, value);
 }
 
 export function removeAgentProfile(profiles: readonly AgentProfile[], id: string): AgentProfile[] {

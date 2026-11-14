@@ -19,6 +19,7 @@ import {
   parseAgentProfiles,
   removeAgentProfile,
   saveAgentProfile,
+  saveAgentProfileWithDuties,
   type AgentProfile,
 } from "../ai/agentProfiles.ts";
 import { askThemed } from "../dialogs/confirmDialog.ts";
@@ -478,7 +479,9 @@ export function createAgentsPage(deps: AgentsPageDeps): AgentsPage {
         : agent.toolAccess === "read-only" ? "Read-only tools" : `${agent.toolAccess.length} tool${agent.toolAccess.length === 1 ? "" : "s"}`;
       const model = el("span", "agent-card-model", agent.useCurrentModel ? "Current model" : agent.model);
       model.title = agent.useCurrentModel ? "Uses your currently selected model" : agent.model;
-      const accessLabel = el("span", "agent-card-access", access);
+      // Which of the chat's delegated work lands on this agent's model, so the routing is never invisible.
+      const duties = agent.helperFor === undefined ? "" : ` · Chat's ${agent.helperFor.map((duty) => duty === "build" ? "coding" : "research").join(" and ")} helper`;
+      const accessLabel = el("span", "agent-card-access", `${access}${duties}`);
       text.append(el("strong", "agent-card-name", agent.name), model, accessLabel, el("p", "agent-card-instructions", agent.instructions));
       const actions = el("div", "agent-card-actions");
       if (selecting) {
@@ -1002,7 +1005,8 @@ export function createAgentsPage(deps: AgentsPageDeps): AgentsPage {
         await deleteAgent(result.agent);
         return;
       }
-      await persistProfiles(saveAgentProfile(profiles, result.agent));
+      // An agent that takes the chat's coding or research work takes it over from whichever agent had it.
+      await persistProfiles(saveAgentProfileWithDuties(profiles, result.agent));
       say(`${result.agent.name} saved.`);
     } catch (error) {
       say(errorText(error, "Could not save the agent."));
@@ -1020,7 +1024,9 @@ export function createAgentsPage(deps: AgentsPageDeps): AgentsPage {
   }
 
   async function duplicateAgent(agent: AgentProfile): Promise<void> {
-    const copy: AgentProfile = { ...agent, id: `agent-${crypto.randomUUID()}`, name: `${agent.name} copy`.slice(0, 80) };
+    // A copy does not also become the chat's default helper: one agent holds each kind of work.
+    const { helperFor: _duties, ...original } = agent;
+    const copy: AgentProfile = { ...original, id: `agent-${crypto.randomUUID()}`, name: `${agent.name} copy`.slice(0, 80) };
     try {
       await persistProfiles(saveAgentProfile(profiles, copy));
       say(`${copy.name} added.`);

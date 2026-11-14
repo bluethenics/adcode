@@ -22,6 +22,18 @@ import {
   BUILT_IN_TOOLS,
   DELEGATE_TASK,
   withSubagents,
+  CREATE_AGENT,
+  CREATE_AGENT_NAME,
+  describeCreateAgent,
+  planCreateAgent,
+  readTaskAgents,
+  rosterContext,
+  routeHelper,
+  withTaskAgent,
+  HELPER_DUTY_LABELS,
+  type ModelCandidate,
+  type StartedHelper,
+  type SubagentTask,
   BUNDLED_CATALOGUE,
   CHAT_FORK_TOOLS,
   CHAT_FORK_PARTICIPANT_TOOLS,
@@ -130,6 +142,7 @@ import { checkpointView, checkpointsForSession } from "./aiCheckpointView.ts";
 import { ASSISTANT_EXTENSION_TOOLS, bridgeAppTools, offeredAppTools, withAssistantExtensions } from "./assistantControls.ts";
 import { memoryForWorkspace } from "./memory.ts";
 import { currentSettings, writeSetting } from "./settings.ts";
+import { confirmInWindow } from "./themedConfirm.ts";
 import { describeDebugContext, recordDebug } from "./debugLog.ts";
 import { agentRulesContext, agentSessionStart, agentStopHooks, withAgentRules } from "./agentRules.ts";
 import { currentWorkspace } from "./workspace.ts";
@@ -1680,6 +1693,50 @@ async function projectFilesHint(root: string): Promise<string | null> {
   return text;
 }
 
+/** The named agents saved on the Agents board, read fresh so an edit applies to the next helper. */
+const AGENT_PROFILES_SETTING = "adcode.ai.agentProfiles";
+const taskAgents = () => readTaskAgents(currentSettings()[AGENT_PROFILES_SETTING]);
+
+/**
+ * Every model a task agent could run on: the chat's own connection first, then ADCode's
+ * included models, then the rest - so "deepseek" resolves to the connection the person
+ * already pays through before a second one.
+ */
+async function taskAgentCandidates(): Promise<ModelCandidate[]> {
+  const status = await aiStatus();
+  const rank = (id: string): number => (id === status.activeProvider ? 0 : id === "tagflow" ? 1 : 2);
+  return [...status.providers]
+    .filter((provider) => provider.transport !== "unsupported")
+    .sort((a, b) => rank(a.id) - rank(b.id))
+    .flatMap((provider) => provider.models.map((model) => ({
+      providerId: provider.id, providerName: provider.displayName, modelId: model.id, modelName: model.name, usable: provider.hasKey,
+    })));
+}
+
+/**
+ * `create_agent`: the chat drafts a task agent, the person confirms it in the themed dialog,
+ * and it is saved with the Agents board's agents. Named agents are a guarded setting the
+ * assistant cannot write through `adcode_action`; this is the one door, and it always asks.
+ */
+function withCreateAgent(base: ToolRunner): ToolRunner {
+  return {
+    async run(call, signal) {
+      if (call.name !== CREATE_AGENT_NAME) return base.run(call, signal);
+      const plan = planCreateAgent(call.input, await taskAgentCandidates(), taskAgents());
+      if (!plan.ok) return { content: plan.message, isError: true };
+      const ask = describeCreateAgent(plan);
+      const window = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows().find((item) => !item.isDestroyed()) ?? null;
+      const allowed = await confirmInWindow(window, { title: ask.title, body: ask.detail, confirmLabel: plan.replaces === null ? "Create agent" : "Update agent", cancelLabel: "Cancel" }, signal);
+      if (!allowed) return { content: "The user declined, so the agent was not saved. Ask what they would like instead.", isError: true };
+      await writeSetting(AGENT_PROFILES_SETTING, withTaskAgent(currentSettings()[AGENT_PROFILES_SETTING], plan.draft));
+      const { draft } = plan;
+      const duties = draft.helperFor === undefined ? "" : ` It now takes ${draft.helperFor.map((duty) => HELPER_DUTY_LABELS[duty]).join(" and ")} tasks by default.`;
+      recordDebug("info", "ai", `Saved task agent ${draft.id} on ${draft.provider}/${draft.model}`);
+      return { content: `Saved the agent ${draft.name} (id ${draft.id}) on ${draft.model} via ${plan.candidate.providerName}.${duties} Hand it work with delegate_task, agent: "${draft.id}".`, isError: false };
+    },
+  };
+}
+
 /**
  * The chat's agent: the one it has, or a new one when there is none or the model changed.
  *
@@ -1732,7 +1789,7 @@ async function ensureChatAgent(thread: ChatThread, providerId: string, model: st
   const tools = [
     ...chatTools(),
     ...(isFork ? CHAT_FORK_PARTICIPANT_TOOLS : CHAT_FORK_TOOLS),
-    ...(lean || isFork ? [] : [DELEGATE_TASK]),
+    ...(lean || isFork ? [] : [DELEGATE_TASK, CREATE_AGENT]),
   ];
   const context = async (): Promise<string> => {
       const root = thread.root;
@@ -1763,10 +1820,49 @@ async function ensureChatAgent(thread: ChatThread, providerId: string, model: st
         thread.startContext ?? null,
       ].filter((line): line is string => line !== null).join("\n");
   };
-  const helper = (helperTools: readonly ToolDefinition[]): Agent => createAgent({
-    provider, model, tools: helperTools, runner: helperRunner, context,
-    effort: configuredEffort(), ...outputBudget(providerId, model), compaction: compactionFor(providerId, model),
-  });
+  // Only the lead hears about its task agents: helpers cannot delegate.
+  const leadContext = async (): Promise<string> => {
+    const roster = lean || isFork ? null : rosterContext(taskAgents(), { provider: providerId, model });
+    const base = await context();
+    return roster === null ? base : `${base}\n${roster}`;
+  };
+  // Which model ran each helper, so its tokens are counted against that model, not the lead's.
+  const ranBy = new WeakMap<SubagentTask, { readonly provider: string; readonly model: string }>();
+  /**
+   * A helper on the lead's model, or on the task agent the task routes to - its own
+   * connection, model, standing instructions and tool access (access only ever narrows).
+   */
+  const helper = async (task: SubagentTask, helperTools: readonly ToolDefinition[]): Promise<StartedHelper | string> => {
+    const route = routeHelper(task, taskAgents());
+    if (route.kind === "error") return route.message;
+    const profile = route.kind === "agent" ? route.agent : null;
+    const tools = profile?.toolAccess === undefined ? helperTools : filterToolsByAccess(helperTools, profile.toolAccess).tools;
+    if (profile === null || profile.useCurrentModel) {
+      ranBy.set(task, { provider: providerId, model });
+      return {
+        agent: createAgent({
+          provider, model, tools, runner: helperRunner, context,
+          effort: configuredEffort(), ...outputBudget(providerId, model), compaction: compactionFor(providerId, model),
+        }),
+        ...(profile === null ? {} : { ranOn: `${model} as ${profile.name}`, instructions: profile.instructions }),
+      };
+    }
+    const own = await buildProvider(profile.provider, undefined, "agent", profile.id);
+    if (own === null) {
+      const name = providerIn(catalogue, profile.provider)?.name ?? profile.provider;
+      return `The ${profile.name} agent runs on ${name}, which has no API key or is not available. Add a key in Connect a model, or run this task on your own model with agent: "self".`;
+    }
+    ranBy.set(task, { provider: profile.provider, model: profile.model });
+    return {
+      agent: createAgent({
+        provider: own, model: profile.model, tools, runner: helperRunner, context,
+        lean: () => profile.provider === "ollama",
+        effort: configuredEffort(), ...outputBudget(profile.provider, profile.model), compaction: compactionFor(profile.provider, profile.model),
+      }),
+      ranOn: `${profile.model} as ${profile.name}`,
+      instructions: profile.instructions,
+    };
+  };
   const built = createAgent({
     provider,
     model,
@@ -1776,14 +1872,18 @@ async function ensureChatAgent(thread: ChatThread, providerId: string, model: st
     ...outputBudget(providerId, model),
     compaction: compactionFor(providerId, model),
     initialMessages: carried ?? restoreHistory(thread.session),
-    context,
-    runner: withAgentRules(withSubagents(forkRunner, {
-      start: (_task, helperTools) => helper(helperTools),
+    context: leadContext,
+    runner: withAgentRules(withSubagents(withCreateAgent(forkRunner), {
+      start: (task, helperTools) => helper(task, helperTools),
       // Helpers are hidden and cannot reach the fork service; a fork must stay a visible chat
       // started by the main conversation.
       tools: () => tools.filter((tool) => !isChatForkTool(tool.name)),
       status: (text) => thread.status?.(text),
-      onEvent: (_task, event) => { if (event.kind === "usage") noteUsage("agents", providerId, model, event); },
+      onEvent: (task, event) => {
+        if (event.kind !== "usage") return;
+        const ran = ranBy.get(task) ?? { provider: providerId, model };
+        noteUsage("agents", ran.provider, ran.model, event);
+      },
     }), { ...rules, agent: "chat" }),
     beforeRequest: async () => {
       // Direct edits apply immediately, so there is no task to create and

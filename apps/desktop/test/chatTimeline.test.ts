@@ -144,6 +144,9 @@ describe("sub-agent rows", () => {
     expect(outcomes[1]).toEqual({ index: 1, ended: "stopped", calls: 1, report: "" });
     expect(outcomes[2]).toMatchObject({ index: 2, ended: "failed", calls: 0, report: "" });
     expect(parseHelperReports("At most 4 sub-agents per call.")).toEqual([]);
+    // A helper on a task agent says which model ran it and what it spent.
+    expect(parseHelperReports("## 1. Tests (build) - done, 4 tool calls · on deepseek-chat as DeepSeek coder, 12k in / 2.1k out tokens\nAdded 3 tests.")[0])
+      .toEqual({ index: 0, ended: "done", calls: 4, ranOn: "on deepseek-chat as DeepSeek coder, 12k in / 2.1k out tokens", report: "Added 3 tests." });
   });
 
   it("draws helpers as their own rows, fed by status lines and the closing result", () => {

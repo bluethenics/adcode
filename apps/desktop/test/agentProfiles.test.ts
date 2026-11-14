@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseAgentProfiles, saveAgentProfile, removeAgentProfile, buildNamedAgentTeam, buildSoloRun, continuationPrompt } from "../src/renderer/ai/agentProfiles.ts";
+import { parseAgentProfiles, saveAgentProfile, saveAgentProfileWithDuties, removeAgentProfile, buildNamedAgentTeam, buildSoloRun, continuationPrompt } from "../src/renderer/ai/agentProfiles.ts";
 import { starterAgents } from "../src/renderer/agents/starterAgents.ts";
 import { parseAiTeamConfigure } from "../src/main/aiTeamIpcValidation.ts";
 
@@ -136,5 +136,20 @@ describe("per-agent cost caps and races", () => {
     expect(input.group).toBe("race-7f3a9c21");
     expect(parseAiTeamConfigure(input, "run-lane")?.plan.group).toBe("race-7f3a9c21");
     expect(buildSoloRun("Add dark mode", ada).group).toBeUndefined();
+  });
+});
+
+describe("task agents: the chat's default helpers", () => {
+  it("keeps the work an agent takes, and never gives coding to a read-only agent", () => {
+    expect(parseAgentProfiles(JSON.stringify([{ ...ada, helperFor: ["build", "nonsense"] }]))[0]?.helperFor).toEqual(["build"]);
+    expect(parseAgentProfiles(JSON.stringify([{ ...ada, toolAccess: "read-only", helperFor: ["build", "explore"] }]))[0]?.helperFor).toEqual(["explore"]);
+    expect(parseAgentProfiles(JSON.stringify([{ ...ada, helperFor: "build" }]))[0]).toEqual(ada);
+  });
+
+  it("hands coding work over to the agent saved for it", () => {
+    const saved = saveAgentProfileWithDuties([{ ...ada, helperFor: ["build", "explore"] }], { ...grace, helperFor: ["build"] });
+    expect(saved.find((agent) => agent.id === ada.id)?.helperFor).toEqual(["explore"]);
+    expect(saved.find((agent) => agent.id === grace.id)?.helperFor).toEqual(["build"]);
+    expect(saveAgentProfileWithDuties([{ ...ada, helperFor: ["build"] }], { ...grace, helperFor: ["build"] })[0]).toEqual(ada);
   });
 });

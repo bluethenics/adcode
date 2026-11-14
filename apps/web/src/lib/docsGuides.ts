@@ -1608,6 +1608,27 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Claude Code's Task tool and Codex's sub-agents made this the way serious agents work, but they live in a terminal. ADCode brings it to the chat, with each helper's progress on screen and one Undo for everything they did. When you want named roles that talk to each other and a plan you approve first, use Team; helpers are for when you just want the job done faster.",
   },
 
+  "ai-task-agents": {
+    steps: [
+      "Connect the models you want to use. Pick the strong model you want to lead in the model picker, for example Fable 5.2. Make sure the cheaper model's connection has its key too, for example DeepSeek, or use a model included with your ADCode account.",
+      "Tell the chat what you want in plain words: \"use deepseek for all coding work and keep this model to plan and check\". Or run AI: Use a Cheaper Model for Coding from the command palette and finish the sentence with the model's name.",
+      "The chat drafts a task agent with that model and asks you to confirm it in a dialog. The dialog shows the model, the connection it is charged to, what work it takes and its tool access. If your words match several connected models, the chat lists them and asks which one you mean.",
+      "Prefer to set it up yourself? Open the Agents board, press New agent, give it a name and instructions, pick its connection and model, and set Chat helper for to Coding tasks, Research tasks, or both.",
+      "Now ask for real work. When the chat splits it into helpers, coding tasks run on the coding agent's model and research tasks on the research agent's. The chat keeps the plan and the final check on its own model.",
+      "Open the Helpers row in the timeline. Each helper shows which model ran it and how many tokens it used. The usage page counts those tokens against that model, not the lead's.",
+      "To switch the coding model later, say \"use qwen coder for coding instead\". The new agent takes the role over, so exactly one agent holds it. To stop, delete the agent or set Chat helper for back to Only when the chat names it.",
+    ],
+    benefits: [
+      "Big tasks cost much less. Reading files and typing code use most of the tokens, and that bulk now goes through a cheap model at its own price.",
+      "Decisions stay on the strong model. The lead plans the work, gives each helper exact instructions, and checks what comes back before it tells you a task is done.",
+      "You can see every token. Each helper's row names the model and the token count, and the usage page splits the spend by model.",
+      "Nothing changes without your yes. The chat cannot quietly add a paid model: every agent it creates waits for your confirmation and appears on the Agents board, where you can edit or delete it.",
+      "Each agent keeps its own standing instructions and tool access. A read-only research agent can never edit a file.",
+    ],
+    betterThan:
+      "Most editors run one model for everything in a conversation. You either pay frontier prices for every line of boilerplate, or you switch to a cheap model and lose its judgement on the hard parts. Tools that route between models usually pick for you, behind the scenes. Here you choose the routing in plain words, can see it in the timeline, and pay for it per model. The honest limit: a cheap model's code is only as good as the brief it gets and the check that follows. Task agents work because the strong model writes the brief and does the check, not because the cheap model gets smarter. For a small, delicate change it can still be cheaper to let the lead do it alone, and the chat does exactly that.",
+  },
+
   "ai-chat-forks": {
     steps: [
       "Ask for a job with independent parts - a page, its API and its tests, say. The assistant splits it into forks by itself and says which forks it started; it keeps small or tightly connected work in one chat. To have it fork only when you ask, turn off Fork chats on its own in Settings > AI.",

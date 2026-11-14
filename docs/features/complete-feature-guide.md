@@ -770,7 +770,7 @@ The AI can split a big task into parts and hand them to helper agents that work 
 
 Why use it: A large job finishes sooner when its independent parts run side by side, and long searches stay out of the main conversation, so it keeps its focus on your request.
 
-How to use it: Ask for something large, or start your message with /helpers (or run AI: Split a Task Across Helpers) to ask for it outright. The AI calls its Helpers step with up to four tasks; each helper gets its own instructions and the same model. Explore helpers only read and search; build helpers can change files and run commands, and are told to stay in their own files. You see each one's progress on the working line - Helper 2 of 3 · Tests: running npm test - and a Helpers row in the timeline with every report. Their edits belong to the same turn, so Undo reverts them together, and Stop stops every helper. Helpers cannot start helpers of their own. Each helper's requests count toward the same included AI allowance as any other. Local models are not offered helpers.
+How to use it: Ask for something large, or start your message with /helpers (or run AI: Split a Task Across Helpers) to ask for it outright. The AI calls its Helpers step with up to four tasks; each helper gets its own instructions and the same model - unless a task agent takes that kind of work, in which case it runs on that agent's model (see Task agents). Explore helpers only read and search; build helpers can change files and run commands, and are told to stay in their own files. You see each one's progress on the working line - Helper 2 of 3 · Tests: running npm test - and a Helpers row in the timeline with every report. Their edits belong to the same turn, so Undo reverts them together, and Stop stops every helper. Helpers cannot start helpers of their own. Each helper's requests are counted against the model that ran it, on the usage page and in your included AI allowance. Local models are not offered helpers.
 
 Access: `All Features → Helpers: agents that start agents`; `Split a task across helpers`.
 
@@ -1059,6 +1059,17 @@ Why use it: When answers start failing, the first question is whether it is you 
 How to use it: Run Help: Get Status Alerts by Email, or open adcode.bluethenics.com/status and scroll to Email alerts. Enter your address, keep Model health and Incident updates ticked (or untick one), and press Get alerts. Open the email from noreply@bluethenics.com and press Confirm my alerts - nothing else is sent until you do, and the link works for seven days. Every 15 minutes the service checks each included model against the requests since the last check: an alert goes out when one is degraded (5% or more failing) or in an outage (25% or more), and a back-to-normal email after two good checks in a row. A check with fewer than 10 requests decides nothing. Incident updates are the notes the team posts during an outage. Every email has a one-click unsubscribe. Prefer a feed? The same page has an RSS link for incidents.
 
 Access: `All Features → Status alerts by email`; `Get status alerts`.
+
+<!-- feature:ai.taskAgents -->
+### Task agents: a cheaper model for the work
+
+Let the chat lead and think on a strong model while helper agents on a cheaper model do the coding or the searching - for example DeepSeek writes the code and Fable plans and checks it.
+
+Why use it: Most of the tokens in a big task go on reading files and typing code, not on deciding what to do. Running that bulk on a cheaper model, while the expensive model keeps the plan, the judgement and the final check, makes a task cost a fraction of running everything on the expensive one.
+
+How to use it: Tell the chat what you want, in your own words: "use deepseek for all coding work and keep this model to lead". It makes a task agent with create_agent - a name, instructions and the model you named (a loose name like deepseek or qwen coder is enough; if several connected models match, it asks which) - and you confirm it in a dialog before anything is saved. You can also run AI: Use a Cheaper Model for Coding, or open the Agents board, press New agent, pick its connection and model, and set Chat helper for to Coding tasks, Research tasks or both. From then on, when the chat splits work with helpers, coding (build) tasks run on that agent's model with its instructions and tool access, research (explore) tasks on the research agent's, and anything else stays on the chat's own model. Exactly one agent takes each kind of work: saving a new one takes it over. The chat can also name any saved agent for one task, or keep a task on its own model. The helper's row in the timeline says which model ran it and how many tokens it used, and the usage page counts those tokens against that model, not the chat's. The lead model is told to keep planning and the final check for itself. Task agents need the model's connection to have a key; a helper whose agent cannot connect fails with a reason, and the chat can redo that part itself. Local models are not offered helpers.
+
+Access: `All Features → Task agents: a cheaper model for the work`; `Use a cheaper model for coding`.
 
 <!-- feature:adcode.ai.taskTokenBudget -->
 ### Task token budget

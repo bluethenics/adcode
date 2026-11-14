@@ -111,6 +111,7 @@ const STEP_LABELS: Readonly<Record<string, string>> = {
   update_plan: "Update plan",
   ask_user: "Ask the user",
   delegate_task: "Helpers",
+  create_agent: "Create task agent",
   fork_chats: "Start fork chats",
   send_chat_message: "Message chat",
   read_chat_messages: "Read chat messages",
@@ -237,10 +238,15 @@ export interface HelperOutcome {
   readonly ended: "done" | "stopped" | "failed";
   readonly calls: number;
   readonly report: string;
+  /** Where it ran and what it spent, e.g. "on deepseek-chat as DeepSeek coder, 12k in / 2.1k out tokens". */
+  readonly ranOn?: string;
 }
 
-/** "## 2. Tests (build) - done, 3 tool calls": the heading `runSubagents` writes per helper. */
-const HELPER_REPORT_HEADING = /^## (\d+)\. .+ \((?:explore|build)\) - (done|stopped|failed)(?:: .*)?, (\d+) tool calls?$/;
+/**
+ * "## 2. Tests (build) - done, 3 tool calls": the heading `runSubagents` writes per helper,
+ * with " · on <model> as <agent>, 12k in / 2.1k out tokens" after it when it knows them.
+ */
+const HELPER_REPORT_HEADING = /^## (\d+)\. .+ \((?:explore|build)\) - (done|stopped|failed)(?:: .*)?, (\d+) tool calls?(?: · (.+))?$/;
 
 /**
  * The sections of a `delegate_task` result, in order. Only the exact heading shape starts a
@@ -248,20 +254,20 @@ const HELPER_REPORT_HEADING = /^## (\d+)\. .+ \((?:explore|build)\) - (done|stop
  * comes back as empty text.
  */
 export function parseHelperReports(content: string): readonly HelperOutcome[] {
-  interface Section { index: number; ended: "done" | "stopped" | "failed"; calls: number; lines: string[] }
+  interface Section { index: number; ended: "done" | "stopped" | "failed"; calls: number; ranOn: string; lines: string[] }
   const sections: Section[] = [];
   let current: Section | null = null;
   for (const line of content.split("\n")) {
     const heading = HELPER_REPORT_HEADING.exec(line);
     if (heading !== null) {
       if (current !== null) sections.push(current);
-      current = { index: Number(heading[1]) - 1, ended: heading[2] as Section["ended"], calls: Number(heading[3]), lines: [] };
+      current = { index: Number(heading[1]) - 1, ended: heading[2] as Section["ended"], calls: Number(heading[3]), ranOn: heading[4] ?? "", lines: [] };
     } else if (current !== null) current.lines.push(line);
   }
   if (current !== null) sections.push(current);
   return sections.map((section) => {
     const report = section.lines.join("\n").trim();
-    return { index: section.index, ended: section.ended, calls: section.calls, report: report === "(no report)" ? "" : report };
+    return { index: section.index, ended: section.ended, calls: section.calls, ...(section.ranOn === "" ? {} : { ranOn: section.ranOn }), report: report === "(no report)" ? "" : report };
   });
 }
 
@@ -771,7 +777,7 @@ export function createTurnTimeline(options?: { readonly startedAt?: number }): T
         // The live line ("finished") usually already said it; a row without one gets it now.
         const detail = (row.detail.textContent ?? "").length === 0 ? (outcome.ended === "done" ? "finished" : outcome.ended) : undefined;
         settleHelper(step, row, helperState(outcome.ended), detail);
-        row.calls.textContent = `${String(outcome.calls)} ${outcome.calls === 1 ? "call" : "calls"}`;
+        row.calls.textContent = `${String(outcome.calls)} ${outcome.calls === 1 ? "call" : "calls"}${outcome.ranOn === undefined ? "" : ` · ${outcome.ranOn}`}`;
         row.calls.hidden = false;
         if (outcome.report.length > 0) {
           row.report.innerHTML = renderChatMessageHtml(outcome.report);

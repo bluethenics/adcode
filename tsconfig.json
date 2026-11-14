@@ -34,6 +34,7 @@
       "@adcode/ai/connections": ["./packages/ai/src/connections.ts"],
       "@adcode/ai/agents": ["./packages/ai/src/agents.ts"],
       "@adcode/ai/toolAccess": ["./packages/ai/src/toolAccess.ts"],
+      "@adcode/ai/taskAgents": ["./packages/ai/src/taskAgents.ts"],
       "@adcode/ai/adapter": ["./packages/ai/src/adapter.ts"],
       "@adcode/ai/continuation": ["./packages/ai/src/continuation.ts"],
       "@adcode/ai/terminalTeam": ["./packages/ai/src/terminalTeam.ts"],

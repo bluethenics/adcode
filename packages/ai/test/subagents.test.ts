@@ -120,6 +120,28 @@ describe("sub-agents", () => {
     expect(events).toContainEqual({ kind: "text", text: "The helper found 3 TODOs." });
   });
 
+  it("runs a helper on the task agent it routes to, says where, and counts its tokens", async () => {
+    expect(parseDelegation({ tasks: [{ title: "Tests", instructions: "Write tests", mode: "build", agent: "deepseek-coder" }] }))
+      .toEqual([{ title: "Tests", instructions: "Write tests", mode: "build", agent: "deepseek-coder" }]);
+    const briefs: string[] = [];
+    const runner = withSubagents({ run: async () => ({ content: "", isError: false }) }, {
+      tools: () => [READ_FILE, EDIT_FILE, DELEGATE_TASK, { name: "create_agent", description: "", inputSchema: {}, mutating: true }],
+      start: (task, tools) => {
+        // A helper never makes agents of its own.
+        expect(tools.some((tool) => tool.name === "create_agent")).toBe(false);
+        if (task.agent === "ghost") return "No saved agent called ghost.";
+        const agent = fakeHelper(task, [], [{ kind: "usage", inputTokens: 12_300, outputTokens: 2_100, estimated: false } as AgentEvent, { kind: "text", text: "Done." }]);
+        const send = agent.send.bind(agent);
+        return Promise.resolve({ agent: { ...agent, send: (prompt: string) => { briefs.push(prompt); return send(prompt); } }, ranOn: "deepseek-chat as DeepSeek coder", instructions: "Small diffs only." });
+      },
+    });
+    const result = await runner.run(call({ tasks: [{ title: "Tests", instructions: "Write tests", mode: "build", agent: "deepseek-coder" }, { title: "Lost", instructions: "x", agent: "ghost" }] }), new AbortController().signal);
+    expect(result.content).toContain("## 1. Tests (build) - done, 0 tool calls · on deepseek-chat as DeepSeek coder, 12k in / 2.1k out tokens\nDone.");
+    expect(result.content).toContain("## 2. Lost (explore) - failed: No saved agent called ghost., 0 tool calls");
+    expect(briefs[0]).toContain("Your standing instructions: Small diffs only.");
+    expect(subagentBrief({ title: "t", instructions: "i", mode: "explore" })).not.toContain("standing instructions");
+  });
+
   it("describes a helper's step in a few words", () => {
     expect(describeCall({ type: "tool-call", id: "1", name: "run_command", input: { command: "npm test" } })).toBe("running npm test");
     expect(describeCall({ type: "tool-call", id: "1", name: "update_plan", input: {} })).toBe("update plan");

@@ -191,6 +191,11 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("ai.delegate", "Split a task across helpers")],
     keywords: ["sub-agent", "subagent", "sub agents", "helpers", "agents start agents", "spawn agent", "delegate", "split task", "divide task", "parallel", "fan out", "task tool", "explore agent"],
   },
+  "ai.taskAgents": {
+    added: "2026-11-14",
+    actions: [command("ai.taskAgents", "Use a cheaper model for coding")],
+    keywords: ["task agent", "task agents", "create agent", "new agent", "different model", "cheaper model", "cheap model", "deepseek for coding", "model per task", "lead model", "planner model", "orchestrator", "worker model", "model routing", "mixture of models", "save tokens", "fewer tokens", "less tokens", "cost saving", "coding model", "expensive model thinks"],
+  },
   "ai.chatForks": {
     added: "2026-11-03",
     actions: [command("ai.forkConversation", "Fork this conversation")],
