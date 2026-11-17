@@ -24,6 +24,8 @@ export interface ChatUsagePopoverDeps {
 }
 
 export interface ChatUsagePopover {
+  /** The chip and its card together: what goes in the chat header. */
+  readonly element: HTMLElement;
   readonly chip: HTMLButtonElement;
   open(): void;
   refresh(): void;
@@ -72,11 +74,14 @@ export function createChatUsagePopover(deps: ChatUsagePopoverDeps): ChatUsagePop
   const chipText = el("span", "chat-usage-chip-text", "Usage");
   chip.append(chipIcon, chipText);
 
+  // The card lives beside the chip, inside the chat: an expanded chat is a modal dialog in the
+  // top layer, and a card left in the page body would sit underneath it, unclickable.
+  const element = el("div", "chat-usage");
   const card = el("div", "chat-usage-popover");
   card.setAttribute("role", "dialog");
   card.setAttribute("aria-label", "This chat's usage");
   card.hidden = true;
-  document.body.append(card);
+  element.append(chip, card);
 
   let model: ChatUsageModel = chatUsageModel(null, null, null);
   let generation = 0;
@@ -142,12 +147,10 @@ export function createChatUsagePopover(deps: ChatUsagePopoverDeps): ChatUsagePop
   }
 
   function place(): void {
+    // Absolute under the chip; only the height needs working out, to stop at the chat's bottom.
     const rect = chip.getBoundingClientRect();
-    const width = Math.min(320, window.innerWidth - 16);
-    card.style.width = `${String(width)}px`;
-    card.style.left = `${String(Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)))}px`;
-    card.style.top = `${String(rect.bottom + 6)}px`;
-    card.style.maxHeight = `${String(Math.max(200, window.innerHeight - rect.bottom - 20))}px`;
+    const bottom = chip.closest(".chat-card")?.getBoundingClientRect().bottom ?? window.innerHeight;
+    card.style.maxHeight = `${String(Math.max(180, bottom - rect.bottom - 18))}px`;
   }
 
   async function load(): Promise<void> {
@@ -195,7 +198,10 @@ export function createChatUsagePopover(deps: ChatUsagePopoverDeps): ChatUsagePop
   });
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape" || card.hidden) return;
+    // Both: stopPropagation keeps the chat's own Escape handler out, preventDefault stops the
+    // modal dialog's native cancel, which would otherwise close the whole chat.
     event.stopPropagation();
+    event.preventDefault();
     close();
     chip.focus();
   }, true);
@@ -204,5 +210,5 @@ export function createChatUsagePopover(deps: ChatUsagePopoverDeps): ChatUsagePop
 
   // The first read waits for the caller: the chat knows its conversation only once it has loaded.
   paintChip();
-  return { chip, open, refresh: () => { void load(); }, close };
+  return { element, chip, open, refresh: () => { void load(); }, close };
 }

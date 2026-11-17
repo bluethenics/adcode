@@ -282,6 +282,9 @@ summary.artifacts-how-heading { display: list-item; min-height: 32px; line-heigh
 .community-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: var(--space-3); }
 .community-card {
   display: grid;
+  /* One column that may shrink below its content: without it the footer's one-line summary set
+     the column's minimum, and text and the Install button ran past the card's border. */
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: var(--space-3);
   min-width: 0;
