@@ -59,7 +59,7 @@ export function ReleaseBar({ version, title }: ReleaseBarProps) {
         className="release-bar-close"
         onClick={dismiss}
         aria-label="Dismiss"
-        title="Dismiss — this version will not be mentioned again"
+        title="Dismiss. This version will not be mentioned again"
       >
         &times;
       </button>

@@ -40,7 +40,7 @@ export const metadata: Metadata = {
   ...pageMetadata({
     path: "/status",
     title: "Status",
-    socialTitle: "ADCode status — included AI, live",
+    socialTitle: "ADCode status: included AI, live",
     description:
       "Live status for the AI models included with ADCode: two-hour candles, request success rates, and incident updates.",
   }),
@@ -113,7 +113,7 @@ const candleTip = (candle: StatusCandle): string => {
   const format = (at: number) => new Date(at).toLocaleString("en-US", {
     month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC",
   });
-  const range = `${format(candle.startAt)} – ${format(candle.endAt)} UTC`;
+  const range = `${format(candle.startAt)} to ${format(candle.endAt)} UTC`;
   if (candle.turns === 0) return `${range}: no requests`;
   const average = speed(candle.avgMs);
   return `${range}: ${count(candle.turns)} requests, ${count(candle.errors)} errors${average === null ? "" : `, ${average} average`}`;
@@ -166,7 +166,7 @@ function IncidentBanner({ incident }: { incident: StatusIncident }) {
         {latest !== undefined && (
           <span className="status-banner-note">
             <b>{INCIDENT_STATUS_LABELS[latest.status] ?? latest.status}</b>
-            {` — ${latest.body}`}
+            {`: ${latest.body}`}
           </span>
         )}
       </div>
@@ -257,7 +257,7 @@ function IncidentCard({ incident }: { incident: StatusIncident }) {
               <div className="status-update-body">
                 <p>
                   <strong>{INCIDENT_STATUS_LABELS[update.status] ?? update.status}</strong>
-                  {` — ${update.body}`}
+                  {`: ${update.body}`}
                 </p>
                 <time dateTime={new Date(update.createdAt).toISOString()}>{stamp(update.createdAt)}</time>
               </div>

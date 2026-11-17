@@ -44,7 +44,7 @@ export function TagPicker({
     <>
       <p className="field-hint">
         {selected.length === 0
-          ? "Nothing selected — your ad reaches everyone. That's a valid choice, not an error."
+          ? "Nothing selected: your ad reaches everyone. That's a valid choice, not an error."
           : `${selected.length} selected. Your ad reaches developers with any of these open.`}
       </p>
 

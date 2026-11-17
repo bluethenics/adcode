@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { HeroInstall } from "@/components/HeroInstall";
 import { inviteHeadline, rememberRef, type InviteLookup } from "@/lib/invite";
+import { WEB_VERSION_URL } from "@/lib/site";
 
 /**
  * The top of an invite page: who sent it, the download that carries the code, and the code
@@ -50,11 +51,11 @@ export function InviteHero({ code, children }: { code: string | null; children?:
             )}
             <h1>The free AI code editor<br />that pays you to build.</h1>
             <p>
-              Describe your idea and watch it get built - with AI agents, real terminals and git. Free from the
+              Describe your idea and watch it get built, with AI agents, real terminals and git. Free from the
               first line, with a free AI key in about a minute and no card, and it pays you half of the ad
               revenue it earns.
             </p>
-            <HeroInstall source="invite" {...(carried === undefined ? {} : { invite: carried })} />
+            <HeroInstall source="invite" advertise={false} secondaryLink={{ href: WEB_VERSION_URL, label: "Try it in your browser" }} {...(carried === undefined ? {} : { invite: carried })} />
             {carried !== undefined && (
               <p className="hero-install-note" data-testid="invite-code">
                 Your invite code: <strong><code>{carried}</code></strong>. ADCode picks it up by itself when it

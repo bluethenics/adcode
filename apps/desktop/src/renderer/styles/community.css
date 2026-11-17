@@ -328,7 +328,9 @@ summary.artifacts-how-heading { display: list-item; min-height: 32px; line-heigh
 .community-stat strong { color: var(--text-secondary); font-weight: 500; font-variant-numeric: tabular-nums; }
 .community-rising { color: var(--success); font-variant-numeric: tabular-nums; }
 .community-card-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-top: var(--space-1); }
-.community-card-contributes { min-width: 0; color: var(--text-tertiary); font-size: var(--text-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The control keeps its width and the summary gives way: in a narrow card the Install button was squeezed to "Insta / ll". */
+.community-card-foot > :not(.community-card-contributes) { flex-shrink: 0; white-space: nowrap; }
+.community-card-contributes { flex: 1; min-width: 0; color: var(--text-tertiary); font-size: var(--text-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .community-help-wanted { margin: 0; padding: var(--space-2) var(--space-3); border-left: 2px solid var(--accent); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; background: var(--bg-hover); color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.45; }
 .community-help-wanted strong { color: var(--text-primary); font-weight: 600; }
 
@@ -1054,4 +1056,43 @@ summary.artifacts-how-heading { display: list-item; min-height: 32px; line-heigh
   :root:not([data-reduced-motion="true"]) .artifacts-outcome:not([hidden]) {
     animation: community-rise 200ms var(--motion-curve) backwards;
   }
+}
+
+/* ── The one Share button's question (shareChooser.ts) ─────────────────── */
+
+/* The dialog sets the width (it already keeps 24px either side); the card only caps it. */
+.form-dialog.share-chooser { max-width: min(480px, calc(100vw - 48px)); }
+@media (max-width: 520px) { .share-chooser .form-dialog-card { padding: 20px; } }
+.share-choices { display: grid; gap: var(--space-2); margin-top: var(--space-3); }
+.share-choice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 72px;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-lg);
+  background: var(--surface-sheen), var(--bg-app);
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+.share-choice-primary { border-color: var(--border-strong); }
+.share-choice-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--radius-md); background: var(--bg-hover); color: var(--text-primary); }
+.share-choice-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.share-choice-primary .share-choice-icon { background: var(--fill-primary); color: var(--text-on-accent); }
+.share-choice-words { display: grid; gap: 2px; min-width: 0; }
+.share-choice-title { font-size: var(--text-md); font-weight: 600; line-height: 1.35; }
+.share-choice-text { color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.45; overflow-wrap: break-word; }
+.share-choice:active { transform: scale(.99); }
+.share-choice:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.share-join { margin: var(--space-4) 0 0; color: var(--text-secondary); font-size: var(--text-sm); }
+.share-join-link { min-height: 32px; padding: 0 2px; border: 0; background: none; color: var(--text-primary); font: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.share-privacy { margin: var(--space-2) 0 0; color: var(--text-tertiary); font-size: var(--text-xs); line-height: 1.5; }
+@media (hover: hover) and (pointer: fine) {
+  .share-choice:hover { border-color: var(--border-strong); background: var(--surface-sheen), var(--bg-hover); }
 }

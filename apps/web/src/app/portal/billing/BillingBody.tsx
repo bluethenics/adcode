@@ -163,7 +163,7 @@ export function BillingBody() {
 
         <p className="field-hint" style={{ marginTop: 14 }}>
           You&apos;ll finish on Dodo Payments&apos; secure page. Your balance updates once
-          the payment settles, which is usually seconds — refresh this page if it
+          the payment settles, which is usually seconds. Refresh this page if it
           hasn&apos;t appeared after a minute.
         </p>
       </form>

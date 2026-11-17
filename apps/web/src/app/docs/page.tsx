@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "@/components/IntentLink";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
-import { DocsFrameTopbar } from "@/components/DocsFrameTopbar";
 import { DocsSearch } from "@/components/DocsSearch";
 import { Buck } from "@/components/buck/Buck";
 import { DocsSidebar } from "@/components/DocsSidebar";
@@ -92,7 +91,6 @@ export default async function DocsIndex({ searchParams }: Props) {
       />
       <section className="docs-stage">
         <div className="docs-frame docs-frame-in">
-          <DocsFrameTopbar searchOnPage />
           <div className="docs-frame-body">
             <DocsSidebar />
             <main className="docs-main">
@@ -116,7 +114,7 @@ export default async function DocsIndex({ searchParams }: Props) {
                     <span aria-hidden="true">#</span> Same source as the editor&rsquo;s <strong>?</strong> help
                   </p>
                   <p className="lede docs-hero-lede">
-                    What ADCode does, why you would use it, and how to start — in plain
+                    What ADCode does, why you would use it, and how to start, in plain
                     language, with steps for getting going.
                   </p>
                   <p className="docs-launch-note">

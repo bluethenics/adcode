@@ -16,6 +16,13 @@ describe("the shell an AI command runs in", () => {
       expect(shellFor(line, "win32")).toMatchObject({ args: ["/d", "/s", "/c", `"${line}"`], verbatim: true });
     }
   });
+  it("runs a `;` chain and a trailing head/tail in PowerShell, as the debug log showed models writing them", () => {
+    expect(shellFor("git status --short; git log --oneline -3", "win32").args.at(-1)).toBe("git status --short; git log --oneline -3");
+    expect(shellFor("git log --oneline | head -20", "win32").args.at(-1)).toBe("git log --oneline | Select-Object -First 20");
+    expect(shellFor("npm test 2>&1 | tail -n 5", "win32").args.at(-1)).toContain("npm test 2>&1 | Select-Object -Last 5");
+    // A `;` inside quotes, or with no space after it, is not a chain.
+    for (const line of ['echo "a; b"', "set PATH=a;b", "cd web && npm test; echo done"]) expect(shellFor(line, "win32").args).toEqual(["/d", "/s", "/c", `"${line}"`]);
+  });
   it("leaves other platforms on /bin/sh", () => {
     expect(shellFor("Get-ChildItem", "linux")).toEqual({ file: "/bin/sh", args: ["-c", "Get-ChildItem"], verbatim: false });
   });

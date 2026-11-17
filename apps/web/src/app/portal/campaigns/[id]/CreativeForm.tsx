@@ -46,7 +46,7 @@ export function CreativeForm({
       return;
     }
     if (logo === null) {
-      setError("Add a logo — the card has a space for it and looks broken without one.");
+      setError("Add a logo. The card has a space for it and looks broken without one.");
       return;
     }
 
@@ -114,7 +114,7 @@ export function CreativeForm({
       <div className="field">
         <label htmlFor="cr-headline">Your message</label>
         <span className="field-hint">
-          {headline.length}/{LIMITS.headline} — it sits in a small card, so shorter reads better.
+          {headline.length}/{LIMITS.headline}. It sits in a small card, so shorter reads better.
         </span>
         <input
           id="cr-headline"

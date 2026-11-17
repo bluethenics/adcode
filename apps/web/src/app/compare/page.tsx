@@ -56,7 +56,7 @@ export default function CompareIndex() {
             <Breadcrumbs items={[{ name: "Home", href: "/" }, { name: "Comparisons" }]} />
 
             <header className="docs-header compare-header">
-              <p className="eyebrow">CHOOSE YOUR EDITOR</p>
+              <p className="eyebrow">Choose your editor</p>
               <h1>How {SITE.name} compares</h1>
               <p className="lede">
                 Comparisons against the editors and assistants people genuinely weigh{" "}

@@ -1,0 +1,159 @@
+/*
+ * The website's one visual system, loaded last.
+ *
+ * The sheets before this one grew page by page, and each page picked its own column width,
+ * eyebrow style, button height and corner radius. This sheet settles those once, on the
+ * public pages and the sign-in screens: the colour tokens stay where they are defined
+ * (redesign.css, light and dark through light-dark()), and this file decides measure, type,
+ * controls and surfaces. The portal and admin app shells (.app, .admin) keep their own.
+ *
+ * - One column: the nav's 1120px with the same gutter, so every page's left edge lines up
+ *   with the logo.
+ * - One label style: sentence case in the body face. No monospace capitals above headings.
+ * - One control height: 44px, the smallest comfortable tap, and a label that never wraps.
+ * - One shape set: pills for actions, 12px for fields, 18px for cards, 24px for panels.
+ */
+:root {
+  --site-gutter: clamp(16px, 4vw, 48px);
+  --site-width: 1120px;
+  --tap: 44px;
+  --fs-label: 13px;
+  --fs-small: 14px;
+  --fs-body: 16px;
+  --fs-lead: clamp(16px, 1.4vw, 18px);
+  --fs-h3: clamp(18px, 1.6vw, 21px);
+  --fs-h2: clamp(28px, 3.4vw, 40px);
+  --fs-h1: clamp(34px, 4.6vw, 56px);
+  --radius-control: 12px;
+  --radius-card: 18px;
+  --radius-panel: 24px;
+  --radius-pill: 999px;
+}
+
+/* ── Measure ───────────────────────────────────────────────────────────── */
+.marketplace-wrap,
+body:has(.home-redesign) .marketplace-footer .marketplace-wrap {
+  width: min(100% - var(--site-gutter) * 2, var(--site-width));
+  margin-inline: auto;
+}
+.wrap { max-width: calc(var(--site-width) + var(--site-gutter) * 2); padding-inline: var(--site-gutter); }
+html, body { overflow-x: clip; }
+:where(h1, h2, h3) { text-wrap: balance; }
+:where(main p, main li) { text-wrap: pretty; }
+
+/* ── Labels above headings ─────────────────────────────────────────────── */
+:is(.marketplace-eyebrow, .home-redesign .marketplace-eyebrow, .home-hero-label, .pricing-eyebrow,
+    .eyebrow, .glass-kicker, .adv-eyebrow, .ai-eyebrow, .docs-hero-eyebrow, .portal-eyebrow,
+    .market-kicker, .auth-eyebrow, .home-share-caption, .auth-brand-caption, .auth-handoff-label,
+    .status-subscribe-kicker) {
+  font-family: var(--font-body), system-ui, sans-serif;
+  font-size: var(--fs-label);
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+}
+/* The green dot before a label said nothing a reader could act on. */
+.marketplace-eyebrow > span:empty { display: none; }
+
+/* ── Actions ───────────────────────────────────────────────────────────── */
+:is(.marketplace-primary, .marketplace-secondary, .home-link-button, .pricing-button, .adv-primary,
+    .adv-secondary, .btn, .glass-submit) {
+  min-height: var(--tap);
+  white-space: nowrap;
+  border-radius: var(--radius-pill);
+  font-weight: 600;
+  touch-action: manipulation;
+}
+:is(.marketplace-primary, .btn-primary, .adv-primary, .glass-submit) {
+  color: var(--surface);
+  background: var(--text);
+  border-color: transparent;
+}
+:is(.marketplace-primary, .btn-primary, .adv-primary, .glass-submit):hover:not(:disabled) {
+  color: var(--surface);
+  background: color-mix(in srgb, var(--text) 86%, var(--surface));
+  filter: none;
+}
+:is(.marketplace-secondary, .btn-outline, .btn-ghost, .adv-secondary, .btn-provider) {
+  color: var(--text);
+  background: var(--control);
+  border: 1px solid var(--hairline);
+  box-shadow: none;
+}
+:is(.marketplace-secondary, .btn-outline, .btn-ghost, .adv-secondary, .btn-provider):hover:not(:disabled) {
+  background: var(--control-hover);
+  border-color: var(--border-strong);
+}
+:is(.marketplace-primary, .marketplace-secondary, .btn, .adv-primary, .adv-secondary, .pricing-button):active:not(:disabled) {
+  transform: scale(.98);
+}
+.btn-small { min-height: 36px; }
+@media (pointer: coarse) { .btn-small { min-height: var(--tap); } }
+
+/* Segmented choices and tabs: the same tap height as a button. */
+:is(.segmented-option, .model-prices-filters button, .auth-mode button, .billing-toggle button,
+    [role="tablist"] > [role="tab"], .auth-password-toggle) {
+  min-height: var(--tap);
+}
+
+/* ── Fields ────────────────────────────────────────────────────────────── */
+:is(.input, .select, .glass-field input, .glass-field select) {
+  min-height: var(--tap);
+  border-radius: var(--radius-control);
+}
+.textarea, .glass-field textarea { border-radius: var(--radius-control); }
+/* Under 16px, iOS Safari zooms the page when a field is focused. */
+@media (max-width: 760px) {
+  :is(.input, .select, .textarea, .glass-field input, .glass-field select, .glass-field textarea) { font-size: 16px; }
+}
+:where(.field) > label { font-size: var(--fs-small); font-weight: 600; color: var(--text); }
+
+/* ── Surfaces ──────────────────────────────────────────────────────────── */
+:is(.card, .glass-card, .landing-index-card) { border-radius: var(--radius-card); }
+
+@media (prefers-reduced-motion: reduce) {
+  :is(.marketplace-primary, .marketplace-secondary, .btn, .adv-primary, .adv-secondary, .pricing-button):active:not(:disabled) { transform: none; }
+}
+
+/* Admin keeps its compact squared controls. */
+.admin .btn { border-radius: var(--radius-sm); white-space: normal; }
+
+/* In-page jump links and the illustration's pause toggle are controls too. */
+.ai-tokens-jump a { display: inline-flex; align-items: center; min-height: var(--tap); }
+.auth-upgrade .auth-art-bottom button { min-height: var(--tap); }
+
+/*
+ * Phone: a page's actions stack, full width, primary first. Some rows give their buttons
+ * `flex-basis: 100%` so they wrap one per line; in a column that basis means 100% of the
+ * height, and the second button wrapped into a column of its own, off the right edge of the
+ * download card.
+ */
+@media (max-width: 560px) {
+  .marketplace-hero-actions, .hero-install .marketplace-hero-actions { flex-direction: column; flex-wrap: nowrap; align-items: stretch; }
+  .marketplace-hero-actions > :is(a, button), .hero-install .marketplace-hero-actions > :is(.install-cta, .marketplace-secondary) { flex: 0 0 auto; width: 100%; justify-content: center; }
+}
+
+/* Group labels in lists of downloads and plan facts: the same sentence-case label. */
+:is(.install-terminal dt, .free-plan-grid dt, .home-redesign .free-plan-grid dt) {
+  font: 600 var(--fs-label)/1.5 var(--font-body), system-ui, sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+}
+.public-glass-hero > small { text-transform: none; font-size: 12px; }
+
+/*
+ * Docs: one top bar. The docs frame used to open with its own window bar (logo, Guides,
+ * Install, Support, search) directly under the site's navigation. The search moved into the
+ * sidebar (DocsSearchPill) and the rest was already in the site nav, so the sidebar now sticks
+ * just under the site nav.
+ */
+.docs-frame .docs-sidebar { top: 98px; max-height: calc(100dvh - 118px); }
+.docs-sidebar-search { display: flex; width: 100%; min-height: var(--tap); margin: 4px 0 12px; justify-content: flex-start; }
+.docs-sidebar-search span { display: inline; flex: 1; text-align: left; }
+@media (max-width: 900px) { .docs-sidebar-search { display: none; } }
+
+/* An article's title sits in a reading column beside the sidebar: two lines, not four. */
+.docs-hero--compact .docs-hero-copy h1 { font-size: clamp(30px, 3.2vw, 42px); line-height: 1.1; max-width: 22ch; }

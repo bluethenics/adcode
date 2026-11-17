@@ -12,6 +12,16 @@ const tone = (value: number): "ok" | "warn" | "full" => value >= 100 ? "full" : 
 
 function creditMeter(label: "Session" | "Weekly", window: CreditWindowView, credits: CreditsAllowance, modelId: string | null, now: number): ComposerMeterModel {
   const summary = creditWindowSummary(window, now);
+  // A hold is a pre-authorisation sized at the largest cost a reply could reach, and whatever it
+  // does not use returns when the reply ends. Counting it made this meter plunge on every step and
+  // climb back a moment later - the "90%, then 50%, then 80%" people reported - so it reports what
+  // was actually spent, exactly as the paid path below already did after the same report in
+  // November. The hold is still named in the tooltip, where it belongs.
+  const held = Math.max(0, window.held);
+  const left = Math.max(0, summary.remaining + held);
+  const leftPercent = percentLeft(left, window.limit);
+  const used = Math.max(0, window.used);
+  const usedPercent = window.limit <= 0 || used >= window.limit ? 100 : Math.min(99, Math.round(used / window.limit * 100));
   const span = label === "Session" ? `this ${credits.plan.sessionHours}-hour session` : "this week";
   const rate = modelId === null ? undefined : credits.rates[modelId];
   const pricing = rate === undefined || rate === 1 ? "A credit is about 1,000 tokens." : rate === 0 ? "This model uses no credits." : `This model uses ${rate} credits per 1,000 tokens.`;
@@ -20,10 +30,10 @@ function creditMeter(label: "Session" | "Weekly", window: CreditWindowView, cred
     : `Refills in ${summary.refill.in} (${summary.refill.at}).`;
   return {
     label,
-    percent: summary.percent,
-    value: `${summary.percent}%`,
-    detail: summary.remaining === 0 ? (summary.refill === null ? "Used up" : `Back in ${summary.refill.in}`) : `${percentLeft(summary.remaining, window.limit)}% left`,
-    tone: tone(summary.percent),
+    percent: usedPercent,
+    value: `${leftPercent}%`,
+    detail: left <= 0 ? (summary.refill === null ? "Used up" : `Back in ${summary.refill.in}`) : `${leftPercent}% left`,
+    tone: tone(usedPercent),
     tooltip: `Free AI credits for ${span}: ${summary.remaining.toLocaleString()} of ${window.limit.toLocaleString()} left${window.held > 0 ? `, ${Math.ceil(window.held).toLocaleString()} held by replies in progress` : ""}. ${refill} Every free model draws from this one balance, on all your devices. ${pricing} When it runs out, a running task waits and carries on by itself. Open AI usage for details.`,
   };
 }

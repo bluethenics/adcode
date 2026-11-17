@@ -126,7 +126,7 @@ describe("the usage page", () => {
     const openai = usagePage(rows, "7d", NOW, { provider: "openai" });
     expect(openai.totals.processedTokens).toBe(4000);
     expect(openai.providers.map((p) => p.id)).toEqual(["anthropic", "tagflow", "openai"]);
-    expect(openai.filter).toEqual({ project: null, provider: "openai" });
+    expect(openai.filter).toEqual({ project: null, provider: "openai", chat: null });
   });
 
   it("says unknown rather than zero", () => {

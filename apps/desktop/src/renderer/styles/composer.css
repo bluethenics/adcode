@@ -286,19 +286,35 @@
   min-width: 0;
 }
 
+/*
+ * The live session floats above the composer as a card - the same shape as the chat's usage
+ * box and the workbench's menus - instead of taking a column out of the composer. The
+ * composer keeps its full width; the card closes on Escape or a click elsewhere.
+ */
 .chat-live-dock {
+  position: absolute;
+  z-index: 31;
+  bottom: calc(100% + 8px);
+  left: 8px;
   display: flex;
-  flex: 0 0 232px;
   flex-direction: column;
   gap: 8px;
-  min-width: 0;
-  max-width: 240px;
-  padding: 2px 0 2px 12px;
-  border-left: 1px solid var(--border-hairline);
+  width: min(340px, calc(100% - 16px));
+  max-height: min(560px, 70vh);
+  padding: 12px;
+  overflow-y: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-floating);
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.4;
+  scrollbar-width: thin;
 }
+.chat-live-dock .chat-live-actions,
+.chat-live-dock .chat-live-foot { padding-top: 8px; border-top: 1px solid var(--border-hairline); }
+.chat-live-dock .chat-live-foot + .chat-live-actions { padding-top: 0; border-top: 0; }
 
 .chat-live-dock[hidden] { display: none; }
 
@@ -508,15 +524,10 @@
   text-align: center;
 }
 .chat-live-badge[hidden] { display: none; }
+.chat-live-badge[data-unread="true"] { background: var(--accent); color: var(--text-on-accent); }
 
-@container composer (max-width: 620px) {
-  .chat-live-dock {
-    flex: 1 0 100%;
-    max-width: none;
-    padding: 10px 0 0;
-    border-top: 1px solid var(--border-hairline);
-    border-left: 0;
-  }
+@container composer (max-width: 420px) {
+  .chat-live-dock { right: 8px; width: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {

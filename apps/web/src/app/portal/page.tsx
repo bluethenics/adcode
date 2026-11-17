@@ -57,7 +57,7 @@ export default function PortalHome() {
       sidebar={PORTAL_SIDEBAR}
     >
       <div className="portal-launchpad">
-        <div><span className="portal-eyebrow">ADCODE / ADVERTISING</span><h2>Your next customer is building here.</h2><p>Create a card, choose your audience, and set a budget you control.</p></div>
+        <div><span className="portal-eyebrow">Advertising</span><h2>Your next customer is building here.</h2><p>Create a card, choose your audience, and set a budget you control.</p></div>
         <a className="btn btn-primary" href="#new-campaign">Create a campaign <SideIcon name="plus" /></a>
         <div className="portal-launchpad-facts"><span><SideIcon name="target" />Verified views</span><span><SideIcon name="card" />Budgets from $1</span><span><SideIcon name="chart" />Clear reporting</span></div>
       </div>
@@ -159,7 +159,7 @@ function PortalBody() {
         "Payment received. Your balance updates as soon as it settles, usually within a minute.",
       );
     } else if (params.get("checkout") === "cancelled") {
-      setAnnouncement("Checkout was cancelled — nothing was charged. Try again whenever you're ready.");
+      setAnnouncement("Checkout was cancelled. Nothing was charged. Try again whenever you're ready.");
     }
   }, []);
 
@@ -210,7 +210,7 @@ function PortalBody() {
         <h3>Start your first campaign</h3>
         <p>
           One screen: your logo, your message, a budget. Your advertiser account is created
-          along with the campaign — there is no separate sign-up to get through first.
+          along with the campaign. There is no separate sign-up to get through first.
         </p>
         <NewCampaignForm />
       </div>
@@ -223,6 +223,12 @@ function PortalBody() {
   const spentTotal = moneyProgress(series
     .filter((point) => days.includes(point.day))
     .reduce((sum, point) => sum + BigInt(point.spentMicros), 0n).toString());
+  /*
+   * Before the first verified view these four tiles would read 0, 0, $0.00, 0 - four zeros
+   * in a row at the exact moment an advertiser is deciding whether this works. A dash and a
+   * line saying when the figure arrives carries the same information without the verdict.
+   */
+  const noViews = viewTotal === 0 && clickTotal === 0;
 
   return (
     <>
@@ -256,14 +262,27 @@ function PortalBody() {
         </div>
 
         <div className="ios-tiles">
-          <Tile label="Verified views" value={viewTotal.toLocaleString("en-US")} hint={`Last ${window} days`} />
+          <Tile
+            label="Verified views"
+            value={noViews ? "—" : viewTotal.toLocaleString("en-US")}
+            hint={noViews ? "Counted from the first verified view" : `Last ${window} days`}
+          />
           <Tile
             label="Clicks"
-            value={clickTotal.toLocaleString("en-US")}
-            hint={viewTotal === 0 ? "—" : `${((clickTotal / viewTotal) * 100).toFixed(2)}% of views`}
+            value={noViews ? "—" : clickTotal.toLocaleString("en-US")}
+            hint={noViews ? "Shown once someone clicks" : `${((clickTotal / viewTotal) * 100).toFixed(2)}% of views`}
           />
-          <Tile label="Spent" value={spentTotal} hint={`Last ${window} days`} money />
-          <Tile label="Live campaigns" value={String(live)} hint={`${campaigns.length} total`} />
+          <Tile
+            label="Spent"
+            value={noViews ? "—" : spentTotal}
+            hint={noViews ? "You are charged only for verified views" : `Last ${window} days`}
+            money
+          />
+          <Tile
+            label="Live campaigns"
+            value={live === 0 ? "—" : String(live)}
+            hint={live === 0 ? "Set live below to start serving" : `${campaigns.length} total`}
+          />
         </div>
 
         <section className="ios-card portal-activity">
@@ -571,7 +590,7 @@ function CampaignCards({
       {cards === null ? (
         <p className="lede">Loading…</p>
       ) : cards.length === 0 ? (
-        <p className="lede">No cards yet — publish the first one below.</p>
+        <p className="lede">No cards yet. Publish the first one below.</p>
       ) : (
         <ul className="meter-list">
           {cards.map((card) => (
@@ -583,7 +602,7 @@ function CampaignCards({
                 </span>
               </span>
               {card.status === "rejected" && (
-                <span className="meter-foot">Rejected — publish a replacement below.</span>
+                <span className="meter-foot">Rejected. Publish a replacement below.</span>
               )}
             </li>
           ))}

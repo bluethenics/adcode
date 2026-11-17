@@ -61,6 +61,7 @@ import "./styles/annotate.css";
 import "./styles/chatRich.css";
 import "./styles/moveIn.css";
 import "./styles/liveDock.css";
+import "./styles/chatUsage.css";
 import "./styles/usageCharts.css";
 import "./styles/welcomeTour.css";
 import "./styles/mascots.css";
@@ -169,6 +170,7 @@ import { createChatWidget } from "./ai/chatWidget.ts";
 import { CHECK_APP_PROMPT } from "./ai/composerMenu.ts";
 import { createPluginsPage, type PluginsTab } from "./community/pluginsPage.ts";
 import { createArtifactsPage, type ArtifactsTab } from "./community/artifactsPage.ts";
+import { openShareChooser } from "./community/shareChooser.ts";
 import { createAddonHost } from "./community/addonHost.ts";
 import { aiPlanName, creditWindowSummary } from "../shared/tagflow.ts";
 import type { AddonData, AddonDataView, AddonSlot } from "@adcode/community";
@@ -5543,9 +5545,26 @@ const projectsPanel = createProjectsPanel({
 });
 // Shared projects are paused. Keep stored projects and conversations intact.
 el("open-projects").hidden = true;
-el("status-collab").hidden = true;
 
-el("status-collab").addEventListener("click", () => { window.adcode.milestones.record("collab_opened"); collabPanel.toggle(); });
+/**
+ * The one Share button. With nothing running it asks the only question that matters - a copy, or
+ * live together - and hands off to the Artifacts page's flows; with a session running it manages
+ * that session, as before. It used to be hidden unless a session was already running, which left
+ * sharing behind a page most people never opened.
+ */
+let collabMode = "off";
+function openShare(): void {
+  openShareChooser({
+    sendCopy: () => { openArtifacts("project"); artifactsPage.shareProject(); },
+    workLive: () => { openArtifacts("discover"); artifactsPage.workTogether(); },
+    join: () => { openArtifacts("discover"); artifactsPage.focusJoin(); },
+  });
+}
+el("status-collab").addEventListener("click", () => {
+  window.adcode.milestones.record("collab_opened");
+  if (collabMode === "off") openShare();
+  else collabPanel.toggle();
+});
 document.getElementById("join-discord")?.addEventListener("click", () => { window.adcode.milestones.record("discord_opened"); window.open("https://discord.gg/WH2UBsQd3", "_blank", "noopener"); });
 
 window.adcode.collab.onStatus((status) => {
@@ -5562,6 +5581,7 @@ window.adcode.collab.onStatus((status) => {
    */
   const guests = Math.max(0, status.participants.length - 1);
   const label = el("status-collab-label");
+  collabMode = status.mode;
 
   if (status.mode === "hosting") {
     label.textContent = guests === 0 ? "Sharing" : `Sharing · ${guests}`;
@@ -5583,12 +5603,11 @@ window.adcode.collab.onStatus((status) => {
    * the session moves without the mode moving.
    */
   const control = el("status-collab");
-  // Keep a way to manage or leave an already running session while new sharing is paused.
-  control.hidden = status.mode !== "hosting" && status.mode !== "joined" && status.mode !== "connecting";
-  if (control.hidden) collabPanel.close();
+  if (status.mode === "off") collabPanel.close();
   const spoken = label.textContent ?? "Share";
-  control.dataset["tip"] = `Live session - ${spoken}`;
-  control.setAttribute("aria-label", `Live session: ${spoken}`);
+  const words = status.mode === "off" ? "Share this project - send a copy or work on it live" : `Live session - ${spoken}`;
+  control.dataset["tip"] = words;
+  control.setAttribute("aria-label", words);
 });
 
 window.adcode.collab.onDocUpdate((path, update) =>
@@ -6364,6 +6383,7 @@ function registerCommands(): void {
   add("ai.team", "Set Up AI Team", () => chat.openTeamSetup());
   add("ai.schedule", "Schedule an AI Message", () => chat.openScheduleComposer());
   add("ai.compactConversation", "AI: Compact Conversation", () => chat.compactConversation());
+  add("ai.chatUsage", "AI: Show This Chat's Usage", () => chat.showChatUsage());
   add("power.whenDone", "AI: When the Assistant Finishes…", () => void openPowerDialog());
   add("power.cancel", "AI: Cancel Sleep or Shutdown", () => void window.adcode.power.cancel());
   add("phone.link", "Phone Link: Chat From Your Phone", () => void openPhoneLinkDialog());
@@ -6474,7 +6494,7 @@ function registerCommands(): void {
   add("community.you", "Plugins: My Creator Profile", () => openPlugins("mine"));
   add("community.monetize", "Plugins: Sell My Plugins (Coming Soon)", () => { openPlugins(); pluginsPage.showMonetize(); });
   add("community.artifacts", "Artifacts: Browse Shared Projects", () => openArtifacts("discover"));
-  add("community.shareProject", "Artifacts: Share This Project", () => { openArtifacts("project"); artifactsPage.shareProject(); });
+  add("community.shareProject", "Share This Project…", () => openShare());
   add("community.inbox", "Artifacts: Changes Sent to You", () => openArtifacts("inbox"));
   add("workspace.browser", "Open Browser", () => agentBrowserPane.open());
   add("workspace.preview", "Open Project Preview", () => { if (!previewPane.isOpen()) void previewPane.toggle(); });

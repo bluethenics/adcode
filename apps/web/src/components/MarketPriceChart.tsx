@@ -79,7 +79,7 @@ export function MarketPriceChart({
 
       <div className="market-chart-axis" aria-hidden="true"><span>24 hours ago</span><span>Now</span></div>
       <p className="sr-only">{summary}</p>
-      {history.length === 0 && <p className="market-empty">No settled auction history yet — showing the live floor.</p>}
+      {history.length === 0 && <p className="market-empty">No settled auction history yet. Showing the live floor.</p>}
     </div>
   );
 }

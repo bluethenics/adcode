@@ -80,7 +80,7 @@ export function NewCampaignForm() {
       return;
     }
     if (logo === null) {
-      setError("Add a logo — the card has a space for it and it looks broken without one.");
+      setError("Add a logo. The card has a space for it and it looks broken without one.");
       return;
     }
     if (!clickUrl.startsWith("https://") || clickUrl.length < 12) {
@@ -177,7 +177,7 @@ export function NewCampaignForm() {
     if (!creative.ok) {
       // The campaign exists, so the detail page is where they can retry the card rather
       // than starting the whole thing again.
-      setError(`${MESSAGES[creative.error]} Your campaign was created — add the card there.`);
+      setError(`${MESSAGES[creative.error]} Your campaign was created. Add the card there.`);
       router.push(`/portal?campaign=${campaign.value.campaignId}`);
       return;
     }
@@ -219,7 +219,7 @@ export function NewCampaignForm() {
           <div className="field">
             <label htmlFor="headline">Your message</label>
             <span className="field-hint">
-              {headline.length}/{LIMITS.headline} — it sits in a small card, so shorter reads
+              {headline.length}/{LIMITS.headline}. It sits in a small card, so shorter reads
               better.
             </span>
             <input
@@ -250,7 +250,7 @@ export function NewCampaignForm() {
 
           <LogoDrop
             label="Logo"
-            hint="Square works best. Dropped here, resized here — nothing to host."
+            hint="Square works best. Dropped here, resized here, nothing to host."
             value={logo}
             onChange={setLogo}
           />
@@ -345,7 +345,7 @@ export function NewCampaignForm() {
         </section>
 
         <div className="notice" data-tone="info">
-          Nothing is charged yet. Your card goes live as soon as the campaign is funded —
+          Nothing is charged yet. Your card goes live as soon as the campaign is funded:
           there is no review wait. An account that already has credits can start serving
           immediately.
         </div>
@@ -365,8 +365,8 @@ export function NewCampaignForm() {
       <aside className="campaign-builder-preview" aria-label="Ad preview and completion checklist">
         <div className="ios-card">
           <header className="ios-card-head">
-            <span className="portal-step">LIVE PREVIEW</span><h2>Your ad, in context</h2>
-            <p>Exactly what a developer sees — the same card, at the same size.</p>
+            <span className="portal-step">Live preview</span><h2>Your ad, in context</h2>
+            <p>Exactly what a developer sees: the same card, at the same size.</p>
           </header>
 
           <div className="card-preview-ground">

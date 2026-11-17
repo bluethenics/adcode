@@ -110,8 +110,9 @@ export function shellFor(command: string, platform: NodeJS.Platform = process.pl
   const system = process.env["SystemRoot"] ?? "C:\\Windows";
   // Models write PowerShell on Windows as often as cmd. Reported 2026-10-27: "'Get-ChildItem' /
   // 'ForEach-Object' is not recognized as an internal or external command" ended whole tasks.
-  if (looksLikePowerShell(command)) {
-    return { file: `${system}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`, args: ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", powerShellLine(command)], verbatim: false };
+  const translated = unixTail(command);
+  if (translated !== command || looksLikePowerShell(command) || chainsWithSemicolon(command)) {
+    return { file: `${system}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`, args: ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", powerShellLine(translated)], verbatim: false };
   }
   return { file: `${system}\\System32\\cmd.exe`, args: ["/d", "/s", "/c", `"${command}"`], verbatim: true };
 }
@@ -127,6 +128,25 @@ export function shellFor(command: string, platform: NodeJS.Platform = process.pl
 export function powerShellLine(command: string): string {
   if (!/\d?>&1|\*>&1/.test(command)) return command;
   return `${command}\nif ($null -ne $LASTEXITCODE) { exit $LASTEXITCODE }`;
+}
+
+/**
+ * `git status --short; git log -3`: cmd has no `;`, so git was handed `--short;` as an option and
+ * the step failed. PowerShell runs it as two commands. Only a `;` outside quotes followed by a space.
+ */
+export function chainsWithSemicolon(command: string): boolean {
+  const unquoted = command.replace(/"[^"]*"|'[^']*'/g, "");
+  // Windows PowerShell 5.1 has no `&&` or `||`: such a line is better off failing where it was.
+  return /;\s/.test(unquoted) && !/&&|\|\|/.test(unquoted);
+}
+
+/**
+ * The commonest Unix habit on Windows: a trailing `| head -20` or `| tail -n 5` to trim output,
+ * which cmd answers with "'head' is not recognized". Rewritten to the PowerShell equivalent;
+ * anything else is returned unchanged.
+ */
+export function unixTail(command: string): string {
+  return command.replace(/\|\s*(head|tail)\s+(?:-n\s*)?-?(\d+)\s*$/, (_, tool: string, count: string) => `| Select-Object -${tool === "head" ? "First" : "Last"} ${count}`);
 }
 
 /** A Verb-Noun cmdlet, a PowerShell variable or a PowerShell-only flag: cmd.exe could never run this line. */

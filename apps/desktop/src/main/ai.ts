@@ -154,7 +154,7 @@ import { base64ImageSize, tooSmallForModels } from "./imageSize.ts";
 import { aiPreviewUrl, describePreviewForAi, openAiPreview } from "./aiPreview.ts";
 import { createCommandRunner } from "./aiCommands.ts";
 import { closeAgentBrowser, viewPage } from "./agentBrowser.ts";
-import { clearSessions, deleteSession, readSessions, writeSession } from "./aiSessions.ts";
+import { clearSessions, deleteSession, readSessions, sameWorkspace, writeSession } from "./aiSessions.ts";
 import { createAiWorkspaceService, type AiWorkspaceService } from "./aiWorkspaceService.ts";
 import { agentEventTrace, describeActivity } from "./aiEventTrace.ts";
 import { createSlotPool } from "./slotPool.ts";
@@ -868,8 +868,10 @@ export async function aiDeleteSession(id: string): Promise<ChatSession[]> {
 }
 
 export async function aiClearSessions(): Promise<ChatSession[]> {
-  for (const id of [...threads.keys()]) dropThread(id);
-  await clearSessions(currentWorkspace()?.root ?? null);
+  const root = currentWorkspace()?.root ?? null;
+  // Only this project's chats: a turn running in another project's chat is not this list's to stop.
+  for (const [id, thread] of [...threads]) if (sameWorkspace(thread.root, root)) dropThread(id);
+  await clearSessions(root);
   session = null;
   return aiSessions();
 }
@@ -884,7 +886,8 @@ export async function aiRenameSession(id: string, title: string): Promise<ChatSe
 
   // `renamed` is what stops auto-titling from overwriting the user's own words later.
   const renamed: ChatSession = { ...found, title: trimmed, renamed: true };
-  await writeSession(currentWorkspace()?.root ?? null, renamed);
+  // Into the chat's own project, which is not always the open one.
+  await writeSession(threads.get(id)?.root ?? currentWorkspace()?.root ?? null, renamed);
   const thread = threads.get(id);
   if (thread !== undefined) adoptSession(thread, renamed);
   else if (session?.id === id) session = renamed;

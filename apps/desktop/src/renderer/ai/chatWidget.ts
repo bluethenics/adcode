@@ -119,6 +119,7 @@ import { chatAppearanceFrom, watchChatAppearance, type ChatAppearance } from "./
 import { openChatAppearanceDialog } from "./chatAppearanceDialog.ts";
 import { createQuestionCard } from "./chatQuestionCard.ts";
 import { openUsageDialog } from "./usageDialog.ts";
+import { createChatUsagePopover } from "./chatUsagePopover.ts";
 import { firstBuildPrompt, looksLikeBuildRequest } from "../../shared/firstBuild.ts";
 import { BUY_TOKENS_URL } from "../../shared/tagflow.ts";
 import { createLimitPauseCard, parseLimitPause } from "./limitPause.ts";
@@ -159,6 +160,8 @@ export interface ChatWidget {
   openScheduleComposer(): void;
   /** Summarise the older part of the conversation now, optionally paying attention to `focus`. */
   compactConversation(focus?: string): void;
+  /** Open the usage box at the top left of the chat for the current conversation. */
+  showChatUsage(): void;
   /** Show what the last compaction wrote. */
   viewConversationSummary(): void;
   /** Open or close the live room dock beside the composer: who is online, and the room chat. */
@@ -770,6 +773,14 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const identity = document.createElement("div");
   identity.className = "chat-identity";
   identity.append(title, conversationTitle, lineage);
+  // This conversation's usage, one click from the top left: context, tokens, cost, cache, speed, models.
+  const usagePopover = createChatUsagePopover({
+    chatId: () => activeSessionId,
+    openUsage: () => void openUsageDialog(),
+    importChats: () => deps.runCommand?.("ai.importChats"),
+    compact: () => void compactNow(),
+  });
+  identity.prepend(usagePopover.chip);
   const headerActions = document.createElement("div");
   const controlsButton = document.createElement("button");
   controlsButton.className = "ghost-button";
@@ -1069,7 +1080,12 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   historySearch.type = "search";
   historySearch.placeholder = "Search conversations";
   historySearch.setAttribute("aria-label", "Search conversations");
-  historySearch.addEventListener("input", () => renderHistory());
+  // Debounced: every keystroke used to rebuild a row for every saved conversation.
+  let historySearchTimer: ReturnType<typeof setTimeout> | undefined;
+  historySearch.addEventListener("input", () => {
+    clearTimeout(historySearchTimer);
+    historySearchTimer = setTimeout(() => renderHistory(), 150);
+  });
 
   const historyList = document.createElement("div");
   historyList.className = "chat-history-list";
@@ -1079,7 +1095,16 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   clearAll.className = "chat-history-clear";
   clearAll.textContent = "Clear all";
   clearAll.title = "Delete every saved conversation for this project";
-  clearAll.addEventListener("click", () => {
+  clearAll.addEventListener("click", async () => {
+    // The one destructive control here that did not ask first, and it removes every chat at once.
+    const count = saved.length;
+    const sure = await askThemed({
+      title: `Delete all ${count} conversation${count === 1 ? "" : "s"} for this project?`,
+      body: "They are removed from this machine. This cannot be undone.",
+      confirmLabel: "Delete all",
+      danger: true,
+    });
+    if (!sure) return;
     void window.adcode.chat.clear().then((sessions) => {
       saved = sessions;
       renderHistory();
@@ -1214,6 +1239,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     saved = await window.adcode.chat.sessions();
     const current = await window.adcode.chat.current().catch(() => null);
     activeSessionId = current?.id ?? null;
+    usagePopover.refresh();
     conversationTitle.textContent = current === null || current.messages.length === 0
       ? "New conversation"
       : current.title;
@@ -2464,10 +2490,13 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   liveDock.onChange((state) => {
     liveButton.dataset["live"] = String(state.live);
     liveButton.setAttribute("aria-expanded", String(state.open));
-    liveBadge.hidden = !state.live || state.online === 0;
-    liveBadge.textContent = String(state.online);
+    // Unread room messages win the badge: who is online can wait, someone talking to you cannot.
+    const unread = state.unread > 0 && !state.open;
+    liveBadge.dataset["unread"] = String(unread);
+    liveBadge.hidden = !unread && (!state.live || state.online === 0);
+    liveBadge.textContent = unread ? String(Math.min(state.unread, 99)) : String(state.online);
     liveButton.title = state.live
-      ? `Live project · ${String(state.online)} online · ${String(state.working)} working`
+      ? `Live project · ${String(state.online)} online · ${String(state.working)} working${unread ? ` · ${String(state.unread)} unread` : ""}`
       : "Start or join a live project session";
   });
   utilities.append(attachButton, attachContext, liveButton, composerTools);
@@ -2539,6 +2568,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     // Whichever conversation is current now - possibly a new one started in the other window.
     currentSummary = session?.summary?.text ?? null;
     refreshContextMeter();
+    usagePopover.refresh();
   });
   void window.adcode.chat.current().then((session) => {
     currentSummary = session?.summary?.text ?? null;
@@ -5795,6 +5825,12 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     compactConversation(focus?: string): void {
       api.open();
       void compactNow(focus);
+    },
+
+    showChatUsage(): void {
+      api.open();
+      // After the panel has laid out, so the box is placed under the chip, not where it was hidden.
+      requestAnimationFrame(() => usagePopover.open());
     },
 
     toggleLiveRoom(): void {

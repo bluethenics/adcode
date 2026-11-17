@@ -2,7 +2,6 @@ import Link from "@/components/IntentLink";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
-import { DocsFrameTopbar } from "@/components/DocsFrameTopbar";
 import { DocsSidebar } from "@/components/DocsSidebar";
 import { JsonLd } from "@/components/JsonLd";
 import { ReadingProgress } from "@/components/ReadingProgress";
@@ -77,7 +76,6 @@ export default async function DocPage({ params }: Props) {
       />
       <section className="docs-stage">
         <div className="docs-frame docs-frame-in">
-          <DocsFrameTopbar />
           <div className="docs-frame-body">
             <DocsSidebar currentDoc={page.slug} />
             <main className="docs-main">

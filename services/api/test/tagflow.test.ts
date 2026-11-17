@@ -105,6 +105,18 @@ describe("included Tagflow AI", () => {
       expect((await store.getPaidTokens("user", true)).free?.usedTokens).toBe(99);
       expect(await (await call("/ai/tokens/orders", "user")).json()).toMatchObject({ tokens: { accounting: "cost-v1", free: { limit: 110000, used: 99 } } });
     });
+    it("serves a model an administrator made free without spending the daily allowance", async () => {
+      await save({ ...config, paid: { ...DEFAULT_PAID_CONFIG, enabled: true, accounting: "cost-v1", freeWeeklyTokens: 110000 }, models: [{ ...config.models[0]!, inputPrice: .4, outputPrice: 1.4, cacheInputPrice: .04, creditRate: 0 }] });
+      const response = await chat(); expect(response.status).toBe(200); await response.text();
+      expect((await store.getPaidTokens("user", true)).free?.usedTokens ?? 0).toBe(0);
+      const published = await (await call("/ai/tagflow/config")).json() as { models: { id: string; creditRate: number; paid: boolean; inputCreditsPer1k?: number }[] };
+      expect(published.models[0]).toMatchObject({ creditRate: 0, paid: false, inputCreditsPer1k: 0 });
+    });
+    it("lets a free model answer after the free allowance is spent", async () => {
+      await save({ ...config, paid: { ...DEFAULT_PAID_CONFIG, enabled: true, accounting: "cost-v1", freeWeeklyTokens: 0 }, models: [{ ...config.models[0]!, inputPrice: .4, outputPrice: 1.4, creditRate: 0 }] });
+      const response = await chat(); expect(response.status).toBe(200); await response.text();
+      expect(upstream).toHaveBeenCalledTimes(1);
+    });
     it("fits reply headroom into the free balance instead of rejecting a new account", async () => {
       const response = await chat("user", { ...body, max_tokens: 50000 }); expect(response.status).toBe(200); await response.text();
       expect(JSON.parse(upstream.mock.calls[0]![1]!.body as string).max_tokens).toBeGreaterThan(0);

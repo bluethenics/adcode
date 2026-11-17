@@ -22,7 +22,11 @@ export function createAccountGate(menu: AccountMenu, ready: () => void, required
   const passwordInput = document.createElement("input"); passwordInput.type = "password"; passwordInput.required = true; passwordInput.minLength = 6; passwordInput.autocomplete = "new-password"; passwordInput.placeholder = "Password (6+ characters)"; passwordInput.setAttribute("aria-label", "Password for email sign-in");
   const addButton = document.createElement("button"); addButton.type = "submit"; addButton.textContent = "Add email and send link";
   addEmail.append(emailInput, passwordInput, addButton);
-  content.append(title, detail, addEmail, mount, status, retry);
+  // The way out. A gate nobody could close sent everyone whose verification email never came
+  // (100 of 346 reports) away with no editor at all. The editor, previews, a person's own keys and
+  // installed CLIs need no account; included AI still asks for verification on the server.
+  const later = document.createElement("button"); later.type = "button"; later.className = "account-gate-later"; later.textContent = "Look around first - sign in later";
+  content.append(title, detail, addEmail, mount, status, retry, later);
   dialog.append(backdrop.element, brand, content);
   document.body.append(dialog);
   let checking = false, queued = false, verified = false, version = 0, timer: number | undefined;
@@ -95,6 +99,10 @@ export function createAccountGate(menu: AccountMenu, ready: () => void, required
     }
   }
   retry.addEventListener("click", () => { void check(); });
+  later.addEventListener("click", () => {
+    // Skipped for this launch: no reopening on a token refresh. The account menu signs in later.
+    guarding = false; verified = true; unlock();
+  });
   window.addEventListener("focus", () => { if (dialog.open) void check(); });
   let guarding = true;
   window.adcode.account.onChanged(() => {

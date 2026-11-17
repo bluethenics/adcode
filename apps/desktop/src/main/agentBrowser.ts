@@ -510,7 +510,9 @@ async function runAction(target: AgentPage, action: PageAction): Promise<{ line:
 
 async function screenshot(target: AgentPage, snapshot: PageSnapshot, fullPage: boolean): Promise<ImageBlock | null> {
   const width = target.viewport.width;
-  const height = fullPage ? Math.min(snapshot.scroll.height, target.viewport.height * 4, 8_000) : target.viewport.height;
+  // 3,000 px, not 8,000: a 1280 x 8000 shot decodes to ~41 MB of bitmap that the transcript keeps
+  // for the life of the window, and vision models scale a page that tall down to a smear anyway.
+  const height = fullPage ? Math.min(snapshot.scroll.height, target.viewport.height * 4, 3_000) : target.viewport.height;
   // Big enough to read, small enough to send: wide screens are scaled down to 1280, and the
   // protocol does the scaling and the JPEG, so no image library is needed on either surface.
   const scale = Math.min(1, SCREENSHOT_MAX_WIDTH / Math.max(1, width));

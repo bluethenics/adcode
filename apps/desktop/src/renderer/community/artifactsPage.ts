@@ -57,6 +57,10 @@ export interface ArtifactsPage {
   hidden(): void;
   showTab(tab: ArtifactsTab): void;
   shareProject(): void;
+  /** Share the open project if needed, then start a live session on it. */
+  workTogether(): void;
+  /** Put the cursor in "Join a friend". */
+  focusJoin(): void;
   poll(): Promise<void>;
 }
 
@@ -1820,10 +1824,12 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
       const moreSummary = el("summary", "community-live-more-summary");
       moreSummary.append(
         el("span", "community-live-more-title", needsYou > 0 ? `More team tools · ${needsYou} waiting on you` : "More team tools"),
-        el("span", "community-live-more-note", "File locks, approvals, handoffs, pinned notes, comments and what happened"),
+        el("span", "community-live-more-note", "A shared plan, file locks, approvals, handoffs, pinned notes, comments and what happened"),
       );
       more.append(
         moreSummary,
+        // Folded with the rest: a room opens on who is here and what they are editing, not on a to-do list.
+        tool("The plan", planTotal === 0 ? "One list of steps everyone - and everyone's AI - works from. No steps yet." : `One list of steps everyone - and everyone's AI - works from. ${planDone} of ${planTotal} done.`, plan, steps),
         tool("Session", "The branch and task everyone in this room is working on.", head),
         tool("Coordination", "Warns when two people touch the same file. Lock a file before a big change so nobody else edits it.", coordination, lockForm),
         tool("Approvals", pendingApprovals.length === 0 ? "Ask the team before a push, a command or taking over someone's work. Nothing is waiting." : `Ask the team before a push, a command or a takeover. ${pendingApprovals.length} waiting for an answer.`, approvals, approvalForm),
@@ -1836,7 +1842,6 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
         now,
         actions,
         editors,
-        tool("The plan", planTotal === 0 ? "One list of steps everyone - and everyone's AI - works from. No steps yet." : `One list of steps everyone - and everyone's AI - works from. ${planDone} of ${planTotal} done.`, plan, steps),
         tool("People and their AI", `Who is here and what each person's AI is doing. ${ready} of ${current.checks.length} join checks ready.`, people),
         more,
       );
@@ -2090,6 +2095,8 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
     hidden: shell.hidden,
     showTab: shell.showTab,
     shareProject: () => shareProject(),
+    workTogether: () => { shell.showTab("discover"); void startTogether(); },
+    focusJoin: () => { shell.showTab("discover"); requestAnimationFrame(() => joinInput.focus()); },
     async poll() {
       try { me = await communityMe(); applyUnread(me); } catch { /* Signed out or offline: no badge. */ }
     },

@@ -19,6 +19,7 @@ describe("paid AI tokens", () => {
     expect(isPaidModel({ provider: "custom-heabsy" }, on)).toBe(true);
     expect(isPaidModel({}, on)).toBe(true);
     expect(isPaidModel({ provider: "tagflow" }, on)).toBe(true);
+    expect(isPaidModel({ provider: "custom-heabsy", creditRate: 0 }, on)).toBe(false);
     expect(isPaidModel({ provider: "custom-heabsy" }, DEFAULT_PAID_CONFIG)).toBe(false);
     expect(isPaidModel({ provider: "custom-heabsy" }, undefined)).toBe(false);
   });

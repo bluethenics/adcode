@@ -68,8 +68,8 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   },
   "community.artifacts": {
     added: "2026-11-04",
-    actions: [command("community.artifacts", "Browse shared projects"), command("community.shareProject", "Share this project"), command("community.inbox", "Changes sent to you")],
-    keywords: ["artifact", "shared project", "invite code", "join a friend", "make my copy", "build with friends", "team room", "send your changes back", "share project", "publish project", "remix", "fork", "improve someone else's project", "pull request", "contribute", "help wanted", "open source", "send improvement", "accept changes", "inbox", "private project", "share code", "invite a friend", "live room", "live session", "start session", "join session", "collaborate live", "work together", "live project", "live editing", "multiplayer editing", "team create", "roblox studio", "share project live", "edit together", "who is online", "agent lane", "shared plan", "takeover", "watch live", "join live room", "join checks", "approvals", "hand off", "handoff", "mission control", "live now", "overlap warning", "lock file", "stale comment"],
+    actions: [command("community.artifacts", "Browse shared projects"), command("community.shareProject", "Share this project - a copy, or live together"), command("community.inbox", "Changes sent to you")],
+    keywords: ["artifact", "shared project", "invite code", "join a friend", "make my copy", "build with friends", "team room", "send your changes back", "share project", "share button", "send a copy", "publish project", "remix", "fork", "improve someone else's project", "pull request", "contribute", "help wanted", "open source", "send improvement", "accept changes", "inbox", "private project", "share code", "invite a friend", "live room", "live session", "start session", "join session", "collaborate live", "work together", "live project", "live editing", "multiplayer editing", "team create", "roblox studio", "share project live", "edit together", "who is online", "agent lane", "shared plan", "takeover", "watch live", "join live room", "join checks", "approvals", "hand off", "handoff", "mission control", "live now", "overlap warning", "lock file", "stale comment"],
   },
   "community.profile": {
     added: "2026-11-04",
@@ -385,7 +385,7 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   },
   "community.roomContext": {
     actions: [command("collab.liveRoom", "Open the live room")],
-    keywords: ["live room", "shared context", "room chat", "team chat", "who is online", "presence", "work together", "multiplayer", "collaborate with ai", "shared plan", "talk to teammates", "live session", "mascots"],
+    keywords: ["live room", "shared context", "room chat", "team chat", "who is online", "presence", "work together", "multiplayer", "collaborate with ai", "shared plan", "talk to teammates", "live session", "mascots", "room chat notification", "chat notification", "unread messages", "message notification"],
   },
   "workbench.toolsPage": {
     actions: [command("tools.open", "Open Tools"), command("tools.addServer", "Add a connector"), command("tools.servers", "Connectors"), command("tools.skills", "Skills")],
@@ -406,6 +406,11 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   "ai.memoryEditor": {
     actions: [command("tools.memory", "Open project memory")],
     keywords: ["memory", "remember", "forget", "what does the ai know", "conventions", "decisions", "preferences", "agents.md", "claude.md", "shared memory", "edit memory"],
+  },
+  "ai.chatUsage": {
+    added: "2026-11-17",
+    actions: [command("ai.chatUsage", "Show this chat's usage")],
+    keywords: ["chat usage", "conversation usage", "this chat cost", "how much did this chat cost", "tokens in this chat", "context full", "context usage", "cache hit", "tokens per second", "speed", "models used", "usage box", "usage chip", "per chat cost", "token efficiency", "t3 code usage"],
   },
   "ai.autoCompact": {
     actions: [

@@ -82,16 +82,27 @@ export function isInjectedText(value: string): boolean {
 }
 
 function titleOf(explicit: string, messages: readonly ChatMessage[]): string {
-  const base = explicit.trim() !== "" ? explicit : messages.find((message) => message.role === "user")?.text ?? "Imported conversation";
+  const base = explicit.trim() !== "" && !explicit.startsWith("Context from the ADCode editor:") ? explicit : messages.find((message) => message.role === "user")?.text ?? "Imported conversation";
   const line = base.replace(/\s+/g, " ").trim();
   return line.length > MAX_TITLE ? `${line.slice(0, MAX_TITLE - 1).trimEnd()}…` : line || "Imported conversation";
+}
+
+/**
+ * A CLI session ADCode itself drove holds ADCode's wrapper (`cliPrompt` in @adcode/ai) as the
+ * user's message: the editor context, maybe a transcript, then `Now:` and what was asked. Imported
+ * as-is it became the chat's title ("Context from the ADCode editor: Open workspace root…").
+ */
+function ownWords(message: ChatMessage): string {
+  if (message.role !== "user" || !message.text.startsWith("Context from the ADCode editor:")) return message.text;
+  const asked = message.text.lastIndexOf("\n\nNow:\n");
+  return asked === -1 ? "" : message.text.slice(asked + "\n\nNow:\n".length);
 }
 
 /** Order kept, empties dropped, each message and the whole list held to a size the chat can show. */
 function finish(source: ChatImportSource, sourceId: string, title: string, cwd: string | null, raw: readonly ChatMessage[]): ImportedChat | null {
   const merged: ChatMessage[] = [];
   for (const message of raw) {
-    const body = message.text.trim();
+    const body = ownWords(message).trim();
     if (body === "") continue;
     const clipped = body.length > MAX_MESSAGE_CHARS ? `${body.slice(0, MAX_MESSAGE_CHARS)}\n\n[Shortened on import]` : body;
     const last = merged[merged.length - 1];

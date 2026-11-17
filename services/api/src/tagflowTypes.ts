@@ -25,7 +25,7 @@ export interface TagflowModel {
   /** USD per million tokens, as quoted by your deployment. */
   inputPrice: number;
   outputPrice: number;
-  /** Credits per 1,000 tokens; missing derives one (see credits.ts). Zero is free of credits. */
+  /** Credits per 1,000 tokens; missing derives one (see credits.ts). Zero is free of credits, including under cost-v1 accounting. */
   creditRate?: number;
   /** Paid dollar credits; never draws from free tokens or a subscription. */
   billing?: "wallet";

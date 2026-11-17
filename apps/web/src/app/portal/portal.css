@@ -9,18 +9,18 @@
 .advertiser-workspace .large-title-sub { font-size: 13px; line-height: 1.7; }
 .advertiser-workspace .app-head { margin-bottom: 24px; }
 .advertiser-workspace .workspace-brand { padding: 0 8px 24px; }
-.advertiser-workspace .app-side-item { min-height: 42px; border-radius: 8px; font-size: 12px; transition: background-color 160ms ease, color 160ms ease, transform 160ms var(--portal-ease); }
+.advertiser-workspace .app-side-item { min-height: var(--tap); border-radius: 10px; font-size: 12px; transition: background-color 160ms ease, color 160ms ease, transform 160ms var(--portal-ease); }
 .advertiser-workspace .app-side-item[aria-current] { background: var(--portal-hover); box-shadow: none; color: var(--text); }
 .advertiser-workspace .workspace-tip { display: none; }
 .advertiser-workspace .ios-card { border: 0; border-radius: 12px; background: color-mix(in srgb, var(--card) 40%, var(--surface)); box-shadow: var(--portal-depth); }
 .advertiser-workspace .ios-card-head h2 { font-size: 16px; font-weight: 600; letter-spacing: -.025em; }
 .advertiser-workspace .ios-card-head p { font-size: 12px; line-height: 1.7; max-width: 58ch; }
 .advertiser-workspace .ios-card-head { margin-bottom: 22px; }
-.advertiser-workspace .btn { border-radius: 8px; min-height: 40px; gap: 10px; font-size: 12px; font-weight: 600; transition: opacity 140ms ease, transform 140ms var(--portal-ease); }
+.advertiser-workspace .btn { border-radius: var(--radius-pill); min-height: var(--tap); gap: 10px; font-size: 13px; white-space: nowrap; font-weight: 600; transition: opacity 140ms ease, transform 140ms var(--portal-ease); }
 .advertiser-workspace .btn:active { transform: scale(.98); }
 .advertiser-workspace :is(a,button,input,summary):focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
 .portal-launchpad { display: grid; grid-template-columns: 1fr auto; gap: 20px; align-items: center; padding: 0 0 28px; margin-bottom: 28px; border: 0; border-bottom: 1px solid var(--portal-edge); border-radius: 0; background: transparent; }
-.portal-eyebrow, .portal-step { display: block; margin-bottom: 10px; color: var(--muted); font: 500 10px/1.5 var(--font-mono), monospace; letter-spacing: .1em; }
+.portal-eyebrow, .portal-step { display: block; margin-bottom: 10px; color: var(--muted); font: 600 var(--fs-label)/1.5 var(--font-body), system-ui, sans-serif; letter-spacing: 0; }
 .portal-launchpad h2 { font-size: clamp(20px, 2.4vw, 26px); letter-spacing: -.035em; font-weight: 550; margin: 0 0 8px; }
 .portal-launchpad p { font-size: 12px; line-height: 1.7; color: var(--muted); margin: 0; }
 .portal-launchpad-facts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 22px; padding-top: 0; border: 0; }
@@ -46,7 +46,7 @@
 .advertiser-workspace .field { margin-bottom: 20px; }
 .advertiser-workspace .field label { font-size: 12px; font-weight: 600; }
 .advertiser-workspace .field-hint { font-size: 11px; line-height: 1.6; }
-.advertiser-workspace .input { min-height: 42px; border-radius: 8px; padding: 10px 12px; font-size: 13px; background: var(--surface); border: 1px solid var(--hairline); transition: border-color 160ms ease, box-shadow 160ms ease; }
+.advertiser-workspace .input { min-height: var(--tap); border-radius: var(--radius-control); padding: 10px 12px; font-size: 14px; background: var(--surface); border: 1px solid var(--hairline); transition: border-color 160ms ease, box-shadow 160ms ease; }
 .advertiser-workspace .input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent); }
 .advertiser-workspace .campaign-builder-preview { top: 90px; }
 .advertiser-workspace .card-preview-ground { padding: 24px 12px; border: 0; border-radius: 8px; background: var(--card); }
@@ -58,7 +58,7 @@
 .portal-checklist li[data-complete="true"] { color: var(--text); }
 .portal-checklist li[data-complete="true"] > span:first-child { color: var(--brand); }
 .portal-budget-presets { display: flex; flex-wrap: wrap; gap: 8px; margin: -8px 0 24px; }
-.portal-budget-presets button { padding: 7px 14px; min-height: 34px; border: 1px solid var(--hairline); border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer; transition: background-color 160ms ease, border-color 160ms ease; }
+.portal-budget-presets button { padding: 7px 14px; min-height: var(--tap); border: 1px solid var(--hairline); border-radius: var(--radius-pill); background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer; transition: background-color 160ms ease, border-color 160ms ease; }
 .portal-budget-presets button[aria-pressed="true"] { background: var(--portal-hover); border-color: var(--brand); color: var(--text); }
 .advertiser-workspace .portal-first-campaign > p { color: var(--muted); font-size: 13px; line-height: 1.7; max-width: 65ch; margin-bottom: 24px; }
 .advertiser-workspace .notice { border-radius: 9px; font-size: 12px; line-height: 1.7; }

@@ -62,7 +62,7 @@ export function ModeShowcase() {
   return (
     <section className="modes marketplace-wrap" id="how-it-works" aria-labelledby="modes-heading" data-home-reveal>
       <div className="modes-intro">
-        <p className="marketplace-eyebrow">TWO WAYS TO FIND YOUR FLOW</p><h2 id="modes-heading">Your project.<br />Your way of working.</h2>
+        <p className="marketplace-eyebrow">Two ways to find your flow</p><h2 id="modes-heading">Your project.<br />Your way of working.</h2>
         <p>Two windows on one project. Switch whenever the work changes.</p>
         <div className="modes-switch" role="tablist" aria-label="ADCode modes">
           {ORDER.map((value) => (
@@ -168,7 +168,7 @@ const CODE = [
 function CodeWindow() {
   return (
     <div className="mw" aria-hidden="true">
-      <WindowBar title="ADCode · habit-tracker — HabitCard.tsx" />
+      <WindowBar title="ADCode · habit-tracker - HabitCard.tsx" />
       <div className="mw-code">
         <aside className="mw-tree">
           <span className="mw-label">Explorer</span>
@@ -191,7 +191,7 @@ function CodeWindow() {
           <div className="mw-terminal"><span>Terminal</span><p><span className="syntax-green">❯</span> npm run dev</p><p><span className="syntax-green"><Icon node={Check} /></span> Ready on localhost:5173</p></div>
           <div className="mw-float">
             <span className="mw-float-head">Assistant <small>Ctrl+I</small></span>
-            <span className="mw-chip">HabitCard.tsx · lines 5–6</span>
+            <span className="mw-chip">HabitCard.tsx · lines 5-6</span>
             <p>Make the flame pulse when the streak beats a personal best.</p>
             <span className="mw-float-actions"><i>Explain</i><i>Refactor</i><i>Write tests</i></span>
           </div>

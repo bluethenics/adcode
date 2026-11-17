@@ -29,6 +29,23 @@ export function dockMessages(room: ArtifactRoomSnapshot | null, limit = 40): rea
   return room.messages.slice(-limit).map((message) => ({ id: message.id, name: message.name, text: message.text, mine: message.uid === room.selfId && message.kind !== "agent", kind: message.kind, at: message.at }));
 }
 
+/** Turns the room-chat notifications off; on unless somebody switched it off. */
+export const ROOM_NOTIFY_SETTING = "adcode.collab.chatNotify";
+
+/**
+ * Messages from other people that arrived after `seen`, the newest message already accounted
+ * for. With no `seen` - the first look at a room - nothing is new: a backlog is not news.
+ * Your own messages and the room's system lines never count.
+ */
+export function freshRoomMessages(room: ArtifactRoomSnapshot | null, seen: string | null): ReturnType<typeof dockMessages> {
+  if (room === null || seen === null) return [];
+  const messages = dockMessages(room, 200);
+  const from = messages.findIndex((message) => message.id === seen);
+  // The marker scrolled out of the window kept by the server: count none rather than all.
+  if (from === -1) return [];
+  return messages.slice(from + 1).filter((message) => !message.mine && message.kind !== "system");
+}
+
 const SVG = "http://www.w3.org/2000/svg";
 /** The line that runs while somebody's assistant is working: a drawn pulse, not a spinner. */
 function signalLine(): SVGSVGElement {
@@ -62,6 +79,8 @@ export interface LiveSessionSummary {
   readonly open: boolean;
   readonly online: number;
   readonly working: number;
+  /** Room messages from other people since the card was last open. */
+  readonly unread: number;
 }
 
 export interface LiveSessionDock {
@@ -190,7 +209,46 @@ export function createLiveSessionDock(deps: LiveSessionDockDeps): LiveSessionDoc
       // A file open in the editor is the clearest sign somebody is working; an agent run
       // counts even before the heartbeat has caught up with their cursor.
       working: roster.filter((person) => person.path !== null || statusTone(person.lane) === "working").length,
+      unread,
     };
+  }
+
+  /*
+   * Room chat notifications. The newest message seen is the marker; anything from someone else
+   * after it is news. While the card is open and the window in front, it is read as it lands.
+   */
+  let unread = 0;
+  let newestSeen: string | null = null;
+  let seenRoom: string | null = null;
+  function noticeMessages(): void {
+    if (room === null || session === null) { newestSeen = null; seenRoom = null; unread = 0; return; }
+    const newest = dockMessages(room, 1)[0]?.id ?? "";
+    if (seenRoom !== session.id) { seenRoom = session.id; newestSeen = newest; return; }
+    const fresh = freshRoomMessages(room, newestSeen);
+    newestSeen = newest;
+    if (fresh.length === 0) return;
+    const looking = open && document.hasFocus();
+    if (!looking) unread += fresh.length;
+    if (document.hasFocus()) return;
+    const title = session.title;
+    void window.adcode.settings.read().then((values) => {
+      if ((values as Record<string, unknown>)[ROOM_NOTIFY_SETTING] === false) return;
+      if (typeof Notification === "undefined") return;
+      const last = fresh[fresh.length - 1]!;
+      const who = last.kind === "agent" ? `${last.name}'s assistant` : last.name;
+      try {
+        const notice = new Notification(fresh.length === 1 ? `${who} in ${title}` : `${String(fresh.length)} new messages in ${title}`, {
+          body: fresh.length === 1 ? last.text : `${who}: ${last.text}`,
+          tag: `adcode-room-${seenRoom ?? ""}`,
+        });
+        notice.onclick = () => {
+          window.focus();
+          setOpen(true);
+        };
+      } catch {
+        // Notifications blocked by the system: the Live button's count still says it.
+      }
+    }, () => undefined);
   }
 
   function notify(): void {
@@ -206,6 +264,7 @@ export function createLiveSessionDock(deps: LiveSessionDockDeps): LiveSessionDoc
   function setOpen(next: boolean): void {
     open = next;
     element.hidden = !next;
+    if (next) unread = 0;
     if (next) dismissed = null;
     else if (session !== null) dismissed = session.id;
     if (next) render();
@@ -305,6 +364,7 @@ export function createLiveSessionDock(deps: LiveSessionDockDeps): LiveSessionDoc
       link = nextLink;
       syncSessionFromLink();
       await loadRoom();
+      noticeMessages();
       if (session !== null && room !== null && !room.open) {
         await window.adcode.collab.leave().catch(() => null);
         session = null;
@@ -695,6 +755,25 @@ export function createLiveSessionDock(deps: LiveSessionDockDeps): LiveSessionDoc
     else renderIdle();
     notify();
   }
+
+  // A floating card closes the way a menu does: Escape, or a click anywhere else. The Live
+  // button toggles it itself, so a press on it is left to the button.
+  document.addEventListener("pointerdown", (event) => {
+    if (!open || !(event.target instanceof Element)) return;
+    if (element.contains(event.target) || event.target.closest(".chat-live-button") !== null) return;
+    // Dialogs the card opened (join confirmation) sit outside it and must not close it.
+    if (event.target.closest("dialog, .modal, [role='dialog']") !== null) return;
+    setOpen(false);
+  });
+  element.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    event.stopPropagation();
+    setOpen(false);
+    (document.querySelector(".chat-live-button") as HTMLElement | null)?.focus();
+  });
+  window.addEventListener("focus", () => {
+    if (open && unread > 0) { unread = 0; notify(); }
+  });
 
   window.adcode.collab.onStatus((next) => {
     status = next;

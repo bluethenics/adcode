@@ -878,10 +878,12 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
           } catch {
             return fail("That pattern is not a valid regular expression. Pass literal: true to search for it as plain text.");
           }
-          const context = input["context"] === undefined ? 0 : Number(input["context"]);
-          if (!Number.isInteger(context) || context < 0 || context > 5) return fail("search context is 0 to 5 lines.");
-          const limit = input["max_results"] === undefined ? DEFAULT_SEARCH_HITS : Number(input["max_results"]);
-          if (!Number.isInteger(limit) || limit < 1 || limit > MAX_SEARCH_HITS) return fail(`search max_results is 1 to ${MAX_SEARCH_HITS}.`);
+          // Out-of-range numbers are clamped, not refused: models ask for context 10 or 500 results
+          // all the time, and a refusal cost a whole step each time (37 in one user's log).
+          const context = input["context"] === undefined ? 0 : Math.min(5, Math.max(0, Math.trunc(Number(input["context"]))));
+          if (!Number.isFinite(context)) return fail("search context is 0 to 5 lines.");
+          const limit = input["max_results"] === undefined ? DEFAULT_SEARCH_HITS : Math.min(MAX_SEARCH_HITS, Math.max(1, Math.trunc(Number(input["max_results"]))));
+          if (!Number.isFinite(limit)) return fail(`search max_results is 1 to ${MAX_SEARCH_HITS}.`);
           const filesOnly = input["files_only"] === true;
 
           const base = await resolveDirOrRoot(workspace, input["path"]);

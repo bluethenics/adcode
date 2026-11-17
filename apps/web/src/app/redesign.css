@@ -433,24 +433,13 @@ h1, h2, h3, h4 { font-family: var(--font-display), -apple-system, BlinkMacSystem
 .auth-password-toggle:hover { background: var(--control); }
 body:has(.auth-screen) .website-consent { position: static; margin: 24px auto; box-shadow: none; }
 
-@keyframes auth-arrive {
-  from { opacity: 0; transform: translateY(16px) scale(.985); }
-  to { opacity: 1; transform: none; }
-}
-@keyframes auth-reveal {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: none; }
-}
 @keyframes auth-mark-arrive {
   from { opacity: 0; transform: rotate(-16deg) scale(.7); }
   to { opacity: 1; transform: none; }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .auth-screen .auth-card { animation: auth-arrive 560ms cubic-bezier(.22, 1, .36, 1) both; }
+  /* Only the mark arrives: the card, its heading and its buttons are on screen at first paint (auth.css). */
   .auth-screen .auth-brand-mark { animation: auth-mark-arrive 650ms 100ms cubic-bezier(.22, 1, .36, 1) both; }
-  .auth-screen .auth-context-copy, .auth-screen .auth-mode { animation: auth-reveal 440ms 80ms both; }
-  .auth-screen .provider-stack { animation: auth-reveal 440ms 140ms both; }
-  .auth-screen .auth-email-form { animation: auth-reveal 440ms 200ms both; }
 }
 @media (max-width: 720px) {
   .auth-screen { align-items: start; min-height: calc(100svh - 60px); padding-block: 16px; }

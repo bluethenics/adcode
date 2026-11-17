@@ -118,7 +118,7 @@ export function describeAiFailure(raw: string): AiFailure {
     if (/\bbanned\b|code banned/i.test(detail) && !/verify/i.test(detail) && /HTTP 403|code banned/i.test(detail)) return make("auth", "Free AI isn't available for this account", "This account can't use ADCode's free AI. You can still use your own provider key or a model on this computer.", ["models"]);
     if (/disabled for this account|code blocked/i.test(detail)) return make("auth", "Free AI is turned off for this account", "An administrator switched off free AI for this account. Use your own provider key or a local model, or contact the team.", ["models"]);
     if (/did not share an email address/i.test(detail)) {
-      return make("sign-in", "Add an email to use free AI", "Your sign-in did not share an email address, so there is nowhere to send a verification link. Open Account to add one - it stays on this same account - or sign out and continue with Google.", ["sign-in", "models"]);
+      return make("sign-in", "Add an email to use free AI", "Your sign-in did not share an email address, so there is nowhere to send a verification link. Open Account to add one - it stays on this same account. Your own API key or an installed coding CLI works without one.", ["sign-in", "models"]);
     }
     if (/verified email|verification link|verification email/i.test(detail)) {
       return make("sign-in", "Verify your email to use free AI", "Open Account to send a verification link or check its status. Check spam or junk too. Being signed in and verifying your email are separate steps. After opening the link, choose “I've verified” to continue your message.", ["sign-in", "retry", "models"]);

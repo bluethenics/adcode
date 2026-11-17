@@ -2,7 +2,7 @@
 .ai-tokens { max-width: 1160px; margin: 0 auto; padding: 68px 24px 88px; display: grid; grid-template-columns: minmax(0,1fr); gap: 28px; }
 .ai-tokens > * { min-width: 0; }
 .ai-tokens-head { display: grid; grid-template-columns: 1.5fr 1fr; align-items: center; gap: 64px; margin-bottom: 32px; }
-.ai-tokens .ai-eyebrow { display: flex; align-items: center; gap: 8px; margin: 0 0 20px; color: var(--muted); font: 10px var(--font-mono),monospace; letter-spacing: .1em; line-height: 1.7; }
+.ai-tokens .ai-eyebrow { display: flex; align-items: center; gap: 8px; margin: 0 0 20px; color: var(--muted); font: 600 var(--fs-label) var(--font-body), system-ui, sans-serif; letter-spacing: 0; line-height: 1.7; }
 .ai-tokens .ai-eyebrow svg { width: 14px; height: 14px; }
 .ai-tokens-head h1 { margin: 0 0 22px; font-size: clamp(40px,5.4vw,68px); line-height: 1.04; font-weight: 550; letter-spacing: -.055em; }
 .ai-tokens-head h1 span { color: var(--muted); }
@@ -103,7 +103,7 @@
 .ai-tokens .model-prices-search input:focus-visible { outline: none; }
 .model-prices-search input::placeholder { color: var(--muted); opacity: 1; }
 .model-prices-filters { display: flex; gap: 3px; max-width: 100%; padding: 4px; border: 1px solid var(--hairline); border-radius: 10px; background: var(--surface); }
-.model-prices-filters button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 34px; padding: 6px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; font-weight: 500; white-space: nowrap; cursor: pointer; touch-action: manipulation; }
+.model-prices-filters button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: var(--tap); padding: 6px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; font-weight: 500; white-space: nowrap; cursor: pointer; touch-action: manipulation; }
 .model-prices-filters button[aria-pressed="true"] { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgb(0 0 0 / .1), inset 0 0 0 1px var(--hairline); }
 .model-prices-filters button span { color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
 .model-prices-scroll { width: 100%; max-height: 650px; overflow: auto; border-top: 1px solid var(--hairline); scrollbar-color: var(--hairline) transparent; }
@@ -161,7 +161,7 @@
   .model-prices-search { flex-basis: 100%; max-width: none; }
   .model-prices-search input { height: 44px; font-size: 16px; }
   .model-prices-filters { width: 100%; }
-  .model-prices-filters button { flex: 1; min-height: 40px; padding-inline: 6px; }
+  .model-prices-filters button { flex: 1; min-height: var(--tap); padding-inline: 6px; }
   .model-prices-scroll { display: none; }
   .model-prices-cards { display: grid; list-style: none; margin: 0; padding: 0; }
   .model-price-card { min-width: 0; padding: 20px; border-top: 1px solid var(--hairline); }
@@ -229,7 +229,7 @@
 }
 
 /* ── 4 November relayout: the numbers up front, three plans side by side ───────────────── */
-.ai-tokens .ai-eyebrow { font: 12px var(--font-mono), monospace; letter-spacing: 0; text-transform: none; }
+.ai-tokens .ai-eyebrow { font: 600 var(--fs-label) var(--font-body), system-ui, sans-serif; letter-spacing: 0; text-transform: none; }
 .ai-tokens-head { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: end; gap: 48px; margin-bottom: 40px; }
 .ai-tokens-head h1 { font-size: clamp(36px, 4.6vw, 56px); font-weight: 500; letter-spacing: -.04em; text-wrap: balance; }
 .ai-tokens-hero-copy > p:not(.ai-eyebrow) { margin-bottom: 20px; }
@@ -288,7 +288,7 @@
 /* Plans on sale again, with a monthly or yearly switch, and a typed credit amount. */
 .ai-plans-section { margin-block: 32px 48px; }
 .ai-billing { display: inline-flex; flex: none; padding: 4px; gap: 4px; border: 1px solid var(--hairline); border-radius: 999px; background: var(--card); }
-.ai-billing button { min-height: 36px; padding: 6px 14px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
+.ai-billing button { min-height: var(--tap); padding: 6px 14px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
 .ai-billing button[data-active="true"] { background: var(--accent); color: var(--accent-text); }
 .ai-billing button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 .ai-wallet-custom { max-width: 520px; margin-bottom: 1.25rem; }

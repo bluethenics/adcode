@@ -262,7 +262,7 @@ function DetailsCard({ view, onSaved, onError }: {
   return <form className="ios-card" onSubmit={(event) => void save(event)}>
     <header className="ios-card-head">
       <h2>Payout details</h2>
-      <p>Transfers are made by hand through Wise, so the name here has to match the receiving account exactly — a mismatch is what makes a transfer bounce. Everything you enter is encrypted at rest.</p>
+      <p>Transfers are made by hand through Wise, so the name here has to match the receiving account exactly: a mismatch is what makes a transfer bounce. Everything you enter is encrypted at rest.</p>
     </header>
 
     <div className="field">
@@ -313,7 +313,7 @@ function DetailsCard({ view, onSaved, onError }: {
         <label htmlFor={`payout-${kind}`}>{FIELD_LABELS[kind] ?? kind}</label>
         <input id={`payout-${kind}`} className="input" value={fields[kind] ?? ""} required autoComplete="off" onChange={(event) => setFields((current) => ({ ...current, [kind]: event.target.value }))} />
       </div>)}
-      <p className="field-hint">Spacing and capitalisation don&apos;t matter — an IBAN copied straight off a statement is fine.</p>
+      <p className="field-hint">Spacing and capitalisation don&apos;t matter. An IBAN copied straight off a statement is fine.</p>
     </>}
 
     {/*

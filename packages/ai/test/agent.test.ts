@@ -56,6 +56,21 @@ it("continues a partial included response in the same task without replaying com
   expect(events.at(-1)).toMatchObject({ kind: "turn-end", reason: "end-turn" });
 });
 
+it("asks again when an included stream dies before its first token, instead of showing a failure card", async () => {
+  const seen: Message[][] = [];
+  const provider: Provider = { id: "tagflow", displayName: "Included", models: [], async *stream(request) {
+    seen.push([...request.messages]);
+    if (seen.length === 1) { yield { kind: "tool-input", index: 0, id: "", name: "echo", fragment: "{" }; throw Object.assign(new Error("Interrupted"), { code: "stream-interrupted", status: 502 }); }
+    yield { kind: "text", text: "Answered." }; yield { kind: "stop", reason: "end-turn" };
+  } };
+  const events: AgentEvent[] = [];
+  for await (const event of createAgent({ provider, model: "test", tools: [echoTool], runner: runner() }).send("Hello")) events.push(event);
+  expect(events.some(event => event.kind === "error")).toBe(false);
+  // The same question again: no empty assistant turn, no "continue" message.
+  expect(seen[1]).toEqual(seen[0]);
+  expect(events.at(-1)).toMatchObject({ kind: "turn-end", reason: "end-turn" });
+});
+
 function runner(impl?: Partial<ToolRunner>): ToolRunner & { calls: ToolCallBlock[] } {
   const calls: ToolCallBlock[] = [];
   return {

@@ -93,13 +93,19 @@ export function NetworkBand({ initial }: { initial: PublicStats | null }) {
   if (stats === null) return null;
 
   const share = stats.developers === 0 ? 0 : Math.round((stats.developersThisWeek / stats.developers) * 100);
-  const figures: readonly { label: string; value: number; note: string }[] = [
+  // A zero in this band reads as "nobody advertises here", which is the last thing a
+  // visitor deciding whether to spend should see. Where a figure would be 0 we show a
+  // word instead: the same fact, told as the opportunity it actually is.
+  const figures: readonly { label: string; value: number | null; text?: string; note: string }[] = [
     { label: "Developers on ADCode", value: stats.developers, note: "Accounts active in the editor, all time" },
     { label: "New in the last 7 days", value: stats.developersThisWeek, note: `${share}% of the network joined this week` },
     { label: "Verified ad views", value: stats.impressions, note: "On screen 4+ seconds in a focused editor" },
     // With none running, the next campaign is the only bidder: it serves every slot it targets
-    // and a second-price auction with no runner-up clears at the floor.
-    { label: "Campaigns live now", value: stats.activeCampaigns, note: stats.activeCampaigns === 0 ? "None right now. The next one takes every slot it targets, at the floor price" : "Competing for the next card" },
+    // and a second-price auction with no runner-up clears at the floor. So "none" is the
+    // strongest fact on the page, and the one place a 0 does real damage.
+    stats.activeCampaigns === 0
+      ? { label: "The next slot", value: null, text: "Wide open", note: "No campaign is running, so the next one takes every slot it targets at the floor price" }
+      : { label: "Campaigns live now", value: stats.activeCampaigns, note: "Competing for the next card" },
   ];
 
   return (
@@ -120,7 +126,7 @@ export function NetworkBand({ initial }: { initial: PublicStats | null }) {
         {figures.map((figure) => (
           <div key={figure.label}>
             <dt>{figure.label}</dt>
-            <dd><Rolling value={figure.value} /></dd>
+            <dd>{figure.value === null ? figure.text : <Rolling value={figure.value} />}</dd>
             <dd className="adv-network-note">{figure.note}</dd>
           </div>
         ))}

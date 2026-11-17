@@ -7,7 +7,7 @@ export function FreePlan() {
   return (
     <section className="free-plan marketplace-wrap" id="free-plan" aria-labelledby="free-plan-heading">
       <header className="free-plan-head">
-        <p className="marketplace-eyebrow">FREE TO START</p>
+        <p className="marketplace-eyebrow">Free to start</p>
         <h2 id="free-plan-heading">Free editor. Pay only for the models you use.</h2>
         <p className="free-plan-intro">Start without a subscription or credit card. Tagflow AI is free for every signed-in account. Every other model is paid from USD credits at the price listed for it.</p>
       </header>

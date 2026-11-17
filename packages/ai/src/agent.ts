@@ -635,8 +635,10 @@ export function createAgent(deps: AgentDeps): Agent {
         const transient = error as { code?: string; status?: number } | null;
         // Preserve the partial answer in history and request a continuation. Completed tools
         // from prior steps stay in history; drafts from this interrupted response never run.
+        // A stream that died before its first token is recovered too: it is the commonest failure
+        // of all (149 of 346 reports), and requiring text here sent every one of them to a
+        // failure card. With nothing kept, the same request is simply asked again.
         continueInterrupted = deps.provider.id === "tagflow" && !signal.aborted && interruptionRecoveries < 2 && pendingCalls.length === 0 &&
-          assistantContent.some(block => block.type === "text" && block.text.trim().length > 0) &&
           (transient?.code === "stream-interrupted" || networkFailure(error) !== null);
         if (!signal.aborted && !continueInterrupted) yield { kind: "error", detail };
       }
@@ -676,6 +678,14 @@ export function createAgent(deps: AgentDeps): Agent {
 
       if (continueInterrupted) {
         interruptionRecoveries++;
+        const kept = assistantContent.some(block => block.type === "text" && block.text.trim().length > 0);
+        if (!kept) {
+          // Nothing kept, so nothing to continue from: a whitespace-only reply comes back out
+          // (a history ending on the assistant is a prefill) and the request is asked again.
+          if (assistantContent.length > 0) messages.pop();
+          yield { kind: "status", text: "The connection dropped before the reply started. Asking again…" };
+          continue;
+        }
         messages.push({ role: "user", content: [{ type: "text", text: "The connection interrupted your last response. Continue the same task from where that response stopped. Do not repeat text already delivered or completed tool actions. Read current files before making further edits." }] });
         yield { kind: "status", text: "The connection interrupted the response. Continuing this task from the saved progress without repeating completed tools…" };
         continue;

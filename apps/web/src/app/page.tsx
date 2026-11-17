@@ -43,7 +43,7 @@ export default function Home() {
           <div className="studio-hero-top">
             <HeroDotField />
             <div className="marketplace-hero-copy">
-              <p className="home-hero-label">THE FREE AI CODE EDITOR</p>
+              <p className="home-hero-label">The free AI code editor</p>
               <h1>Your next idea.<br /><span>Built with free AI.</span></h1>
               <p>An AI code editor with agents, a terminal, and Git. Start in your browser. Sponsored cards fund the tools, and you receive half of eligible ad revenue.</p>
               <WebFirstActions />
@@ -59,14 +59,14 @@ export default function Home() {
       <FreePlan />
       <section className="home-share marketplace-wrap" aria-labelledby="share-heading" data-home-reveal>
         <div className="home-share-copy">
-          <p className="marketplace-eyebrow">A FAIRER EXCHANGE</p>
+          <p className="marketplace-eyebrow">A fairer exchange</p>
           <h2 id="share-heading">Your attention.<br /><span>Your share.</span></h2>
           <p>An occasional sponsored card keeps ADCode free. You receive half of eligible ad revenue, with a clear record of every credit.</p>
           <Link className="home-text-link" href="/earn-while-you-code">How earnings work <Icon node={ArrowUpRight} /></Link>
         </div>
         <div className="home-share-panel">
           <Buck mood="idle" size={64} interactive greet="earning" hoverMood="earning" reactTo=".home-share-panel" label="Buck, with the coin you earn. Tap him." className="home-share-buck" />
-          <span className="home-share-caption">BUILT AROUND A SIMPLE SPLIT</span>
+          <span className="home-share-caption">Built around a simple split</span>
           <strong className="home-share-amount">50<span>%</span></strong>
           <span className="home-share-label">of eligible ad revenue goes to you.</span>
           <div className="home-share-bar" aria-hidden="true"><span /><span /></div>
@@ -75,14 +75,14 @@ export default function Home() {
         </div>
       </section>
       <details className="home-agent-details marketplace-wrap">
-        <summary><span><span className="marketplace-eyebrow">EXPLORE AT YOUR OWN PACE</span><strong>See the agents at work.</strong></span><span className="home-details-toggle" aria-hidden="true">+</span></summary>
+        <summary><span><span className="marketplace-eyebrow">Explore at your own pace</span><strong>See the agents at work.</strong></span><span className="home-details-toggle" aria-hidden="true">+</span></summary>
         <LiveAgentsShowcase /><LiveRecording />
       </details>
       <AboutUs />
       <HomeFaq />
       <section className="closing-cta marketplace-wrap" data-home-reveal>
         <Buck mood="greeting" size={96} interactive greet="dancing" hoverMood="proud" reactTo=".closing-cta" label="Buck, cheering you on. Tap him." />
-        <p className="marketplace-eyebrow">YOUR NEXT CHAPTER</p>
+        <p className="marketplace-eyebrow">Your next chapter</p>
         <h2>Make something<br /><span>you&apos;ve been imagining.</span></h2>
         <p>A full editor. Free AI. Space to see what you can do.</p>
         <WebFirstActions />
@@ -102,7 +102,7 @@ export default function Home() {
         </div>
       </section>
       <section className="home-resources marketplace-wrap" aria-labelledby="resources-heading">
-        <div className="home-resources-intro"><div><p className="marketplace-eyebrow">WHEN YOU NEED A HAND</p><h2 id="resources-heading">A guide for the next step.</h2></div><Link className="home-text-link" href="/docs">Open the docs <Icon node={ArrowUpRight} /></Link></div>
+        <div className="home-resources-intro"><div><p className="marketplace-eyebrow">When you need a hand</p><h2 id="resources-heading">A guide for the next step.</h2></div><Link className="home-text-link" href="/docs">Open the docs <Icon node={ArrowUpRight} /></Link></div>
         <details className="home-resource-details"><summary>Explore guides, comparisons, and source code <span className="home-details-toggle" aria-hidden="true">+</span></summary>
           <DocsShowcase />
           <div className="home-comparisons"><p>Compare your editor</p><nav aria-label="Editor comparisons">{comparisons().map((page) => <Link className="home-text-link" key={page.slug} href={landingPath(page)}>{page.comparison?.subject.replace(/ \(formerly .*\)$/, "")} <Icon node={ArrowUpRight} /></Link>)}</nav></div>

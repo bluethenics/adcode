@@ -9,6 +9,8 @@ import { reportedPlatform } from "../shared/reportedPlatform.ts";
 
 let offered: CatalogueProvider | null = null;
 let defaultModel = "";
+/** Included models that cost no more than the standard credit, in the relay's order: safe to fail over to. */
+let failoverOrder: string[] = [];
 let refreshedAt = 0;
 let refreshing: Promise<void> | null = null;
 export const tagflowCatalogue = (): CatalogueProvider | null => offered;
@@ -30,6 +32,7 @@ export function refreshTagflowModels(force = false): Promise<void> {
       if (config.available !== true) { offered = null; defaultModel = ""; return; }
       if (typeof config.defaultModel !== "string" || !Array.isArray(config.models)) return;
       const models: CatalogueProvider["models"][number][] = [];
+      const safe: string[] = [];
       for (const rawModel of config.models.slice(0, 100)) {
         if (typeof rawModel !== "object" || rawModel === null) continue;
         const model = rawModel as Record<string, unknown>;
@@ -41,6 +44,7 @@ export function refreshTagflowModels(force = false): Promise<void> {
         // A paid provider's model (relays from 2026-10-21) says what it costs once the free week is spent.
         const cost = config.paid?.accounting === "cost-v1" && typeof model["inputCreditsPer1k"] === "number" ? `${model["inputCreditsPer1k"]} input / ${model["outputCreditsPer1k"]} output credits per 1K tokens; shared daily balance` : model["billing"] === "wallet" ? `paid USD credits · USD ${Number(model["inputPrice"] ?? 0).toFixed(4)} input / USD ${Number(model["outputPrice"] ?? 0).toFixed(4)} output per million tokens` : model["paid"] === true && freeWeekly !== null ? `${Math.round(freeWeekly / 1_000_000)}M free tokens a week, then purchased tokens`
           : rate === 0 ? "free, no credits used" : rate === 1 ? "uses your free AI credits" : `uses ${rate < 1 ? "fewer" : "more"} credits (${rate}× the standard rate)`;
+        if (model["billing"] !== "wallet" && model["paid"] !== true && rate <= 1) safe.push(model["id"]);
         models.push({ id: model["id"], name: model["name"], toolCall: true, reasoning: false, contextWindow: model["contextWindow"], maxOutput: model["maxOutput"], inputs: ["text"], outputs: ["text"], inputCostMicrosPerMillion: model["billing"] === "wallet" ? Math.round(Number(model["inputPrice"] ?? 0)*1_000_000) : 0, outputCostMicrosPerMillion: model["billing"] === "wallet" ? Math.round(Number(model["outputPrice"] ?? 0)*1_000_000) : 0, note: `Included${source} · ${cost}`,
           // Relays from 2 November 2026 say when a model joined, which drives the New badge.
           ...(typeof model["releaseDate"] === "string" && /^\d{4}-\d{2}-\d{2}$/.test(model["releaseDate"]) ? { releaseDate: model["releaseDate"] } : {}) });
@@ -48,6 +52,7 @@ export function refreshTagflowModels(force = false): Promise<void> {
       if (!models.some((model) => model.id === config.defaultModel)) return;
       offered = { id: "tagflow", name: "Included AI", env: [], doc: "https://adcode.bluethenics.com/docs/ai-tagflow", models };
       defaultModel = config.defaultModel;
+      failoverOrder = [config.defaultModel, ...safe.filter((id) => id !== config.defaultModel)];
     } catch { /* Offline: the server still checks availability on every request. */ }
   })().finally(() => { refreshing = null; });
   return refreshing;
@@ -91,7 +96,19 @@ export async function buildTagflowProvider(source = "unknown", onRequest?: (requ
     },
   });
   // A completion, edit preview or connection test must not remain pending overnight.
-  return source === "chat" || source === "agent" ? recoverIncludedLimits(provider) : provider;
+  return source === "chat" || source === "agent" ? recoverIncludedLimits(provider, { fallback: includedFallback }) : provider;
+}
+
+/**
+ * The included model to switch to when `failed` keeps dying before it answers. Only a free or
+ * standard-rate model is ever a fallback, and only for one: somebody who chose a paid model is
+ * never moved off it silently, and is never moved onto one.
+ */
+export function includedFallback(failed: string, tried: ReadonlySet<string>): { id: string; name: string } | null {
+  if (!failoverOrder.includes(failed)) return null;
+  const id = failoverOrder.find((candidate) => candidate !== failed && !tried.has(candidate));
+  const model = id === undefined ? undefined : offered?.models.find((one) => one.id === id);
+  return model === undefined ? null : { id: model.id, name: model.name };
 }
 
 /** Optional survey; the server binds it to the signed-in account. No conversation is attached. */

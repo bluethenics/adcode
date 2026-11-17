@@ -33,7 +33,7 @@ export async function GET(): Promise<Response> {
   const items = (status?.incidents ?? [])
     .flatMap((incident) =>
       incident.updates.map((update) => ({
-        title: `${incident.title} — ${INCIDENT_STATUS_LABELS[update.status] ?? update.status}`,
+        title: `${incident.title}: ${INCIDENT_STATUS_LABELS[update.status] ?? update.status}`,
         link: url(`/status#${incident.incidentId}`),
         guid: `${url("/status")}#${update.updateId}`,
         description: `${update.body} (${IMPACT_LABELS[incident.impact] ?? incident.impact} impact.)`,

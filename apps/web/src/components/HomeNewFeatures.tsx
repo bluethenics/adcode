@@ -121,7 +121,7 @@ export function HomeNewFeatures() {
   return (
     <section className="nf marketplace-wrap" aria-labelledby="nf-heading" data-home-reveal>
       <header className="nf-head">
-        <p className="marketplace-eyebrow">NEW IN ADCODE</p>
+        <p className="marketplace-eyebrow">New in ADCode</p>
         <h2 id="nf-heading">Your computer works.<br /><span>You don&apos;t have to watch.</span></h2>
       </header>
       <div className="nf-grid">

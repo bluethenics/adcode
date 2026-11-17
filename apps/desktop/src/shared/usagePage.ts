@@ -22,6 +22,8 @@ import { shiftDay } from "./usageActivity.ts";
 export interface UsageFilter {
   readonly project?: string | null;
   readonly provider?: string | null;
+  /** One conversation: what the chat's own usage box reads. Agent requests carry no chat and drop out. */
+  readonly chat?: string | null;
 }
 
 /** A choice in the project or provider menu, with how much it was used in the range. */
@@ -115,7 +117,7 @@ export interface UsagePageTotals {
 
 export interface UsagePageView {
   readonly range: UsageRange;
-  readonly filter: { readonly project: string | null; readonly provider: string | null };
+  readonly filter: { readonly project: string | null; readonly provider: string | null; readonly chat: string | null };
   /** Menu choices, from the whole range whatever the filter, most used first. */
   readonly projects: readonly UsageOption[];
   /** Requests in the range that ran with no project recorded (before 2.6.1, or no folder open). */
@@ -167,8 +169,8 @@ function daysFrom(first: string, last: string): string[] {
   return out;
 }
 
-function matches(row: UsageRow, filter: { readonly project: string | null; readonly provider: string | null }): boolean {
-  return (filter.project === null || row.project === filter.project) && (filter.provider === null || row.provider === filter.provider);
+function matches(row: UsageRow, filter: { readonly project: string | null; readonly provider: string | null; readonly chat: string | null }): boolean {
+  return (filter.project === null || row.project === filter.project) && (filter.provider === null || row.provider === filter.provider) && (filter.chat === null || row.chat === filter.chat);
 }
 
 function options(rows: readonly UsageRow[], pick: (row: UsageRow) => string | undefined): UsageOption[] {
@@ -185,7 +187,7 @@ export function usagePage(rows: readonly UsageRow[], range: UsageRange, now: num
   const today = dayKey(now);
   const start = rangeStart(range, now);
   const inRange = rows.filter((row) => (start === null || row.day >= start) && row.day <= today);
-  const filter = { project: filterIn.project ?? null, provider: filterIn.provider ?? null };
+  const filter = { project: filterIn.project ?? null, provider: filterIn.provider ?? null, chat: filterIn.chat ?? null };
   const chosen = inRange.filter((row) => matches(row, filter));
 
   // Totals.

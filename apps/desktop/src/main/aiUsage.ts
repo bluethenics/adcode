@@ -102,8 +102,8 @@ export function recordAiUsage(entry: UsageEntry): void {
 function readFilter(raw: unknown): UsageFilter {
   if (typeof raw !== "object" || raw === null) return {};
   const pick = (value: unknown): string | null => (typeof value === "string" && value.length > 0 && value.length <= 1024 ? value : null);
-  const { project, provider } = raw as { project?: unknown; provider?: unknown };
-  return { project: pick(project), provider: pick(provider) };
+  const { project, provider, chat } = raw as { project?: unknown; provider?: unknown; chat?: unknown };
+  return { project: pick(project), provider: pick(provider), chat: pick(chat) };
 }
 
 export async function readAiUsage(range: unknown, filter?: unknown): Promise<AnalysedUsageView> {

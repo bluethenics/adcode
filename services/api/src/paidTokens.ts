@@ -66,8 +66,17 @@ export function isSponsoredTagflow(model: { id?: string; provider?: string; bill
   return (model.provider ?? "tagflow") === "tagflow" && model.billing !== "wallet" && model.inputPrice === 0 && model.outputPrice === 0;
 }
 
-export function isPaidModel(model: Parameters<typeof isSponsoredTagflow>[0], paid: PaidConfig | undefined): boolean {
-  return paid?.enabled === true && !(paid.accounting === "cost-v1" && isSponsoredTagflow(model));
+/**
+ * A model an administrator opened as a free experiment: an explicit zero rate in credits.ts.
+ * It must draw nothing from the free allowance, even under cost-v1 accounting, where the
+ * provider's input/output prices otherwise decide the charge and silently ignore the rate.
+ */
+export function isFreeModel(model: { creditRate?: number }): boolean {
+  return model.creditRate === 0;
+}
+
+export function isPaidModel(model: Parameters<typeof isSponsoredTagflow>[0] & { creditRate?: number }, paid: PaidConfig | undefined): boolean {
+  return paid?.enabled === true && !isFreeModel(model) && !(paid.accounting === "cost-v1" && isSponsoredTagflow(model));
 }
 
 export interface FreeWindow { startedAt: number; endsAt: number; usedTokens: number; reservedTokens: number }

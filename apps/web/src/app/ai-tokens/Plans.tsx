@@ -93,7 +93,7 @@ export async function planRequest<T>(path: string, idToken: string | null, body?
       "no-subscription": "No billing subscription was found for this account.",
       "no-invite": "Invites are available with an active Pro subscription. Refresh your balance after your plan starts.",
       "bad-country": "Enter a two-letter billing country, like US or DE.",
-      "bad-code": "Use a code with 3–24 letters or numbers, without spaces.",
+      "bad-code": "Use a code with 3-24 letters or numbers, without spaces.",
       "too-many-checkouts": "You've opened several checkouts. Wait a few minutes before trying again.",
     };
     const fallback = response.status === 401 ? "Your session expired. Sign in again." : "This request couldn't be completed. Please try again.";

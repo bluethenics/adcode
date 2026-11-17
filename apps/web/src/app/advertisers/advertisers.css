@@ -25,13 +25,13 @@
 .adv-page h3 { font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
 .adv-page :is(a, summary):focus-visible { outline: 2px solid var(--text); outline-offset: 4px; }
 
-.adv-eyebrow { color: var(--muted); font: 500 12px/1.6 var(--font-mono), monospace; letter-spacing: .1em; text-transform: uppercase; }
+.adv-eyebrow { color: var(--muted); font: 600 var(--fs-label)/1.6 var(--font-body), system-ui, sans-serif; letter-spacing: 0; text-transform: none; }
 
 /* Buttons: one filled, one quiet. */
 .adv-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
 .adv-primary, .adv-secondary {
   display: inline-flex; align-items: center; gap: 12px; min-height: 50px; padding: 13px 22px;
-  border-radius: 14px; font: 600 14px/1.2 var(--font-body), sans-serif; text-decoration: none; white-space: nowrap;
+  border-radius: var(--radius-pill); font: 600 14px/1.2 var(--font-body), sans-serif; text-decoration: none; white-space: nowrap;
   transition: transform 180ms var(--adv-ease), background-color 140ms ease, border-color 140ms ease, filter 140ms ease;
 }
 .adv-primary { color: var(--brand-contrast); background: var(--brand-solid); border: 1px solid transparent; }
@@ -124,7 +124,7 @@
 /* Targeting */
 .adv-targeting { padding-top: var(--adv-space); }
 .adv-tag-groups { display: grid; grid-template-columns: 1.4fr 1.1fr 1fr .6fr; gap: 28px; margin-top: 36px; }
-.adv-tag-groups h3 { color: var(--muted); font: 500 12px/1.4 var(--font-mono), monospace; letter-spacing: .08em; text-transform: uppercase; }
+.adv-tag-groups h3 { color: var(--muted); font: 600 var(--fs-label)/1.4 var(--font-body), system-ui, sans-serif; letter-spacing: 0; text-transform: none; }
 .adv-tag-groups ul { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; padding: 0; list-style: none; }
 .adv-tag-groups li { padding: 6px 11px; border: 1px solid var(--hairline); border-radius: 999px; background: var(--card); font: 500 13px/1.3 var(--font-mono), monospace; }
 
@@ -135,7 +135,7 @@
 .adv-price strong { display: block; margin-bottom: 4px; font: 500 clamp(56px, 7vw, 88px)/1 var(--font-display), sans-serif; letter-spacing: -.06em; }
 .adv-pricing-lead > p:not(.adv-price) { max-width: 46ch; margin-top: 14px; color: var(--muted); font-size: 15px; line-height: 1.6; }
 .adv-clearing { display: grid; grid-template-columns: auto 1fr; align-items: baseline; gap: 4px 14px; margin-top: 26px; padding: 16px 18px; border-radius: 12px; background: var(--surface); border: 1px solid var(--hairline); }
-.adv-clearing-label { grid-column: 1 / -1; display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font: 500 11px/1.4 var(--font-mono), monospace; letter-spacing: .08em; text-transform: uppercase; }
+.adv-clearing-label { grid-column: 1 / -1; display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font: 600 var(--fs-label)/1.4 var(--font-body), system-ui, sans-serif; letter-spacing: 0; text-transform: none; }
 .adv-clearing-label i { width: 7px; height: 7px; border-radius: 50%; background: var(--money); }
 .adv-clearing strong { font: 600 24px/1.2 var(--font-mono), monospace; letter-spacing: -.03em; }
 .adv-clearing strong small { color: var(--muted); font: 500 13px var(--font-body), sans-serif; letter-spacing: 0; }
@@ -144,7 +144,7 @@
 .adv-budget { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .adv-budget caption { padding-bottom: 14px; color: var(--muted); font-size: 13px; text-align: left; }
 .adv-budget th, .adv-budget td { padding: 18px 0; text-align: left; border-bottom: 1px solid var(--hairline); }
-.adv-budget thead th { padding-block: 0 10px; color: var(--faint); font: 500 11px/1.4 var(--font-mono), monospace; letter-spacing: .08em; text-transform: uppercase; }
+.adv-budget thead th { padding-block: 0 10px; color: var(--faint); font: 600 var(--fs-label)/1.4 var(--font-body), system-ui, sans-serif; letter-spacing: 0; text-transform: none; }
 .adv-budget tbody th { font: 600 22px/1 var(--font-mono), monospace; }
 .adv-budget td { font: 500 22px/1 var(--font-display), sans-serif; letter-spacing: -.03em; text-align: right; }
 .adv-budget thead th:last-child { text-align: right; }

@@ -59,13 +59,38 @@ export function networkFailure(caught: unknown): string | null {
   return /^fetch failed$|^terminated$|socket hang up|network (?:error|changed)/i.test(caught.message) ? code ?? "network" : null;
 }
 
+export interface IncludedRecoveryOptions {
+  /**
+   * Another included model to answer with when `failed` keeps dying before its first token, or
+   * null when there is none worth switching to. `tried` holds every model this provider has
+   * already given up on.
+   */
+  readonly fallback?: (failed: string, tried: ReadonlySet<string>) => { readonly id: string; readonly name: string } | null;
+}
+
+/**
+ * Same-model retries before switching to a fallback. Measured 30 October 2026: the busiest
+ * included model failed one turn in three while another failed one in eighteen, and 43% of all
+ * in-app reports were a turn that died this way and was retried on the same model three times
+ * (~17 s of "retrying") before giving up. One short retry, then another model.
+ */
+const RETRIES_BEFORE_FAILOVER = 1;
+const MAX_FAILOVERS = 2;
+
 /** Keep the pending request inside its existing agent turn; completed tools are not replayed. */
-export function recoverIncludedLimits(provider: Provider): Provider {
+export function recoverIncludedLimits(provider: Provider, options: IncludedRecoveryOptions = {}): Provider {
+  // A model given up on stays given up on for the rest of this provider's life: every later step
+  // of the same task asks the replacement instead of failing on the same model again.
+  const replaced = new Map<string, string>();
+  const tried = new Set<string>();
   return {
     ...provider,
-    async *stream(request, signal) {
+    async *stream(original, signal) {
       let networkRetries = 0;
       let serverRetries = 0;
+      let failovers = 0;
+      const swap = replaced.get(original.model);
+      let request = swap === undefined ? original : { ...original, model: swap };
       for (;;) {
         signal.throwIfAborted();
         let producedOutput = false;
@@ -89,7 +114,20 @@ export function recoverIncludedLimits(provider: Provider): Provider {
             continue;
           }
           const error = caught as LimitError;
-          if (error.retryable !== false && [500, 502, 503, 504].includes(error.status ?? 0) && serverRetries < SERVER_RETRY_SECONDS.length) {
+          const serverFailure = error.retryable !== false && [500, 502, 503, 504].includes(error.status ?? 0);
+          if (serverFailure && serverRetries >= RETRIES_BEFORE_FAILOVER && failovers < MAX_FAILOVERS && options.fallback !== undefined) {
+            tried.add(request.model);
+            const next = options.fallback(request.model, tried);
+            if (next !== null && !tried.has(next.id)) {
+              failovers++;
+              serverRetries = 0;
+              replaced.set(original.model, next.id);
+              request = { ...original, model: next.id };
+              yield { kind: "status", text: `That model is not answering right now - switched to ${next.name} for this task so you still get a reply.` };
+              continue;
+            }
+          }
+          if (serverFailure && serverRetries < SERVER_RETRY_SECONDS.length) {
             const seconds = SERVER_RETRY_SECONDS[serverRetries++]!;
             yield { kind: "status", text: `Included AI is temporarily unavailable. Retrying in ${seconds}s without repeating completed tools. Press Stop to cancel.` };
             await waitUntil(Date.now() + seconds * 1000, signal);

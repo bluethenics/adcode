@@ -67,7 +67,14 @@
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS",
-    "run_worker_first": ["/videos/*"]
+    "run_worker_first": ["/videos/*"],
+    /*
+     * Required by OpenNext whenever `run_worker_first` is set. Next serves public files at
+     * their exact path only; any HTML or trailing-slash rewriting in front of the Worker
+     * would let a request reach a page without passing through `src/middleware.ts`.
+     */
+    "html_handling": "none",
+    "not_found_handling": "none"
   },
 
   /*

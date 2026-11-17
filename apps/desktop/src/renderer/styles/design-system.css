@@ -13,6 +13,14 @@
 
 /* ── Buttons ──────────────────────────────────────────────────────────── */
 
+/*
+ * A button never splits a word. Cards, dialogs and rows set `overflow-wrap: anywhere` so long
+ * names and paths wrap, and buttons inherited it: squeezed by a long line beside it, "Install"
+ * became "Insta / ll". Labels may still wrap at spaces. Zero specificity, so a button that
+ * really wants anywhere-wrapping (a path rendered as a button) can still ask for it.
+ */
+:where(button, [role="button"]) { overflow-wrap: normal; word-break: normal; }
+
 :is(.ad-btn, .ghost-button, .result-close, .confirm-cancel, .settings-close, .danger-button) {
   display: inline-flex;
   align-items: center;

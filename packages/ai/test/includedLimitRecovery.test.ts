@@ -41,6 +41,37 @@ it("bounds server retries and never replays a partial response", async () => {
   expect(calls).toBe(5); expect(vi.getTimerCount()).toBe(0);
 });
 
+it("switches to another included model after one retry, and keeps the switch for later steps", async () => {
+  vi.useFakeTimers(); vi.setSystemTime(0); const seen: string[] = [];
+  const provider: Provider = { id: "tagflow", displayName: "Included AI", models: [], async *stream(input) {
+    seen.push(input.model);
+    if (input.model === "coder") throw { status: 502, code: "stream-interrupted" };
+    yield { kind: "text", text: "From the fallback" }; yield { kind: "stop", reason: "end-turn" };
+  } };
+  const recovering = recoverIncludedLimits(provider, { fallback: (failed, tried) => failed === "coder" && !tried.has("steady") ? { id: "steady", name: "Steady 27B" } : null });
+  const result = collect(recovering);
+  await vi.advanceTimersByTimeAsync(2000);
+  const events = await result;
+  expect(seen).toEqual(["coder", "coder", "steady"]);
+  expect(events.some(event => event.kind === "status" && event.text.includes("switched to Steady 27B"))).toBe(true);
+  expect(events.filter(event => event.kind === "text")).toEqual([{ kind: "text", text: "From the fallback" }]);
+  // The next step of the same task goes straight to the model that answered.
+  await collect(recovering);
+  expect(seen).toEqual(["coder", "coder", "steady", "steady"]);
+});
+
+it("never fails over after part of a reply arrived, or when there is no fallback", async () => {
+  vi.useFakeTimers(); vi.setSystemTime(0); const seen: string[] = [];
+  const partial: Provider = { id: "tagflow", displayName: "Included AI", models: [], async *stream(input) { seen.push(input.model); yield { kind: "text", text: "Half" }; throw { status: 502 }; } };
+  await expect(collect(recoverIncludedLimits(partial, { fallback: () => ({ id: "steady", name: "Steady" }) }))).rejects.toEqual({ status: 502 });
+  expect(seen).toEqual(["coder"]);
+  let calls = 0;
+  const down: Provider = { id: "tagflow", displayName: "Included AI", models: [], async *stream() { calls++; throw { status: 503 }; } };
+  const result = collect(recoverIncludedLimits(down, { fallback: () => null })).catch(error => error);
+  await vi.advanceTimersByTimeAsync(17_000);
+  expect(await result).toEqual({ status: 503 }); expect(calls).toBe(4);
+});
+
 it("recognises a response body terminated before any output as a dropped connection", () => {
   expect(networkFailure(new TypeError("terminated"))).toBe("network");
 });

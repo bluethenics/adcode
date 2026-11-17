@@ -32,7 +32,9 @@
 .account-gate-retry { min-height:44px; padding:10px 24px; margin:16px auto 0; border:1px solid #414346; border-radius:999px; font:inherit; cursor:pointer; color:#ededed; background:#202223; }
 .account-gate button:active:not(:disabled):not(:focus-visible) { transform:scale(.98); }
 .account-gate :focus-visible { outline:2px solid #ededed; outline-offset:4px; }
-.account-gate[data-step="checking"] .account-gate-detail,.account-gate[data-step="checking"] .account-gate-form,.account-gate[data-step="checking"] .account-gate-retry { display:none; }
+.account-gate[data-step="checking"] .account-gate-detail,.account-gate[data-step="checking"] .account-gate-form,.account-gate[data-step="checking"] .account-gate-retry,.account-gate[data-step="checking"] .account-gate-later { display:none; }
+.account-gate-later { display:block; min-height:44px; margin:20px auto 0; padding:10px 16px; border:0; font:inherit; font-size:14px; cursor:pointer; color:#a4a6a8; background:none; text-decoration:underline; text-underline-offset:3px; }
+@media(hover:hover) and (pointer:fine) { .account-gate-later:hover { color:#ededed; } }
 @media(hover:hover) and (pointer:fine) { .account-gate .account-provider:hover:not(:disabled) { background:#292b2d; } .account-gate .account-provider:first-child:hover:not(:disabled) { background:#fff; } }
 @media(max-height:650px) { .account-gate-brand,.account-gate[data-step="verify"] .account-gate-brand { top:70px; font-size:44px; } .account-gate-content,.account-gate[data-step="verify"] .account-gate-content { margin-top:120px; } }
 @keyframes account-arrive { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }

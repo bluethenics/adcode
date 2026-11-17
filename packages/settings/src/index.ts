@@ -615,6 +615,14 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     true,
   ),
   bool(
+    "adcode.collab.chatNotify",
+    "ai",
+    "Notify me about live session messages",
+    "When someone in your live session writes in the room chat while ADCode is in the background, a system notification shows who said what; clicking it opens the room. In the app, the Live button counts unread messages while the session card is closed.",
+    true,
+    true,
+  ),
+  bool(
     "adcode.browser.agentControl",
     "ai",
     "Let the assistant use the Browser",

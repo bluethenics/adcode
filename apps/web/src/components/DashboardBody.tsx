@@ -240,7 +240,7 @@ export function DashboardBody() {
               <h3>No coding recorded yet</h3>
               <p>
                 Open ADCode and write something. The editor counts characters you typed and
-                characters the AI agent wrote for you, and nothing else — no file names, no
+                characters the AI agent wrote for you, and nothing else: no file names, no
                 paths, no code. The split shows up here within a few minutes.
               </p>
             </div>
@@ -342,7 +342,7 @@ export function DashboardBody() {
               </section>
 
               <p className="field-hint" style={{ maxWidth: "64ch" }}>
-                These numbers come from the editor on your machine and are counts only —
+                These numbers come from the editor on your machine and are counts only:
                 characters, files, minutes. No file name, path, language, prompt or line of
                 code is ever sent, which is the same rule the ad tags follow.
               </p>
@@ -396,7 +396,7 @@ export function DashboardBody() {
           )}
 
           <p className="field-hint" style={{ marginTop: 22, maxWidth: "64ch" }}>
-            This ledger is append-only. Nothing is ever edited or deleted — if a credit has
+            This ledger is append-only. Nothing is ever edited or deleted. If a credit has
             to be taken back, a separate reversal row appears and both stay visible. What
             you see here is exactly what we see.
           </p>

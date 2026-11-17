@@ -127,7 +127,7 @@ export default async function VersionsPage() {
             </div>
             <div>
               <dt>macOS</dt>
-              <dd>Coming soon — notarisation is still pending.</dd>
+              <dd>Coming soon. Notarisation is still pending.</dd>
             </div>
           </dl>
         </section>
@@ -156,7 +156,7 @@ export default async function VersionsPage() {
             </div>
             <div>
               <dt>macOS</dt>
-              <dd>Coming soon — notarisation is still pending.</dd>
+              <dd>Coming soon. Notarisation is still pending.</dd>
             </div>
           </dl>
         </section>

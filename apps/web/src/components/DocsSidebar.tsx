@@ -1,6 +1,7 @@
 import Link from "@/components/IntentLink";
 import { docsBySection } from "@/lib/docs";
 import { DocsNavigation } from "./DocsNavigation";
+import { DocsSearchPill } from "./DocsSearchPill";
 
 interface Props {
   /**
@@ -36,6 +37,7 @@ export async function DocsSidebar({ currentDoc, reading }: Props) {
       <DocsNavigation>
       <div className="docs-sidebar-primary">
         <h2>Documentation</h2>
+        <DocsSearchPill searchOnPage={onIndex} />
         <Link href="/docs" aria-current={onIndex ? "page" : undefined} className="docs-nav-all">
           All pages
         </Link>

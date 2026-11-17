@@ -87,7 +87,7 @@ export function SignInCard({ heading = "Sign in", audience = "developer", headin
         <div className="auth-brand">
           <span className="auth-brand-mark" aria-hidden="true"><Mark size={30} /></span>
           <span>ADCode</span>
-          <span className="auth-brand-caption">YOUR WORKSPACE</span>
+          <span className="auth-brand-caption">Your workspace</span>
         </div>
         <AuthAscii />
         {advertiser ? (
@@ -123,7 +123,6 @@ export function SignInCard({ heading = "Sign in", audience = "developer", headin
         aria-labelledby={`${panelId}-heading`}
       >
         <header className="auth-form-heading">
-          <p className="auth-eyebrow" key={mode}>{mode === "in" ? "WELCOME BACK" : "MAKE YOURSELF AT HOME"}</p>
           <HeadingTag id={`${panelId}-heading`}>{mode === "in" ? heading : advertiser ? "Start advertising" : "Create your account"}</HeadingTag>
           <p>Choose how you&apos;d like to {mode === "in" ? "continue." : "get started."}</p>
         </header>

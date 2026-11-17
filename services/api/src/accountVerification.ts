@@ -22,7 +22,7 @@ export async function accountVerification(request: Request, deps: VerificationDe
       if (user && live.email) await deps.store.putUser({ ...user, email: live.email, emailVerified: true });
       return json({ verified: true, sent: false, email: live.email, retryAfter: 0, message: "Your email is verified. You can use free AI now." });
     }
-    if (!live.email) return json({ verified: false, sent: false, message: "Add an email or sign in with Google before verifying this account." },409);
+    if (!live.email) return json({ verified: false, sent: false, message: "Your sign-in did not share an email address. Add one in Account and the verification link goes there - it stays on this same account." },409);
     if (request.method === "GET") return json({ verified: false, sent: false, email: live.email, retryAfter: 0, message: "Verify your email to use free AI. Open the ADCode verification link in your inbox, or request a new one." });
     const now = deps.clock.now(), gap = 60_000;
     if (!await deps.store.claimVerificationSend(auth.uid, now, gap)) return json({ verified: false, sent: false, retryAfter: 60, message: "A verification link was requested recently. Check spam or junk, or try again in a minute." },429);
@@ -31,7 +31,7 @@ export async function accountVerification(request: Request, deps: VerificationDe
       await deps.store.retryFailedVerificationSend(auth.uid, now, 60_000, gap);
       // Codes only. Never log the email address, ID token, link, or provider response body.
       console.warn("Verification email not accepted", { code: result.reason ?? "DELIVERY_FAILED" });
-      return json({ verified: false, sent: false, retryAfter: 60, message: result.reason === "QUOTA_EXCEEDED" || result.reason === "TOO_MANY_ATTEMPTS_TRY_LATER" ? "The email service is temporarily limiting verification messages. Wait a minute and try again, or use Google sign-in to verify your address." : "The verification email could not be sent. Please try again in a minute." },503);
+      return json({ verified: false, sent: false, retryAfter: 60, message: result.reason === "QUOTA_EXCEEDED" || result.reason === "TOO_MANY_ATTEMPTS_TRY_LATER" ? "The email service is temporarily limiting verification messages. Wait a minute and try again. Your own API key or an installed coding CLI works in the meantime." : "The verification email could not be sent. Please try again in a minute." },503);
     }
     return json({ verified: false, sent: true, email: live.email, retryAfter: 60, message: `A verification link was sent to ${live.email}. Check spam or junk too. After opening it, choose “I've verified”.` });
   } catch { return json({ message: "Email verification is temporarily unavailable. Please try again shortly." },503); }

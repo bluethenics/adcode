@@ -37,7 +37,7 @@ export async function GET(): Promise<Response> {
   }));
 
   const releases = (await allReleases()).map((release) => ({
-    title: `${release.version} — ${release.title}`,
+    title: `${release.version}: ${release.title}`,
     link: url(`/versions#v${release.version}`),
     description:
       release.highlights.length > 0 ? release.highlights.join(". ") : release.title,

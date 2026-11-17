@@ -2238,7 +2238,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Edit - the preview reloads itself on save.",
       "To see another page, click the address in the preview's bar, type its path - /about.html or #pricing - and press Enter. The address follows the links you click, and when the assistant opens a page for you, the preview goes there too.",
       "Switch device sizes from the preview toolbar to check layouts: one click for Phone, Tablet, or Desktop, labelled W and H boxes with minus and plus steppers, a preset list, or drag the frame's visible edges. The page reshapes in place without reloading, and Fit scales it to fit so you never scroll to see it.",
-      "Turn on Inspect, then right-click anything in the preview to see its width, height, padding, margin, and highlighted markup for restyling. If it grabs an inner piece instead of the card you meant, walk up the breadcrumb to the parent — the page flashes each level as you pick it. Choose List all to see every element's spacing with a filter.",
+      "Turn on Inspect, then right-click anything in the preview to see its width, height, padding, margin, and highlighted markup for restyling. If it grabs an inner piece instead of the card you meant, walk up the breadcrumb to the parent. The page flashes each level as you pick it. Choose List all to see every element's spacing with a filter.",
       "The preview floats over your work instead of taking a column: drag it by its bar, resize it from any edge, and double-click the bar (or press Maximise) to fill the window.",
       "To change something you can see, pick it with Inspect and press Change this with AI. New task opens with that element attached - page, selector, size and markup - so you only type what should change, like Make this button bigger and green.",
     ],
@@ -2451,6 +2451,28 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     ],
     betterThan:
       "Provider dashboards show one provider at a time, a day late, and cannot tell one chat or project from another. ADCode counts every request as it happens, across every provider and coding CLI you use, splits it by project, model, day and chat, shows what caching saved and what another model would have cost, and says plainly what it does not know.",
+  },
+
+  "ai-chat-usage": {
+    steps: [
+      "Open a chat. At the top left, before the chat's title, a small chip shows how full the context is and what this conversation has used so far, for example 34% · 182k · $0.41.",
+      "Click the chip, or run AI: Show This Chat's Usage. A card opens under it.",
+      "Read Context first: how much of the model's window the chat fills and when it compacts. Amber means it is getting close; red means the next request compacts.",
+      "Tokens splits what the chat read and wrote into fresh input, input from the prompt cache, and output. Cost is at list price, with the cost of an average request.",
+      "Cache shows the share of input the provider read from its cache and what that saved. Speed shows the average time to a whole answer and tokens per second.",
+      "Models in this chat lists each model the conversation ran on and its share of the tokens.",
+      "If a tip appears, act on it: compact now, stay on one model, or start a fresh chat for an unrelated task.",
+      "At the bottom, Compact now, Full usage and limits, and Import chats from other apps are one click away. Escape or a click elsewhere closes the card.",
+    ],
+    benefits: [
+      "See what the conversation in front of you costs while you are in it, not at the end of the month.",
+      "Know when the context is about to fill and compact on your terms.",
+      "Spot the model switch that threw the cache away, or the history so long every request re-reads it.",
+      "Speed per chat: how long answers take and how fast the model writes.",
+      "The same numbers as the Usage page, recorded on your computer.",
+    ],
+    betterThan:
+      "Most coding tools show one running token count, or a usage page you have to leave the chat to read. ADCode keeps this chat's context, tokens, cost, cache savings, speed and models one click away at the top of the conversation, and turns them into concrete advice when the numbers call for it. It counts every provider and coding CLI the same way, so a chat that moved from Claude to DeepSeek still adds up.",
   },
 
   "ai-prompt-caching": {

@@ -9,7 +9,7 @@
 body:has(.home-redesign) .marketplace-footer .marketplace-wrap { width: min(100% - 96px, 1120px); }
 .home-redesign :is(section, figure[id], details[id]) { scroll-margin-top: 100px; }
 .home-redesign h2 { font-size: clamp(30px, 3.5vw, 44px); font-weight: 500; letter-spacing: -.045em; line-height: 1.17; }
-.home-redesign .marketplace-eyebrow { color: var(--brand); font: 500 12px/1.6 var(--font-mono), monospace; letter-spacing: .1em; }
+.home-redesign .marketplace-eyebrow { color: var(--brand); font: 600 var(--fs-label)/1.6 var(--font-body), system-ui, sans-serif; letter-spacing: 0; }
 .home-redesign :is(a, button, summary) { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .home-redesign :is(a, button, summary):focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; }
 .home-redesign .home-link-button {
@@ -54,7 +54,7 @@ body:has(.home-redesign) .marketplace-footer .marketplace-wrap { width: min(100%
 .home-redesign .studio-hero h1 { margin: 0; font-size: clamp(44px, 5.7vw, 76px); font-weight: 500; letter-spacing: -.055em; line-height: 1.08; }
 .home-redesign .studio-hero h1 > span { display: inline-block; width: 100%; color: var(--muted); text-wrap: balance; }
 .home-redesign .studio-hero .marketplace-hero-copy > p { max-width: 590px; margin: 22px auto 0; color: var(--muted); font-size: 16px; line-height: 1.75; text-wrap: pretty; }
-.home-redesign .studio-hero .marketplace-hero-copy > .home-hero-label { margin: 0 auto 18px; color: var(--brand); font: 500 12px/1.6 var(--font-mono), monospace; letter-spacing: .12em; }
+.home-redesign .studio-hero .marketplace-hero-copy > .home-hero-label { margin: 0 auto 18px; color: var(--muted); font: 600 var(--fs-label)/1.5 var(--font-body), system-ui, sans-serif; letter-spacing: 0; }
 .home-redesign .hero-install { width: 100%; min-width: 0; grid-template-columns: minmax(0, 1fr); justify-items: center; }
 .home-redesign .studio-hero .hero-install { margin: 29px auto 0; max-width: 650px; gap: 13px; }
 .home-redesign .marketplace-hero-actions { justify-content: center; gap: 12px; margin-top: 0; }

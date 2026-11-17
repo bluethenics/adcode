@@ -26,11 +26,15 @@ describe("the advertiser landing page", () => {
     expect(readApi).not.toHaveBeenCalledWith("/v1/impressions", expect.anything());
   });
 
-  it("tells an advertiser when no campaign is running that the next one has the slots to itself", async () => {
+  it("tells an advertiser when no campaign is running that the next one has the slots to itself, without printing a zero", async () => {
     vi.mocked(readApi).mockResolvedValue(Response.json({ ...LIVE, activeCampaigns: 0 }));
     const html = text(renderToStaticMarkup(await AdvertisersPage()));
 
-    expect(html).toContain("None right now. The next one takes every slot it targets, at the floor price");
+    // A zero in this band reads as "nobody advertises here"; a word reads as the opening it is.
+    expect(html).toContain("The next slot");
+    expect(html).toContain("Wide open");
+    expect(html).toContain("No campaign is running, so the next one takes every slot it targets at the floor price");
+    expect(html).not.toContain("Campaigns live now");
     expect(html).not.toContain("Competing for the next card");
   });
 

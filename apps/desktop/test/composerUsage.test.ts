@@ -28,7 +28,9 @@ describe("composer usage meters", () => {
       rates: { "tagflow-code-27b": 1, "heabsy-qwen38": 0.2 },
     } });
     const [session, weekly] = composerUsageModels(null, view, true, "heabsy-qwen38");
-    expect(session).toMatchObject({ label: "Session", percent: 81, value: "81%", detail: "18% left", tone: "warn" });
+    // 1,500.4 spent of 2,000 is 75%. The 120 held is a big reply's pre-authorisation, not
+    // spend, so it must not push the meter to 81% and then fall back when the reply ends.
+    expect(session).toMatchObject({ label: "Session", percent: 75, value: "24%", detail: "24% left", tone: "ok" });
     expect(session.tooltip).toContain("379 of 2,000 left, 120 held by replies in progress");
     expect(session.tooltip).toContain("Refills in 4 hr");
     expect(session.tooltip).toContain("This model uses 0.2 credits per 1,000 tokens.");
@@ -36,6 +38,25 @@ describe("composer usage meters", () => {
     expect(weekly.tooltip).toContain("A 7-day window starts with your next request.");
     const spent = composerUsageModels(null, allowance({ credits: { ...view.credits!, session: { ...view.credits!.session, used: 2000, held: 0, remaining: 0 } } }), true)[0];
     expect(spent).toMatchObject({ percent: 100, tone: "full", detail: "Back in 4 hr" });
+  });
+  it("does not let a pre-authorisation move the meter, so a step cannot plunge it and bounce back", () => {
+    const now = Date.now();
+    const window = (held: number) => ({ limit: 2000, used: 200, held, remaining: 2000 - 200 - held, startedAt: now - 3_600_000, resetsAt: now + 4 * 3_600_000 });
+    const meter = (held: number) => composerUsageModels(null, allowance({ credits: {
+      plan: { sessionCredits: 2000, weeklyCredits: 20000, sessionHours: 5 },
+      session: window(held), weekly: window(held), rates: {},
+    } }), true)[0];
+
+    // 90% left before a step.
+    expect(meter(0)).toMatchObject({ percent: 10, value: "90%", detail: "90% left", tone: "ok" });
+    // A reply in flight may hold everything left. The meter must not read that as spend: the
+    // reported bug was "90% left, then 50%, then back to 80%" as holds landed and were released.
+    expect(meter(1800)).toMatchObject({ percent: 10, value: "90%", detail: "90% left", tone: "ok" });
+    // What the reply actually used is spend, and that shows once it settles.
+    expect(composerUsageModels(null, allowance({ credits: {
+      plan: { sessionCredits: 2000, weeklyCredits: 20000, sessionHours: 5 },
+      session: { ...window(0), used: 700, remaining: 1300 }, weekly: { ...window(0), used: 700, remaining: 1300 }, rates: {},
+    } }), true)[0]).toMatchObject({ percent: 35, value: "65%", detail: "65% left", tone: "ok" });
   });
   it("shows a partner model's own allowance instead of the main one", () => {
     const base = allowance();

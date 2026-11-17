@@ -13,8 +13,8 @@
  * an empty history, which is a worse experience and not a broken one.
  */
 import { createHash } from "node:crypto";
-import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { join, posix, win32 } from "node:path";
 import { app } from "electron";
 import {
   pruneSessions,
@@ -32,41 +32,75 @@ const MAX_SESSIONS = 200;
  * A hash rather than the path: `userData` is not secret, and a folder listing that reads
  * `C--work-acme-secret-merger` tells anybody with the disk what this person is working on.
  */
-function folderFor(workspace: string | null): string {
-  const key = workspace ?? "no-workspace";
-  return createHash("sha256").update(key).digest("hex").slice(0, 16);
+const hash = (key: string): string => createHash("sha256").update(key).digest("hex").slice(0, 16);
+const SEPARATORS = /(?<=[^\\/:])[\\/]+$/;
+
+/**
+ * One spelling per folder. `E:\proj`, `e:\proj` and `E:\proj\` are one project on Windows, but
+ * history used to be filed under the raw string, so opening a project another way (recents, a
+ * picker, `adcode open`) showed an empty history while its chats sat in a sibling folder.
+ */
+export function workspaceKey(workspace: string | null, platform: NodeJS.Platform = process.platform): string {
+  if (workspace === null) return "no-workspace";
+  if (platform !== "win32") return posix.resolve(workspace).replace(SEPARATORS, "");
+  return win32.resolve(workspace).replace(SEPARATORS, "").toLowerCase();
 }
 
-function directory(workspace: string | null): string {
-  return join(app.getPath("userData"), "ai-sessions", folderFor(workspace));
+/** Keys written before normalisation: the raw spellings this folder is likely to have arrived as. */
+export function legacyKeys(workspace: string | null, platform: NodeJS.Platform = process.platform): string[] {
+  if (workspace === null) return [];
+  const resolved = (platform === "win32" ? win32 : posix).resolve(workspace).replace(SEPARATORS, "");
+  const spellings = new Set([workspace, resolved, `${resolved}\\`, `${resolved}/`]);
+  if (platform === "win32") {
+    for (const one of [...spellings]) {
+      spellings.add(one.replaceAll("\\", "/"));
+      spellings.add(one.replaceAll("/", "\\"));
+    }
+    for (const one of [...spellings]) {
+      if (/^[a-z]:/i.test(one)) {
+        spellings.add(one[0]!.toUpperCase() + one.slice(1));
+        spellings.add(one[0]!.toLowerCase() + one.slice(1));
+      }
+    }
+  }
+  const current = workspaceKey(workspace, platform);
+  return [...spellings].filter((one) => one !== current);
+}
+
+const sessionsRoot = (): string => join(app.getPath("userData"), "ai-sessions");
+const directory = (workspace: string | null): string => join(sessionsRoot(), hash(workspaceKey(workspace)));
+/** The current folder first, then the folder of every older spelling. */
+function directories(workspace: string | null): string[] {
+  return [...new Set([directory(workspace), ...legacyKeys(workspace).map((key) => join(sessionsRoot(), hash(key)))])];
 }
 
 export async function readSessions(workspace: string | null): Promise<ChatSession[]> {
-  const where = directory(workspace);
+  const found = new Map<string, ChatSession>();
 
-  let names: string[];
-  try {
-    names = await readdir(where);
-  } catch {
-    // No folder yet is the normal state on a first run, not a failure.
-    return [];
-  }
-
-  const sessions: ChatSession[] = [];
-
-  for (const name of names) {
-    if (!name.endsWith(".json")) continue;
-
+  for (const where of directories(workspace)) {
+    let names: string[];
     try {
-      const raw = await readFile(join(where, name), "utf8");
-      const session = validateSession(JSON.parse(raw));
-      if (session !== null) sessions.push(session);
+      names = await readdir(where);
     } catch {
-      // One unreadable file costs one conversation, never the list.
+      // No folder yet is the normal state on a first run, not a failure.
+      continue;
+    }
+
+    for (const name of names) {
+      if (!name.endsWith(".json")) continue;
+
+      try {
+        const raw = await readFile(join(where, name), "utf8");
+        const session = validateSession(JSON.parse(raw));
+        const seen = session === null ? undefined : found.get(session.id);
+        if (session !== null && (seen === undefined || session.updatedAt > seen.updatedAt)) found.set(session.id, session);
+      } catch {
+        // One unreadable file costs one conversation, never the list.
+      }
     }
   }
 
-  return sortSessions(sessions);
+  return sortSessions([...found.values()]);
 }
 
 export async function writeSession(
@@ -74,14 +108,25 @@ export async function writeSession(
   session: ChatSession,
 ): Promise<void> {
   const where = directory(workspace);
+  const target = join(where, `${session.id}.json`);
+  const temporary = `${target}.${process.pid}.tmp`;
 
   try {
     await mkdir(where, { recursive: true });
-    await writeFile(join(where, `${session.id}.json`), JSON.stringify(session), "utf8");
-  } catch {
-    // A conversation that cannot be saved is still a conversation on screen.
+    // Write-then-rename, as sessionStore.ts does: a crash mid-save left a truncated (often empty)
+    // file that the read path skips, so the conversation vanished with no trace.
+    await writeFile(temporary, JSON.stringify(session), "utf8");
+    await rename(temporary, target);
+  } catch (error) {
+    // A conversation that cannot be saved is still a conversation on screen - but it is logged.
+    // Loaded on failure only: debugLog wraps ipcMain when imported, which this store has no need of.
+    void import("./debugLog.ts").then(({ recordDebug }) => recordDebug("warn", "ai:sessions", `Could not save conversation ${session.id}: ${error instanceof Error ? error.message : String(error)}`)).catch(() => undefined);
+    await rm(temporary, { force: true }).catch(() => undefined);
     return;
   }
+
+  // A conversation filed under an older spelling moves to the current folder on its next save.
+  for (const old of directories(workspace).slice(1)) await rm(join(old, `${session.id}.json`), { force: true }).catch(() => undefined);
 
   await enforceLimit(workspace);
 }
@@ -91,20 +136,20 @@ export async function deleteSession(workspace: string | null, id: string): Promi
   // joined into a path - the renderer is treated as hostile (§1).
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) return;
 
-  try {
-    await rm(join(directory(workspace), `${id}.json`), { force: true });
-  } catch {
+  for (const where of directories(workspace)) {
     // Already gone is the outcome the caller wanted.
+    await rm(join(where, `${id}.json`), { force: true }).catch(() => undefined);
   }
 }
 
 export async function clearSessions(workspace: string | null): Promise<void> {
-  try {
-    await rm(directory(workspace), { recursive: true, force: true });
-  } catch {
-    // Nothing to clear.
+  for (const where of directories(workspace)) {
+    await rm(where, { recursive: true, force: true }).catch(() => undefined);
   }
 }
+
+/** Whether two workspace roots are the same project, by the same rule history is filed under. */
+export const sameWorkspace = (a: string | null, b: string | null): boolean => workspaceKey(a) === workspaceKey(b);
 
 /** Drop the oldest once there are too many, so history never grows without bound. */
 async function enforceLimit(workspace: string | null): Promise<void> {

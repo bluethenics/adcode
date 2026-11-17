@@ -105,3 +105,22 @@
 @keyframes buck-dot { 50% { opacity: 1; transform: translateY(-2px); } }
 @media (prefers-reduced-motion: reduce) { .buck-chat-dots i { animation: none; opacity: .8; } }
 .pricing-plan-buck, .pricing-closing > .buck-host { margin: 0; }
+
+/*
+ * Phones: Buck waits at the screen edge instead of standing on the text.
+ *
+ * At 375px the page's gutter is 16px and Buck is 64px, so standing in the corner he covered
+ * the end of every line he floated past. Until he has something to say he is smaller and
+ * mostly off the right edge, inside the gutter, still there to tap; a tip or a chat brings
+ * him all the way out beside it.
+ */
+@media (max-width: 720px) {
+  .buck-guide { right: 0; }
+  .buck-guide-body { transition: transform 320ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .buck-guide:not(:has(.buck-bubble)) .buck-guide-body { transform: translateX(58%) scale(0.78); }
+  .buck-guide:not(:has(.buck-bubble)) .buck-guide-body::after { display: none; }
+  .buck-guide:has(.buck-bubble) { right: max(12px, env(safe-area-inset-right)); }
+}
+@media (max-width: 720px) and (prefers-reduced-motion: reduce) {
+  .buck-guide-body { transition: none; }
+}

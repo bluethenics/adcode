@@ -145,7 +145,7 @@ You can turn ads off entirely in Settings, Ads and Earnings, and the editor stay
     section: "How ADCode works",
     order: 1,
     body: `
-Most systems that owe you money store a number and update it. A credit arrives, the number goes up. A correction arrives, the number goes down. The number is the truth, and the history — if there is one — is a log written alongside it, for support staff to read when someone complains.
+Most systems that owe you money store a number and update it. A credit arrives, the number goes up. A correction arrives, the number goes down. The number is the truth, and the history - if there is one - is a log written alongside it, for support staff to read when someone complains.
 
 That design has a problem nobody likes to say out loud: **the person running the system can change what you are owed, and the only record of the change is one they also control.**
 
@@ -157,7 +157,7 @@ Every event that moves money is a row. Rows are never updated and never deleted.
 - A clawback writes a \`reversal\` row that points at the row it reverses.
 - An administrative correction writes an \`adjustment\` row carrying a reason and the identity of the administrator who made it.
 
-Your balance is not stored as an authority. It is a fold over your rows — add them up and that is what you have. There is a cached copy for speed, and when the cache and the rows disagree, **the rows win** and the cache is rebuilt.
+Your balance is not stored as an authority. It is a fold over your rows - add them up and that is what you have. There is a cached copy for speed, and when the cache and the rows disagree, **the rows win** and the cache is rebuilt.
 
 ## Why reversals instead of edits
 
@@ -167,20 +167,20 @@ Instead you see both rows: the original credit, and the reversal that took it ba
 
 ## The part that makes it real
 
-None of this matters if there is a back door. So there is no operation in the system that edits a ledger row — not in the API, not in the admin panel, not for anyone. The absence of the feature is the guarantee.
+None of this matters if there is a back door. So there is no operation in the system that edits a ledger row - not in the API, not in the admin panel, not for anyone. The absence of the feature is the guarantee.
 
 And because administrators can still *read* your history, every administrative read of another person's ledger writes its own audit row: who looked, at whom, when.
 
 ## What you can check yourself
 
-Open the earnings view in the editor, or the dashboard on the web. The rows you see are the rows the system has. The description you read — \`Ad from Vercel, 4.2s\` — is generated once, on the server, and shown identically to you and to us. There is no internal view with different numbers in it.
+Open the earnings view in the editor, or the dashboard on the web. The rows you see are the rows the system has. The description you read - \`Ad from Vercel, 4.2s\` - is generated once, on the server, and shown identically to you and to us. There is no internal view with different numbers in it.
 `,
   },
   {
     slug: "what-an-ad-supported-editor-owes-you",
     title: "What an ad-supported editor owes you",
     description:
-      "Four commitments ADCode makes about when ads appear, what leaves your machine, and what you get paid — and how each one is enforced rather than promised.",
+      "Four commitments ADCode makes about when ads appear, what leaves your machine, and what you get paid - and how each one is enforced rather than promised.",
     published: "2026-08-18",
     surface: "docs",
     section: "How ADCode works",
@@ -192,17 +192,17 @@ We think an ad-supported editor is defensible, but only if it commits to a few t
 
 ## 1. Ads stay in the corner, and stay out of the way
 
-A sponsored card appears in the corner of the window while you work. It never takes focus, never covers the editor, and never blocks a keystroke — you can ignore it completely and it will leave on its own.
+A sponsored card appears in the corner of the window while you work. It never takes focus, never covers the editor, and never blocks a keystroke - you can ignore it completely and it will leave on its own.
 
 It does not appear during a debug session, when the window is not focused, in the first minute after launch, or twice in a row without a gap.
 
 That focus rule matters more than it sounds: an ad shown to an unfocused window is one nobody saw, so paying for it would be fraud against the advertiser and showing it would be noise for you. It is simply not served.
 
-These rules are the ones actually evaluated, in a fixed order, in the editor's scheduler — nothing else gates a card, so the list above is the complete answer to "when do ads appear".
+These rules are the ones actually evaluated, in a fixed order, in the editor's scheduler - nothing else gates a card, so the list above is the complete answer to "when do ads appear".
 
 ## 2. Your code stays on your machine
 
-Targeting uses a closed list of 45 generic tags — the language and framework currently open. \`lang:rust\`. \`fw:react\`. \`tool:docker\`. That is the entire vocabulary, and it cannot be extended by a server response.
+Targeting uses a closed list of 45 generic tags - the language and framework currently open. \`lang:rust\`. \`fw:react\`. \`tool:docker\`. That is the entire vocabulary, and it cannot be extended by a server response.
 
 File contents, file paths, and project names never leave the machine. Not hashed, not truncated, not "anonymised". They are never sent.
 
@@ -216,7 +216,7 @@ We would rather print that number than let you discover it. ADCode is a way to u
 
 ## 4. You can turn it down, or off
 
-Cadence is a setting: off, light, standard, or max. Off means no ads and no earnings, and the editor is otherwise identical — no nag screens, no reduced features, no countdown to a paywall.
+Cadence is a setting: off, light, standard, or max. Off means no ads and no earnings, and the editor is otherwise identical - no nag screens, no reduced features, no countdown to a paywall.
 
 The server can make the limits *stricter* than your setting. It can never make them looser. A compromised or misconfigured server cannot be used to flood you with ads, because the client refuses any configuration more permissive than the one it shipped with.
 `,
@@ -225,7 +225,7 @@ The server can make the limits *stricter* than your setting. It can never make t
     slug: "how-targeting-works-without-reading-your-code",
     title: "How targeting works without reading your code",
     description:
-      "Advertisers want to reach Rust developers. ADCode makes that possible with 45 tags and nothing else — no file contents, no paths, no project names.",
+      "Advertisers want to reach Rust developers. ADCode makes that possible with 45 tags and nothing else - no file contents, no paths, no project names.",
     published: "2026-08-18",
     surface: "docs",
     section: "How ADCode works",
@@ -237,10 +237,10 @@ An advertiser selling a Postgres product wants to reach people writing backend c
 
 ADCode's editor derives tags from what you have open, drawn from a fixed list of 45:
 
-- **Languages** — \`lang:rust\`, \`lang:typescript\`, \`lang:python\`, and 18 more.
-- **Frameworks** — \`fw:react\`, \`fw:django\`, \`fw:rails\`, and 8 more.
-- **Tools** — \`tool:docker\`, \`tool:cargo\`, \`tool:terraform\`, and 6 more.
-- **Platforms** — \`platform:web\`, \`platform:backend\`, \`platform:mobile\`, \`platform:desktop\`.
+- **Languages** - \`lang:rust\`, \`lang:typescript\`, \`lang:python\`, and 18 more.
+- **Frameworks** - \`fw:react\`, \`fw:django\`, \`fw:rails\`, and 8 more.
+- **Tools** - \`tool:docker\`, \`tool:cargo\`, \`tool:terraform\`, and 6 more.
+- **Platforms** - \`platform:web\`, \`platform:backend\`, \`platform:mobile\`, \`platform:desktop\`.
 
 That is the complete list. It is compiled into the editor, and the server cannot add to it. A tag the server does not recognise is dropped; a tag the *client* does not recognise was never sent.
 
@@ -252,7 +252,7 @@ It does not contain a filename. It does not contain a repository name. It does n
 
 ## Why this is enough
 
-An advertiser targeting \`lang:rust\` reaches people with Rust open. That is a better signal than most ad networks manage from far more invasive collection, because it is *current* — not inferred from browsing history six weeks ago.
+An advertiser targeting \`lang:rust\` reaches people with Rust open. That is a better signal than most ad networks manage from far more invasive collection, because it is *current* - not inferred from browsing history six weeks ago.
 
 The trade-off is that targeting cannot get more specific than the vocabulary allows. An advertiser cannot reach "people whose tests are failing" or "people working on a payments service". We think that ceiling is a feature.
 
