@@ -3,7 +3,7 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
-## Unreleased
+## 2.6.2 — 2026-11-18
 
 - **A slow model no longer leaves you waiting.** If an included model has not started answering after a minute, the task switches to another included model and says so. Measured over three days, the slowest included model took 37 seconds to start at the median and 4.5 minutes for one request in ten, and a third of its turns were cancelled by the person waiting.
 - **No more "4 chats are already working".** A message sent while every slot is busy waits its turn and starts by itself as soon as one finishes; Stop takes it out of the line.
