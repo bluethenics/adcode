@@ -8,6 +8,7 @@
  * `close` on the next animation frame, which a hidden or occluded window may not draw for a
  * long time. Escape still settles, through `cancel`, which arrives synchronously.
  */
+import { enhanceSelect } from "../workbench/selectMenu.ts";
 import { bindBackdropDismissal } from "./backdropDismissal.ts";
 
 export function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
@@ -27,6 +28,8 @@ export function button(label: string, className: string, run: () => void): HTMLB
 export function field(labelText: string, control: HTMLElement, hint?: string): HTMLLabelElement {
   const label = el("label", "form-field");
   label.append(el("span", "form-field-label", labelText), control);
+  // Every form's dropdowns are ADCode's searchable menu, not the system's list.
+  if (control instanceof HTMLSelectElement && !control.multiple) enhanceSelect(control, { searchPlaceholder: `Search ${labelText.toLowerCase()}` });
   if (hint !== undefined) label.append(el("small", "form-field-hint", hint));
   return label;
 }

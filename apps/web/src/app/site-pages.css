@@ -294,3 +294,10 @@
   .docs-mobile-toggle svg, .landing-index-card > span { transition: none; }
   .landing-index-card:hover > span { transform: none; }
 }
+
+/* Cancelling a plan, above the support form: the request people made most. */
+.support-cancel { margin-top: 26px; padding: clamp(20px, 3vw, 32px); border: 1px solid var(--line, rgba(127,127,127,.25)); border-radius: 12px; }
+.support-cancel h2 { margin: 0 0 12px; font-size: 18px; }
+.support-cancel ol { margin: 0 0 12px; padding-left: 20px; display: grid; gap: 6px; line-height: 1.6; }
+.support-cancel p { margin: 8px 0 0; color: var(--muted); font-size: 14px; line-height: 1.7; }
+.support-cancel a { text-decoration: underline; text-underline-offset: 3px; }

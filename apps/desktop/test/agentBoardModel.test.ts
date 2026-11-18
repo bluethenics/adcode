@@ -269,3 +269,17 @@ describe("cost against a cap", () => {
     expect(buildBoard({ teams: [capped], tasks: [], chat: { streaming: false, title: "" }, now: NOW }).working[0]!.cost).toBe("$0.08 of $0.50");
   });
 });
+
+describe("status badge", () => {
+  it("names every status in words, with a tone per column", async () => {
+    const { statusBadge, columnFor } = await import("../src/renderer/agents/agentBoardModel.ts");
+    const statuses = ["queued", "running", "merging", "configured", "ready", "applied", "conflict", "failed", "budget", "paused", "cancelled", "completed", "discarded", "rolled-back"] as const;
+    for (const status of statuses) {
+      const badge = statusBadge(status);
+      expect(badge.label.length).toBeGreaterThan(2);
+      if (columnFor(status) === "needs-you") expect(badge.tone).toBe("attention");
+      if (status === "running") expect(badge.tone).toBe("working");
+    }
+    expect(new Set(statuses.map((status) => statusBadge(status).label)).size).toBe(statuses.length);
+  });
+});

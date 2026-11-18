@@ -99,3 +99,19 @@ describe("keeping going until done", () => {
     expect(KEEP_GOING_LIMIT).toBeGreaterThanOrEqual(20);
   });
 });
+
+it("lets a chat wait for a free slot instead of failing, and lets Stop take it out of line", async () => {
+  const runs = createChatRuns({ maxParallel: () => 1 });
+  expect(runs.begin("a", "A", 0).ok).toBe(true);
+  expect(runs.begin("b", "B", 0).ok).toBe(false);
+  expect(runs.isFull()).toBe(true);
+  const waiting = runs.whenSlotFrees(new AbortController().signal);
+  runs.end("a");
+  await waiting;
+  expect(runs.isFull()).toBe(false);
+  expect(runs.begin("b", "B", 1).ok).toBe(true);
+  const stop = new AbortController();
+  const cancelled = runs.whenSlotFrees(stop.signal);
+  stop.abort(new Error("Stopped"));
+  await expect(cancelled).rejects.toThrow("Stopped");
+});

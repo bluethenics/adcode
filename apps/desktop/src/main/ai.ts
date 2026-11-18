@@ -127,7 +127,8 @@ import {
 import { recordAgentEdit } from "./activity.ts";
 import { recordMilestone } from "./milestones.ts";
 import { collabRemoteTool, registerCollabToolHandler, collabFileChanged, collabIsJoined, onCollabModeChange } from "./collabIpc.ts";
-import { registerProjectAiReply } from "./sharedProjects.ts";
+import { finishTeamTurn, postTeamMessage, registerProjectAiReply, renewTeamTurn, teamSnapshot } from "./sharedProjects.ts";
+import { aiRequest, mergeTeamMessages, teamChatId } from "../shared/teamChat.ts";
 import { createKeychainStore } from "./keychain.ts";
 import { createAiToolRunner } from "./aiTools.ts";
 import { askQuestionInWindows } from "./aiQuestion.ts";
@@ -136,6 +137,9 @@ import { createCheckpointStore, type CheckpointTurn, type UndoResult } from "./a
 import { announceFinishedUnseen, keepAwakeWhileWorking } from "./backgroundWork.ts";
 import { powerTurnEnded, powerTurnStarted } from "./powerAfterTasks.ts";
 import { createChatRuns, KEEP_GOING_LIMIT, MAX_PARALLEL_CHATS, shouldKeepGoing } from "./chatRuns.ts";
+import { activeFlowFor, flowContext, flowTaskAgents, readFlows, type AgentFlow } from "@adcode/ai/agentFlow";
+import { describeInstalledMods, describeMod, modToolDefinition, readMod, MOD_TOOL_NAME } from "@adcode/community";
+import { builtInSlashCommands, installedPlugins, installLocalPlugin, setPluginEnabled, uninstallPlugin } from "./community.ts";
 import { createChatForkService, MAX_FORKS_PER_CHAT, withChatForks, type ChatForkService } from "./aiChatForks.ts";
 import { CONTINUE_PROMPT } from "../shared/continuePrompt.ts";
 import { checkpointView, checkpointsForSession } from "./aiCheckpointView.ts";
@@ -766,6 +770,8 @@ const runs = createChatRuns({
   // Review mode stages a turn's edits in one task for Apply: one chat at a time there.
   maxParallel: () => maxParallelChats(),
 });
+/** Chats waiting for a free slot, so Stop can take one out of the line. */
+const slotWaits = new Map<string, AbortController>();
 
 /**
  * The fork family's shared state: mailboxes, who is working, and the tools that start and
@@ -1711,6 +1717,15 @@ async function projectFilesHint(root: string): Promise<string | null> {
 /** The named agents saved on the Agents board, read fresh so an edit applies to the next helper. */
 const AGENT_PROFILES_SETTING = "adcode.ai.agentProfiles";
 const taskAgents = () => readTaskAgents(currentSettings()[AGENT_PROFILES_SETTING]);
+/** The agent flow running in this chat, if any (the Flow page; setting `adcode.ai.agentFlows`). */
+const flowFor = (chatId: string): AgentFlow | null => activeFlowFor(readFlows(currentSettings()["adcode.ai.agentFlows"]), chatId);
+/** A chat's agents: its flow's agents first (they take its work), then the saved ones. */
+const chatTaskAgents = (chatId: string) => {
+  const flow = flowFor(chatId);
+  if (flow === null) return taskAgents();
+  const own = flowTaskAgents(flow);
+  return [...own, ...taskAgents().filter((agent) => !own.some((one) => one.id === agent.id))];
+};
 
 /**
  * Every model a task agent could run on: the chat's own connection first, then ADCode's
@@ -1748,6 +1763,56 @@ function withCreateAgent(base: ToolRunner): ToolRunner {
       const duties = draft.helperFor === undefined ? "" : ` It now takes ${draft.helperFor.map((duty) => HELPER_DUTY_LABELS[duty]).join(" and ")} tasks by default.`;
       recordDebug("info", "ai", `Saved task agent ${draft.id} on ${draft.provider}/${draft.model}`);
       return { content: `Saved the agent ${draft.name} (id ${draft.id}) on ${draft.model} via ${plan.candidate.providerName}.${duties} Hand it work with delegate_task, agent: "${draft.id}".`, isError: false };
+    },
+  };
+}
+
+/**
+ * `customize_adcode`: the chat changes ADCode itself - a theme, a chat command, an add-on - by
+ * applying a mod (a plugin manifest). Asked for 17 November 2026 in place of a separate Mods
+ * page: the person asks in the chat they already have. The manifest goes through the plugin
+ * parser, the person reads what it changes in the themed dialog and confirms, and only then is
+ * it installed; switching off and removing ask too.
+ */
+function withModTool(base: ToolRunner): ToolRunner {
+  return {
+    async run(call, signal) {
+      if (call.name !== MOD_TOOL_NAME) return base.run(call, signal);
+      const input = typeof call.input === "object" && call.input !== null ? call.input as Record<string, unknown> : {};
+      const action = input["action"];
+      const window = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows().find((item) => !item.isDestroyed()) ?? null;
+      try {
+        if (action === "list") return { content: describeInstalledMods(await installedPlugins()), isError: false };
+        if (action === "apply") {
+          const draft = readMod(input["manifest"], builtInSlashCommands());
+          if (!draft.ok) return { content: `The mod was not applied. Fix these and call again:\n- ${draft.problems.join("\n- ")}`, isError: true };
+          const existing = (await installedPlugins()).find((one) => one.manifest.id === draft.manifest.id);
+          const changes = describeMod(draft.manifest);
+          const allowed = await confirmInWindow(window, {
+            title: existing === undefined ? `Apply the mod "${draft.manifest.name}"?` : `Update the mod "${draft.manifest.name}"?`,
+            body: [`${draft.manifest.icon} ${draft.manifest.description}`, "", "It changes:", ...changes.map((line) => `• ${line}`), "", "It stays on this computer. Ask the chat to switch it off or remove it any time."].join("\n"),
+            confirmLabel: existing === undefined ? "Apply mod" : "Update mod",
+            cancelLabel: "Cancel",
+          }, signal);
+          if (!allowed) return { content: "The user declined, so nothing changed. Ask what they would like instead.", isError: true };
+          await installLocalPlugin(draft.text);
+          recordDebug("info", "ai", `Applied mod ${draft.manifest.id} v${draft.manifest.version}`);
+          return { content: `Applied ${draft.manifest.id} v${draft.manifest.version}: ${changes.join("; ")}. It is on now.`, isError: false };
+        }
+        if (action === "on" || action === "off" || action === "remove") {
+          const id = typeof input["id"] === "string" ? input["id"] : "";
+          const found = (await installedPlugins()).find((one) => one.manifest.id === id && id.startsWith("mod-"));
+          if (found === undefined) return { content: `No mod called ${id || "(none given)"}. Call with action "list" to see them.`, isError: true };
+          if (action === "remove" && !await confirmInWindow(window, { title: `Remove the mod "${found.manifest.name}"?`, body: "ADCode goes back to how it was before this mod.", confirmLabel: "Remove mod", cancelLabel: "Cancel" }, signal)) {
+            return { content: "The user kept the mod.", isError: true };
+          }
+          if (action === "remove") await uninstallPlugin(id); else await setPluginEnabled(id, action === "on");
+          return { content: `${found.manifest.name} is ${action === "remove" ? "removed" : action}.`, isError: false };
+        }
+        return { content: 'action is one of "apply", "list", "on", "off", "remove".', isError: true };
+      } catch (error) {
+        return { content: error instanceof Error ? error.message : "The mod could not be changed.", isError: true };
+      }
     },
   };
 }
@@ -1804,7 +1869,7 @@ async function ensureChatAgent(thread: ChatThread, providerId: string, model: st
   const tools = [
     ...chatTools(),
     ...(isFork ? CHAT_FORK_PARTICIPANT_TOOLS : CHAT_FORK_TOOLS),
-    ...(lean || isFork ? [] : [DELEGATE_TASK, CREATE_AGENT]),
+    ...(lean || isFork ? [] : [DELEGATE_TASK, CREATE_AGENT, modToolDefinition(builtInSlashCommands())]),
   ];
   const context = async (): Promise<string> => {
       const root = thread.root;
@@ -1837,7 +1902,11 @@ async function ensureChatAgent(thread: ChatThread, providerId: string, model: st
   };
   // Only the lead hears about its task agents: helpers cannot delegate.
   const leadContext = async (): Promise<string> => {
-    const roster = lean || isFork ? null : rosterContext(taskAgents(), { provider: providerId, model });
+    const flow = lean || isFork ? null : flowFor(thread.session.id);
+    // With a flow, the flow's own briefing replaces the roster: it names the same agents and
+    // says which of them takes this message over.
+    const lastAsk = [...thread.session.messages].reverse().find((message) => message.role === "user")?.text ?? "";
+    const roster = lean || isFork ? null : flow !== null ? flowContext(flow, lastAsk) : rosterContext(taskAgents(), { provider: providerId, model });
     const base = await context();
     return roster === null ? base : `${base}\n${roster}`;
   };
@@ -1848,7 +1917,7 @@ async function ensureChatAgent(thread: ChatThread, providerId: string, model: st
    * connection, model, standing instructions and tool access (access only ever narrows).
    */
   const helper = async (task: SubagentTask, helperTools: readonly ToolDefinition[]): Promise<StartedHelper | string> => {
-    const route = routeHelper(task, taskAgents());
+    const route = routeHelper(task, chatTaskAgents(thread.session.id));
     if (route.kind === "error") return route.message;
     const profile = route.kind === "agent" ? route.agent : null;
     const tools = profile?.toolAccess === undefined ? helperTools : filterToolsByAccess(helperTools, profile.toolAccess).tools;
@@ -1890,7 +1959,7 @@ async function ensureChatAgent(thread: ChatThread, providerId: string, model: st
     compaction: compactionFor(providerId, model),
     initialMessages: carried ?? restoreHistory(thread.session),
     context: leadContext,
-    runner: withAgentRules(withSubagents(withCreateAgent(forkRunner), {
+    runner: withAgentRules(withSubagents(withCreateAgent(withModTool(forkRunner)), {
       start: (task, helperTools) => helper(task, helperTools),
       // Helpers are hidden and cannot reach the fork service; a fork must stay a visible chat
       // started by the main conversation.
@@ -2001,10 +2070,117 @@ export async function aiSend(
   editor: AiEditorContextView | null = null,
   sessionId?: string,
 ): Promise<boolean> {
+  const targetId = sessionId ?? session?.id;
+  const target = targetId === undefined ? null : threads.get(targetId)?.session ?? (session?.id === targetId ? session : null);
+  if (target?.team !== undefined) return sendTeamMessage(target, text, attachments, editor);
   // Everything this message causes - model calls, tools, helper agents, confirmations -
   // runs inside one agent turn. That scope is the only place full access can answer a
   // dialog on the person's behalf; the tool bridge and app startup stay outside it.
   return runAgentTurn(() => sendMessage(text, attachments, editor, sessionId));
+}
+
+/* ── Team chats ─────────────────────────────────────────────────────────────
+ * A team chat is an ordinary chat linked to a shared project's session (shared/teamChat.ts).
+ * It opens in the real chat; a message posts to the team; and when the AI is asked, the turn
+ * runs here, in the chat the person is looking at, with every tool - then its answer goes back
+ * to the team. Teammates see the answer; the person who asked also sees it being built.
+ */
+
+/** Merge the service's messages into a team chat, keeping its thread (if any) in step. */
+async function syncTeamSession(chat: ChatSession): Promise<{ readonly session: ChatSession; readonly added: number }> {
+  const team = chat.team;
+  if (team === undefined) return { session: chat, added: 0 };
+  const snapshot = await teamSnapshot(team.projectId, team.sessionId);
+  const nameOf = (uid: string): string => snapshot.members.find((member) => member.uid === uid)?.name ?? "A teammate";
+  const merged = mergeTeamMessages(chat.messages, snapshot.messages, snapshot.selfId, nameOf);
+  const title = snapshot.sessions.find((one) => one.id === team.sessionId)?.title ?? chat.title;
+  if (merged.added === 0 && merged.messages.every((message, index) => message === chat.messages[index]) && title === chat.title) return { session: chat, added: 0 };
+  const next: ChatSession = { ...chat, title, renamed: true, messages: merged.messages, updatedAt: merged.added > 0 ? Date.now() : chat.updatedAt, team: { ...team, projectName: snapshot.name } };
+  const thread = threads.get(chat.id);
+  if (thread !== undefined) {
+    adoptSession(thread, next);
+    // A teammate's words are not in the agent's own history yet: rebuild it from the chat.
+    if (merged.fromOthers > 0) thread.rebuild = true;
+  } else if (session?.id === next.id) session = next;
+  await writeSession(currentWorkspace()?.root ?? null, next);
+  return { session: next, added: merged.added };
+}
+
+/** Open (or make) the team chat for a shared session; returns its local chat id. */
+export async function aiTeamOpen(projectRaw: unknown, sessionRaw: unknown): Promise<{ readonly id: string }> {
+  if (typeof projectRaw !== "string" || !/^[a-f0-9]{64}$/.test(projectRaw) || typeof sessionRaw !== "string" || !/^[A-Za-z0-9_-]{1,80}$/.test(sessionRaw)) throw new Error("Choose a team chat.");
+  const id = teamChatId(sessionRaw);
+  const existing = threads.get(id)?.session ?? (await aiSessions()).find((one) => one.id === id) ?? null;
+  const base: ChatSession = existing ?? { ...startSession(), id, title: "Team chat", renamed: true, team: { projectId: projectRaw, sessionId: sessionRaw, projectName: "Team", aiReplies: true } };
+  const linked: ChatSession = base.team === undefined ? { ...base, team: { projectId: projectRaw, sessionId: sessionRaw, projectName: "Team", aiReplies: true } } : base;
+  if (runs.isRunning(id)) return { id };
+  const { session: synced } = await syncTeamSession(linked);
+  if (existing === null && synced === linked) await writeSession(currentWorkspace()?.root ?? null, linked);
+  return { id };
+}
+
+/** Pull new team messages into a team chat; says whether any arrived. Never while it works. */
+export async function aiTeamSync(idRaw: unknown): Promise<{ readonly added: number }> {
+  if (typeof idRaw !== "string" || !idRaw.startsWith("team-") || runs.isRunning(idRaw)) return { added: 0 };
+  const chat = threads.get(idRaw)?.session ?? (await aiSessions()).find((one) => one.id === idRaw) ?? null;
+  if (chat?.team === undefined) return { added: 0 };
+  const { added, session: synced } = await syncTeamSession(chat);
+  if (added > 0 && session?.id === synced.id) broadcast(CHANNELS.aiSessionChanged, synced);
+  return { added };
+}
+
+/** Whether messages sent in this team chat also ask the AI. */
+export async function aiTeamSetAi(idRaw: unknown, on: unknown): Promise<boolean> {
+  if (typeof idRaw !== "string" || typeof on !== "boolean") return false;
+  const chat = threads.get(idRaw)?.session ?? (await aiSessions()).find((one) => one.id === idRaw) ?? null;
+  if (chat?.team === undefined) return false;
+  const next: ChatSession = { ...chat, team: { ...chat.team, aiReplies: on } };
+  const thread = threads.get(chat.id);
+  if (thread !== undefined) adoptSession(thread, next); else if (session?.id === next.id) session = next;
+  await writeSession(currentWorkspace()?.root ?? null, next);
+  return true;
+}
+
+export async function aiTeamState(idRaw: unknown): Promise<{ readonly aiReplies: boolean; readonly projectId: string; readonly sessionId: string } | null> {
+  if (typeof idRaw !== "string") return null;
+  const chat = threads.get(idRaw)?.session ?? (await aiSessions()).find((one) => one.id === idRaw) ?? null;
+  return chat?.team === undefined ? null : { aiReplies: chat.team.aiReplies, projectId: chat.team.projectId, sessionId: chat.team.sessionId };
+}
+
+async function sendTeamMessage(chat: ChatSession, raw: string, attachments: readonly AiAttachmentView[], editor: AiEditorContextView | null): Promise<boolean> {
+  const team = chat.team!;
+  const { ask, text } = aiRequest(raw, team.aiReplies);
+  let posted: Awaited<ReturnType<typeof postTeamMessage>>;
+  try {
+    posted = await postTeamMessage(team.projectId, team.sessionId, text, ask, crypto.randomUUID());
+  } catch (error) {
+    broadcast(CHANNELS.aiEvent, { kind: "error", detail: error instanceof Error ? error.message : "The message could not reach the team.", sessionId: chat.id });
+    return false;
+  }
+  if (!ask || posted.lease === null) {
+    // A message for the people only: it joins the chat, and the composer is free again.
+    await syncTeamSession(threads.get(chat.id)?.session ?? chat).then(({ session: synced }) => { if (session?.id === synced.id) broadcast(CHANNELS.aiSessionChanged, synced); }).catch(() => undefined);
+    broadcast(CHANNELS.aiEvent, { kind: "turn-end", reason: "end-turn", sessionId: chat.id });
+    if (ask) broadcast(CHANNELS.aiEvent, { kind: "status", text: "Someone else's request to the AI is still being answered - yours is in the chat, ask again when it finishes.", sessionId: chat.id });
+    return true;
+  }
+  const lease = posted.lease;
+  const renewal = setInterval(() => { void renewTeamTurn(team.projectId, team.sessionId, lease).catch(() => undefined); }, 30_000);
+  let ok = false;
+  try {
+    ok = await runAgentTurn(() => sendMessage(text, attachments, editor, chat.id));
+  } finally {
+    clearInterval(renewal);
+  }
+  const after = threads.get(chat.id)?.session ?? chat;
+  const answer = [...after.messages].reverse().find((message) => message.role === "assistant" && message.seq === undefined)?.text ?? "";
+  try {
+    await finishTeamTurn(team.projectId, team.sessionId, lease, answer, !ok || answer.trim() === "");
+    await syncTeamSession(threads.get(chat.id)?.session ?? after);
+  } catch (error) {
+    recordDebug("warn", "ai", `Team answer not delivered: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  return ok;
 }
 
 async function sendMessage(
@@ -2023,7 +2199,25 @@ async function sendMessage(
     chat = session;
   }
   const thread = threadFor(chat);
-  const begun = runs.begin(chat.id, chat.title, Date.now());
+  let begun = runs.begin(chat.id, chat.title, Date.now());
+  // Every slot taken: wait in line rather than fail. Reported 13 November 2026 as an error -
+  // "4 chats are already working" - on a message the person had every reason to expect to run.
+  if (!begun.ok && !runs.isRunning(chat.id) && runs.isFull() && !slotWaits.has(chat.id)) {
+    const waiting = new AbortController();
+    slotWaits.set(chat.id, waiting);
+    broadcast(CHANNELS.aiEvent, { kind: "status", text: `${begun.reason.replace(/ Stop one.*$/, "")} This message is next in line and starts by itself as soon as one finishes. Press Stop to cancel it.`, sessionId: chat.id });
+    try {
+      while (!begun.ok && runs.isFull() && !runs.isRunning(chat.id)) {
+        await runs.whenSlotFrees(waiting.signal);
+        begun = runs.begin(chat.id, chat.title, Date.now());
+      }
+    } catch {
+      broadcast(CHANNELS.aiEvent, { kind: "cancelled", sessionId: chat.id });
+      return false;
+    } finally {
+      slotWaits.delete(chat.id);
+    }
+  }
   if (!begun.ok) {
     // This conversation mid-turn: the composer queues the message and retries on these words.
     if (runs.isRunning(chat.id)) throw new Error("The built-in assistant is already handling a message in this conversation");
@@ -2904,6 +3098,8 @@ export function aiCancel(sessionId?: string): void {
   completionInFlight?.controller.abort();
   completionInFlight = null;
   const thread = sessionId === undefined ? shownThread() : threads.get(sessionId) ?? null;
+  const waitingId = sessionId ?? thread?.session.id;
+  if (waitingId !== undefined) slotWaits.get(waitingId)?.abort();
   if (thread !== null) {
     thread.stopRequested = true;
     thread.agent?.cancel();

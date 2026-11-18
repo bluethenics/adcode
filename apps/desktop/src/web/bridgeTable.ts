@@ -442,6 +442,10 @@ export const BRIDGE = [
   { path: "collab.saveDoc", kind: "invoke", channel: CHANNELS.collabSaveDoc },
   { path: "collab.presence", kind: "send", channel: CHANNELS.collabPresence },
   { path: "usageStats.record", kind: "send", channel: CHANNELS.appUsageRecord },
+  { path: "team.open", kind: "invoke", channel: CHANNELS.teamChatOpen },
+  { path: "team.sync", kind: "invoke", channel: CHANNELS.teamChatSync },
+  { path: "team.setAi", kind: "invoke", channel: CHANNELS.teamChatSetAi },
+  { path: "team.state", kind: "invoke", channel: CHANNELS.teamChatState },
   // community hub
   { path: "community.home", kind: "invoke", channel: CHANNELS.communityHome },
   { path: "community.plugins", kind: "invoke", channel: CHANNELS.communityPlugins },

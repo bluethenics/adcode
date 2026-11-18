@@ -4640,3 +4640,17 @@ input[type="checkbox"]:checked + .chat-question-mark::after { content: ""; width
 .chat-scroll-bottom-arrow svg, .chat-failure-icon svg, .chat-plan-mark svg, .chat-presentation svg { width: 14px; height: 14px; }
 .chat-folder-name { display: inline-flex; align-items: center; gap: 6px; }
 .chat-folder-name svg { flex: none; width: 14px; height: 14px; color: var(--text-tertiary); }
+
+/* Search and Sort share one row; the row carries the margin the search used to. */
+.chat-history-tools { display: flex; align-items: center; gap: 6px; margin: 6px 4px 8px; min-width: 0; }
+.chat-history-tools .chat-history-search { flex: 1 1 auto; min-width: 0; margin: 0; }
+.chat-history-sort {
+  flex: 0 1 auto; max-width: 46%; min-width: 0; padding: 8px 6px; border: 1px solid var(--border-hairline); border-radius: 7px;
+  background: var(--bg-elevated); color: var(--text-secondary); font-family: var(--font-ui); font-size: var(--text-xs); cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease;
+}
+.chat-history-sort:hover { color: var(--text-primary); border-color: var(--border-strong, var(--border-hairline)); }
+.chat-history-sort:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chat-history-row[data-pinned="true"] .chat-history-status[data-status="idle"]::before { background: var(--accent); }
+.chat-welcome-streak { margin: -4px 0 0; color: var(--text-tertiary); font-size: var(--text-xs); animation: chat-streak-in 400ms var(--ease-toast) both; animation-delay: 300ms; }
+@keyframes chat-streak-in { from { opacity: 0; } to { opacity: 1; } }

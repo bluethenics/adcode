@@ -459,6 +459,7 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
   /* ── AI (§5) ────────────────────────────────────────────────────────── */
   { id: "adcode.ai.connections", group: "ai", kind: "text", label: "Model connections", description: "Named API connection profiles. Configure endpoints, models and shared RPM in Connect a model. Keys are stored separately.", default: "[]", available: true, placeholder: "[]", multiline: true, maxLength: 100000 },
   { id: "adcode.ai.agentProfiles", group: "ai", kind: "text", label: "Named agents", description: "Reusable agent names, instructions and model routes. Configure these in Chat Teams.", default: "[]", available: true, placeholder: "[]", multiline: true, maxLength: 100000 },
+  { id: "adcode.ai.agentFlows", group: "ai", kind: "text", label: "Agent flows", description: "Teams of up to 50 connected agents that work on every chat, or on the chats you pick. Draw them on the Flow page.", default: "[]", available: true, placeholder: "[]", multiline: true, maxLength: 1000000 },
   {
     id: "adcode.ai.provider",
     group: "ai",

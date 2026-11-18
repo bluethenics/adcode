@@ -55,6 +55,13 @@ export interface ChatRuns {
   noteContinued(sessionId: string): number;
   end(sessionId: string): void;
   list(): RunInfo[];
+  /**
+   * Resolves the next time a running turn ends, so a chat that found every slot taken can wait
+   * its turn instead of failing. Rejects when `signal` aborts (the person pressed Stop).
+   */
+  whenSlotFrees(signal: AbortSignal): Promise<void>;
+  /** Whether a refusal from `begin` was only for want of a free slot. */
+  isFull(): boolean;
 }
 
 interface Run {
@@ -64,6 +71,7 @@ interface Run {
 
 export function createChatRuns(options: { readonly maxParallel: () => number; readonly maxEvents?: number }): ChatRuns {
   const runs = new Map<string, Run>();
+  const waiters = new Set<() => void>();
   const maxEvents = options.maxEvents ?? 5_000;
 
   return {
@@ -111,8 +119,21 @@ export function createChatRuns(options: { readonly maxParallel: () => number; re
     },
     end(sessionId) {
       runs.delete(sessionId);
+      const woken = [...waiters];
+      waiters.clear();
+      for (const wake of woken) wake();
     },
     list: () => [...runs.values()].map((run) => run.info),
+    isFull: () => runs.size >= Math.max(1, options.maxParallel()),
+    whenSlotFrees(signal) {
+      return new Promise<void>((resolve, reject) => {
+        if (signal.aborted) { reject(signal.reason ?? new Error("Cancelled")); return; }
+        const wake = (): void => { signal.removeEventListener("abort", stop); resolve(); };
+        const stop = (): void => { waiters.delete(wake); reject(signal.reason ?? new Error("Cancelled")); };
+        waiters.add(wake);
+        signal.addEventListener("abort", stop, { once: true });
+      });
+    },
   };
 }
 

@@ -122,6 +122,24 @@ describe("pruneSessions", () => {
 });
 
 describe("validateSession", () => {
+  it("keeps a team chat's link and each message's author, and names people for the model", () => {
+    const projectId = "a".repeat(64);
+    const read = validateSession({
+      id: "team-abc", title: "Launch", messages: [
+        { role: "user", text: "Make the header blue", at: 1, seq: 4, author: { id: "u2", name: "Sam", self: false } },
+        { role: "assistant", text: "Done.", at: 2, seq: 5, author: { id: "u2", name: "Sam", self: false } },
+        { role: "user", text: "bad author", at: 3, seq: -1, author: { id: "", name: "x" } },
+      ],
+      team: { projectId, sessionId: "abc", projectName: "Site", aiReplies: false },
+    })!;
+    expect(read.team).toEqual({ projectId, sessionId: "abc", projectName: "Site", aiReplies: false });
+    expect(read.messages[0]).toMatchObject({ seq: 4, author: { name: "Sam", self: false } });
+    expect(read.messages[2]!.author).toBeUndefined();
+    expect(read.messages[2]!.seq).toBeUndefined();
+    expect(JSON.stringify(restoreHistory(read))).toContain("Sam: Make the header blue");
+    expect(validateSession({ id: "x", messages: [], team: { projectId: "nope", sessionId: "abc" } })?.team).toBeUndefined();
+  });
+
   it("keeps owned-response feedback references across restore without adding them to AI context", () => {
     const id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
     const restored = validateSession({ id:"report-feedback",messages:[{role:"assistant",text:"Answer",at:1,includedRequestId:id},{role:"assistant",text:"Old answer",at:2,includedRequestId:"bad"}] })!;

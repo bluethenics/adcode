@@ -524,3 +524,6 @@ body[data-workspace-mode="vibe"] .vibe-workspace .chat-card .chat-setup-step .gh
 
 /* Vibe has no visible editor, so a caret position or language there describes nothing. */
 body[data-workspace-mode="vibe"] :is(#status-position, #status-language, #status-dirty) { display: none; }
+body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-tools { margin: 0 2px 6px; }
+body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-tools .chat-history-search { margin: 0; }
+body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-sort { min-height: 30px; padding: 4px 6px; border-radius: 8px; background: var(--bg-app); }

@@ -13,6 +13,8 @@
  * Only `transform` and `opacity` animate (§1) - the card is positioned with a translate,
  * never with `left`/`top`, so dragging never triggers layout.
  */
+import { continueHint, streakLine } from "./comeback.ts";
+import { CHAT_PINS_KEY, CHAT_SORT_KEY, CHAT_SORT_MODES, parseChatSort, parsePins, sortChats, splitPinned, togglePin, type ChatSortMode } from "./chatSort.ts";
 import { CONTINUE_PROMPT, describeAiFailure, OUTPUT_LIMIT_AGAIN, resumeAfterModelSwitch, retryAfterFailure, type AiFailure } from "./aiFailure.ts";
 import { createChatQueue, type QueuedMessage } from "./chatQueue.ts";
 import { sendWhenConversationIdle } from "./conversationSend.ts";
@@ -127,6 +129,7 @@ import { createLiveSessionDock } from "../collab/liveSessionDock.ts";
 import { AppWindow, ArrowDown, ArrowRight, CalendarClock, CircleAlert, Folder, Maximize2, Mic, Moon, Smartphone, Users, type IconNode } from "lucide";
 import { openPhoneLinkDialog, phoneChipText } from "../phone/phoneLinkDialog.ts";
 import { openPowerDialog, powerChipText } from "../power/powerUi.ts";
+import { enhanceSelect } from "../workbench/selectMenu.ts";
 
 export interface ChatWidget {
   readonly element: HTMLElement;
@@ -138,7 +141,8 @@ export interface ChatWidget {
   /** Prepare editable instructions; never sends or interrupts a running turn. */
   draft(question: string): void;
   /** Open one of this project's conversations, as choosing it in the conversation list does. */
-  openConversation(id: string): void;
+  /** Open a saved conversation; resolves once it is drawn. */
+  openConversation(id: string): Promise<void>;
   /** Attach files to the next message, through the same checks and resizing as a paste or drop; never sends. */
   addAttachments(files: readonly AttachmentSource[]): void;
   /** Connect a model closed: a turn waiting on a model switch can go now. */
@@ -780,7 +784,6 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     importChats: () => deps.runCommand?.("ai.importChats"),
     compact: () => void compactNow(),
   });
-  identity.prepend(usagePopover.chip);
   const headerActions = document.createElement("div");
   const controlsButton = document.createElement("button");
   controlsButton.className = "ghost-button";
@@ -1090,6 +1093,31 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const historyList = document.createElement("div");
   historyList.className = "chat-history-list";
 
+  // How the list is ordered, and the chats pinned to its top: both remembered per machine.
+  const readStored = (key: string): string | null => { try { return localStorage.getItem(key); } catch { return null; } };
+  const writeStored = (key: string, value: string): void => { try { localStorage.setItem(key, value); } catch { /* private mode: this session only */ } };
+  let sortMode: ChatSortMode = parseChatSort(readStored(CHAT_SORT_KEY));
+  let pins: string[] = parsePins(readStored(CHAT_PINS_KEY));
+  const historySort = document.createElement("select");
+  historySort.className = "chat-history-sort";
+  historySort.title = "Sort conversations";
+  historySort.setAttribute("aria-label", "Sort conversations");
+  for (const mode of CHAT_SORT_MODES) historySort.append(new Option(mode.label, mode.id, false, mode.id === sortMode));
+  historySort.addEventListener("change", () => {
+    sortMode = parseChatSort(historySort.value);
+    writeStored(CHAT_SORT_KEY, sortMode);
+    renderHistory();
+  });
+  const historyTools = document.createElement("div");
+  historyTools.className = "chat-history-tools";
+  historyTools.append(historySearch, historySort);
+  enhanceSelect(historySort, { search: false, minWidth: 170 });
+  function setPinned(id: string): void {
+    pins = togglePin(pins, id);
+    writeStored(CHAT_PINS_KEY, JSON.stringify(pins));
+    renderHistory();
+  }
+
   const clearAll = document.createElement("button");
   clearAll.type = "button";
   clearAll.className = "chat-history-clear";
@@ -1114,7 +1142,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const historyHeading = document.createElement("h2");
   historyHeading.className = "chat-section-heading";
   historyHeading.textContent = "Chats and tasks";
-  history.append(historyHeading, historySearch, historyList, clearAll);
+  history.append(historyHeading, historyTools, historyList, clearAll);
 
   let saved: readonly ChatSessionView[] = [];
   let activeSessionId: string | null = null;
@@ -1235,8 +1263,13 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     lineage.hidden = false;
   }
 
+  /** Team chats live in Team; Solo's history is the person's own chats. */
+  function soloChats(list: readonly ChatSessionView[]): ChatSessionView[] {
+    return list.filter((one) => one.team === undefined);
+  }
+
   async function refreshHistory(): Promise<void> {
-    saved = await window.adcode.chat.sessions();
+    saved = soloChats(await window.adcode.chat.sessions());
     const current = await window.adcode.chat.current().catch(() => null);
     activeSessionId = current?.id ?? null;
     usagePopover.refresh();
@@ -1255,7 +1288,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       complain("This conversation cannot be forked. A fork cannot start another fork, and a chat keeps up to six.");
       return;
     }
-    saved = await window.adcode.chat.sessions();
+    saved = soloChats(await window.adcode.chat.sessions());
     // A new fork should not arrive inside a branch the person had folded away.
     collapsedForks.delete(id);
     renderHistory();
@@ -1285,6 +1318,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     row.dataset["sessionId"] = session.id;
     const isFork = session.parentId !== undefined;
     if (isFork) row.dataset["fork"] = "true";
+    const pinned = pins.includes(session.id);
+    if (pinned) row.dataset["pinned"] = "true";
 
     // Status icon: spinner while this chat works, branch for a fork, dot for idle. A
     // renamed conversation is not a fork - the title belongs to the person, but the
@@ -1323,6 +1358,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       const rect = options.getBoundingClientRect();
       historyMenu.open(rect.left, rect.bottom + 4, [
         { label: "Open", run: () => void resume(session.id) },
+        { label: pinned ? "Unpin" : "Pin to top", run: () => setPinned(session.id) },
         ...(session.parentId === undefined
           ? [{ label: "Fork this conversation", run: () => void forkChat(session.id) }]
           : [{ label: "Open parent conversation", run: () => void resume(session.parentId as string) }]),
@@ -1487,13 +1523,28 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       return;
     }
 
-    const rootsById = new Map(roots.map((root) => [root.id, root] as const));
-    const dated = roots.map((root) => ({ id: root.id, title: root.title, updatedAt: recency(root) }));
+    const heading = (label: string): void => {
+      const node = document.createElement("h3");
+      node.className = "chat-history-group";
+      node.textContent = label;
+      historyList.append(node);
+    };
+    const sortable = roots.map((root) => ({ id: root.id, title: root.title, createdAt: root.createdAt, updatedAt: root.updatedAt, messageCount: root.messages.length, root }));
+    const { pinned, rest } = splitPinned(sortable, pins);
+    if (pinned.length > 0) {
+      heading("Pinned");
+      for (const entry of pinned) historyList.append(renderHistoryTree(entry.root, children.get(entry.root.id) ?? []));
+    }
+    if (sortMode !== "recent") {
+      // Any other order is one list: date buckets would split a name or a length order apart.
+      if (rest.length > 0) heading(CHAT_SORT_MODES.find((mode) => mode.id === sortMode)?.label ?? "Conversations");
+      for (const entry of sortChats(rest, sortMode, activity)) historyList.append(renderHistoryTree(entry.root, children.get(entry.root.id) ?? []));
+      return;
+    }
+    const rootsById = new Map(rest.map((entry) => [entry.id, entry.root] as const));
+    const dated = rest.map((entry) => ({ id: entry.id, title: entry.title, updatedAt: recency(entry.root) }));
     for (const group of groupChatSessions(dated)) {
-      const heading = document.createElement("h3");
-      heading.className = "chat-history-group";
-      heading.textContent = group.label;
-      historyList.append(heading);
+      heading(group.label);
       for (const entry of group.sessions) {
         const root = rootsById.get(entry.id);
         if (root) historyList.append(renderHistoryTree(root, children.get(root.id) ?? []));
@@ -1508,7 +1559,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   /** Draw a past conversation back into the transcript. */
   let resumeGeneration = 0;
   async function resume(id: string): Promise<void> {
-    window.dispatchEvent(new Event("adcode-private-chat"));
+    // Opening a solo chat leaves Team; opening a team chat is how Team shows one.
+    if (!id.startsWith("team-")) window.dispatchEvent(new Event("adcode-private-chat"));
     const generation = ++resumeGeneration;
     if (docked) api.open();
     if (id !== activeSessionId) leaveShownChat();
@@ -1548,7 +1600,15 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           messageNodes.push(note);
           continue;
         }
-        messageNodes.push(bubble(message.role === "user" ? "user" : "assistant", message.text, [], message.at,message.includedRequestId));
+        const node = bubble(message.role === "user" ? "user" : "assistant", message.text, [], message.at, message.includedRequestId);
+        // A team chat names its people: who wrote each message, and who asked for each answer.
+        if (message.author !== undefined) {
+          if (message.role === "user") {
+            node.dataset["author"] = message.author.self ? "You" : message.author.name;
+            if (!message.author.self) node.classList.add("is-teammate");
+          } else if (!message.author.self) node.dataset["askedBy"] = message.author.name;
+        }
+        messageNodes.push(node);
       }
       while (editIndex < edits.length) appendEditSummary(edits[editIndex++]!);
     } finally {
@@ -2787,6 +2847,22 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   window.setTimeout(() => welcomeBuck.setMood("idle"), 2600);
   const welcomeText = document.createElement("p");
   welcomeText.textContent = "What can I help you build or change in this project?";
+  // A run of days, said once in the greeting: a streak only brings you back if you know of it.
+  const welcomeStreak = document.createElement("p");
+  welcomeStreak.className = "chat-welcome-streak";
+  welcomeStreak.hidden = true;
+  const paintStreak = (): void => {
+    void window.adcode.aiUsage.read("7d").then((usage) => {
+      // An older main process, or a host without usage history, answers without activity.
+      const activity = (usage as Partial<typeof usage> | null | undefined)?.activity;
+      if (activity === undefined) { welcomeStreak.hidden = true; return; }
+      const today = activity.days.at(-1);
+      const line = streakLine(activity.currentStreak, (today?.requests ?? 0) > 0);
+      welcomeStreak.hidden = line === null;
+      welcomeStreak.textContent = line ?? "";
+    }).catch(() => { welcomeStreak.hidden = true; });
+  };
+  paintStreak();
 
   /*
    * Guided setup, not a feature list: every step is a button that does the
@@ -2934,7 +3010,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       if (latest !== null) {
         const title = latest.title.length > 42 ? `${latest.title.slice(0, 41)}…` : latest.title;
         const hint = document.createElement("small");
-        hint.textContent = "Pick up where you left off";
+        hint.textContent = continueHint(latest.messages, latest.updatedAt, Date.now());
         const label = document.createElement("span");
         label.className = "chat-quick-label";
         label.textContent = `Continue “${title}”`;
@@ -2995,6 +3071,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     const empty = transcript.childElementCount === 0;
     if (empty) {
       paintGreeting();
+      paintStreak();
       void paintContinue();
     }
     welcome.hidden = !empty;
@@ -3636,6 +3713,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     if (!restoring) markFor(element, "enter", "true", 700);
     if (role === "user" && text.trim().length > 0) lastUserPrompt = text;
     if (role === "assistant" && text.length === 0) element.classList.add("is-streaming");
+    // In a team chat every message is named; this one is the person at the keyboard.
+    if (!restoring && role === "user" && activeSessionId?.startsWith("team-") === true) element.dataset["author"] = "You";
     if (attachments.length > 0) {
       const row = document.createElement("div");
       row.className = "chat-bubble-attachments";
@@ -5696,9 +5775,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       autogrowComposer();
       input.focus();
     },
-    openConversation(id): void {
+    openConversation(id): Promise<void> {
       api.open();
-      void resume(id);
+      return resume(id);
     },
     addAttachments(files): void {
       api.open();

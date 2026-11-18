@@ -28,21 +28,22 @@ app.whenReady().then(async()=>{
    window.adcode={account:{onChanged:()=>()=>{}},clipboard:{writeText:async()=>{}},collab:{sharedLibrary:async()=>({projects:[snap],limits:{plan:'free',projects:1,members:3},owned:1}),sharedSnapshot:async(id,session)=>({...structuredClone(snap),selectedSession:session??snap.selectedSession}),sharedSession:async()=>{snap.sessions.push({id:'s2',title:'Build preview',pending:false}); snap.selectedSession='s2';return structuredClone(snap);},sharedMessage:async(id,session,text,ask,nonce)=>{calls.push({text,ask,nonce});snap.messages.push({seq:snap.messages.length+1,id:nonce,sessionId:session,authorId:'owner',authorName:'Alex',kind:'member',text,at:Date.now()});return structuredClone(snap);},sharedManage:async()=>{},onSharedChanged:cb=>{changed=cb;return()=>{};}}};
    const panel=Fixture.createSharedWorkspacePanel({prompt:async()=> 'Build preview',confirm:async()=>true,signIn:()=>{},openLocalProjects:()=>{}}); panel.open(); await pause();
    const find=label=>[...document.querySelectorAll('button')].find(b=>b.textContent===label);
-   result.loaded=document.body.textContent.includes('1/1 owned projects')&&document.querySelectorAll('.shared-sessions button').length===1;
+   result.loaded=document.body.textContent.includes('1/1 owned projects')&&document.querySelectorAll('.team-session').length===1&&document.querySelector('.team-chat-title').textContent==='Launch planning';
    result.safe=!document.querySelector('.shared-message img')&&document.querySelector('.shared-message-text').textContent.includes('<img');
    const input=document.querySelector('.shared-composer textarea');input.value='Keep my draft'; input.dispatchEvent(new Event('input')); input.focus(); changed(snap.id); await pause();
    result.draft=input===document.querySelector('textarea')&&input.value==='Keep my draft'&&document.activeElement===input;
-   find('Send to team').click();await pause();result.team=calls[0].ask===false&&input.value==='';
-   input.value='Please review'; input.dispatchEvent(new Event('input'));find('Ask AI').click();await pause(); result.ask=calls[1].ask===true&&calls[0].nonce!==calls[1].nonce;
-   find('New session').click();await pause();result.session=document.querySelectorAll('.shared-sessions button').length===2;
+   document.querySelector('.team-send').click();await pause();result.team=calls[0].ask===false&&input.value==='';
+   input.value='Please review'; input.dispatchEvent(new Event('input'));find('AI replies').click();document.querySelector('.team-send').click();await pause(); result.ask=calls[1].ask===true&&calls[0].nonce!==calls[1].nonce;find('AI replies').click();
+   input.value='@ai what changed?'; input.dispatchEvent(new Event('input'));document.querySelector('.team-send').click();await pause(); result.mention=calls[2].ask===true&&calls[2].text==='what changed?';
+   document.querySelector('.team-project-add').click();await pause();result.session=document.querySelectorAll('.team-session').length===2&&document.querySelector('.team-chat-title').textContent==='Build preview';
    snap.messages.push({seq:4,id:'reply',sessionId:'s2',authorId:'guest',authorName:'Assistant',kind:'assistant',text:'Ready for the team.',at:Date.now()}); changed(snap.id);await pause();
-   result.sharedReply=document.body.textContent.includes('Ready for the team.')&&document.body.textContent.includes('Assistant · via Sam');
-   snap.selfId='guest';changed(snap.id);await pause();find('Leave project').click();await pause();result.leave=!document.querySelector('.shared-sessions button')&&!document.querySelector('.shared-member')&&document.querySelector('.shared-composer').hidden;
+   result.sharedReply=document.body.textContent.includes('Ready for the team.')&&document.body.textContent.includes('asked by Sam')&&!!document.querySelector('.team-row.is-ai .chat-bubble-assistant');
+   snap.selfId='guest';changed(snap.id);await pause();find('Leave project').click();await pause();result.leave=!document.querySelector('.team-session')&&!document.querySelector('.shared-member')&&document.querySelector('.shared-composer').hidden;
    snap.selfId='owner';panel.open(snap.id);await pause(); window.testPanel=panel; return result;
   })()`);
   writeFileSync(resolve(__dirname,'../../../../output/shared-projects-panel.png'),(await win.webContents.capturePage()).toPNG());
   win.setSize(420,780);await new Promise(r=>setTimeout(r,200));
-  result.narrow=await win.webContents.executeJavaScript(`(()=>{const p=document.querySelector('.shared-workspace'),m=document.querySelector('.shared-main'),button=[...m.querySelectorAll('button')].find(b=>b.textContent==='Send to team');m.scrollTop=m.scrollHeight;const box=button.getBoundingClientRect(),area=m.getBoundingClientRect();return p.scrollWidth<=p.clientWidth+1&&m.scrollWidth<=m.clientWidth+1&&box.bottom<=area.bottom&&box.top>=area.top;})()`);
+  result.narrow=await win.webContents.executeJavaScript(`(()=>{const p=document.querySelector('.shared-workspace'),m=document.querySelector('.shared-main'),button=m.querySelector('.team-send');m.scrollTop=m.scrollHeight;const box=button.getBoundingClientRect(),area=m.getBoundingClientRect();return p.scrollWidth<=p.clientWidth+1&&m.scrollWidth<=m.clientWidth+1&&box.bottom<=area.bottom&&box.top>=area.top;})()`);
   writeFileSync(resolve(__dirname,'../../../../output/shared-projects-panel-narrow.png'),(await win.webContents.capturePage()).toPNG());
   win.setSize(1140,840);
   Object.assign(result,await win.webContents.executeJavaScript(`(async()=>{
@@ -51,7 +52,7 @@ app.whenReady().then(async()=>{
     nav.style.cssText='padding:20px;background:var(--bg-elevated);border-right:1px solid var(--border-hairline)';
     const brand=document.createElement('h2');brand.textContent='ADCode';nav.append(brand);layout.append(nav,host);document.body.append(layout);
     window.testPanel.mount(host,nav,()=>{});await new Promise(r=>setTimeout(r,100));window.testPanel.open();await new Promise(r=>setTimeout(r,100));
-    return {inline:host.contains(document.querySelector('.shared-main'))&&!host.hidden,grouped:nav.querySelectorAll('.shared-project-group').length===1&&nav.querySelectorAll('.shared-history-row').length===2,beta:host.textContent.includes('Beta')&&nav.textContent.includes('Beta')};
+    return {inline:host.contains(document.querySelector('.shared-main'))&&!host.hidden,grouped:nav.querySelectorAll('.shared-project-group').length===1&&nav.querySelectorAll('.shared-history-row').length===2,invite:!!host.querySelector('.team-invite')&&!host.querySelector('.team-invite').hidden&&host.querySelectorAll('.team-avatar').length>=2};
   })()`));
   await win.webContents.executeJavaScript(`(()=>{const body=document.querySelector(".shared-message-text");if(body)body.textContent="Can you review the dark mode changes before we merge?";})()`);
   writeFileSync(resolve(__dirname,'../../../../output/shared-project-main-chat.png'),(await win.webContents.capturePage()).toPNG());

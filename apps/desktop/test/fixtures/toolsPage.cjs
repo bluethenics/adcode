@@ -180,7 +180,7 @@ app.whenReady().then(async () => {
         const directChrome = q('.result-title', direct)?.textContent === 'Add custom connector'
           && q('.tools-dialog-close', direct)?.getAttribute('aria-label') === 'Close'
           && q('.tools-dialog-tabs', direct)?.hidden === true
-          && [...direct.querySelectorAll('.form-dialog-form button')].map((item) => item.textContent).join('|') === 'Cancel|Continue'
+          && [...direct.querySelectorAll('.form-dialog-form button:not(.select-menu-trigger)')].map((item) => item.textContent).join('|') === 'Cancel|Continue'
           && directClose !== null && getComputedStyle(directClose).display === 'none'
           && directIntro?.textContent.includes('Learn more about connectors')
           && directIntro.textContent.includes('get started with pre-built ones')

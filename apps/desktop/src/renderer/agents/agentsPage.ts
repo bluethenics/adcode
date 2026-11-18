@@ -24,7 +24,7 @@ import {
 } from "../ai/agentProfiles.ts";
 import { askThemed } from "../dialogs/confirmDialog.ts";
 import { createIcon, ICON } from "../workbench/icons.ts";
-import { agentBoxActions, boardSummary, buildBoard, evidenceChips, type BoxAction, type BoxColumn, type BoxModel } from "./agentBoardModel.ts";
+import { agentBoxActions, boardSummary, buildBoard, evidenceChips, statusBadge, type BoxAction, type BoxColumn, type BoxModel } from "./agentBoardModel.ts";
 import { openAgentEditorDialog, openNewTaskDialog, openRaceCompareDialog, openRunDetailDialog } from "./agentDialogs.ts";
 import { checksFromTraces, riskFlags, type RiskFlag, type RunCheck } from "../../shared/runEvidence.ts";
 import { createAgentMascot, mascotMoodForStatus, type AgentMascot } from "./agentMascot.ts";
@@ -126,6 +126,9 @@ interface BoxEntry {
   readonly status: HTMLElement;
   readonly meta: HTMLElement;
   readonly race: HTMLElement;
+  readonly badge: HTMLElement;
+  readonly time: HTMLElement;
+  readonly progress: HTMLElement;
   readonly evidence: HTMLElement;
   readonly warnings: HTMLElement;
   readonly actions: HTMLElement;
@@ -329,16 +332,30 @@ export function createAgentsPage(deps: AgentsPageDeps): AgentsPage {
     li.dataset["id"] = id;
     const open = el("button", "agent-box-open");
     open.type = "button";
+    /*
+     * The box, top to bottom (redesigned 17 November 2026 after issue-tracker and deploy-list
+     * cards): a status chip and the elapsed time; the mascot, title and who is on it; one line
+     * of what it is doing now, with a moving bar while it works; quiet metadata chips. Every
+     * state is a word on the chip, never colour alone.
+     */
+    const head = el("span", "agent-box-head");
+    const badge = el("span", "agent-box-badge");
+    const time = el("span", "agent-box-time");
+    const race = el("span", "agent-box-race");
+    race.hidden = true;
+    head.append(badge, race, time);
     const mascots = el("span", "agent-box-mascots");
     const text = el("span", "agent-box-text");
     const titleNode = el("strong", "agent-box-title");
     const who = el("span", "agent-box-who");
+    text.append(titleNode, who);
+    const identity = el("span", "agent-box-identity");
+    identity.append(mascots, text);
     const statusNode = el("span", "agent-box-status");
+    const progress = el("span", "agent-box-progress");
+    progress.setAttribute("aria-hidden", "true");
     const meta = el("span", "agent-box-meta");
-    const race = el("span", "agent-box-race");
-    race.hidden = true;
-    text.append(race, titleNode, who, statusNode, meta);
-    open.append(mascots, text);
+    open.append(head, identity, statusNode, progress, meta);
     const evidence = el("div", "agent-box-evidence");
     evidence.setAttribute("aria-label", "Proof of work");
     const warnings = el("ul", "agent-box-warnings");
@@ -349,7 +366,7 @@ export function createAgentsPage(deps: AgentsPageDeps): AgentsPage {
       const box = findBox(id);
       if (box !== null) openDetail(box);
     });
-    const entry: BoxEntry = { li, open, mascots, title: titleNode, who, status: statusNode, meta, race, evidence, warnings, actions, management, mascotList: [], lookKey: "", actionKey: "", evidenceKey: "", managementKey: "" };
+    const entry: BoxEntry = { li, open, mascots, title: titleNode, who, status: statusNode, meta, race, badge, time, progress, evidence, warnings, actions, management, mascotList: [], lookKey: "", actionKey: "", evidenceKey: "", managementKey: "" };
     entries.set(id, entry);
     return entry;
   }
@@ -366,7 +383,7 @@ export function createAgentsPage(deps: AgentsPageDeps): AgentsPage {
     const mood = mascotMoodForStatus(box.status);
     if (lookKey !== entry.lookKey) {
       entry.lookKey = lookKey;
-      entry.mascotList = looks.map((look, index) => createAgentMascot({ look, mood, size: index === 0 ? 40 : 28 }));
+      entry.mascotList = looks.map((look, index) => createAgentMascot({ look, mood, size: index === 0 ? 34 : 24 }));
       entry.mascots.replaceChildren(...entry.mascotList.map((mascot) => mascot.element));
       entry.mascots.dataset["count"] = String(looks.length);
     } else {
@@ -379,12 +396,23 @@ export function createAgentsPage(deps: AgentsPageDeps): AgentsPage {
     entry.who.title = entry.who.textContent;
     entry.status.title = box.statusText;
     const running = box.column === "working";
-    entry.meta.textContent = [
+    const badge = statusBadge(box.status);
+    entry.badge.textContent = badge.label;
+    entry.badge.dataset["tone"] = badge.tone;
+    entry.li.dataset["tone"] = badge.tone;
+    entry.time.textContent = running ? elapsed(now - box.startedAt) : "";
+    entry.time.hidden = !running;
+    entry.progress.hidden = box.status !== "running" && box.status !== "merging";
+    const metaChips = [
       box.files > 0 ? `${box.files} file${box.files === 1 ? "" : "s"}` : "",
       box.usage,
       box.cost ?? "",
-      running ? elapsed(now - box.startedAt) : "",
-    ].filter(Boolean).join(" · ");
+    ].filter(Boolean);
+    const metaKey = metaChips.join("|");
+    if (entry.meta.dataset["key"] !== metaKey) {
+      entry.meta.dataset["key"] = metaKey;
+      entry.meta.replaceChildren(...metaChips.map((text) => el("span", "agent-box-meta-chip", text)));
+    }
     entry.race.hidden = box.raceLabel === null;
     entry.race.textContent = box.raceLabel ?? "";
     const proof = evidence.get(box.id);

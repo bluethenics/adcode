@@ -66,7 +66,22 @@ export interface IncludedRecoveryOptions {
    * already given up on.
    */
   readonly fallback?: (failed: string, tried: ReadonlySet<string>) => { readonly id: string; readonly name: string } | null;
+  /**
+   * How long a model may stay silent - no thought, no answer, no tool call - before the request
+   * is given up on and sent to the fallback. Only armed when there is a fallback to send it to.
+   */
+  readonly firstAnswerMs?: number;
 }
+
+/**
+ * Measured 17 November 2026 over three days of included requests: the default model's first
+ * token arrived in 4 s at the median and 8.5 s at the 90th percentile, while the slowest
+ * included model took 37 s at the median, 4.5 minutes at the 90th percentile, and 154 requests
+ * ran into the relay's 20-minute ceiling. A third of that model's turns were cancelled by the
+ * person waiting. A minute of silence is seven times the default model's slow case: past it,
+ * a different model answers sooner than this one will.
+ */
+export const FIRST_ANSWER_MS = 60_000;
 
 /**
  * Same-model retries before switching to a fallback. Measured 30 October 2026: the busiest
@@ -94,13 +109,40 @@ export function recoverIncludedLimits(provider: Provider, options: IncludedRecov
       for (;;) {
         signal.throwIfAborted();
         let producedOutput = false;
+        // The first-answer watchdog: armed only when a fallback exists, so a model with nowhere
+        // to go is still waited on rather than abandoned.
+        const deadline = options.firstAnswerMs ?? FIRST_ANSWER_MS;
+        const peek = options.fallback !== undefined && failovers < MAX_FAILOVERS ? options.fallback(request.model, new Set([...tried, request.model])) : null;
+        const attempt = new AbortController();
+        const forward = (): void => attempt.abort(signal.reason);
+        signal.addEventListener("abort", forward, { once: true });
+        let alive = false;
+        let stalled = false;
+        const watchdog = peek === null ? undefined : setTimeout(() => {
+          if (alive) return;
+          stalled = true;
+          attempt.abort(new Error("first-answer-timeout"));
+        }, deadline);
         try {
-          for await (const event of provider.stream(request, signal)) {
+          for await (const event of provider.stream(request, attempt.signal)) {
             if (event.kind === "text" || event.kind === "tool-call" || event.kind === "tool-input") producedOutput = true;
+            if (event.kind !== "status" && event.kind !== "usage") alive = true;
             yield event;
           }
           return;
         } catch (caught) {
+          if (stalled && !signal.aborted && !producedOutput && options.fallback !== undefined) {
+            tried.add(request.model);
+            const next = options.fallback(request.model, tried);
+            if (next !== null && !tried.has(next.id)) {
+              failovers++;
+              serverRetries = 0;
+              replaced.set(original.model, next.id);
+              request = { ...original, model: next.id };
+              yield { kind: "status", text: `That model had not started answering after ${String(Math.round(deadline / 1000))}s - switched to ${next.name} for this task so you are not left waiting.` };
+              continue;
+            }
+          }
           if (signal.aborted || producedOutput || typeof caught !== "object" || caught === null) throw caught;
           const network = networkFailure(caught);
           if (network !== null) {
@@ -162,6 +204,9 @@ export function recoverIncludedLimits(provider: Provider, options: IncludedRecov
             : `AI requests are temporarily rate limited. This task will retry after ${when}. Unlimited usage still has a request-rate ceiling. Press Stop to cancel.` };
           await waitUntil(at, signal);
           yield { kind: "status", text: "Checking the limit and resuming this task automatically…" };
+        } finally {
+          clearTimeout(watchdog);
+          signal.removeEventListener("abort", forward);
         }
       }
     },

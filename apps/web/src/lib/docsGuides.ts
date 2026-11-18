@@ -21,6 +21,76 @@ interface DocGuide {
 }
 
 export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
+  "workbench-agent-flow": {
+    steps: [
+      "Open ADCode, choose Agents on the left rail, then the Flow tab. In the IDE window, run Agents: Agent Flow from the command palette (Ctrl+Shift+P).",
+      "Look at the starting flow: Thinker, Coder, Reviewer, Tester and Researcher. The Thinker has a lightning mark - that is your chat, the agent every message reaches first.",
+      "Add an agent: drag a role from Add an agent onto the canvas, or click it to drop it in the middle. A flow holds up to 50 agents.",
+      "Connect two agents: press on the small dot on an agent's right edge and drag to another agent. Click the new link to choose what it means - hands work to, sends for review to, or can ask.",
+      "Click an agent to edit it on the right: its name, role, shape and colour, the kinds of work it takes over (Coding, Bug fixing, Testing, UI and design and more), the model it runs on and its instructions. Tick Read-only for a reviewer that should never edit.",
+      "Check the routing before you use it: under Try it, type a message such as fix the crash in parser.ts and press play. The agents that will handle it light up in order.",
+      "Flows start Off. Switch it On, and choose Every chat or Chosen chats (then tick the chats). The switch says which, and the Flow tab shows On. Your next message in those chats goes through the flow.",
+      "To share it, press Copy link and send the link. Whoever receives it opens Flow, presses the link icon and pastes it; the flow arrives switched off until they turn it on.",
+    ],
+    benefits: [
+      "Coding goes to the agent you chose for coding, so a fast or cheap model can type while a stronger one plans.",
+      "Reviewers and testers check the work before you read it, and a read-only reviewer cannot change anything.",
+      "Each agent's tokens are counted against its own model, so you can see where the cost goes.",
+      "A whole team setup travels as one link: no account, no server holding it, nothing to install.",
+    ],
+    betterThan: "Most AI editors give you one agent, or a fixed set of sub-agents you configure in a text file. A flow is drawn: you can see who hands work to whom, change a role with a click, and test the routing with a sample message before it touches a real chat. It is honest about cost too - every agent says which model it runs on, and an agent left on The chat's model costs exactly what the chat would. A flow does more work per message than a single agent, so for quick questions the chat answers directly without walking the whole path.",
+  },
+  "workbench-mods": {
+    steps: [
+      "Open any chat in ADCode. There is no separate place to go: mods are made in the conversation.",
+      "Ask for the change in your own words - for example: give ADCode a warm paper theme with a terracotta accent, add a /standup command that summarises what changed in git since yesterday, or put a clock in the status bar. The command palette's Mods: Customise ADCode by Asking the Chat starts the message for you.",
+      "The assistant writes the mod. Before anything changes, ADCode shows a confirmation listing every change it makes - the theme, each command, each add-on.",
+      "Press Apply mod. It takes effect at once, on this computer only.",
+      "Not quite right? Say so - make the accent darker, move the clock to the left - and the assistant updates the same mod. You confirm again.",
+      "To undo, ask the assistant to switch the mod off or remove it, or switch it off under Plugins, Installed.",
+    ],
+    benefits: [
+      "Change themes, commands and small panels without learning an extension API or leaving the chat.",
+      "You see exactly what a mod changes before it is applied, and it is one sentence to undo.",
+      "Mods are checked by the same rules as every ADCode plugin: they cannot touch your models, API keys, ads or permissions, and add-ons run sealed with no internet.",
+    ],
+    betterThan: "In most editors, customising means a settings file, a theme extension, or writing an extension in TypeScript. Here you ask the assistant you are already talking to, read the list of changes, and confirm. Because a mod is a plugin underneath, it is just as safe and just as removable as one from the directory - and limited to what plugins may do, so it cannot rewrite the editor itself.",
+  },
+  "workbench-solo-team": {
+    steps: [
+      "Open ADCode's Vibe window. Above Conversations in the left sidebar there is a switch: Solo and Team.",
+      "Solo is where you already are: your own chats with the AI, saved on this computer.",
+      "Press Team. If you are not signed in, press Sign in to start - team projects belong to your account.",
+      "The first time, choose one of the two cards: Share this project (the open folder must be on GitHub) or Join with an invite (paste the invite a teammate sent you and press Join).",
+      "Your team projects appear in the sidebar with their chats. Press + beside a project to start a chat and give it a name.",
+      "The chat opens in ADCode's normal chat - the same box, model picker, tools and build cards you use alone - with a strip above it showing the chat's people, Invite and AI replies. Every message carries the name of whoever wrote it.",
+      "Write in the box and press Enter. With AI replies on, the AI takes your message as a task and builds it right there: it reads the project, edits files and runs commands on your computer, and everyone sees its answer, marked with who asked. Turn AI replies off to talk to the people only; start a message with @ai to ask the AI just this once.",
+      "Teammates' messages and the answers to their requests appear in your chat within a few seconds.",
+      "Press Invite in the strip to copy the invite link for more people. The ... menu lists everyone, starts editing files together live, and lets the owner replace the invite or archive the project.",
+      "Press Solo to go back. Any solo chat that was still working kept going while you were away.",
+    ],
+    benefits: [
+      "One thread for the people and the AI, so nobody pastes chat logs between apps.",
+      "It is the chat you already use: same composer, model picker, tools and build cards, Enter to send.",
+      "The team builds with the AI together: anyone can ask it to change the project, and everyone sees what it did.",
+      "Team chats never mix with your private chats, so there is nothing to hide before you share your screen.",
+      "Switching is instant and never interrupts a running chat.",
+    ],
+    betterThan: "Most AI coding tools are single-player: each person's chat lives on their machine, and sharing means screenshots. ADCode's Team works like a group chat with the AI in it - as ChatGPT's group chats do - but for a code project: the assistant answers with the project's checkout in front of it, and everyone sees the same answer. Solo stays yours alone.",
+  },
+  "ai-sort-conversations": {
+    steps: [
+      "Open the conversation list (the left sidebar in the Vibe window, or History in the assistant).",
+      "Open the menu beside Search conversations and choose an order: Recent activity, Newest first, Oldest first, Name (A-Z) or Most messages. ADCode remembers your choice.",
+      "To keep a chat at the top, open its ... menu and choose Pin to top. Pinned chats sit under Pinned, newest pin first.",
+      "To unpin, open the same menu and choose Unpin.",
+      "The command palette has it too: Conversations: Sort and Pin jumps straight to the menu.",
+    ],
+    benefits: [
+      "Find the long conversation with the decisions in it, or the oldest task still open, without scrolling.",
+      "The chats you return to every day stay in one place however the rest are sorted.",
+    ],
+  },
   "phone-link": {
     steps: [
       "On your computer, open ADCode and sign in. In the chat box, open Tools (the sliders button) and choose Phone link, or type /phone. The command palette has it too: Phone Link: Chat From Your Phone.",
@@ -1732,7 +1802,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Press Get Builder ($19 a month, 580 credits a day), Get Pro ($39, 1,190) or Get Max ($149, 4,500). Sign in with the same account you use in the editor if asked; checkout opens by itself.",
       "Enter your billing country and pay on Dodo's page, which shows the amount and any tax first. Back on AI credits, your plan shows as soon as payment is confirmed.",
       "Use any hosted model, premium ones included. Your daily credits refill every day; requests pause at the allowance and continue at the refill, never with an overage bill.",
-      "To change or cancel, open AI credits and press Manage subscription. A cancelled plan keeps working until the end of the period you paid for.",
+      "To change or cancel, open the account menu (your initials, bottom left) and press Manage or cancel plan, or open AI credits and press Manage subscription. A cancelled plan keeps working until the end of the period you paid for.",
       "To redeem a promo code, enter it in the promo-code box on AI credits and select Redeem.",
     ],
     benefits: [
@@ -2195,7 +2265,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "workbench-tools-page": {
     steps: [
-      "Choose Tools on the Vibe window's rail, or Open Tools in the command palette.",
+      "Open Agents on the Vibe window's rail and choose the Tools tab, or Open Tools in the command palette.",
       "Built-in lists ADCode's own tools in plain words and which of your agents may use each one - change that in the agent's editor on the Agents page.",
       "Open Connectors. Each card wears a badge saying what it is - MCP, Extension, Plugin or Actions. Add connector offers four ways in; in the next desktop build, Add custom connector on the Connectors tab is a shortcut that saves a server by name and URL and tries to connect it.",
       "Catalogue adds a server such as Playwright (test pages in a real browser) or Context7 (current library docs) in one click. Import scans what Claude Desktop, Claude Code, Cursor, Windsurf and VS Code already have; From a file reads a config file, an OpenAPI description, a ChatGPT plugin manifest, a .mcpb extension or a plugin folder, or takes a link or pasted text; Custom connector is the same form, with a local command, SSE and credentials under Advanced.",

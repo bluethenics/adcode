@@ -333,8 +333,8 @@ const vibeNavigation = await evaluate(`(() => {
     appMenuOpens,
     appMenuCloses,
     automations: visible('[data-rail="automations"]'),
-    // Chat, Agents and Tools are places; Chat is the one showing at launch.
-    pages: visible('[data-rail="agents"]') && visible('[data-rail="tools"]') &&
+    // Chat and Agents are places (Tools is a tab inside Agents, not a rail of its own); Chat shows at launch.
+    pages: visible('[data-rail="agents"]') && document.querySelector('[data-rail="tools"]') === null &&
       document.querySelector('[data-rail="chat"]')?.getAttribute('aria-current') === 'page',
     tools: visible('.project-tools'),
     noTasksRow: document.querySelector('.vibe-tasks-button') === null,
@@ -523,10 +523,12 @@ const vibePages = await evaluate(`(async () => {
       (document.getElementById('workbench')?.getBoundingClientRect().right ?? window.innerWidth) - 1,
     agentsNoOverflow: !!board && board.scrollWidth <= board.clientWidth + 1,
   };
-  document.querySelector('[data-rail="tools"]')?.click();
+  // Tools is a tab of the Agents page (18 November 2026), next to Runs and Flow.
+  document.querySelector('#vibe-page-agents .agents-hub-tab[data-tab="tools"]')?.click();
   await wait(() => document.querySelectorAll('#tools-panel-built-in .tool-card').length > 0);
-  const tools = document.getElementById('vibe-page-tools');
-  result.toolsShown = !!tools && !tools.hidden;
+  const tools = document.getElementById('agents-hub-panel-tools');
+  result.toolsShown = !!tools && !tools.hidden && document.getElementById('vibe-page-agents')?.hidden === false;
+  document.querySelector('#vibe-page-agents .agents-hub-tab[data-tab="runs"]')?.click();
   result.toolsTabs = tools?.querySelectorAll('[role=tab]').length === 4;
   // One card per row of BUILT_IN_TOOLS_INFO (renderer/tools/builtInTools.ts).
   result.builtInCards = tools?.querySelectorAll('#tools-panel-built-in .tool-card').length === 23;
@@ -5951,6 +5953,11 @@ checks.iconsCentredInTheirButtons = await evaluate(
      await new Promise((r) => setTimeout(r, 300));
      sweep();
      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+     // With no session running, Share opens the share chooser: a native modal dialog, which a
+     // synthetic Escape does not close (a real key press does). Left open, it covered every
+     // later check that clicks.
+     document.querySelector('dialog.share-chooser[open] button[aria-label="Close"]')?.click();
+     await new Promise((r) => setTimeout(r, 300));
 
      document.querySelector('.activity[data-view="explorer"]')?.click();
 
@@ -6422,27 +6429,31 @@ checks.collabSessionStartsAndStops = await evaluate(
        return 'the button should read "Share" before a session starts';
      }
 
+     /*
+      * Since "one Share button" (commit 87224507), Share with no session running asks the only
+      * question that matters - a copy, or live together - in the share chooser, and the live
+      * session card belongs to a running session. The chooser is checked here and closed again:
+      * left open, it sat over the window and failed every check after it that clicks.
+      */
      button.click();
      await new Promise((r) => setTimeout(r, 300));
 
-     const card = document.querySelector('.collab-card');
-     if (!card || card.hidden) return 'the session panel did not open';
-
-     const box = card.getBoundingClientRect();
+     const chooser = document.querySelector('dialog.share-chooser');
+     if (!chooser || chooser.open !== true) return 'the share chooser did not open';
+     const box = chooser.querySelector('.form-dialog-card, .result-card, form, div')?.getBoundingClientRect() ?? chooser.getBoundingClientRect();
      const centre = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
-
      const opened = {
-       topmost: card.contains(centre),
+       topmost: chooser.contains(centre),
        onScreen: box.left >= 0 && box.top >= 0 && box.bottom <= window.innerHeight + 1,
-       offersShare: /Share this folder/i.test(card.textContent ?? ''),
-       offersJoin: /Join with a code/i.test(card.textContent ?? ''),
+       offersShare: /Send a copy/i.test(chooser.textContent ?? '') && /Work on it live together/i.test(chooser.textContent ?? ''),
+       offersJoin: /Join their project/i.test(chooser.textContent ?? ''),
      };
+     chooser.querySelector('button[aria-label="Close"]')?.click();
+     await new Promise((r) => setTimeout(r, 300));
+     opened.chooserCloses = chooser.open !== true;
 
-     // Close the panel, then drive the session over IPC - the confirm dialog in the click path
-     // is a deliberate speed bump for a human, not something to click through here.
-     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-     await new Promise((r) => setTimeout(r, 200));
-
+     // Drive the session over IPC - the confirm dialog in the click path is a deliberate speed
+     // bump for a human, not something to click through here.
      const started = await window.adcode.collab.host({
        bind: 'loopback',
        port: 0,
@@ -6467,6 +6478,14 @@ checks.collabSessionStartsAndStops = await evaluate(
        // The renderer knows what it may do, and a host may do everything.
        canAdminister: started.can?.administer === true,
      };
+
+     button.click();
+     await new Promise((r) => setTimeout(r, 300));
+     const card = document.querySelector('.collab-card');
+     const cardBox = card?.getBoundingClientRect();
+     hosting.cardOpens = card !== null && card.hidden !== true && cardBox !== undefined && card.contains(document.elementFromPoint(cardBox.left + cardBox.width / 2, cardBox.top + cardBox.height / 2));
+     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+     await new Promise((r) => setTimeout(r, 200));
 
      // A document joins the session and comes back with real state.
      const openDoc = await window.adcode.collab.openDoc('README.md');

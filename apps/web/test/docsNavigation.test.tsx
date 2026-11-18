@@ -181,10 +181,10 @@ describe("public documentation navigation", () => {
     expect(recent.every((page) => page.authored)).toBe(true);
     // Pages published the same day are ordered by title.
     expect(recent.map((page) => page.slug)).toEqual([
+      "real-model-coding-agent-benchmark",
       "coding-agent-token-benchmark",
       "adcode-2-6-1-fewer-tokens",
       "adcode-vs-claude-code-codex-opencode-t3-code",
-      "zeekend-sponsored-cards-phone-and-notifications",
     ]);
   });
 

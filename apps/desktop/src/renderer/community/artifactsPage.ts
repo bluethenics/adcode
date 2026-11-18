@@ -289,6 +289,7 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
       const link = await window.adcode.community.projectLink().catch(() => null);
       if (link === null) { setOutcome({ tone: "error", message: "ADCode could not read the open folder. Open your project again and press Start working together." }); return; }
       if (link.root === null) {
+        deps.track("share_stopped_no_folder");
         setOutcome({ tone: "info", message: "First choose the project folder you want to work on together, then press Start working together again.", actions: [{ label: "Choose a folder", run: deps.pickFolder, primary: true }] });
         return;
       }
@@ -804,6 +805,7 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
       const preview = await attempt<ArtifactPreview>(() => window.adcode.community.previewArtifact(exclude), "Open a project folder first.");
       if (preview === null) { if (together) setOutcome({ tone: "info", message: "Open the project folder you want to share first, then press Start working together again.", actions: [{ label: "Choose a folder", run: deps.pickFolder, primary: true }] }); return; }
       if (preview.blocked === "not-a-project") {
+        deps.track("share_stopped_not_a_project");
         const { dialog, card, finish } = detailDialog("community-share", "This folder cannot be shared");
         const callout = el("div", "community-callout");
         callout.dataset["tone"] = "danger";
@@ -852,6 +854,7 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
       }
 
       const blocked = preview.problems.length > 0 || preview.secrets.length > 0;
+      deps.track(blocked ? (preview.secrets.length > 0 ? "share_stopped_secrets" : "share_stopped_too_big") : "share_dialog_shown");
       const form = el("form", "form-dialog-form");
       const titleInput = el("input", "form-input");
       titleInput.required = true; titleInput.minLength = 3; titleInput.maxLength = 80;
@@ -891,6 +894,7 @@ export function createArtifactsPage(deps: ArtifactsPageDeps): ArtifactsPage {
       submit.type = "submit";
       submit.disabled = blocked;
       buttons.append(button("Cancel", "confirm-cancel", () => {
+        deps.track("share_dialog_cancelled");
         finish();
         if (together) setOutcome({ tone: "info", message: "Nothing was shared. Press Start working together whenever you are ready." });
       }), submit);

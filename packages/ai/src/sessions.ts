@@ -21,6 +21,29 @@ export interface ChatMessage {
   readonly at: number;
   /** Opaque included-AI request ID for voluntary feedback, never sent as model context. */
   readonly includedRequestId?: string;
+  /**
+   * In a team chat, who wrote it (a person) or who asked for it (an AI reply). Absent in a
+   * solo chat, where every user message is the person at the keyboard.
+   */
+  readonly author?: ChatAuthor;
+  /** In a team chat, the message's number in the shared session, so it is merged once. */
+  readonly seq?: number;
+}
+
+export interface ChatAuthor {
+  readonly id: string;
+  readonly name: string;
+  /** The signed-in person on this computer. */
+  readonly self: boolean;
+}
+
+/** A chat that is the local side of a shared project's session (Team). */
+export interface ChatTeamLink {
+  readonly projectId: string;
+  readonly sessionId: string;
+  readonly projectName: string;
+  /** Whether a message sent here asks the AI as well as the team. */
+  readonly aiReplies: boolean;
 }
 
 export interface ChatSession {
@@ -48,6 +71,8 @@ export interface ChatSession {
   readonly forkedAt?: number;
   /** The part the parent gave this fork, carried into its briefing. */
   readonly forkTask?: string;
+  /** Set when this chat is a team chat: the shared session it mirrors. */
+  readonly team?: ChatTeamLink;
 }
 
 export interface ChatSummary {
@@ -156,8 +181,12 @@ export function validateSession(raw: unknown): ChatSession | null {
 
       const at = message["at"];
       const requestId = message["includedRequestId"];
+      const author = validateAuthor(message["author"]);
+      const seq = message["seq"];
       messages.push({ role, text, at: typeof at === "number" ? at : 0,
-        ...(role === "assistant" && typeof requestId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId) ? { includedRequestId: requestId } : {}) });
+        ...(role === "assistant" && typeof requestId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId) ? { includedRequestId: requestId } : {}),
+        ...(author === null ? {} : { author }),
+        ...(typeof seq === "number" && Number.isSafeInteger(seq) && seq > 0 ? { seq } : {}) });
     }
   }
 
@@ -179,7 +208,25 @@ export function validateSession(raw: unknown): ChatSession | null {
     ...(typeof parentId === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(parentId) ? { parentId } : {}),
     ...(typeof forkedAt === "number" && Number.isFinite(forkedAt) && forkedAt >= 0 ? { forkedAt } : {}),
     ...(typeof forkTask === "string" && forkTask.trim().length > 0 ? { forkTask: forkTask.slice(0, 2_000) } : {}),
+    ...(validateTeam(record["team"]) ?? {}),
   };
+}
+
+function validateAuthor(raw: unknown): ChatAuthor | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const record = raw as Record<string, unknown>;
+  const id = record["id"], name = record["name"];
+  if (typeof id !== "string" || id.length === 0 || id.length > 128 || typeof name !== "string" || name.trim().length === 0) return null;
+  return { id, name: name.trim().slice(0, 80), self: record["self"] === true };
+}
+
+function validateTeam(raw: unknown): { team: ChatTeamLink } | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const record = raw as Record<string, unknown>;
+  const projectId = record["projectId"], sessionId = record["sessionId"], projectName = record["projectName"];
+  if (typeof projectId !== "string" || !/^[a-f0-9]{64}$/.test(projectId)) return null;
+  if (typeof sessionId !== "string" || !/^[A-Za-z0-9_-]{1,80}$/.test(sessionId)) return null;
+  return { team: { projectId, sessionId, projectName: typeof projectName === "string" ? projectName.slice(0, 120) : "Team", aiReplies: record["aiReplies"] !== false } };
 }
 
 /** A summary that points past the transcript, or says nothing, is worth less than none. */
@@ -227,8 +274,9 @@ export function restoreHistory(session: ChatSession): Message[] {
   const summary = session.summary ?? null;
   const rest = session.messages.slice(summary?.coversUntil ?? 0);
   const history: Message[] = [];
-  for (const message of rest) {
-    if (message.text.trim().length === 0) continue;
+  for (const original of rest) {
+    if (original.text.trim().length === 0) continue;
+    const message = original.role === "user" && original.author !== undefined ? { ...original, text: `${original.author.name}: ${original.text}` } : original;
     const last = history[history.length - 1];
     if (last === undefined && message.role === "assistant" && summary === null) continue;
     if (last !== undefined && last.role === message.role) {

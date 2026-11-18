@@ -336,6 +336,26 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("ai.toggle", "Open Assistant"), command("ai.newConversation", "New conversation")],
     keywords: ["chat history", "conversation", "memory", "new chat", "ctrl+shift+n", "start over"],
   },
+  "workbench.agentFlow": {
+    added: "2026-11-17",
+    actions: [command("agents.flow", "Open Agent flow")],
+    keywords: ["agent flow", "flow", "workflow", "agent graph", "node editor", "n8n", "connect agents", "multi-agent", "team of agents", "thinker", "coder agent", "reviewer agent", "orchestrator", "hand off", "handoff", "pipeline", "50 agents", "share setup", "agent link", "drag and drop agents", "canvas"],
+  },
+  "workbench.mods": {
+    added: "2026-11-17",
+    actions: [command("mods.open", "Ask the chat to customise ADCode")],
+    keywords: ["mods", "mod", "customise", "customize", "make it look", "theme by chatting", "change the app", "personalise", "personalize", "custom theme", "custom command", "status bar clock", "by describing", "ai theme", "tweak the ui"],
+  },
+  "workbench.soloTeam": {
+    added: "2026-11-17",
+    actions: [command("collab.teamArea", "Show Team sessions"), command("collab.soloArea", "Back to Solo")],
+    keywords: ["team", "solo", "team area", "shared sessions", "shared project chats", "team chats", "private chats", "workspace switch", "my chats", "team conversations"],
+  },
+  "ai.sortConversations": {
+    added: "2026-11-17",
+    actions: [command("chat.sortConversations", "Sort conversations")],
+    keywords: ["sort chats", "sort conversations", "sort sessions", "order chats", "pin chat", "pinned", "oldest first", "by name", "alphabetical", "most messages", "organise chats", "organize sessions"],
+  },
   "workbench.agentsBoard": {
     actions: [command("agents.open", "Open Agents"), command("agents.newTask", "New task")],
     keywords: ["agents", "agent board", "parallel agents", "background agents", "multiple agents", "run in background", "kanban", "boxes", "tasks", "ai tasks", "queued", "needs you", "ready to review", "apply and continue", "cost cap", "starter agents", "reviewer", "tester", "bug fixer", "like cursor agents", "like devin"],

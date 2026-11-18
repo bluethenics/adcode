@@ -39,6 +39,7 @@ import { AGENT_PROFILES_SETTING, parseAgentProfiles, type AgentProfile } from ".
 import { askThemed } from "../dialogs/confirmDialog.ts";
 import { button, el, field, openFormModal } from "../dialogs/formDialog.ts";
 import { createIcon, ICON, iconButton } from "../workbench/icons.ts";
+import { enhanceSelect } from "../workbench/selectMenu.ts";
 import { BUILT_IN_TOOLS_INFO, type BuiltInToolGroup } from "./builtInTools.ts";
 import { explainMcpError, freeServerId, matchesQuery, mcpUrlProblem, serverIdFromName, serverSummary, toolUsers } from "./toolsModel.ts";
 import { indexForStagger, markFor } from "../motionFlip.ts";
@@ -494,6 +495,8 @@ export function createToolsPage(deps: ToolsPageDeps): ToolsPage {
     const add = button("New skill", "agents-primary", () => openNewSkill());
     add.prepend(createIcon(ICON.plus));
     bar.append(scope, order, add);
+    enhanceSelect(scope, { search: false });
+    enhanceSelect(order, { search: false });
     panel.replaceChildren(bar);
     const everySkill = controls?.skills ?? [];
     // Where they came from, as chips: one press narrows the list, and a whole tool's skills go on or off at once.

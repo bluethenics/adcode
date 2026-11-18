@@ -186,3 +186,43 @@ it("tells the chat when a credit limit lifts, separately from the sooner re-chec
   const limited=(await second).find(event=>event.kind==="status"&&event.limit!==undefined);
   expect(limited&&limited.kind==="status"&&limited.limit).toMatchObject({reason:"rate",resumeAt:limited&&limited.kind==="status"?limited.limit!.recheckAt:0});
 });
+
+it("sends a request that stays silent past the first-answer deadline to the fallback", async () => {
+  vi.useFakeTimers(); vi.setSystemTime(0); const seen: string[] = [];
+  const provider: Provider = { id: "tagflow", displayName: "Included AI", models: [], async *stream(input, signal) {
+    seen.push(input.model);
+    if (input.model === "slow") {
+      await new Promise<void>((_, reject) => signal.addEventListener("abort", () => reject(signal.reason), { once: true }));
+    }
+    yield { kind: "text", text: "Fast answer" }; yield { kind: "stop", reason: "end-turn" };
+  } };
+  const recovering = recoverIncludedLimits(provider, { firstAnswerMs: 1000, fallback: (failed) => failed === "slow" ? { id: "fast", name: "Flash" } : null });
+  const slowRequest = { ...request, model: "slow" };
+  const events: ProviderEvent[] = [];
+  const run = (async () => { for await (const event of recovering.stream(slowRequest, new AbortController().signal)) events.push(event); })();
+  await vi.advanceTimersByTimeAsync(1500);
+  await run;
+  expect(seen).toEqual(["slow", "fast"]);
+  expect(events.some(event => event.kind === "status" && event.text.includes("switched to Flash"))).toBe(true);
+  expect(events.filter(event => event.kind === "text")).toEqual([{ kind: "text", text: "Fast answer" }]);
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it("keeps waiting on a slow model that has started thinking, and on one with no fallback", async () => {
+  vi.useFakeTimers(); vi.setSystemTime(0); let calls = 0;
+  const thinking: Provider = { id: "tagflow", displayName: "Included AI", models: [], async *stream() {
+    calls++;
+    yield { kind: "thinking", text: "Planning" };
+    await new Promise<void>((resolve) => setTimeout(resolve, 5000));
+    yield { kind: "text", text: "Done" }; yield { kind: "stop", reason: "end-turn" };
+  } };
+  const result = collect(recoverIncludedLimits(thinking, { firstAnswerMs: 1000, fallback: () => ({ id: "other", name: "Other" }) }));
+  await vi.advanceTimersByTimeAsync(6000);
+  expect((await result).filter(event => event.kind === "text")).toEqual([{ kind: "text", text: "Done" }]);
+  expect(calls).toBe(1);
+  const silent: Provider = { ...thinking, async *stream() { calls++; await new Promise<void>((resolve) => setTimeout(resolve, 5000)); yield { kind: "text", text: "Late" }; } };
+  const late = collect(recoverIncludedLimits(silent, { firstAnswerMs: 1000 }));
+  await vi.advanceTimersByTimeAsync(6000);
+  expect((await late).filter(event => event.kind === "text")).toEqual([{ kind: "text", text: "Late" }]);
+  expect(calls).toBe(2);
+});

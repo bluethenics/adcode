@@ -1,0 +1,6 @@
+# Bundles built from adcode-entry.ts and proxy.ts by ../token-benchmark-2026-11-14/build.mjs
+adcode.mjs
+proxy.mjs
+# Run data lives outside the repository (see BENCH_DATA in run.mjs)
+runs*/
+homes/

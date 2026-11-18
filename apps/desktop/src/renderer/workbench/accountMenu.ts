@@ -151,7 +151,9 @@ export function createAccountMenu(
   const planAction = document.createElement("button");
   planAction.type = "button";
   planAction.className = "account-plan-action";
-  planAction.addEventListener("click", () => void window.open(`${BUY_TOKENS_URL}#plans`, "_blank", "noopener"));
+  // A paid plan opens the management box (change, cancel, invoices); a free one the plan list.
+  // Reported 4 and 28 November 2026: people paying weekly could not find how to stop renewing.
+  planAction.addEventListener("click", () => void window.open(`${BUY_TOKENS_URL}${planBox.dataset["plan"] === "free" ? "#plans" : "#manage"}`, "_blank", "noopener"));
   planBox.append(planName, planDetail, planAction);
   let planRequest = 0;
   async function refreshPlan(): Promise<void> {
@@ -167,7 +169,7 @@ export function createAccountMenu(
     planName.textContent = plan === null ? "Free plan" : `${plan} plan`;
     const ends = plan !== null && tokens.plan ? ` · ${tokens.plan.source === "gift" ? "gift ends" : "renews"} ${new Date(tokens.plan.endsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : "";
     planDetail.textContent = `Daily AI credits refill automatically${ends}. Open usage for your current balance. Sponsored Tagflow does not consume credits.`;
-    planAction.textContent = plan === null ? "Upgrade plan" : "Manage plan";
+    planAction.textContent = plan === null ? "Upgrade plan" : "Manage or cancel plan";
   }
 
   const footnote = document.createElement("p");

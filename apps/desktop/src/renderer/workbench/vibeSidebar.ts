@@ -46,6 +46,8 @@ const PATH = {
   tools: "M10.6 2.6a3 3 0 0 0-3.1 3.9l-4.9 4.9 2 2 4.9-4.9a3 3 0 0 0 3.9-3.1l-1.9 1.9-1.8-.2-.2-1.8z",
   // Four blocks, one lifted out: plugins people build and share.
   plugins: "M2.5 8.5h5v5h-5zM8.5 8.5h5v5h-5zM2.5 2.5h5v5h-5zM9.5 1.8l3.7 3.7-3.7 3.7-3.7-3.7z",
+  // Three agents, one handing work to two: the Flow page.
+  flow: "M2 6.5h4v3H2zM10 2.5h4v3h-4zM10 10.5h4v3h-4zM6 8h1.5a1 1 0 0 0 1-1V5a1 1 0 0 1 1-1H10M7.5 8a1 1 0 0 1 1 1v2a1 1 0 0 0 1 1H10",
   // A fork: a project copied, changed, and merged back.
   artifacts: "M4.5 2.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM11.5 2.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM8 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM4.5 5.5v1a2 2 0 0 0 2 2h3a2 2 0 0 0 2-2v-1M8 8.5v2",
   bell: "M8 2a3 3 0 0 0-3 3v2c0 1-.5 2-1.5 3h9C11.5 9 11 8 11 7V5a3 3 0 0 0-3-3zM6.5 12a1.5 1.5 0 0 0 3 0",
@@ -223,8 +225,7 @@ export function createVibeSidebar(deps: VibeSidebarDeps): VibeSidebar {
    * floating panels over whichever page is showing. */
   const PAGE_DETAIL: Readonly<Record<VibePage, { icon: string; title: string }>> = {
     chat: { icon: PATH.chat, title: "The conversation with the assistant" },
-    agents: { icon: PATH.agents, title: "Agents working in parallel, and your saved agents" },
-    tools: { icon: PATH.tools, title: "Built-in tools, MCP servers, skills and project memory" },
+    agents: { icon: PATH.agents, title: "Agents: runs working in parallel, the flow that connects them, and their tools" },
     plugins: { icon: PATH.plugins, title: "Plugins: add AI actions, chat commands, add-ons and themes, or build your own" },
     artifacts: { icon: PATH.artifacts, title: "Artifacts: share a project, remix others, send and review improvements" },
   };

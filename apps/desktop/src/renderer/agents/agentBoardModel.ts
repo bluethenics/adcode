@@ -395,3 +395,30 @@ export function boardSummary(board: Board): string {
   if (micros > 0) parts.push(`${formatCost(micros)} today`);
   return parts.length === 0 ? "Nothing running" : parts.join(" · ");
 }
+
+export type BadgeTone = "working" | "attention" | "ready" | "done" | "quiet";
+
+/**
+ * The status chip at the top of a box: a word and a tone, so the state reads without colour
+ * (a status card must stay legible to somebody who cannot tell the tones apart) and at a glance
+ * on a busy board. Redesigned 17 November 2026 after the row anatomy of issue trackers such as
+ * Linear: one status mark, the title, then quiet metadata.
+ */
+export function statusBadge(status: BoxStatus): { readonly label: string; readonly tone: BadgeTone } {
+  switch (status) {
+    case "running": return { label: "Working", tone: "working" };
+    case "merging": return { label: "Combining", tone: "working" };
+    case "queued": return { label: "Queued", tone: "quiet" };
+    case "configured": return { label: "Ready to start", tone: "attention" };
+    case "conflict": return { label: "Clash", tone: "attention" };
+    case "failed": return { label: "Failed", tone: "attention" };
+    case "budget": return { label: "Cap reached", tone: "attention" };
+    case "paused": return { label: "Paused", tone: "attention" };
+    case "ready": return { label: "Ready to review", tone: "ready" };
+    case "applied": return { label: "Applied", tone: "done" };
+    case "completed": return { label: "Done", tone: "done" };
+    case "cancelled": return { label: "Stopped", tone: "quiet" };
+    case "discarded": return { label: "Discarded", tone: "quiet" };
+    case "rolled-back": return { label: "Undone", tone: "quiet" };
+  }
+}

@@ -1049,6 +1049,17 @@ How to use it: Type / at the start of the composer to list every command; keep t
 
 Access: `All Features → Slash commands and @ files`; `Show commands`; `Add a file`.
 
+<!-- feature:ai.sortConversations -->
+### Sort and pin conversations
+
+Order your conversation list by recent activity, newest or oldest first, name, or length, and pin the chats you keep coming back to at the top.
+
+Why use it: Recent activity is the right order for the chat you had this morning and the wrong one for everything else: the long conversation with the decisions in it, the oldest task still open, the one whose name you remember. Pinning keeps the few that matter in one place however the rest are sorted.
+
+How to use it: In the conversation list, choose an order from the menu beside Search conversations: Recent activity (grouped by Today, Yesterday and so on), Newest first, Oldest first, Name (A-Z) or Most messages. The choice is remembered. To pin a chat, open its ... menu and choose Pin to top; pinned chats sit under Pinned, newest pin first, and Unpin puts one back.
+
+Access: `All Features → Sort and pin conversations`; `Sort conversations`.
+
 <!-- feature:ai.skillOrder -->
 ### Sort, pin and group skills
 
@@ -1330,6 +1341,17 @@ How to use it: Open Plugins › Discover and choose Add-ons, or install one from
 
 Access: `All Features → Add-ons`; `Browse add-ons`.
 
+<!-- feature:workbench.agentFlow -->
+### Agent flow
+
+Draw a team of up to 50 AI agents - a Thinker, a Coder, a Reviewer, a Tester, or your own - connect them, and every chat you choose works through them: a coding task goes to the Coder, its work goes to the Reviewer, and so on.
+
+Why use it: One model doing everything plans, types and checks its own work in a single pass, and the person paying for a strong thinking model pays its price for every line it types. A flow splits the work the way a team would: the chat thinks, a cheaper or faster model can do the coding, and a read-only reviewer checks the result before you see it. Drawing it as a graph makes the hand-offs obvious, and because a flow is just a link, a setup that works can be shared with a teammate in one paste.
+
+How to use it: Open Agents on the Vibe window's rail and choose the Flow tab, or run Agents: Agent Flow from the command palette (in the IDE window the Agents page opens as a large popup). The first flow is ready to edit: Thinker, Coder, Reviewer, Tester and Researcher. The agent with the lightning mark is the chat itself - every message reaches it first. Drag an agent from Add an agent onto the canvas, or click one to drop it in the middle; drag a node to move it; drag from a node's right-hand dot to another node to connect them; scroll to zoom and drag the background to pan. Click a node to edit its name, role, shape, colour, the kinds of work it takes over (Coding, Bug fixing, Testing and more), its model (the chat's model, or any model you connected) and its instructions; tick Read-only for an agent that should only report. Click a link to make it a hand-off, a review or a question, or to remove it. Try it shows who takes a message over: type one and press play, and the path lights up. Flows start Off. Turn one On, then choose Every chat or Chosen chats; the switch says which, and the Flow tab shows On while one runs. Copy link puts the whole flow on the clipboard; Import (the link icon) adds a flow someone shared with you, switched off until you turn it on. A flow holds up to 50 agents, and you can keep up to 20 flows.
+
+Access: `All Features → Agent flow`; `Open Agent flow`; `Settings`.
+
 <!-- feature:workbench.agentsBoard -->
 ### Agents board
 
@@ -1337,7 +1359,7 @@ Hand tasks to AI agents that work at the same time, each in its own copy of your
 
 Why use it: One assistant doing one thing at a time keeps you waiting. Several agents can fix a bug, write tests and polish a page at once while you keep chatting, and each box shows at a glance which one is busy, which one needs you and which one is done - no scrolling back through a transcript to find out.
 
-How to use it: Choose Agents on the Vibe window's rail, or Open Agents from the command palette (in the IDE window it opens as a large popup). Press New task, describe what you want, pick an agent - or keep the default, your connected model with every tool - and optionally a cost cap, then press Enter. The task appears as a box under Working with its agent's mascot, what it is doing right now (such as Editing src/app.ts), how long it has run, the files it touched, its tokens and - when the model's price is known - its cost. Start as many as you like: the number working at once follows Agents working at once in Settings, and the rest wait as Queued. Each agent works in an isolated copy, so nothing reaches your project until it finishes. With Apply automatically on, finished work lands straight away and its box offers Undo and Continue; with Review every change it waits under Ready with Review, Apply, Apply & continue and Discard. Needs you collects anything that cannot go on without you: a clash with your own edits (Resolve), an error (Run again, or Open in chat to talk it through), a spent cost cap (Run with a higher cap) and runs paused when ADCode closed (Resume). Every finished box shows its proof of work: the tests, type checks and linters the agent actually ran, with a tick or a cross, and warnings about its change - a possible secret, sign-in or payment code, removed tests, new dependencies or a very large change. With Apply automatically on, a run with a failed check or a possible secret is held under Ready for you to look at instead of applied. If an agent keeps trying the same failing thing, ADCode stops it and the box offers Try another way. When two agents edit the same file, both boxes warn you before their work collides. A cost cap set on a task, or a usual cap saved on the agent, shows as spend against the cap, and the header shows your ad earnings beside today's agent spend. Select a box to see what it reported, the files it changed, its proof of work and every step it took. Today's finished runs fold under Finished today. Your agents lists saved specialists - Run gives one a task, Edit changes its name, look, instructions, model and the tools it may use, Duplicate copies it, and New agent adds one. Five starter agents are added the first time. Select for a Team picks two to four agents to split one task; press Start on its box to begin.
+How to use it: Choose Agents on the Vibe window's rail, or Open Agents from the command palette (in the IDE window it opens as a large popup). The page has three tabs - Runs (this board), Flow and Tools - and remembers the one you used last; the Runs tab shows how many runs are working. Press New task, describe what you want, pick an agent - or keep the default, your connected model with every tool - and optionally a cost cap, then press Enter. The task appears as a box under Working with its agent's mascot, what it is doing right now (such as Editing src/app.ts), how long it has run, the files it touched, its tokens and - when the model's price is known - its cost. Start as many as you like: the number working at once follows Agents working at once in Settings, and the rest wait as Queued. Each agent works in an isolated copy, so nothing reaches your project until it finishes. With Apply automatically on, finished work lands straight away and its box offers Undo and Continue; with Review every change it waits under Ready with Review, Apply, Apply & continue and Discard. Needs you collects anything that cannot go on without you: a clash with your own edits (Resolve), an error (Run again, or Open in chat to talk it through), a spent cost cap (Run with a higher cap) and runs paused when ADCode closed (Resume). Every finished box shows its proof of work: the tests, type checks and linters the agent actually ran, with a tick or a cross, and warnings about its change - a possible secret, sign-in or payment code, removed tests, new dependencies or a very large change. With Apply automatically on, a run with a failed check or a possible secret is held under Ready for you to look at instead of applied. If an agent keeps trying the same failing thing, ADCode stops it and the box offers Try another way. When two agents edit the same file, both boxes warn you before their work collides. A cost cap set on a task, or a usual cap saved on the agent, shows as spend against the cap, and the header shows your ad earnings beside today's agent spend. Select a box to see what it reported, the files it changed, its proof of work and every step it took. Today's finished runs fold under Finished today. Your agents lists saved specialists - Run gives one a task, Edit changes its name, look, instructions, model and the tools it may use, Duplicate copies it, and New agent adds one. Five starter agents are added the first time. Select for a Team picks two to four agents to split one task; press Start on its box to begin.
 
 Access: `All Features → Agents board`; `Open Agents`; `New task`.
 
@@ -1495,6 +1517,17 @@ How to use it: Open a HTML file and start the preview. It reloads itself when yo
 
 Access: `All Features → Live preview`; `Open`; `Reload`; `Maximise or restore`; `Switch project or files`; `Another screen size`; `Inspect element size and spacing`.
 
+<!-- feature:workbench.mods -->
+### Mods
+
+Ask the assistant in any chat to change ADCode itself - a theme, a chat command, a small panel in the status bar or sidebar, a command palette action - and it builds a mod, shows you what it changes, and applies it once you say yes.
+
+Why use it: Customising an editor usually means finding the right setting or learning an extension API. Most people know what they want - warmer colours, a /standup command, a timer beside their code - and not where it lives. Asking in the chat you already have turns the sentence into the change, and because a mod is an ordinary ADCode plugin underneath, it can only do what a plugin can: it cannot touch your models, keys, ads or permissions.
+
+How to use it: In any chat, ask for the change: "give ADCode a warm paper theme with a terracotta accent", "add a /standup command that summarises yesterday's commits", "put a clock in the status bar". The command palette's Mods: Customise ADCode by Asking the Chat starts the message for you. The assistant writes the mod and ADCode asks you to confirm, listing every change; Apply mod turns it on at once. To adjust it, say so - "make the accent darker" - and the assistant updates the same mod (you confirm again). Ask it to list your mods, switch one off or on, or remove one, and ADCode goes back to how it was. Applied mods also appear under Plugins, Installed, where you can switch them off by hand.
+
+Access: `All Features → Mods`; `Ask the chat to customise ADCode`.
+
 <!-- feature:workbench.newProject -->
 ### New project from an idea
 
@@ -1583,6 +1616,17 @@ How to use it: Open Plugins › Studio and find Sell your plugins at the bottom 
 
 Access: `All Features → Sell your plugins (coming soon)`; `Join the waitlist`.
 
+<!-- feature:workbench.soloTeam -->
+### Solo and Team
+
+A switch above your conversations: Solo is your own chats with the AI; Team is a group chat per shared project, in the same chat as Solo, where everyone talks and builds with the AI together.
+
+Why use it: Your private chats and your team's conversations are different places. Mixing them in one list means hunting for the team's thread, or worrying that a private chat is visible. In Team, everyone reads the same chat and the same AI answers, so nobody pastes chat logs into a messenger - and Solo stays yours alone, exactly as you left it.
+
+How to use it: On the Vibe window's sidebar, use the Solo / Team switch above Conversations (or run Team: Show Shared Project Sessions and Solo: Show My Own Conversations from the command palette). Team needs you to be signed in. The first time, Team offers two ways in: Share this project turns the open GitHub project into a team project, and Join with an invite takes the invite a teammate sent you. Your team projects are listed in the sidebar with their chats; press + beside a project to start a chat and name it. A team chat opens in the normal chat, with a strip above it for the chat's people, Invite, AI replies and the ... menu; every message is labelled with who wrote it. With AI replies on (the strip's switch), or any message that starts with @ai, the AI works on it right there - reading files, editing, running commands, with its build cards - on the computer of the person who asked, and its answer goes to everyone with who asked; with AI replies off, messages go to the people only. Teammates' new messages appear within a few seconds. Invite copies the invite link; the ... menu lists the people, starts editing files together live, replaces the invite or archives the project (owner), or leaves it.
+
+Access: `All Features → Solo and Team`; `Show Team sessions`; `Back to Solo`.
+
 <!-- feature:structure.popup -->
 ### Structure
 
@@ -1612,7 +1656,7 @@ Everything the assistant and your agents can use, as cards: ADCode's own tools, 
 
 Why use it: Agents are who; tools are what. Seeing which agent may use which tool, why a server is not working and what the assistant remembers - in one place - beats hunting through settings and config files. Connectors you already set up in Claude, Cursor, Windsurf or VS Code are read where they live, never moved or changed.
 
-How to use it: Choose Tools on the Vibe window's rail, or Open Tools from the command palette. Built-in lists ADCode's tools in plain words, grouped by what they do, and says which agents may use each one. Connectors shows each one with a badge saying what it is - MCP, Extension, Plugin or Actions - a health light, its tools and uses, and, when something is wrong, what to do about it; Tools on a connected server turns individual tools on or off, and Retry reconnects. Add custom connector on the Connectors tab saves a server by name and URL and tries to connect it; Add connector offers four ways in: Catalogue for servers that work in one click, such as Playwright for testing pages in a real browser, Context7 for current library docs and Roblox Studio for working in the place you have open; Import scans what Claude Desktop, Claude Code, Cursor, Windsurf and VS Code already have; From a file reads a config file, an OpenAPI description, a chat-plugin manifest, a .mcpb extension or a plugin folder, or takes a link or pasted text; Custom connector is the same form, with a local command, SSE and credentials under Advanced. On the web, Import scans only the private cloud workspace, not apps on your computer; Link or text accepts a link, pasted config or a path to a file or plugin folder already in that workspace. What is found waits as a dashed card; nothing is installed until you press Add, and the Add dialog asks for any values it needs and keeps them in the encrypted store on your computer or in your private cloud workspace. Extensions and plugins are copied into ADCode's own folder - hooks are copied but never run - and Remove deletes those files with the connector. Skills turns written routines on or off, previews them, and creates new ones. Memory shows what the assistant has learned. Search filters every tab at once.
+How to use it: Open Agents on the Vibe window's rail and choose the Tools tab, or Open Tools from the command palette. Built-in lists ADCode's tools in plain words, grouped by what they do, and says which agents may use each one. Connectors shows each one with a badge saying what it is - MCP, Extension, Plugin or Actions - a health light, its tools and uses, and, when something is wrong, what to do about it; Tools on a connected server turns individual tools on or off, and Retry reconnects. Add custom connector on the Connectors tab saves a server by name and URL and tries to connect it; Add connector offers four ways in: Catalogue for servers that work in one click, such as Playwright for testing pages in a real browser, Context7 for current library docs and Roblox Studio for working in the place you have open; Import scans what Claude Desktop, Claude Code, Cursor, Windsurf and VS Code already have; From a file reads a config file, an OpenAPI description, a chat-plugin manifest, a .mcpb extension or a plugin folder, or takes a link or pasted text; Custom connector is the same form, with a local command, SSE and credentials under Advanced. On the web, Import scans only the private cloud workspace, not apps on your computer; Link or text accepts a link, pasted config or a path to a file or plugin folder already in that workspace. What is found waits as a dashed card; nothing is installed until you press Add, and the Add dialog asks for any values it needs and keeps them in the encrypted store on your computer or in your private cloud workspace. Extensions and plugins are copied into ADCode's own folder - hooks are copied but never run - and Remove deletes those files with the connector. Skills turns written routines on or off, previews them, and creates new ones. Memory shows what the assistant has learned. Search filters every tab at once.
 
 Access: `All Features → Tools page`; `Open Tools`; `Add a connector`; `Connectors`; `Skills`.
 

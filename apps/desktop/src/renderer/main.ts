@@ -41,6 +41,11 @@ import "./styles/vibeWorkspace.css";
 import "./styles/chatPreview.css";
 import "./styles/professionalShell.css";
 import "./styles/vibeSidebar.css";
+import "./styles/team.css";
+import "./styles/workArea.css";
+import "./styles/flow.css";
+import "./styles/agentsHub.css";
+import "./styles/selectMenu.css";
 import "./styles/licences.css";
 import "./styles/floatingPanel.css";
 import "./styles/agents.css";
@@ -152,6 +157,8 @@ import { createEarningsPopover } from "./panels/earningsPopover.ts";
 import { createInvitePanel } from "./invite/invitePanel.ts";
 import { createCollabPanel } from "./collab/collabPanel.ts";
 import { createProjectsPanel } from "./collab/projectsPanel.ts";
+import { createSharedWorkspacePanel } from "./collab/sharedWorkspacePanel.ts";
+import { createWorkAreaSwitch, readWorkArea, storeWorkArea, type WorkArea } from "./collab/workArea.ts";
 import "./styles/projects.css";
 import "./styles/accountJourney.css";
 import { createCollabSession } from "./collab/collabSession.ts";
@@ -180,6 +187,8 @@ import type { InstalledPluginView } from "../shared/community.ts";
 import { createAssistantDock } from "./workbench/assistantDock.ts";
 import { createFloatingPanel, resetAllFloatingPanels } from "./workbench/floatingPanel.ts";
 import { createAgentsPage } from "./agents/agentsPage.ts";
+import { createFlowCanvas } from "./agents/flowCanvas.ts";
+import { createAgentsHub, type AgentsHubTab } from "./agents/agentsHub.ts";
 import { createToolsPage, type ToolsTab } from "./tools/toolsPage.ts";
 import { createProjectContext } from "./workbench/projectContext.ts";
 import { createConnectView } from "./ai/connectView.ts";
@@ -4895,6 +4904,20 @@ const agentsPage = createAgentsPage({
   askText: (title, body, value) => promptDialog.ask({ title, body, value, confirmLabel: "Run again" }),
   onEarnings: (listener) => { window.adcode.ads.onEarnings((snapshot) => listener(snapshot.hasServerBalance ? snapshot.availableLabel : "")); },
 });
+/* The Tools view: built-in tools, MCP servers, skills and project memory. */
+const toolsPage = createToolsPage({ copy: (text) => copyText(text, "Copied the memory sharing command.") });
+/* The Flow view: agents drawn as a connected team that works on the chats you choose. */
+const flowCanvas = createFlowCanvas({
+  prompt: (title, body, value) => promptDialog.ask({ title, body, value }),
+  confirm: (title, body, confirmLabel) => confirmDialog.ask({ title, body, confirmLabel }),
+  showChat: () => showChatSurface(),
+});
+/*
+ * One Agents page for the three (asked for 18 November 2026): Runs, Flow and Tools as tabs. A
+ * Vibe page, or a large popup in the IDE window. Every older command lands on its tab.
+ */
+const agentsHub = createAgentsHub({ runs: agentsPage, flow: flowCanvas, tools: toolsPage });
+agentsHub.onChange((tab) => window.adcode.usageStats.record(`page:agents-${tab}`));
 const agentsShell = windowIsIde
   ? createPopupShell({
     id: "agents",
@@ -4902,32 +4925,44 @@ const agentsShell = windowIsIde
     size: "workspace",
     modal: true,
     host: popupPrimaryHost,
-    content: agentsPage.element,
-    initialFocus: () => agentsPage.element.querySelector<HTMLElement>(".agents-primary"),
+    content: agentsHub.element,
+    initialFocus: () => agentsHub.element.querySelector<HTMLElement>(".agents-hub-tab[aria-selected='true']"),
     onRequestClose: () => closePrimaryPopup("agents"),
   })
   : null;
-if (agentsShell !== null) registerPrimaryPopup("agents", agentsShell, agentsPage);
-function openAgents(): void {
+if (agentsShell !== null) registerPrimaryPopup("agents", agentsShell, agentsHub);
+function openAgents(tab?: AgentsHubTab): void {
+  if (tab !== undefined) agentsHub.show(tab);
   if (!windowIsIde && assistantDock !== undefined) { assistantDock.showPage("agents"); return; }
   if (agentsShell !== null) openPrimaryPopup("agents", agentsShell, document.querySelector<HTMLElement>(".project-tools") ?? chatLauncher, "keyboard");
 }
-
-/* The Tools page: built-in tools, MCP servers, skills and project memory. Same two homes. */
-const toolsPage = createToolsPage({ copy: (text) => copyText(text, "Copied the memory sharing command.") });
-const toolsShell = windowIsIde
-  ? createPopupShell({
-    id: "tools",
-    title: "Tools",
-    size: "workspace",
-    modal: true,
-    host: popupPrimaryHost,
-    content: toolsPage.element,
-    initialFocus: () => toolsPage.element.querySelector<HTMLElement>(".tools-search"),
-    onRequestClose: () => closePrimaryPopup("tools"),
-  })
-  : null;
-if (toolsShell !== null) registerPrimaryPopup("tools", toolsShell, toolsPage);
+function openFlow(): void {
+  openAgents("flow");
+}
+// Live hints on the tabs: how many runs are working, and whether a flow is on.
+{
+  const summary = agentsPage.element.querySelector<HTMLElement>(".agents-summary");
+  const paintRuns = (): void => {
+    const working = /^(\d+) working/i.exec(summary?.textContent ?? "")?.[1];
+    agentsHub.setHint("runs", working === undefined ? "" : `${working} working`, "busy");
+  };
+  if (summary !== null) new MutationObserver(paintRuns).observe(summary, { childList: true, characterData: true, subtree: true });
+  const paintFlow = (values: Record<string, boolean | string>): void => {
+    const on = /"enabled":true/.test(String(values["adcode.ai.agentFlows"] ?? ""));
+    agentsHub.setHint("flow", on ? "On" : "", "on");
+  };
+  void window.adcode.settings.read().then(paintFlow).catch(() => undefined);
+  window.adcode.settings.onChanged(paintFlow);
+}
+/*
+ * Mods live in the chat: asking the assistant to change ADCode (a theme, a command, an add-on)
+ * applies a mod through its customize_adcode tool. This only starts that conversation.
+ */
+function openMods(): void {
+  showChatSurface();
+  chat.draft("Change ADCode for me: ");
+  window.adcode.usageStats.record("event:mods_started");
+}
 
 /*
  * Plugins and Artifacts: two pages with the same two homes as Tools - a Vibe page, or a large
@@ -5154,8 +5189,7 @@ setTimeout(() => void window.adcode.community.checkUpdates().catch(() => {}), 25
 
 function openTools(tab?: ToolsTab): void {
   if (tab !== undefined) toolsPage.showTab(tab);
-  if (!windowIsIde && assistantDock !== undefined) { assistantDock.showPage("tools"); return; }
-  if (toolsShell !== null) openPrimaryPopup("tools", toolsShell, document.querySelector<HTMLElement>(".project-tools") ?? chatLauncher, "keyboard");
+  openAgents("tools");
 }
 
 const chatLauncher = el<HTMLButtonElement>("ai-toggle");
@@ -5554,10 +5588,11 @@ el("open-projects").hidden = true;
  */
 let collabMode = "off";
 function openShare(): void {
+  window.adcode.usageStats.record("event:share_chooser_opened");
   openShareChooser({
-    sendCopy: () => { openArtifacts("project"); artifactsPage.shareProject(); },
-    workLive: () => { openArtifacts("discover"); artifactsPage.workTogether(); },
-    join: () => { openArtifacts("discover"); artifactsPage.focusJoin(); },
+    sendCopy: () => { window.adcode.usageStats.record("event:share_chose_copy"); openArtifacts("project"); artifactsPage.shareProject(); },
+    workLive: () => { window.adcode.usageStats.record("event:share_chose_live"); openArtifacts("discover"); artifactsPage.workTogether(); },
+    join: () => { window.adcode.usageStats.record("event:share_chose_join"); openArtifacts("discover"); artifactsPage.focusJoin(); },
   });
 }
 el("status-collab").addEventListener("click", () => {
@@ -6344,6 +6379,14 @@ function registerCommands(): void {
   add("ai.askMockup", "Ask the Assistant for a Mockup", () => { showChatSurface(); chat.draft("Sketch a mockup of "); });
   add("tools.sortSkills", "Tools: Sort, Pin and Group Skills", () => openTools("skills"));
   add("collab.liveRoom", "Live Room: Who Is Online and Room Chat", () => { showChatSurface(); chat.toggleLiveRoom(); });
+  add("collab.teamArea", "Team: Show Shared Project Sessions", () => switchWorkArea("team"));
+  add("collab.soloArea", "Solo: Show My Own Conversations", () => switchWorkArea("solo"));
+  add("chat.sortConversations", "Conversations: Sort and Pin", () => {
+    if (workAreaSwitch.current() === "team") switchWorkArea("solo");
+    showChatSurface();
+    assistantDock?.revealHistory();
+    requestAnimationFrame(() => document.querySelector<HTMLSelectElement>(".vibe-history-host .chat-history-sort, .chat-history-sort")?.focus());
+  });
   // The welcome tour, on demand. It does not yet open by itself: see welcomeTour.ts.
   add("onboarding.tour", "Show the Welcome Tour", () => openWelcomeTour(true, () => undefined));
   add("ai.importChats", "Import Conversations from Claude Code, Codex and OpenCode", () => openMoveInDialog());
@@ -6466,6 +6509,8 @@ function registerCommands(): void {
   });
   add("agents.race", "Agents: Race Several Agents on One Task", () => { openAgents(); agentsPage.newRace(); });
   add("tools.open", "Open Tools", () => openTools());
+  add("agents.flow", "Agents: Agent Flow (Connect a Team of Agents)", () => openFlow());
+  add("mods.open", "Mods: Customise ADCode by Asking the Chat", () => openMods());
   add("tools.servers", "Tools: Connectors", () => openTools("servers"));
   add("tools.skills", "Tools: Skills", () => openTools("skills"));
   add("tools.addServer", "Tools: Add a Connector", () => { openTools("servers"); toolsPage.addServer(); });
@@ -7214,17 +7259,126 @@ assistantDock = createAssistantDock({
 
 // Vibe's Agents page. The IDE window shows the same board in a popup instead (see agentsShell).
 if (!windowIsIde) {
-  assistantDock.pageHost("agents").append(agentsPage.element);
-  assistantDock.pageHost("tools").append(toolsPage.element);
+  assistantDock.pageHost("agents").append(agentsHub.element);
   assistantDock.pageHost("plugins").append(pluginsPage.element);
   assistantDock.pageHost("artifacts").append(artifactsPage.element);
   assistantDock.onPageChange((page) => {
     window.adcode.usageStats.record(`page:${page}`);
-    if (page === "agents") agentsPage.shown(); else agentsPage.hidden();
-    if (page === "tools") toolsPage.shown(); else toolsPage.hidden();
+    if (page === "agents") agentsHub.shown(); else agentsHub.hidden();
     if (page === "plugins") pluginsPage.shown(); else pluginsPage.hidden();
     if (page === "artifacts") artifactsPage.shown(); else artifactsPage.hidden();
   });
+}
+
+/*
+ * Solo and Team. Team shows only the shared projects this account belongs to - their sessions in
+ * the sidebar, the chosen one in the centre - built lazily, so a solo user never polls the
+ * project service. In the IDE window, which has no Vibe sidebar, Team opens as a floating panel.
+ */
+let sharedWorkspace: ReturnType<typeof createSharedWorkspacePanel> | null = null;
+let teamMounted = false;
+const teamHost = document.createElement("div");
+const teamNav = document.createElement("div");
+teamNav.className = "team-area-nav";
+function sharedWorkspaceView(): ReturnType<typeof createSharedWorkspacePanel> {
+  sharedWorkspace ??= createSharedWorkspacePanel({
+    prompt: (title, body, value) => promptDialog.ask({ title, body, value }),
+    confirm: (title, body, confirmLabel) => confirmDialog.ask({ title, body, confirmLabel }),
+    signIn: () => accountMenu.open(),
+    openLocalProjects: () => projectsPanel.open(),
+    // In Vibe a team chat is the real chat: same composer, model, tools and build cards.
+    ...(windowIsIde ? {} : {
+      openChat: async (projectId: string, sessionId: string) => {
+        const opened = await window.adcode.team.open(projectId, sessionId).catch((error: unknown) => {
+          notifications.show({ title: "Team", body: error instanceof Error ? error.message : "That team chat could not open.", autoDismissMs: 8_000 });
+          return null;
+        });
+        if (opened === null) return null;
+        teamChatId = opened.id;
+        mountTeamStrip();
+        // Wait until the chat has drawn it, so Team never shows half a chat.
+        await chat.openConversation(opened.id);
+        scheduleTeamSync();
+        return opened.id;
+      },
+      onModeChange: (mode: "chat" | "opening" | "empty") => {
+        if (mode === "empty") { delete document.body.dataset["teamChat"]; teamChatId = null; }
+        else document.body.dataset["teamChat"] = mode === "chat" ? "open" : "opening";
+      },
+    }),
+  });
+  return sharedWorkspace;
+}
+/** The team chat open in Vibe, and the timer that brings teammates' messages into it. */
+let teamChatId: string | null = null;
+let teamSyncTimer = 0;
+function mountTeamStrip(): void {
+  const strip = sharedWorkspace?.strip;
+  const host = assistantDock?.pageHost("chat");
+  if (strip === undefined || host === undefined || strip.parentElement === host) return;
+  host.prepend(strip);
+}
+function scheduleTeamSync(): void {
+  window.clearTimeout(teamSyncTimer);
+  teamSyncTimer = window.setTimeout(() => { void syncTeamChat(); }, 3000);
+}
+async function syncTeamChat(): Promise<void> {
+  const id = teamChatId;
+  if (id === null || document.body.dataset["workArea"] !== "team") return;
+  if (!document.hidden && !chat.busy().busy) {
+    const { added } = await window.adcode.team.sync(id).catch(() => ({ added: 0 }));
+    // Redraw only between turns, and only the chat still showing.
+    if (added > 0 && teamChatId === id && !chat.busy().busy) await chat.openConversation(id);
+  }
+  if (teamChatId === id) scheduleTeamSync();
+}
+const workAreaSwitch = createWorkAreaSwitch((area) => applyWorkArea(area));
+function applyWorkArea(area: WorkArea): void {
+  document.body.dataset["workArea"] = area;
+  const conversations = document.querySelector<HTMLElement>(".vibe-conversations");
+  if (area === "team") {
+    window.adcode.usageStats.record("page:team");
+    const view = sharedWorkspaceView();
+    if (!windowIsIde && conversations !== null && assistantDock !== undefined) {
+      if (!teamMounted) {
+        teamMounted = true;
+        assistantDock.pageHost("chat").append(teamHost);
+        conversations.append(teamNav);
+        view.mount(teamHost, teamNav, () => assistantDock?.showPage("chat"));
+      }
+      assistantDock.showPage("chat");
+    }
+    view.open();
+  } else {
+    sharedWorkspace?.close();
+    window.clearTimeout(teamSyncTimer);
+    // Leaving Team with a team chat on screen: back to the person's own chat.
+    if (document.body.dataset["teamChat"] !== undefined) {
+      // The team chat stays out of sight until the person's own chat has replaced it.
+      document.body.dataset["teamChat"] = "leaving";
+      teamChatId = null;
+      const done = () => { if (document.body.dataset["teamChat"] === "leaving") delete document.body.dataset["teamChat"]; };
+      void window.adcode.chat.sessions().then(async (list) => {
+        const latest = [...list].filter((one) => one.team === undefined && one.messages.length > 0).sort((a, b) => b.updatedAt - a.updatedAt)[0];
+        if (latest !== undefined) await chat.openConversation(latest.id); else chat.newConversation();
+      }).catch(() => chat.newConversation()).finally(done);
+    }
+  }
+  const label = document.querySelector<HTMLElement>(".vibe-conversations-label");
+  if (label !== null) label.textContent = area === "team" ? "Team chats" : "Conversations";
+}
+function switchWorkArea(area: WorkArea): void {
+  storeWorkArea(area);
+  workAreaSwitch.set(area);
+  applyWorkArea(area);
+}
+if (!windowIsIde) {
+  const conversations = document.querySelector<HTMLElement>(".vibe-conversations");
+  conversations?.prepend(workAreaSwitch.element);
+  // Opening a solo chat from anywhere (a notification, the palette) brings the Solo area back.
+  window.addEventListener("adcode-private-chat", () => { if (workAreaSwitch.current() === "team") switchWorkArea("solo"); });
+  if (readWorkArea() === "team") queueMicrotask(() => applyWorkArea("team"));
+  else document.body.dataset["workArea"] = "solo";
 }
 
 /*

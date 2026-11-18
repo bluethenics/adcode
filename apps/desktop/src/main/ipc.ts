@@ -106,6 +106,10 @@ import {
   aiCancel,
   aiCancelCompletion,
   aiCancelInlineEdit,
+  aiTeamOpen,
+  aiTeamSync,
+  aiTeamSetAi,
+  aiTeamState,
   aiCompletion,
   aiInlineEdit,
   aiReset,
@@ -1185,6 +1189,10 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
     aiInlineEdit(parseAiInlineEditInput(input)),
   );
   ipcMain.on(CHANNELS.aiCancelInlineEdit, () => aiCancelInlineEdit());
+  ipcMain.handle(CHANNELS.teamChatOpen, (_event, projectId: unknown, sessionId: unknown) => aiTeamOpen(projectId, sessionId));
+  ipcMain.handle(CHANNELS.teamChatSync, (_event, chatId: unknown) => aiTeamSync(chatId));
+  ipcMain.handle(CHANNELS.teamChatSetAi, (_event, chatId: unknown, on: unknown) => aiTeamSetAi(chatId, on));
+  ipcMain.handle(CHANNELS.teamChatState, (_event, chatId: unknown) => aiTeamState(chatId));
 
   ipcMain.on(CHANNELS.aiCancel, (_event, sessionId: unknown) => aiCancel(sessionIdFrom(sessionId)));
   ipcMain.on(CHANNELS.aiReset, () => aiReset());

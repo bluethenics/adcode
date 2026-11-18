@@ -3,6 +3,20 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
+## Unreleased
+
+- **A slow model no longer leaves you waiting.** If an included model has not started answering after a minute, the task switches to another included model and says so. Measured over three days, the slowest included model took 37 seconds to start at the median and 4.5 minutes for one request in ten, and a third of its turns were cancelled by the person waiting.
+- **No more "4 chats are already working".** A message sent while every slot is busy waits its turn and starts by itself as soon as one finishes; Stop takes it out of the line.
+- **Agent flow.** A new Flow page: draw a team of up to 50 agents - Thinker, Coder, Reviewer, Tester or your own - connect them, and the chats you choose work through them. Coding goes to the agent that takes coding, its work to the reviewer. Drag to move and connect, click to edit name, role, shape, colour, model and instructions, try a message to see who takes it over, and share the whole setup as a link.
+- **Mods, from the chat.** Ask the assistant to change ADCode itself - a theme, a chat command, a small panel - and it builds a mod, lists what it changes, and applies it once you confirm. Ask again to adjust, switch off or remove it.
+- **Solo and Team.** A switch above your conversations: Team shows only the sessions of the shared projects you belong to, Solo your own chats.
+- **Build with your team in the real chat.** A team chat now opens in the same chat as your own - composer, model picker, tools and build cards - with the people, Invite and AI replies above it. Everyone is named, teammates on the left; with AI replies on (or @ai), the AI builds what was asked right there, and everyone sees the answer and who asked. Teammates' messages arrive within seconds.
+- **Searchable dropdowns.** The menus in Agent flow, Tools, the agent dialogs and the conversation sort are ADCode's own: type to filter long lists like models, grouped by connection, with a tick on the current choice and full keyboard control.
+- **Sort and pin conversations.** Order the list by recent activity, newest, oldest, name or length, and pin the chats you keep coming back to.
+- **A redesigned Agents board.** Each box leads with a status chip and timer, shows what the agent is doing with a moving bar while it works, and keeps edit and delete out of the way until you need them.
+- **Coming back is easier.** The Continue card says why a conversation is worth reopening - it is waiting on your answer, or your last message never got one - and a run of days shows in the greeting.
+- **Cancelling a plan is easy to find.** The account menu's plan button now reads Manage or cancel plan and opens the subscription controls; the support page explains it in English and Russian.
+
 ## 2.6.1 — 2026-11-14
 
 - **The same work for 44% fewer billed tokens.** Every request in a message now keeps the provider's prompt cache: the project context is read once when the message starts instead of changing under the conversation, rarely used tools travel as one line each until the assistant asks for them, and file reads or command output it no longer needs are replaced by a one-line note in batches small enough that the cache still hits. On a measured 23-step task ADCode sends 20% fewer tokens and the provider bills 44% fewer; one message may also run 100 steps instead of 50, so a long task finishes instead of stopping half done. Nothing to switch on.

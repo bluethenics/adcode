@@ -173,6 +173,39 @@ export async function installedAddon(pluginId: string, addonId: string): Promise
 }
 
 /** Recompute the composer's plugin commands and tell every window what is installed. */
+/** Install a manifest written on this computer (the Studio, or the chat's customize_adcode tool). */
+export async function installLocalPlugin(text: unknown): Promise<InstalledPluginView[]> {
+  if (typeof text !== "string") throw new Error("Paste a plugin manifest.");
+  await writePlugin(parsePluginManifest(text, BUILT_IN_SLASH), "local");
+  return publishInstalled();
+}
+
+export async function uninstallPlugin(id: unknown): Promise<InstalledPluginView[]> {
+  const found = (await readInstalled()).find((one) => one.manifest.id === pluginId(id));
+  if (found !== undefined) {
+    if (found.state.enabled) await restoreSettings(found.manifest, found.state);
+    await rm(folderFor(found.manifest.id), { recursive: true, force: true });
+    if (found.state.source === "directory") void request(`/community/plugins/${found.manifest.id}/uninstall`, {}).catch(() => {});
+  }
+  return publishInstalled();
+}
+
+export async function setPluginEnabled(id: unknown, enabled: boolean): Promise<InstalledPluginView[]> {
+  const found = (await readInstalled()).find((one) => one.manifest.id === pluginId(id));
+  if (found === undefined) throw new Error("That plugin is not installed.");
+  if (enabled && !found.state.enabled) await applySettings(found.manifest, found.state);
+  if (!enabled && found.state.enabled) await restoreSettings(found.manifest, found.state);
+  await saveState(found.manifest.id, { ...found.state, enabled });
+  return publishInstalled();
+}
+
+export async function installedPlugins(): Promise<InstalledPluginView[]> {
+  return (await readInstalled()).map(view);
+}
+
+/** The built-in chat commands a plugin may override only on purpose. */
+export const builtInSlashCommands = (): readonly string[] => BUILT_IN_SLASH;
+
 async function publishInstalled(): Promise<InstalledPluginView[]> {
   const installed = await readInstalled();
   setPluginSlashCommands(installed.filter((one) => one.state.enabled).flatMap((one) => {
@@ -490,28 +523,9 @@ export function registerCommunityIpc(): void {
     await saveState(found.manifest.id, { ...found.state, pinned: pinned === true });
     return publishInstalled();
   });
-  ipcMain.handle(CHANNELS.communityInstallLocal, async (_event, text: unknown) => {
-    if (typeof text !== "string") throw new Error("Paste a plugin manifest.");
-    await writePlugin(parsePluginManifest(text, BUILT_IN_SLASH), "local");
-    return publishInstalled();
-  });
-  ipcMain.handle(CHANNELS.communityUninstall, async (_event, id: unknown) => {
-    const found = (await readInstalled()).find((one) => one.manifest.id === pluginId(id));
-    if (found !== undefined) {
-      if (found.state.enabled) await restoreSettings(found.manifest, found.state);
-      await rm(folderFor(found.manifest.id), { recursive: true, force: true });
-      if (found.state.source === "directory") void request(`/community/plugins/${found.manifest.id}/uninstall`, {}).catch(() => {});
-    }
-    return publishInstalled();
-  });
-  ipcMain.handle(CHANNELS.communitySetEnabled, async (_event, id: unknown, enabled: unknown) => {
-    const found = (await readInstalled()).find((one) => one.manifest.id === pluginId(id));
-    if (found === undefined) throw new Error("That plugin is not installed.");
-    if (enabled === true && !found.state.enabled) await applySettings(found.manifest, found.state);
-    if (enabled !== true && found.state.enabled) await restoreSettings(found.manifest, found.state);
-    await saveState(found.manifest.id, { ...found.state, enabled: enabled === true });
-    return publishInstalled();
-  });
+  ipcMain.handle(CHANNELS.communityInstallLocal, (_event, text: unknown) => installLocalPlugin(text));
+  ipcMain.handle(CHANNELS.communityUninstall, (_event, id: unknown) => uninstallPlugin(id));
+  ipcMain.handle(CHANNELS.communitySetEnabled, (_event, id: unknown, enabled: unknown) => setPluginEnabled(id, enabled === true));
   ipcMain.handle(CHANNELS.communityInstallStarter, async (_event, id: unknown) => {
     const starter = STARTERS.get(pluginId(id));
     if (starter === undefined) throw new Error("That plugin is not one ADCode ships.");

@@ -1,0 +1,30 @@
+/* Solo / Team: a two-way switch above the conversation list. The thumb slides; reduced motion
+   (tokens.css) turns the slide off with every other transition. */
+.work-area-switch {
+  position: relative; display: grid; grid-template-columns: 1fr 1fr; margin: 0 2px 10px; padding: 3px;
+  border: 1px solid var(--border-hairline); border-radius: 10px; background: var(--bg-app); isolation: isolate;
+}
+.work-area-thumb {
+  position: absolute; z-index: -1; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: 7px;
+  background: var(--bg-elevated); box-shadow: var(--shadow-control, 0 1px 2px rgba(0,0,0,.12));
+  transition: transform 260ms var(--ease-sheet);
+}
+.work-area-switch[data-area="team"] .work-area-thumb { transform: translateX(100%); }
+.work-area-option {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 28px; padding: 0 8px;
+  border: 0; border-radius: 7px; background: transparent; color: var(--text-tertiary); font: inherit; font-size: var(--text-xs); cursor: pointer;
+  transition: color 160ms ease;
+}
+.work-area-option svg { width: 14px; height: 14px; }
+.work-area-option[aria-checked="true"] { color: var(--text-primary); }
+.work-area-option:hover { color: var(--text-secondary); }
+.work-area-option:focus-visible { outline: 2px solid var(--focus-ring, var(--accent)); outline-offset: 1px; }
+
+/* Team: the solo list and the solo chat step aside (hidden, never destroyed). */
+body[data-work-area="team"] .vibe-history-host { display: none; }
+body[data-work-area="team"]:not([data-team-chat="open"]) #vibe-page-chat > :not(.shared-chat-host) { display: none !important; }
+body[data-work-area="solo"] .team-area-nav { display: none; }
+.team-area-nav { min-height: 0; overflow-y: auto; animation: work-area-in 220ms var(--ease-toast); }
+body[data-work-area="team"] .shared-chat-host:not([hidden]) { animation: work-area-in 220ms var(--ease-toast); }
+.team-area-nav .shared-library-inline { padding: 0 2px; background: transparent; border: 0; }
+@keyframes work-area-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }

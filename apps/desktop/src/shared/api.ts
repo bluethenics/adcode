@@ -755,6 +755,10 @@ export const CHANNELS = {
   aiCancelCompletion: "ai:cancel-completion",
   aiInlineEdit: "ai:inline-edit",
   aiCancelInlineEdit: "ai:cancel-inline-edit",
+  teamChatOpen: "team-chat:open",
+  teamChatSync: "team-chat:sync",
+  teamChatSetAi: "team-chat:set-ai",
+  teamChatState: "team-chat:state",
   aiCancel: "ai:cancel",
   aiReset: "ai:reset",
   /** The conversations working right now. */
@@ -1513,6 +1517,9 @@ export interface ChatMessageView {
   readonly text: string;
   readonly at: number;
   readonly includedRequestId?: string;
+  /** In a team chat: who wrote it, or who asked for an AI answer. */
+  readonly author?: { readonly id: string; readonly name: string; readonly self: boolean };
+  readonly seq?: number;
 }
 
 export interface ChatSessionView {
@@ -1530,6 +1537,8 @@ export interface ChatSessionView {
   readonly forkedAt?: number;
   /** The part the parent gave this fork. */
   readonly forkTask?: string;
+  /** Set for a team chat: the shared session it mirrors. */
+  readonly team?: { readonly projectId: string; readonly sessionId: string; readonly projectName: string; readonly aiReplies: boolean };
 }
 
 /** How full the chat's context is. Token counts are estimates. */
@@ -2877,4 +2886,15 @@ export interface AdcodeApi {
    * names of the form cmd:|page:|event:|addon: are counted; anything else is ignored.
    */
   readonly usageStats: { record(name: string): void };
+  /**
+   * Team chats: a shared project's session opened as an ordinary chat. `open` makes or refreshes
+   * the local chat and returns its id (then open it like any chat); `sync` pulls teammates' new
+   * messages in; `setAi` says whether sending also asks the AI.
+   */
+  readonly team: {
+    open(projectId: string, sessionId: string): Promise<{ readonly id: string }>;
+    sync(chatId: string): Promise<{ readonly added: number }>;
+    setAi(chatId: string, on: boolean): Promise<boolean>;
+    state(chatId: string): Promise<{ readonly aiReplies: boolean; readonly projectId: string; readonly sessionId: string } | null>;
+  };
 }

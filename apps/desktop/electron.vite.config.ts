@@ -18,6 +18,7 @@ export const alias = {
   "@adcode/ai/continuation": resolve(import.meta.dirname, "../../packages/ai/src/continuation.ts"),
   "@adcode/ai/terminalTeam": resolve(import.meta.dirname, "../../packages/ai/src/terminalTeam.ts"),
   "@adcode/ai/completion": resolve(import.meta.dirname, "../../packages/ai/src/completion.ts"),
+  "@adcode/ai/agentFlow": resolve(import.meta.dirname, "../../packages/ai/src/agentFlow.ts"),
   "@adcode/ai": resolve(import.meta.dirname, "../../packages/ai/src/index.ts"),
   "@adcode/diagnostics": resolve(import.meta.dirname, "../../packages/diagnostics/src/index.ts"),
   "@adcode/lsp": resolve(import.meta.dirname, "../../packages/lsp/src/index.ts"),

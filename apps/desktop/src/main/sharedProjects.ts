@@ -32,6 +32,35 @@ const projectId = (value: unknown): string => { if (typeof value !== "string" ||
 const sessionId = (value: unknown): string => { if (typeof value !== "string" || !/^[a-zA-Z0-9_-]{1,80}$/.test(value)) throw new Error("Choose a project chat session."); return value; };
 let aiReply: ((messages: readonly ProjectChatMessage[], prompt: string) => Promise<string>) | null = null;
 export function registerProjectAiReply(handler: NonNullable<typeof aiReply>) { aiReply = handler; }
+
+/*
+ * The team chat's side of the service (18 November 2026): a team chat is an ordinary ADCode chat
+ * linked to a shared session, so the chat posts here, and when the AI is asked it runs the turn
+ * in that same visible chat - then hands the answer back with finishTeamTurn.
+ */
+export function teamSnapshot(project: string, session: string): Promise<SharedProjectSnapshot> {
+  return projectRequest<SharedProjectSnapshot>(`/projects/${projectId(project)}?session=${sessionId(session)}`);
+}
+export async function postTeamMessage(project: string, session: string, text: string, ask: boolean, nonce: string): Promise<{ lease: string | null; snapshot: SharedProjectSnapshot }> {
+  const id = projectId(project), chat = sessionId(session);
+  if (!text.trim() || text.length > 8000) throw new Error("Write a message under 8,000 characters.");
+  if (ask) {
+    const prior = await projectRequest<SharedProjectSnapshot>(`/projects/${id}?session=${chat}`);
+    if (prior.repository !== await currentRepository()) throw new Error(`To ask the AI here, open this project's GitHub checkout (${prior.repository}) in ADCode first - the AI builds in your copy of the code. Messages to the team work from anywhere.`);
+  }
+  return projectRequest<{ lease: string | null; snapshot: SharedProjectSnapshot }>(`/projects/${id}/messages`, { sessionId: chat, text, ask, id: nonce });
+}
+export function renewTeamTurn(project: string, session: string, lease: string): Promise<unknown> {
+  return projectRequest(`/projects/${projectId(project)}/renew`, { sessionId: sessionId(session), lease });
+}
+export async function finishTeamTurn(project: string, session: string, lease: string, text: string, failed: boolean): Promise<void> {
+  // Bound UTF-8 payload size even for replies made entirely of non-Latin text.
+  const answer = text.length > 30_000 ? `${text.slice(0, 30_000)}
+
+[This long reply was shortened for the team chat.]` : text;
+  await projectRequest(`/projects/${projectId(project)}/finish`, { sessionId: sessionId(session), lease, text: answer || "The assistant returned no text.", failed });
+  for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send(CHANNELS.sharedProjectChanged, projectId(project));
+}
 export function registerSharedProjectsIpc() {
   ipcMain.handle(CHANNELS.sharedProjectLibrary,()=>projectRequest<SharedProjectLibrary>("/projects"));
   ipcMain.handle(CHANNELS.sharedProjectCreate,()=>createSharedProject());

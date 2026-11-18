@@ -1,206 +1,598 @@
+/**
+ * Team: a group chat for a shared project - the people in it and the AI, in one thread.
+ *
+ * Redesigned 18 November 2026. It used to be a panel of its own, with icon-only buttons and a
+ * "Send to team" / "Ask AI" pair, and the person who asked for it found it hard to use. It now
+ * wears the solo chat's own clothes - the same header, bubbles and composer - so a team chat
+ * reads like any other chat, with three differences that make it a group (after ChatGPT's group
+ * chats): everyone's messages carry their name and colour, the AI is a participant you call in
+ * (the AI switch beside Send, or start a message with @ai), and Invite sits in the header.
+ *
+ * The data is unchanged: the project service holds the projects, their sessions and messages;
+ * this polls the open one every few seconds while it is on screen and keeps each session's
+ * unsent draft. Signed out, or with no project yet, it says what Team is and offers the one
+ * step that unlocks it.
+ */
 import { renderChatMessageHtml } from "../ai/chatMarkdown.ts";
-import { Plus, Send, Sparkles, Users, Link2, Copy, FolderOpen, ArrowUpRight, Archive, LogOut, MessageSquare, ChevronRight } from "lucide";
+import { ArrowUp, Copy, Ellipsis, FolderOpen, Link2, LogOut, MessageSquare, Plus, Sparkles, Users, Archive, RefreshCw, Radio } from "lucide";
 import type { ProjectChatMessage, SharedProjectLibrary, SharedProjectSnapshot } from "../../shared/api.ts";
 import { createFloatingPanel } from "../workbench/floatingPanel.ts";
-import { ICON, iconButton, createIcon } from "../workbench/icons.ts";
+import { createIcon } from "../workbench/icons.ts";
 import { BUY_TOKENS_URL } from "../../shared/tagflow.ts";
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = "", className = ""): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag); node.textContent = text; node.className = className; return node;
+  const node = document.createElement(tag);
+  if (text) node.textContent = text;
+  if (className) node.className = className;
+  return node;
 }
-function button(label: string, action: () => void, primary = false) {
-  const node = element("button",label,`projects-button ${primary ? "projects-button-primary" : "projects-button-secondary"}`); node.type = "button"; node.title = label; node.setAttribute("aria-label", label); const icon = /Send/.test(label) ? Send : /Ask AI/.test(label) ? Sparkles : /New|Share current/.test(label) ? Plus : /Copy/.test(label) ? Copy : /invite|Join/.test(label) ? Link2 : /Archive/.test(label) ? Archive : /Leave/.test(label) ? LogOut : /Local/.test(label) ? FolderOpen : /Upgrade/.test(label) ? ArrowUpRight : Users; const caption = element("span", label, "shared-action-label"); node.replaceChildren(createIcon(icon), caption); node.addEventListener("click",action); return node;
+function button(label: string, icon: Parameters<typeof createIcon>[0] | null, className: string, action: () => void): HTMLButtonElement {
+  const node = element("button", "", className);
+  node.type = "button";
+  if (icon !== null) node.append(createIcon(icon));
+  node.append(element("span", label));
+  node.addEventListener("click", action);
+  return node;
 }
+function iconButton(label: string, icon: Parameters<typeof createIcon>[0], className: string, action: () => void): HTMLButtonElement {
+  const node = element("button", "", className);
+  node.type = "button";
+  node.title = label;
+  node.setAttribute("aria-label", label);
+  node.append(createIcon(icon));
+  node.addEventListener("click", action);
+  return node;
+}
+
+/** A stable hue per person, so the same teammate always has the same colour. */
+export function personHue(id: string): number {
+  let hash = 0;
+  for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return hash % 360;
+}
+export function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return (parts.length === 0 ? "?" : parts.length === 1 ? parts[0]!.slice(0, 2) : `${parts[0]![0]!}${parts[parts.length - 1]![0]!}`).toUpperCase();
+}
+/** A message meant for the AI: the switch is on, or it starts with @ai. The mention is dropped. */
+export function aiRequest(text: string, switchOn: boolean): { readonly ask: boolean; readonly text: string } {
+  const mention = /^\s*@ai\b[\s,:]*/i;
+  if (mention.test(text)) return { ask: true, text: text.replace(mention, "").trim() || text.trim() };
+  return { ask: switchOn, text: text.trim() };
+}
+
+function avatar(id: string, name: string, className = "team-avatar"): HTMLElement {
+  const node = element("span", initials(name), className);
+  node.style.setProperty("--hue", String(personHue(id)));
+  node.title = name;
+  node.setAttribute("aria-hidden", "true");
+  return node;
+}
+
 export function createSharedWorkspacePanel(deps: {
   prompt: (title: string, detail: string, value: string) => Promise<string | null>;
   confirm: (title: string, detail: string, label: string) => Promise<boolean>;
   signIn: () => void;
   openLocalProjects: () => void;
+  /**
+   * Open a team chat in the real chat (Vibe): returns the local chat's id. Without it, the panel
+   * draws the chat itself - the IDE window's floating fallback.
+   */
+  openChat?: (projectId: string, sessionId: string) => Promise<string | null>;
+  /** The real chat is showing a team chat ("chat"), or the panel's own empty states are ("empty"). */
+  onModeChange?: (mode: "chat" | "opening" | "empty") => void;
 }) {
-  const content = element("div","","shared-workspace"), sidebar = element("aside","","shared-library");
-  const libraryHeader = element("div","","projects-sidebar-heading"), refresh = iconButton("Refresh shared projects",ICON.reload);
-  libraryHeader.append(element("h2","Shared projects"),element("span","Beta","shared-beta"),refresh);
-  const quota = element("p","Checking your plan…","projects-muted"), list = element("div","","shared-project-list");
-  const share = button("Share current project",()=>{ void task(async()=>{ const snapshot = await window.adcode.collab.sharedCreate(); await loadLibrary(); await openProject(snapshot.id); }); },true);
-  const join = button("Join a project",()=>{ void task(async()=>{
-    const invite = await deps.prompt("Join a shared project","Paste the permanent project invite. You will get access to its shared chat sessions.","");
-    if (!invite?.trim()) return; const snapshot = await window.adcode.collab.sharedJoin(invite.trim()); await loadLibrary(); await openProject(snapshot.id);
-  }); });
-  const upgrade = button("Upgrade plan",()=>{ window.open(`${BUY_TOKENS_URL}#plans`,"_blank","noopener"); });
-  const signIn = button("Account",deps.signIn);
-  sidebar.append(libraryHeader,quota,share,join,upgrade,list,button("Local projects & Git contributions",deps.openLocalProjects),signIn);
-  const main = element("section","","shared-main"), header = element("header","","shared-header"), title = element("h2","Project conversations");
-  const projectInfo = element("p","Members share sessions, messages, and AI replies here. Your private chats stay private.","projects-muted");
-  const actions = element("div","","projects-actions"); header.append(title,element("span","Beta","shared-beta"),projectInfo,actions);
-  const error = element("p","","collab-error"); error.hidden = true; error.setAttribute("role","status");
-  const sessions = element("div","","shared-sessions"); sessions.setAttribute("aria-label","Project chat sessions");
-  const newSession = button("New session",()=>{ void task(async()=>{
-    if (!snapshot) return; apply(await window.adcode.collab.sharedSession(snapshot.id,"New conversation"),true);
-  }); });
-  const memberDetails = element("details","","shared-member-details"), memberSummary = element("summary","People & contributions"), members = element("div","","shared-members"); memberDetails.append(memberSummary,members);
-  const timeline = element("div","","shared-transcript"); timeline.setAttribute("role","log"); timeline.setAttribute("aria-label","Shared project messages"); timeline.setAttribute("aria-live","polite");
-  const older = button("Load older messages",()=>{ void task(async()=>{
-    if (!snapshot || !messages.length) return; const earlier = await window.adcode.collab.sharedSnapshot(snapshot.id,snapshot.selectedSession,messages[0]!.seq);
+  const inChat = deps.openChat !== undefined;
+  let chatId: string | null = null;
+  /* ── Sidebar: the projects, each with its chats ─────────────────────── */
+  const sidebar = element("aside", "", "team-nav-inner shared-library");
+  const quota = element("p", "", "team-quota");
+  const share = button("Share project", Plus, "team-nav-button team-nav-button-primary", () => void shareCurrent());
+  share.title = "Make the open GitHub project a team project; everyone you invite chats here with you and the AI";
+  const join = button("Join", Link2, "team-nav-button", () => void joinPrompt());
+  join.title = "Paste an invite someone sent you";
+  const refresh = iconButton("Refresh", RefreshCw, "team-nav-icon", () => void task(async () => { await loadLibrary(); if (snapshot) await poll(); }));
+  const navActions = element("div", "", "team-nav-actions");
+  navActions.append(share, join, refresh);
+  const list = element("div", "", "team-project-list shared-project-list");
+  const upgrade = button("More projects with a plan", null, "team-nav-link", () => { window.open(`${BUY_TOKENS_URL}#plans`, "_blank", "noopener"); });
+  upgrade.hidden = true;
+  sidebar.append(navActions, quota, list, upgrade);
+
+  /* ── The chat ───────────────────────────────────────────────────────── */
+  const main = element("section", "", "team-chat shared-main");
+  const header = element("header", "", "chat-header team-chat-header");
+  const titles = element("div", "", "team-chat-titles");
+  const title = element("h2", "Team", "chat-conversation-title team-chat-title");
+  const subtitle = element("p", "", "team-chat-subtitle");
+  titles.append(title, subtitle);
+  const people = element("div", "", "team-avatars");
+  const invite = button("Invite", Users, "team-header-button team-invite", () => void copyInvite());
+  invite.title = "Copy the invite link - anyone with it can join this project's chats";
+  const more = iconButton("More", Ellipsis, "team-header-icon", () => toggleMenu());
+  more.setAttribute("aria-haspopup", "menu");
+  more.setAttribute("aria-expanded", "false");
+  const menu = element("div", "", "team-menu");
+  menu.setAttribute("role", "menu");
+  menu.hidden = true;
+  const headerActions = element("div", "", "team-header-actions");
+  headerActions.append(people, invite, more, menu);
+  header.append(titles, headerActions);
+
+  const status = element("p", "", "team-status collab-error");
+  status.setAttribute("role", "status");
+  status.hidden = true;
+
+  const transcript = element("div", "", "chat-transcript team-transcript shared-transcript");
+  transcript.setAttribute("role", "log");
+  transcript.setAttribute("aria-label", "Team chat");
+  transcript.setAttribute("aria-live", "polite");
+  const older = button("Load earlier messages", null, "team-older", () => void task(async () => {
+    if (!snapshot || !messages.length) return;
+    const earlier = await window.adcode.collab.sharedSnapshot(snapshot.id, snapshot.selectedSession, messages[0]!.seq);
     hasOlder = earlier.hasOlder; mergeMessages(earlier.messages); renderMessages(false);
-  }); });
+  }));
   older.hidden = true;
-  const composer = element("form","","shared-composer"), input = element("textarea"); input.rows = 3; input.maxLength = 8000; input.placeholder = "Message your project…"; input.setAttribute("aria-label","Message your project");
-  const composerActions = element("div","","projects-actions"), send = button("Send to team",()=>{ void post(false); },true), ask = button("Ask AI",()=>{ void post(true); });
-  const pending = element("span","","projects-muted"); pending.setAttribute("role","status");
-  composerActions.append(send,ask,pending); composer.append(input,composerActions,element("p","AI uses your account's credits and the open project checkout. Its reply is visible to every project member.","projects-footnote"));
-  composer.addEventListener("submit",event=>{ event.preventDefault(); void post(false); });
-  input.addEventListener("keydown",event=>{ if ((event.ctrlKey||event.metaKey)&&event.key==="Enter") { event.preventDefault(); void post(false); } });
-  input.addEventListener("input",()=>{ const key = draftKey(); if(key) drafts.set(key,input.value); nonce = null; });
-  main.append(header,error,memberDetails,newSession,sessions,older,timeline,composer); content.append(sidebar,main);
+
+  const composer = element("form", "", "chat-composer team-composer shared-composer");
+  const composerMain = element("div", "", "chat-composer-main team-composer-main");
+  const input = element("textarea", "", "chat-input team-input");
+  input.rows = 2;
+  input.maxLength = 8000;
+  input.placeholder = "Message the team · start with @ai to ask the assistant";
+  input.setAttribute("aria-label", "Message the team");
+  const aiSwitch = button("AI replies", Sparkles, "team-ai-switch", () => setAi(!aiOn, true));
+  aiSwitch.setAttribute("aria-pressed", "false");
+  aiSwitch.title = "When on, the assistant answers your message - and everyone in the chat sees its reply";
+  const hint = element("span", "Enter to send · Shift+Enter for a new line", "team-composer-hint");
+  const send = iconButton("Send", ArrowUp, "chat-send team-send", () => void post());
+  send.type = "submit";
+  const footer = element("div", "", "chat-composer-footer team-composer-footer");
+  footer.append(aiSwitch, hint, send);
+  composerMain.append(input, footer);
+  composer.append(composerMain);
+  composer.addEventListener("submit", (event) => { event.preventDefault(); void post(); });
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) { event.preventDefault(); void post(); }
+  });
+  input.addEventListener("input", () => {
+    const key = draftKey(); if (key) drafts.set(key, input.value); nonce = null;
+    input.style.height = "auto"; input.style.height = `${String(Math.min(input.scrollHeight, 160))}px`;
+  });
+  const empty = element("div", "", "team-empty");
+  empty.hidden = true;
+  main.append(header, status, transcript, empty, composer);
+  transcript.append(older);
+
+  /** Above the real chat in Vibe: the chat's title, its people, Invite, AI replies and the menu. */
+  const strip = element("div", "", "team-strip");
+  if (inChat) {
+    strip.append(header, status);
+    headerActions.prepend(aiSwitch);
+  }
+  const content = element("div", "", "shared-workspace");
+  content.append(sidebar, main);
+
+  /* ── State ──────────────────────────────────────────────────────────── */
   let library: SharedProjectLibrary | null = null, snapshot: SharedProjectSnapshot | null = null;
   let selected: string | null = null, generation = 0, polling: number | undefined, posting = false, busy = false, nonce: string | null = null;
-  let messages: ProjectChatMessage[] = [], hasOlder = false;
-  const drafts = new Map<string,string>();
-  const panel = createFloatingPanel({ id:"shared-projects", title:"Shared projects & sessions",content,defaultSize:{width:1080,height:760},anchor:"centre",
-    onVisibilityChange: open=>{ if(!open) { generation++; clearTimeout(polling); } },
+  let messages: ProjectChatMessage[] = [], hasOlder = false, aiOn = false;
+  const drafts = new Map<string, string>();
+  const expandedProjects = new Set<string>();
+  const projectSnapshots = new Map<string, SharedProjectSnapshot>();
+  const panel = createFloatingPanel({ id: "shared-projects", title: "Team", content, defaultSize: { width: 1080, height: 760 }, anchor: "centre",
+    onVisibilityChange: (open) => { if (!open) { generation++; clearTimeout(polling); } },
   });
   let integrated: { host: HTMLElement; show: () => void } | null = null;
   let active = false;
-  const expandedProjects = new Set<string>();
-  const projectSnapshots = new Map<string, SharedProjectSnapshot>();
   const isVisible = () => integrated ? active : panel.isOpen();
   function reveal() { if (integrated) { active = true; integrated.host.hidden = false; integrated.show(); } else panel.open(); }
   function draftKey() { return snapshot?.selectedSession ? `${snapshot.id}:${snapshot.selectedSession}` : null; }
-  function showError(message: string) { error.textContent = message; error.hidden = !message; }
-  async function task(work:()=>Promise<void>) {
-    if(busy) return; busy=true; generation++; clearTimeout(polling); share.disabled=true; join.disabled=true; refresh.disabled=true; showError("");
-    try { await work(); } catch(error) { showError(error instanceof Error ? error.message : "The shared project could not connect."); }
-    finally { busy=false; share.disabled=false; join.disabled=false; refresh.disabled=false; schedule(); }
+  // IPC rejections arrive as "Error invoking remote method 'x': Error: <the real sentence>".
+  let statusTimer: number | undefined;
+  function say(message: string, tone: "error" | "info" = "error") {
+    const clean = message.replace(/^Error invoking remote method '[^']*':\s*(?:Error:\s*)?/, "");
+    status.textContent = clean; status.hidden = !clean; status.dataset["tone"] = tone;
+    window.clearTimeout(statusTimer);
+    if (clean && tone === "info") statusTimer = window.setTimeout(() => { status.hidden = true; }, 4000);
   }
+  function setAi(on: boolean, save = false) {
+    if (save && chatId !== null) void window.adcode.team.setAi(chatId, on);
+    aiOn = on; aiSwitch.setAttribute("aria-pressed", String(on)); aiSwitch.classList.toggle("is-on", on); input.placeholder = on ? "Ask the assistant - the whole team sees its answer" : "Message the team · start with @ai to ask the assistant"; }
+
+  /** Opening Team while something else loads: it runs next, never dropped. */
+  let queuedOpen: (() => Promise<void>) | null = null;
+  async function task(work: () => Promise<void>) {
+    if (busy) return; busy = true; generation++; clearTimeout(polling);
+    for (const control of [share, join, refresh]) control.disabled = true;
+    try { await work(); } catch (error) {
+      const message = error instanceof Error ? error.message : "The team service could not connect.";
+      if (/sign in/i.test(message) && library === null) showSignedOut(); else say(message);
+    } finally {
+      busy = false; for (const control of [share, join, refresh]) control.disabled = false; schedule();
+      if (queuedOpen !== null) { const next = queuedOpen; queuedOpen = null; void task(next); }
+    }
+  }
+
+  /* ── Empty states: what Team is, and the one step that unlocks it ──── */
+  function showEmpty(kind: "signed-out" | "no-projects" | "no-chats") {
+    clearChat();
+    chatId = null;
+    deps.onModeChange?.("empty");
+    if (inChat && kind === "no-chats") main.prepend(header);
+    empty.hidden = false; transcript.hidden = true; composer.hidden = true; headerActions.hidden = true;
+    header.hidden = kind !== "no-chats";
+    navActions.hidden = kind === "signed-out";
+    empty.replaceChildren();
+    const card = element("div", "", "team-empty-card");
+    const icon = element("div", "", "team-empty-icon");
+    icon.append(createIcon(Users));
+    if (kind === "signed-out") {
+      title.textContent = "Team"; subtitle.textContent = "";
+      card.append(icon, element("h3", "Chat with your team and the AI together"), element("p", "Everyone in a shared project sees the same chats and the assistant's answers. Your solo chats stay private.", "team-empty-lead"),
+        button("Sign in to start", null, "team-cta", deps.signIn));
+      quota.textContent = "Sign in to see the projects you share.";
+    } else if (kind === "no-projects") {
+      title.textContent = "Team"; subtitle.textContent = "No team projects yet";
+      card.append(icon, element("h3", "Start a team chat"), element("p", "Share this project and invite people, or join a project someone shared with you.", "team-empty-lead"));
+      const options = element("div", "", "team-empty-options");
+      const shareOption = element("div", "", "team-option");
+      shareOption.append(element("strong", "Share this project"), element("p", "Turns the open GitHub project into a team project. You get an invite link to send.", "team-option-text"), button("Share this project", Plus, "team-cta", () => void shareCurrent()));
+      const joinOption = element("div", "", "team-option");
+      const joinInput = element("input", "", "team-join-input");
+      joinInput.placeholder = "Paste an invite";
+      joinInput.setAttribute("aria-label", "Project invite");
+      const joinButton = button("Join", Link2, "team-cta team-cta-secondary", () => void joinWith(joinInput.value));
+      joinInput.addEventListener("keydown", (event) => { if (event.key === "Enter") void joinWith(joinInput.value); });
+      const joinRow = element("div", "", "team-join-row");
+      joinRow.append(joinInput, joinButton);
+      joinOption.append(element("strong", "Join with an invite"), element("p", "Got an invite from a teammate? Paste it here.", "team-option-text"), joinRow);
+      options.append(shareOption, joinOption);
+      card.append(options);
+    } else {
+      const project = snapshot;
+      title.textContent = project?.name ?? "Team"; subtitle.textContent = project === null ? "" : `${project.repository} · ${String(project.memberCount)} of ${String(project.memberLimit)} people`;
+      headerActions.hidden = false;
+      card.append(icon, element("h3", `No chats in ${project?.name ?? "this project"} yet`), element("p", "Start one: everyone in the project can read it, write in it and ask the AI.", "team-empty-lead"),
+        button("Start a team chat", MessageSquare, "team-cta", () => void newChat(project?.id ?? null)));
+    }
+    empty.append(card);
+  }
+  function showSignedOut() { library = null; renderLibrary(); showEmpty("signed-out"); }
+  /** In Vibe, while a team chat is being opened: the chat's shape, not this panel's own chat. */
+  function showOpening() {
+    empty.hidden = false; transcript.hidden = true; composer.hidden = true; header.hidden = true;
+    const skeleton = element("div", "", "team-skeleton");
+    skeleton.setAttribute("aria-busy", "true");
+    skeleton.setAttribute("aria-label", "Opening the team chat");
+    for (const kind of ["them", "ai", "you", "ai"]) {
+      const row = element("div", "", `team-skeleton-row is-${kind}`);
+      row.append(element("span", "", "team-skeleton-line"), element("span", "", "team-skeleton-line is-short"));
+      skeleton.append(row);
+    }
+    skeleton.append(element("div", "", "team-skeleton-composer"));
+    empty.replaceChildren(skeleton);
+    deps.onModeChange?.("opening");
+  }
+  function showChat() {
+    if (inChat) { if (chatId === null) showOpening(); return; }
+    empty.hidden = true; transcript.hidden = false; headerActions.hidden = false; header.hidden = false; navActions.hidden = false; }
+
+  /* ── Sidebar ────────────────────────────────────────────────────────── */
   function renderLibrary() {
-    const activeElement=document.activeElement;
-    const focused=activeElement instanceof HTMLElement && list.contains(activeElement) ? {project:activeElement.dataset["project"],session:activeElement.dataset["session"],tag:activeElement.tagName} : null;
+    const focusedSession = document.activeElement instanceof HTMLElement && list.contains(document.activeElement) ? document.activeElement.dataset["session"] : undefined;
     list.replaceChildren();
-    if (!library) return;
-    quota.textContent = `${library.limits.plan === "free" ? "Free" : library.limits.plan} · ${library.owned}/${library.limits.projects} owned projects · up to ${library.limits.members} people per owned project`;
+    if (!library) { upgrade.hidden = true; return; }
+    quota.textContent = `${library.limits.plan === "free" ? "Free" : library.limits.plan} · ${String(library.owned)}/${String(library.limits.projects)} owned projects · up to ${String(library.limits.members)} people each`;
+    upgrade.hidden = library.owned < library.limits.projects;
     for (const project of library.projects) {
-      const group = element("details", "", "shared-project-group"); group.open = expandedProjects.has(project.id);
-      const summary = element("summary"); summary.title = project.repository; summary.dataset["project"]=project.id;
-      summary.append(createIcon(ChevronRight),createIcon(FolderOpen),element("strong",project.name));
-      const rows = element("div", "", "shared-project-conversations");
-      const known = projectSnapshots.get(project.id);
-      const create = button("New project conversation", () => { reveal(); void task(async () => { await openProject(project.id); apply(await window.adcode.collab.sharedSession(project.id,"New conversation"),true); }); });
-      create.dataset["project"]=project.id; create.classList.add("shared-new-conversation"); summary.append(create);
-      create.addEventListener("click",event=>{event.preventDefault();event.stopPropagation();});
-      for (const session of known?.sessions ?? []) {
-        const row = button(session.title, () => { reveal(); void task(async () => { const next = await window.adcode.collab.sharedSnapshot(project.id,session.id); apply(next,true); }); });
-        row.className="shared-history-row"; row.dataset["project"]=project.id; row.dataset["session"]=session.id;
-        row.setAttribute("aria-current",String(project.id===selected&&session.id===snapshot?.selectedSession));
-        row.replaceChildren(createIcon(MessageSquare),element("span",session.title)); rows.append(row);
-      }
-      if (!known?.sessions.length) rows.append(element("p",known?"No conversations yet":"Expand to load conversations","projects-muted"));
-      group.append(summary,rows);
-      group.addEventListener("toggle",()=>{
-        if (!group.open) { expandedProjects.delete(project.id); return; }
-        expandedProjects.add(project.id);
-        if (!projectSnapshots.has(project.id)) void window.adcode.collab.sharedSnapshot(project.id).then(next=>{projectSnapshots.set(project.id,next);renderLibrary();}).catch(error=>showError(error instanceof Error?error.message:"Could not load conversations"));
+      const group = element("div", "", "team-project shared-project-group");
+      const head = element("div", "", "team-project-head");
+      const toggle = element("button", "", "team-project-toggle");
+      toggle.type = "button";
+      toggle.setAttribute("aria-expanded", String(expandedProjects.has(project.id)));
+      toggle.append(createIcon(FolderOpen), element("span", project.name, "team-project-name"), element("span", String(project.memberCount), "team-project-count"));
+      toggle.title = `${project.repository} · ${String(project.memberCount)} people`;
+      toggle.addEventListener("click", () => {
+        if (expandedProjects.has(project.id)) expandedProjects.delete(project.id); else expandedProjects.add(project.id);
+        if (!projectSnapshots.has(project.id)) void window.adcode.collab.sharedSnapshot(project.id).then((next) => { projectSnapshots.set(project.id, next); renderLibrary(); }).catch((error: unknown) => say(error instanceof Error ? error.message : "Could not load its chats."));
+        renderLibrary();
       });
+      const add = iconButton(`New chat in ${project.name}`, Plus, "team-project-add", () => void newChat(project.id));
+      head.append(toggle, add);
+      group.append(head);
+      if (expandedProjects.has(project.id)) {
+        const rows = element("div", "", "team-sessions");
+        const known = projectSnapshots.get(project.id);
+        for (const session of known?.sessions ?? []) {
+          const row = element("button", "", "team-session shared-history-row");
+          row.type = "button";
+          row.dataset["session"] = session.id;
+          const current = project.id === selected && session.id === snapshot?.selectedSession;
+          row.setAttribute("aria-current", String(current));
+          row.append(element("span", "", "team-session-dot"), element("span", session.title, "team-session-title"));
+          if (session.pending) row.append(element("span", "AI…", "team-session-pending"));
+          row.addEventListener("click", () => { reveal(); void openSession(project.id, session.id); });
+          rows.append(row);
+        }
+        if (!known) rows.append(element("p", "Loading…", "team-muted"));
+        else if (known.sessions.length === 0) rows.append(element("p", "No chats yet", "team-muted"));
+        group.append(rows);
+      }
       list.append(group);
     }
-    if(!library.projects.length) list.append(element("p","Share your current GitHub project, or join one with an invite.","projects-muted"));
-    if(focused?.project) [...list.querySelectorAll<HTMLElement>("[data-project]")].find(row=>row.tagName===focused.tag&&row.dataset["project"]===focused.project&&row.dataset["session"]===focused.session)?.focus({preventScroll:true});
+    if (focusedSession !== undefined) list.querySelector<HTMLElement>(`[data-session="${CSS.escape(focusedSession)}"]`)?.focus({ preventScroll: true });
   }
-  async function loadLibrary() { library=await window.adcode.collab.sharedLibrary(); renderLibrary(); }
+
+  // Only a definite "signed out" skips the request: a host without the call, or one that cannot
+  // tell, asks the service as before and shows its answer.
+  async function loadLibrary() {
+    const account = typeof window.adcode.account.status === "function" ? await window.adcode.account.status().catch(() => null) : null;
+    if (account !== null && account.state !== "linked") { showSignedOut(); return; }
+    library = await window.adcode.collab.sharedLibrary();
+    navActions.hidden = false;
+    renderLibrary();
+    if (library.projects.length === 0) showEmpty("no-projects");
+  }
   async function openProject(id: string) {
-    const request = ++generation; clearTimeout(polling); selected=id; renderLibrary();
-    const next=await window.adcode.collab.sharedSnapshot(id);
-    if(request!==generation) return; apply(next,true); schedule();
+    const request = ++generation; clearTimeout(polling); selected = id; expandedProjects.add(id); renderLibrary();
+    const next = await window.adcode.collab.sharedSnapshot(id);
+    if (request !== generation) return; apply(next, true); schedule();
   }
-  function schedule() { clearTimeout(polling); if(isVisible()) polling=window.setTimeout(()=>{ void poll(); },3000); }
+  async function openSession(projectId: string, sessionId: string) {
+    await task(async () => { const id = ++generation; const next = await window.adcode.collab.sharedSnapshot(projectId, sessionId); if (id !== generation) return; apply(next, true); await openInChat(); });
+  }
+  /** Show the selected session in the real chat (Vibe), with the strip above it. */
+  async function openInChat() {
+    if (!inChat || snapshot?.selectedSession == null) return;
+    if (header.parentElement !== strip) strip.prepend(header);
+    const opened = await deps.openChat!(snapshot.id, snapshot.selectedSession);
+    if (opened === null) { if (chatId === null) showEmpty("no-chats"); return; }
+    chatId = opened;
+    header.hidden = false; headerActions.hidden = false;
+    const state = await window.adcode.team.state(opened).catch(() => null);
+    setAi(state?.aiReplies ?? true);
+    deps.onModeChange?.("chat");
+  }
+  async function newChat(projectId: string | null) {
+    const id = projectId ?? snapshot?.id ?? null;
+    if (id === null) return;
+    const name = await deps.prompt("Name this team chat", "Everyone in the project sees this name.", "New team chat");
+    if (name === null || !name.trim()) return;
+    reveal();
+    await task(async () => { if (snapshot?.id !== id) await openProject(id); apply(await window.adcode.collab.sharedSession(id, name.trim().slice(0, 100)), true); if (inChat) await openInChat(); else input.focus(); });
+  }
+  async function shareCurrent() {
+    await task(async () => { const created = await window.adcode.collab.sharedCreate(); await loadLibrary(); await openProject(created.id); say("Project shared. Press Invite to copy the link for your team.", "info"); });
+  }
+  async function joinPrompt() {
+    const invite = await deps.prompt("Join a team project", "Paste the invite a teammate sent you.", "");
+    if (invite?.trim()) await joinWith(invite);
+  }
+  async function joinWith(raw: string) {
+    const code = raw.trim();
+    if (!code) return;
+    await task(async () => { const joined = await window.adcode.collab.sharedJoin(code); await loadLibrary(); await openProject(joined.id); say(`You joined ${joined.name}.`, "info"); });
+  }
+  async function copyInvite() {
+    if (!snapshot?.invite) { say("Only the project's owner can invite people."); return; }
+    await window.adcode.clipboard.writeText(snapshot.invite);
+    say("Invite copied - send it to the people you want in this chat. They paste it under Join with invite.", "info");
+  }
+
+  /* ── Header menu ────────────────────────────────────────────────────── */
+  function toggleMenu(force?: boolean) {
+    const open = force ?? menu.hidden;
+    menu.hidden = !open;
+    more.setAttribute("aria-expanded", String(open));
+    if (open) menu.querySelector<HTMLElement>("button")?.focus();
+  }
+  document.addEventListener("pointerdown", (event) => { if (!menu.hidden && !menu.contains(event.target as Node) && !more.contains(event.target as Node)) toggleMenu(false); });
+  menu.addEventListener("keydown", (event) => { if (event.key === "Escape") { toggleMenu(false); more.focus(); } });
+  function menuItem(label: string, icon: Parameters<typeof createIcon>[0], run: () => void, danger = false) {
+    const item = button(label, icon, `team-menu-item${danger ? " is-danger" : ""}`, () => { toggleMenu(false); run(); });
+    item.setAttribute("role", "menuitem");
+    return item;
+  }
+  function renderMenu(next: SharedProjectSnapshot) {
+    menu.replaceChildren();
+    const meName = next.members.find((member) => member.uid === next.selfId)?.name ?? "Teammate";
+    menu.append(element("p", `${String(next.memberCount)} of ${String(next.memberLimit)} people`, "team-menu-heading"));
+    for (const member of next.members) {
+      const row = element("div", "", "team-menu-person shared-member");
+      row.append(avatar(member.uid, member.name), element("span", `${member.name}${member.uid === next.ownerId ? " · owner" : ""}`), element("span", `${String(member.messages)} messages`, "team-muted"));
+      if (next.selfId === next.ownerId && member.uid !== next.ownerId) {
+        const remove = button("Remove", null, "team-menu-remove", () => void task(async () => {
+          if (!await deps.confirm(`Remove ${member.name}?`, "They lose access to this project's chats and live files, and the invite is replaced.", "Remove")) return;
+          await window.adcode.collab.sharedManage(next.id, "remove", member.uid); await poll();
+        }));
+        row.append(remove);
+      }
+      menu.append(row);
+    }
+    menu.append(element("hr", "", "team-menu-rule"));
+    if (next.invite) menu.append(menuItem("Copy invite", Copy, () => void copyInvite()));
+    if (next.liveInvite) menu.append(menuItem("Join live files", Radio, () => void task(async () => { await window.adcode.collab.join(next.liveInvite!, meName); })));
+    else if (!next.archived) menu.append(menuItem("Edit files together live", Radio, () => void task(async () => { await window.adcode.collab.host({ bind: "internet", port: 0, displayName: meName, sharedProjectId: next.id }); await poll(); })));
+    if (next.ownerId === next.selfId && !next.archived) {
+      menu.append(menuItem("Replace invite", Link2, () => void task(async () => {
+        if (await deps.confirm("Replace the invite?", "The old invite stops working. People already in keep access.", "Replace invite")) apply(await window.adcode.collab.sharedManage(next.id, "invite") as SharedProjectSnapshot, false);
+      })));
+      menu.append(menuItem("Archive project", Archive, () => void task(async () => {
+        if (!await deps.confirm("Archive this project?", "Live files end and its chats become read-only. It stops using one of your project slots.", "Archive project")) return;
+        await window.adcode.collab.sharedManage(next.id, "archive"); await loadLibrary(); await openProject(next.id);
+      }), true));
+    }
+    if (next.ownerId !== next.selfId) menu.append(menuItem("Leave project", LogOut, () => void task(async () => {
+      if (!await deps.confirm("Leave this project?", "You lose access to its chats and live files.", "Leave project")) return;
+      await window.adcode.collab.sharedManage(next.id, "remove", next.selfId); projectSnapshots.delete(next.id); expandedProjects.delete(next.id); clearProject(); await loadLibrary();
+    }), true));
+    menu.append(menuItem("Local projects and Git", FolderOpen, deps.openLocalProjects));
+  }
+
+  /* ── Messages ───────────────────────────────────────────────────────── */
+  function schedule() { clearTimeout(polling); if (isVisible()) polling = window.setTimeout(() => { void poll(); }, inChat && chatId !== null ? 8000 : 3000); }
   async function poll() {
-    if(!isVisible()||!snapshot) return;
-    const request=generation, id=snapshot.id, session=snapshot.selectedSession;
+    if (!isVisible() || !snapshot) return;
+    const request = generation, id = snapshot.id, session = snapshot.selectedSession;
     try {
-      if(document.visibilityState!=="hidden") {
-        const next=await window.adcode.collab.sharedSnapshot(id,session);
-        if(request!==generation) return; apply(next,false);
+      if (document.visibilityState !== "hidden") {
+        const next = await window.adcode.collab.sharedSnapshot(id, session);
+        if (request !== generation) return; apply(next, false);
       }
-    } catch(error) { if(request===generation) { const message=error instanceof Error ? error.message : "Connection interrupted. Retrying…"; if(/not a member|access removed/i.test(message)) { clearProject(); void loadLibrary().catch(()=>{}); } showError(message); } }
-    finally { if(request===generation) schedule(); }
+    } catch (error) {
+      if (request === generation) {
+        const message = error instanceof Error ? error.message : "Connection interrupted. Retrying…";
+        if (/not a member|access removed/i.test(message)) { clearProject(); void loadLibrary().catch(() => {}); }
+        say(message);
+      }
+    } finally { if (request === generation) schedule(); }
   }
-  function mergeMessages(incoming: ProjectChatMessage[]) { const merged=new Map(messages.map(m=>[m.seq,m])); for(const m of incoming) merged.set(m.seq,m); messages=[...merged.values()].sort((a,b)=>a.seq-b.seq); }
+  function mergeMessages(incoming: ProjectChatMessage[]) { const merged = new Map(messages.map((m) => [m.seq, m])); for (const m of incoming) merged.set(m.seq, m); messages = [...merged.values()].sort((a, b) => a.seq - b.seq); }
+  const dayLabel = (at: number): string => {
+    const day = new Date(at), today = new Date();
+    const yesterday = new Date(); yesterday.setDate(today.getDate() - 1);
+    return day.toDateString() === today.toDateString() ? "Today" : day.toDateString() === yesterday.toDateString() ? "Yesterday" : day.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+  };
   function renderMessages(scroll: boolean) {
-    const distance=timeline.scrollHeight-timeline.clientHeight-timeline.scrollTop, previousHeight=timeline.scrollHeight, previousTop=timeline.scrollTop;
-    const previousFirst=Number(timeline.dataset["first"]??Number.MAX_SAFE_INTEGER);
-    const key=messages.map(m=>`${m.seq}:${m.id}`).join(",");
-    if(timeline.dataset["messages"]!==key) {
-      timeline.dataset["messages"]=key; timeline.dataset["first"]=String(messages[0]?.seq??Number.MAX_SAFE_INTEGER); timeline.replaceChildren();
-      for(const message of messages) {
-        const row=element("article","","shared-message"); row.dataset["kind"]=message.kind;
-        const requester=snapshot?.members.find(member=>member.uid===message.authorId)?.name??"a project member";
-        const meta=element("div","","shared-message-meta"); meta.append(element("strong",message.kind==="member"?message.authorName:`Assistant · via ${requester}`),element("time",new Date(message.at).toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"})));
-        const messageBody=element("div",message.text,"shared-message-text");
-        if(message.kind === "assistant") messageBody.innerHTML=renderChatMessageHtml(message.text);
-        row.append(meta,messageBody); timeline.append(row);
+    const distance = transcript.scrollHeight - transcript.clientHeight - transcript.scrollTop, previousHeight = transcript.scrollHeight, previousTop = transcript.scrollTop;
+    const previousFirst = Number(transcript.dataset["first"] ?? Number.MAX_SAFE_INTEGER);
+    const pending = snapshot?.sessions.find((s) => s.id === snapshot?.selectedSession)?.pending === true;
+    const key = `${messages.map((m) => `${String(m.seq)}:${m.id}`).join(",")}|${String(pending)}`;
+    if (transcript.dataset["messages"] !== key) {
+      transcript.dataset["messages"] = key; transcript.dataset["first"] = String(messages[0]?.seq ?? Number.MAX_SAFE_INTEGER);
+      transcript.replaceChildren(older);
+      let lastDay = "", lastAuthor = "";
+      for (const message of messages) {
+        const day = dayLabel(message.at);
+        if (day !== lastDay) { transcript.append(element("div", day, "team-day")); lastDay = day; lastAuthor = ""; }
+        const mine = message.kind === "member" && message.authorId === snapshot?.selfId;
+        const row = element("div", "", `team-row shared-message ${mine ? "is-mine" : message.kind === "assistant" ? "is-ai" : "is-other"}`);
+        row.dataset["kind"] = message.kind;
+        const author = message.kind === "assistant" ? `ai:${message.authorId}` : message.authorId;
+        const continued = author === lastAuthor;
+        lastAuthor = author;
+        if (continued) row.classList.add("is-continued");
+        const time = new Date(message.at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+        if (message.kind === "assistant") {
+          const requester = snapshot?.members.find((member) => member.uid === message.authorId)?.name ?? "a teammate";
+          const meta = element("div", "", "team-meta");
+          const mark = element("span", "", "team-ai-mark"); mark.append(createIcon(Sparkles));
+          meta.append(mark, element("strong", "AI"), element("span", `asked by ${requester} · ${time}`, "team-meta-detail"));
+          const body = element("div", "", "chat-bubble chat-bubble-assistant team-bubble shared-message-text");
+          body.innerHTML = renderChatMessageHtml(message.text);
+          row.append(meta, body);
+        } else if (message.kind === "error") {
+          row.append(element("div", message.text, "team-error-line shared-message-text"));
+        } else {
+          if (!mine && !continued) row.append(avatar(message.authorId, message.authorName));
+          const stack = element("div", "", "team-stack");
+          if (!continued) {
+            const meta = element("div", "", "team-meta");
+            if (!mine) { const name = element("strong", message.authorName); name.style.setProperty("--hue", String(personHue(message.authorId))); meta.append(name); }
+            meta.append(element("span", time, "team-meta-detail"));
+            stack.append(meta);
+          }
+          // Text only: a member's message is never markup, whatever it contains.
+          stack.append(element("div", message.text, `chat-bubble chat-bubble-user team-bubble shared-message-text${mine ? "" : " team-bubble-other"}`));
+          row.append(stack);
+        }
+        transcript.append(row);
       }
-      if(!messages.length) timeline.append(element("p",snapshot?.selectedSession ? "Start the conversation. Everyone in this project can participate." : "Start a session to begin your project's shared conversation.","projects-muted"));
-      if(scroll||distance<60) timeline.scrollTop=timeline.scrollHeight;
-      else timeline.scrollTop=previousTop+((messages[0]?.seq??Number.MAX_SAFE_INTEGER)<previousFirst?Math.max(0,timeline.scrollHeight-previousHeight):0);
+      if (pending) {
+        const typing = element("div", "", "team-row is-ai team-typing");
+        const dots = element("div", "", "chat-bubble chat-bubble-assistant team-bubble");
+        dots.append(element("span"), element("span"), element("span"));
+        dots.setAttribute("aria-label", "The AI is replying");
+        typing.append(dots);
+        transcript.append(typing);
+      }
+      if (!messages.length) {
+        const start = element("div", "", "team-start");
+        start.append(element("strong", snapshot?.selectedSession ? `This is the start of ${snapshot.sessions.find((s) => s.id === snapshot?.selectedSession)?.title ?? "this chat"}` : "Pick a chat"),
+          element("p", "Say hi, or start a message with @ai to ask the assistant - everyone in the project sees its answer.", "team-muted"));
+        transcript.append(start);
+      }
+      if (scroll || distance < 60) transcript.scrollTop = transcript.scrollHeight;
+      else transcript.scrollTop = previousTop + ((messages[0]?.seq ?? Number.MAX_SAFE_INTEGER) < previousFirst ? Math.max(0, transcript.scrollHeight - previousHeight) : 0);
     }
-    older.hidden=!hasOlder;
+    older.hidden = !hasOlder;
   }
+
   function apply(next: SharedProjectSnapshot, reset: boolean) {
-    const changed=reset||next.id!==snapshot?.id||next.selectedSession!==snapshot?.selectedSession;
-    const previous=snapshot;
-    snapshot=next; selected=next.id; projectSnapshots.set(next.id,next); if(changed) expandedProjects.add(next.id);
-    if(library) library={...library,projects:library.projects.map(project=>project.id===next.id?next:project)};
-    renderLibrary(); showError("");
-    if(changed) { messages=[]; hasOlder=next.hasOlder; input.value=drafts.get(draftKey()??"")??""; nonce=null; }
-    mergeMessages(next.messages); title.textContent=next.name + " / " + (next.sessions.find(session=>session.id===next.selectedSession)?.title ?? "Conversations"); projectInfo.textContent=`${next.repository} · ${next.memberCount}/${next.memberLimit} people${next.archived ? " · Archived · read-only" : ""}`;
-    if(!previous||next.id!==previous.id||next.invite!==previous.invite||next.liveInvite!==previous.liveInvite||next.archived!==previous.archived||next.selfId!==previous.selfId) {
-    actions.replaceChildren();
-    if(next.invite) actions.append(button("Copy project invite",()=>{ void window.adcode.clipboard.writeText(next.invite!).then(()=>showError("Project invite copied.")); }));
-    if(next.liveInvite) actions.append(button("Join live files",()=>{ void task(async()=>{ const name=next.members.find(m=>m.uid===next.selfId)?.name??"Teammate"; await window.adcode.collab.join(next.liveInvite!,name); }); }));
-    else if(!next.archived) actions.append(button("Start live files",()=>{ void task(async()=>{ const name=next.members.find(m=>m.uid===next.selfId)?.name??"Teammate"; await window.adcode.collab.host({bind:"internet",port:0,displayName:name,sharedProjectId:next.id}); await poll(); }); }));
-    if(next.ownerId===next.selfId&&!next.archived) {
-      actions.append(button("Replace invite",()=>{ void task(async()=>{ if(await deps.confirm("Replace the project invite?","The old invite will stop working. Current members keep access.","Replace invite")) apply(await window.adcode.collab.sharedManage(next.id,"invite") as SharedProjectSnapshot,false); }); }));
-      actions.append(button("Archive project",()=>{ void task(async()=>{ if(!await deps.confirm("Archive this project?","Live files will end and chats become read-only. The project will stop using an ownership slot.","Archive project")) return; await window.adcode.collab.sharedManage(next.id,"archive"); await loadLibrary(); await openProject(next.id); }); }));
+    const changed = reset || next.id !== snapshot?.id || next.selectedSession !== snapshot?.selectedSession;
+    const previous = snapshot;
+    snapshot = next; selected = next.id; projectSnapshots.set(next.id, next); expandedProjects.add(next.id);
+    if (library) library = { ...library, projects: library.projects.map((project) => project.id === next.id ? next : project) };
+    renderLibrary(); say("");
+    if (!next.selectedSession) { showEmpty("no-chats"); renderMenu(next); paintPeople(next); return; }
+    showChat();
+    if (changed) { messages = []; hasOlder = next.hasOlder; input.value = drafts.get(draftKey() ?? "") ?? ""; nonce = null; }
+    mergeMessages(next.messages);
+    title.textContent = next.sessions.find((session) => session.id === next.selectedSession)?.title ?? "Team chat";
+    subtitle.textContent = `${next.name} · ${String(next.memberCount)} ${next.memberCount === 1 ? "person" : "people"}${next.archived ? " · archived, read-only" : ""}`;
+    if (!previous || previous.id !== next.id || JSON.stringify(previous.members) !== JSON.stringify(next.members) || previous.invite !== next.invite || previous.liveInvite !== next.liveInvite || previous.archived !== next.archived || previous.selfId !== next.selfId) {
+      renderMenu(next); paintPeople(next);
     }
-    if(next.ownerId!==next.selfId) actions.append(button("Leave project",()=>{ void task(async()=>{ if(!await deps.confirm("Leave this project?","You will lose access to its shared sessions and live files.","Leave project")) return; await window.adcode.collab.sharedManage(next.id,"remove",next.selfId); clearProject(); await loadLibrary(); }); }));
-    }
-    const focused=document.activeElement;
-    const sessionButtons=next.sessions.map(session=>{
-      const row=button(`${session.title}${session.pending?" · AI replying…":""}`,()=>{ void task(async()=>{ const id=++generation; const changed=await window.adcode.collab.sharedSnapshot(next.id,session.id); if(id!==generation) return; apply(changed,true); schedule(); }); });
-      row.dataset["session"]=session.id; row.setAttribute("aria-pressed",String(session.id===next.selectedSession)); return row;
-    });
-    const focusedId=focused instanceof HTMLElement?focused.dataset["session"]:undefined;
-    sessions.replaceChildren(...sessionButtons); if(focusedId) sessionButtons.find(b=>b.dataset["session"]===focusedId)?.focus({preventScroll:true});
-    members.replaceChildren();
-    for(const member of next.members) {
-      const row=element("div","","shared-member"); row.append(element("strong",`${member.name}${member.uid===next.ownerId?" · Owner":""}`),element("span",`${member.messages} messages · ${member.sessions} sessions started`,"projects-muted"));
-      if(next.selfId===next.ownerId&&member.uid!==next.ownerId) row.append(button("Remove",()=>{ void task(async()=>{ if(!await deps.confirm(`Remove ${member.name}?`,"Their live-file access will end and the old invite will be replaced.","Remove member")) return; await window.adcode.collab.sharedManage(next.id,"remove",member.uid); await poll(); }); })); members.append(row);
-    }
-    renderMessages(changed); composer.hidden=!next.selectedSession||next.archived; newSession.disabled=next.archived;
-    pending.textContent=next.sessions.find(s=>s.id===next.selectedSession)?.pending?"AI is replying for the team…":"";
-    send.disabled=posting||next.archived; ask.disabled=posting||next.archived||!!next.sessions.find(s=>s.id===next.selectedSession)?.pending;
+    invite.hidden = !next.invite;
+    renderMessages(changed);
+    // In Vibe the real chat has the composer; this panel only ever shows its skeleton.
+    composer.hidden = next.archived || inChat;
+    send.disabled = posting || next.archived;
+  }
+  function paintPeople(next: SharedProjectSnapshot) {
+    people.replaceChildren(...next.members.slice(0, 4).map((member) => avatar(member.uid, member.name, "team-avatar team-avatar-stacked")));
+    if (next.members.length > 4) people.append(element("span", `+${String(next.members.length - 4)}`, "team-avatar team-avatar-stacked team-avatar-more"));
+    people.title = next.members.map((member) => member.name).join(", ");
+  }
+  function clearChat() {
+    generation++; clearTimeout(polling); messages = []; hasOlder = false;
+    transcript.replaceChildren(older); delete transcript.dataset["messages"]; older.hidden = true;
   }
   function clearProject() {
-    generation++; clearTimeout(polling); snapshot=null; selected=null; messages=[]; hasOlder=false;
-    actions.replaceChildren(); sessions.replaceChildren(); members.replaceChildren(); timeline.replaceChildren(); delete timeline.dataset["messages"];
-    title.textContent="Project conversations"; projectInfo.textContent="Choose a project to see its shared conversations.";
-    composer.hidden=true; older.hidden=true; newSession.disabled=true; pending.textContent="";
+    clearChat(); snapshot = null; selected = null;
+    menu.replaceChildren(); people.replaceChildren();
+    title.textContent = "Team"; subtitle.textContent = "";
+    composer.hidden = true;
   }
-  async function post(askAi: boolean) {
-    if(posting||!snapshot?.selectedSession||!input.value.trim()||snapshot.archived) return;
-    const id=snapshot.id, session=snapshot.selectedSession, submitted=input.value, request=generation; nonce??=crypto.randomUUID(); posting=true; send.disabled=true; ask.disabled=true; showError("");
+  async function post() {
+    if (posting || !snapshot?.selectedSession || !input.value.trim() || snapshot.archived) return;
+    const id = snapshot.id, session = snapshot.selectedSession, submitted = input.value, request = generation;
+    const { ask, text } = aiRequest(submitted, aiOn);
+    nonce ??= crypto.randomUUID(); posting = true; send.disabled = true; say("");
     try {
-      const next=await window.adcode.collab.sharedMessage(id,session,submitted,askAi,nonce);
-      if(request!==generation) return;
-      if(input.value===submitted) { input.value=""; drafts.delete(`${id}:${session}`); nonce=null; } apply(next,false); timeline.scrollTop=timeline.scrollHeight;
-    } catch(error) { showError(error instanceof Error?error.message:"Your message could not be sent. It is still here so you can retry."); }
-    finally { posting=false; if(snapshot) { send.disabled=snapshot.archived; ask.disabled=snapshot.archived||!!snapshot.sessions.find(s=>s.id===snapshot?.selectedSession)?.pending; } }
+      const next = await window.adcode.collab.sharedMessage(id, session, text, ask, nonce);
+      if (request !== generation) return;
+      if (input.value === submitted) { input.value = ""; input.style.height = ""; drafts.delete(`${id}:${session}`); nonce = null; }
+      apply(next, false); transcript.scrollTop = transcript.scrollHeight;
+    } catch (error) { say(error instanceof Error ? error.message : "Your message could not be sent. It is still here, so you can try again."); }
+    finally { posting = false; if (snapshot) send.disabled = snapshot.archived; }
   }
-  refresh.addEventListener("click",()=>{ void task(async()=>{ await loadLibrary(); if(snapshot) await poll(); }); });
-  window.adcode.account.onChanged(()=>{ projectSnapshots.clear(); clearProject(); void task(()=>loadLibrary()); });
-  window.adcode.collab.onSharedChanged(id=>{ if(isVisible()&&id===snapshot?.id) void poll(); });
-  composer.hidden=true;
+
+  window.adcode.account.onChanged(() => { projectSnapshots.clear(); clearProject(); void task(() => loadLibrary()); });
+  window.adcode.collab.onSharedChanged((id) => { if (isVisible() && id === snapshot?.id) void poll(); });
+  composer.hidden = true;
+
   return {
-    mount(host: HTMLElement, navigation: HTMLElement, show: () => void) { panel.close(); integrated={host,show}; host.classList.add("shared-chat-host"); host.hidden=true; host.append(main); sidebar.classList.add("shared-library-inline"); navigation.append(sidebar); const tools=element("div","","shared-library-tools"); for(const child of [...sidebar.children]) if(child instanceof HTMLButtonElement) tools.append(child); sidebar.insertBefore(tools,list); void task(()=>loadLibrary()); },
-    close() { active=false; clearTimeout(polling); generation++; if(integrated) integrated.host.hidden=true; else panel.close(); },
-    open(id?: string) { reveal(); void task(async()=>{ await loadLibrary(); const target=id??selected??library?.projects[0]?.id; if(target) await openProject(target); }); } };
+    mount(host: HTMLElement, navigation: HTMLElement, show: () => void) {
+      panel.close(); integrated = { host, show };
+      host.classList.add("shared-chat-host"); host.hidden = true; host.append(main);
+      sidebar.classList.add("shared-library-inline"); navigation.append(sidebar);
+      void task(() => loadLibrary());
+    },
+    /** The strip above the real chat; empty until a team chat is open. */
+    strip,
+    close() { active = false; clearTimeout(polling); generation++; toggleMenu(false); if (integrated) integrated.host.hidden = true; else panel.close(); },
+    open(id?: string) {
+      reveal();
+      if (inChat && chatId === null) showOpening();
+      const run = async () => {
+        await loadLibrary();
+        if (library === null || library.projects.length === 0) return;
+        const target = id ?? selected ?? library.projects[0]?.id;
+        if (target) { await openProject(target); await openInChat(); }
+      };
+      if (busy) queuedOpen = run; else void task(run);
+    },
+  };
 }

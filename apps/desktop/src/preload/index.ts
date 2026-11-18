@@ -399,6 +399,12 @@ const api: AdcodeApi = {
   usageStats: {
     record: (name) => ipcRenderer.send(CHANNELS.appUsageRecord, name),
   },
+  team: {
+    open: (projectId, sessionId) => ipcRenderer.invoke(CHANNELS.teamChatOpen, projectId, sessionId),
+    sync: (chatId) => ipcRenderer.invoke(CHANNELS.teamChatSync, chatId),
+    setAi: (chatId, on) => ipcRenderer.invoke(CHANNELS.teamChatSetAi, chatId, on),
+    state: (chatId) => ipcRenderer.invoke(CHANNELS.teamChatState, chatId),
+  },
   referrals: {
     get: () => ipcRenderer.invoke(CHANNELS.referralsGet),
     claim: (text) => ipcRenderer.invoke(CHANNELS.referralsClaim, text),
