@@ -413,4 +413,81 @@ For a model on your own computer, ADCode's lean mode goes further: 2,503 tokens 
 `,
 };
 
-export const REPORTS_2026_11: readonly Report[] = [realModel, benchmark, comparison, efficiency, ads];
+const whatsNew262: Report = {
+  slug: "adcode-2-6-2-teams-and-agents",
+  title: "What's new in ADCode 2.6.2: build with your team and a team of agents",
+  description:
+    "Team chats in the real chat, Agent flow for up to 50 agents, mods made by asking, and the reliability work behind it: a slow free model hands over, a busy chat waits its turn, and saved chats stay saved.",
+  published: "2026-11-18",
+  surface: "docs",
+  section: "How ADCode works",
+  order: 29,
+  related: ["adcode-2-6-1-fewer-tokens", "adcode-vs-claude-code-codex-opencode-t3-code", "workbench-agent-flow", "workbench-solo-team", "workbench-mods"],
+  body: `
+ADCode 2.6.2 is about two kinds of team: the people you build with, and the AI agents you hand work to. It also fixes the things that most often stopped a first conversation from finishing. Every change below is in the app when you update - there is nothing to switch on unless the step says so.
+
+## Build with your team, in the chat you already use
+
+Above Conversations in the Vibe sidebar there is now a switch: **Solo** and **Team**. Solo is your own chats, as before. Team shows only the shared projects you belong to.
+
+1. Press **Team** and sign in if asked - team projects belong to your account.
+2. Choose **Share this project** (the open folder must be on GitHub) or **Join with an invite** and paste the invite a teammate sent you.
+3. Press **+** beside a project to start a chat and give it a name.
+4. Write in the box and press Enter. Every message carries its writer's name; teammates sit on the left. Their messages reach you within a few seconds.
+5. With **AI replies** on - or by starting a message with **@ai** - the AI takes the message as a task and builds it right there: it reads the project, edits files and runs commands, and everyone sees the answer and who asked.
+6. Press **Invite** to copy a link for more people, and **Solo** to go back. A solo chat that was working kept going while you were away.
+
+What is different from before: a team chat used to be a separate panel with its own box. It is now the same chat you use alone - composer, model picker, tools and build cards - with the people, Invite and AI replies in a strip above it. [The full guide](/docs/workbench-solo-team) has every option.
+
+## A team of agents: Agent flow
+
+One model doing everything plans, types and checks its own work in a single pass, and a strong model charges its price for every line it types. **Agent flow** splits the work the way a team would.
+
+1. Open **Agents** on the left rail and choose the **Flow** tab (or run Agents: Agent Flow from the command palette).
+2. Start from the ready-made flow - Thinker, Coder, Reviewer, Tester and Researcher - or drag new agents onto the canvas, up to 50.
+3. Connect agents by dragging from one agent's right-hand dot to another, then click the link to say what it means: hands work to, sends for review to, or can ask.
+4. Click an agent to set its name, role, the work it takes over, the **model it runs on** and its instructions. Tick Read-only for a reviewer that must never edit.
+5. Type a sample message under **Try it** to see which agents would take it, in order.
+6. Switch the flow **On** for every chat or the chats you pick. Share it with **Copy link**; it arrives switched off for whoever opens it.
+
+The payoff is concrete: a fast or cheap model can type while a stronger one plans, a reviewer checks the work before you read it, and every agent's tokens are counted against its own model so you can see where the cost goes. [The Agent flow guide](/docs/workbench-agent-flow) walks through each step with the screens.
+
+Two more agent changes ship with it:
+
+- **A redesigned Agents board.** Each box leads with a status chip and a timer, shows what the agent is doing with a moving bar while it works, and keeps edit and delete out of the way until you need them.
+- **Task agents** (new in 2.6.1) still work inside a flow: a saved agent can run helper work on its own model, and "use DeepSeek for all coding work" in the chat sets one up after you confirm.
+
+## Change ADCode by asking: mods
+
+Ask the assistant to change ADCode itself - "a warm paper theme with a terracotta accent", "a /standup command that summarises yesterday's commits", "a clock in the status bar". It writes a mod, lists every change before anything happens, and applies it when you press **Apply mod**. Ask again to adjust it, switch it off or remove it. Mods follow the same rules as plugins: they cannot touch your models, keys, ads or permissions. [How mods work](/docs/workbench-mods).
+
+## Conversations that finish
+
+These changes come from in-app reports. The most common one was a chat that stopped with an error before the model had written a word.
+
+- **A slow free model hands over.** If an included model has not started answering after a minute, or its stream dies before the first word, the task is asked again and then switched to another included model - and the chat says so. Paid models you chose are never switched.
+- **No more "4 chats are already working".** Up to four chats work at once. A message sent while all four are busy waits its turn and starts by itself the moment one finishes; Stop takes it out of the line.
+- **Saved chats stay saved.** Conversations are written to a new file and then moved into place, so a crash mid-save can no longer leave an empty file. Chats saved under an older spelling of the project's folder are found and moved on their next save, and **Clear all** now asks before it deletes a project's history.
+- **The model picker opens at once.** With Claude Code, Codex or OpenCode installed, the picker used to wait for each tool to report its models - up to a minute and a half after a restart. It now shows the last known list straight away and fills in the live one a few seconds later.
+- **Look around first.** The sign-in screen has a "Look around first - sign in later" option. Included AI still needs a verified account; everything else works without one.
+
+## Smaller things
+
+- **Sort and pin conversations** by recent activity, newest, oldest, name or length; pinned chats stay on top. [Guide](/docs/ai-sort-conversations).
+- **Searchable dropdowns** in Agent flow, Tools, the agent dialogs and the conversation sort: type to filter, grouped by connection, full keyboard control.
+- **Coming back is easier.** The Continue card says why a conversation is worth reopening - it is waiting on your answer, or your last message never got one.
+- **Cancelling a plan is easy to find.** The account menu's plan button now reads **Manage or cancel plan**.
+
+## ADCode or the Claude desktop app?
+
+People ask this, so here is a straight answer. If you pay for Claude and want Anthropic's own agent with the strongest Claude models, the Claude desktop app is excellent at that one job, and ADCode does not try to beat it there. ADCode is the better pick when you want **a full editor around the agent**, **models from any provider** (including free included models and local ones), **a team of agents on different models**, or **people and AI in one shared chat**.
+
+You also do not have to choose: under Connect a model, the **Coding CLIs** tab runs Claude Code inside ADCode on the Claude subscription you already pay for, with ADCode's preview, browser and page checks available to it. [The November comparison report](/docs/adcode-vs-claude-code-codex-opencode-t3-code) puts ADCode, Claude Code, Codex, OpenCode and T3 Code side by side, including where another tool is the better choice.
+
+## Updating
+
+ADCode updates itself: when 2.6.2 is ready on your computer, a notice asks you to restart. To update by hand, download the installer from [Versions](/versions). Your chats, settings and keys carry over.
+`,
+};
+
+export const REPORTS_2026_11: readonly Report[] = [whatsNew262, realModel, benchmark, comparison, efficiency, ads];

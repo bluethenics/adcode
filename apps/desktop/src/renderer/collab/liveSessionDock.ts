@@ -761,16 +761,25 @@ export function createLiveSessionDock(deps: LiveSessionDockDeps): LiveSessionDoc
   document.addEventListener("pointerdown", (event) => {
     if (!open || !(event.target instanceof Element)) return;
     if (element.contains(event.target) || event.target.closest(".chat-live-button") !== null) return;
-    // Dialogs the card opened (join confirmation) sit outside it and must not close it.
-    if (event.target.closest("dialog, .modal, [role='dialog']") !== null) return;
+    // Dialogs the card opened (join confirmation) sit outside it and must not close it. The
+    // chat itself can be a dialog, and a click elsewhere in it is exactly a click elsewhere.
+    const dialog = event.target.closest("dialog, .modal, [role='dialog']");
+    if (dialog !== null && !dialog.contains(element)) return;
     setOpen(false);
   });
-  element.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape") return;
+  // On the window, in capture, while the card is open: ahead of the popup coordinator, which
+  // would close the whole chat - the card redraws every few seconds, so focus is not always
+  // inside it. Left alone when another modal (a join confirmation) sits on top.
+  window.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !open || element.hidden) return;
+    const modal = document.querySelector("dialog:modal");
+    if (modal !== null && !modal.contains(element)) return;
+    // preventDefault too: otherwise the chat's modal dialog takes the same Escape as its cancel.
     event.stopPropagation();
+    event.preventDefault();
     setOpen(false);
     (document.querySelector(".chat-live-button") as HTMLElement | null)?.focus();
-  });
+  }, true);
   window.addEventListener("focus", () => {
     if (open && unread > 0) { unread = 0; notify(); }
   });

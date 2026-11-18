@@ -6,6 +6,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
 import { when } from "@/components/money";
 import { AdminPanel, AdminWorkspace } from "@/components/AdminUI";
+import { AdminLoader } from "@/components/AdminLoader";
 
 type Surface = "blog" | "docs" | "both";
 
@@ -157,7 +158,7 @@ export function BlogBody() {
     setError(null);
   };
 
-  if (loading) return <p className="lede">Loading…</p>;
+  if (loading) return <AdminLoader label="Loading posts" />;
 
   return (
     <>

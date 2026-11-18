@@ -6,6 +6,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
 import { when } from "@/components/money";
 import { AdminFootnote, AdminPanel, AdminWorkspace } from "@/components/AdminUI";
+import { AdminLoader } from "@/components/AdminLoader";
 
 interface ReleaseRow {
   version: string;
@@ -152,7 +153,7 @@ export function ReleasesBody() {
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  if (loading) return <p className="lede">Loading…</p>;
+  if (loading) return <AdminLoader label="Loading releases" />;
 
   return (
     <>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
 import { moneyExact } from "@/components/money";
+import { AdminLoader } from "@/components/AdminLoader";
 
 interface ReferralConfigView {
   userPercent: string;
@@ -84,7 +85,7 @@ export function ReferralSettings() {
   }
 
   if (error !== null && config === null) return <p role="alert">{error}</p>;
-  if (config === null) return <p role="status">Loading…</p>;
+  if (config === null) return <AdminLoader label="Loading referral terms" rows={3} />;
 
   const house = new Set(config.houseAdvertiserIds);
   const toggleHouse = (id: string, on: boolean): void =>

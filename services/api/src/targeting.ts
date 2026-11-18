@@ -6,6 +6,7 @@
  */
 import { advertiserCostMicros } from "./money.ts";
 import type { CampaignRecord } from "./store.ts";
+import { campaignMatches } from "./regions.ts";
 
 export interface Candidate {
   campaign: CampaignRecord;
@@ -42,13 +43,11 @@ function eligibleCandidates(
   tags: readonly string[],
   floorCpmMicros = 0n,
 ): Candidate[] {
-  const wanted = new Set(tags);
   return candidates.filter(({ campaign, spentMicros }) => {
     if (campaign.status !== "active" || campaign.cpmMicros < floorCpmMicros) return false;
 
-    const matches =
-      campaign.targetTags.length === 0 || campaign.targetTags.some((tag) => wanted.has(tag));
-    if (!matches) return false;
+    // Context tags any-of, and regions required on top: see `regions.ts`.
+    if (!campaignMatches(campaign.targetTags, tags)) return false;
 
     const remaining = campaign.budgetMicros - spentMicros;
     return remaining >= advertiserCostMicros(campaign.cpmMicros) && remaining > 0n;

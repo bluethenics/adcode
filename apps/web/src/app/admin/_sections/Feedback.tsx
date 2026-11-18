@@ -5,6 +5,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
 import { dollarsToMicros, moneyExact, when } from "@/components/money";
 import { AdminSummary } from "@/components/AdminUI";
+import { AdminLoader } from "@/components/AdminLoader";
 
 /** Long enough to bury the next report: a pasted stack trace, a log. Shown clamped until asked. */
 const LONG_REPORT = 480;
@@ -210,7 +211,7 @@ export function ReportsBody({ initialQuery = "" }: { initialQuery?: string }) {
       );
   }, [rows, filter, query]);
 
-  if (loading) return <div className="skeleton skeleton-card" />;
+  if (loading) return <AdminLoader label="Loading feedback" />;
 
   const openCount = rows.filter((r) => r.status !== "closed").length;
   const inProgress = rows.filter((r) => r.status === "triaged").length;

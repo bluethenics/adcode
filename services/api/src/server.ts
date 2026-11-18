@@ -22,6 +22,7 @@ import { relayImprezia } from "./impreziaProxy.ts";
 import { sponsoredNetworks } from "./sponsoredNetworks.ts";
 import { creditNetworkImpression, parseNetworkImpression, withNetworkImpressions } from "./networkImpressions.ts";
 import { handleServe } from "./serve.ts";
+import { requestRegionTag } from "./regions.ts";
 import { handleReceipts } from "./receipts.ts";
 import { handleBalance, handleLedger } from "./balance.ts";
 import { handleConfig } from "./config.ts";
@@ -281,6 +282,8 @@ function firstHeader(value: string | string[] | undefined): string | undefined {
 
 export interface ApiOptions {
   adNetworks?: AdNetworkRuntime;
+  /** Admin user search and actions, and email campaigns (`adminConsole.ts`). Answered before the main router. */
+  adminConsole?: Pick<import("./adminConsole.ts").AdminConsoleOptions, "console" | "sendTest">;
   tagflow?: { modelMetadata?: boolean; priority?: import("./requestPriority.ts").RequestPriority; apiKey?: string; fetchImpl?: typeof fetch; country?: (request: Request) => string | undefined; workerSecrets?: WorkerSecrets; rateLimitWaitsMs?: readonly number[]; fallback?: boolean; identity?: AccountIdentity; emailProof?: import("./accountEmailProof.ts").AccountEmailProof; timeouts?: Partial<{ firstMs: number; idleMs: number; maxMs: number }>; encryptionKeys?: () => readonly string[]; salesOpen?: boolean };
   websiteAnalytics?: WebsiteAnalyticsStore;
   /** Desktop feature-use totals (appUsage.ts). Absent: the editor's reports are accepted and dropped. */
@@ -1892,7 +1895,11 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       // limiter just used, and re-reading it would cost another round trip on the
       // path with the tightest budget. Kill-switch timing is unchanged - this config
       // was read milliseconds ago in this same request.
-      send(res, 200, await handleServe({ store, clock, ids, ...options.adNetworks, assetOrigin: requestOrigin(req) }, auth.uid, body, config), cors);
+      // The country is the edge's, never the client's: a region-targeted campaign serves
+      // only where Cloudflare places the connection, and the tag lives for this auction only.
+      const region = requestRegionTag(firstHeader(req.headers["cf-ipcountry"]));
+      const tags = region === null ? body.tags : [...body.tags, region];
+      send(res, 200, await handleServe({ store, clock, ids, ...options.adNetworks, assetOrigin: requestOrigin(req) }, auth.uid, { ...body, tags }, config), cors);
       return;
     }
 

@@ -237,6 +237,8 @@
 .ai-tokens-jump a { padding: 7px 14px; border: 1px solid var(--hairline); border-radius: 999px; color: var(--muted); font-size: 13px; text-decoration: none; transition: color 160ms ease, border-color 160ms ease; }
 .ai-tokens-tiers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; }
 .ai-tokens-tiers > div { display: grid; gap: 4px; padding: 16px 18px; border: 1px solid var(--hairline); border-radius: 14px; background: var(--card); }
+/* Three tiers in two columns left the last one alone under the first; an odd last card takes the whole row. */
+.ai-tokens-tiers > div:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .ai-tokens-tiers > div[data-featured="true"] { border-color: var(--text); }
 .ai-tokens-tiers dt { color: var(--muted); font-size: 12px; }
 .ai-tokens-tiers dd { margin: 0; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }

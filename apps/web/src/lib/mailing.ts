@@ -1,6 +1,9 @@
 /** Production assembly; only the API and scheduled Worker import this file. */
 import { createSupabaseMailingStore } from "@adcode/api/adapters/supabaseMailingStore.ts";
-import { runAnnouncementBatch, runMailingBatch, sendReportReply, resendEmail } from "@adcode/api/src/mailingDelivery.ts";
+import { runAnnouncementBatch, runCampaignBatch, runMailingBatch, sendReportReply, resendEmail } from "@adcode/api/src/mailingDelivery.ts";
+import { createAdminConsoleStore } from "@adcode/api/adapters/adminConsoleStore.ts";
+import type { CampaignInput } from "@adcode/api/src/adminConsole.ts";
+import type { SendResult } from "@adcode/api/src/mailing.ts";
 import { createAccountEmailProof, emailProofHash } from "@adcode/api/src/accountEmailProof.ts";
 import { createAccountEmailProofStore } from "@adcode/api/adapters/accountEmailProofStore.ts";
 import { createSupabaseStatusAlertStore } from "@adcode/api/adapters/supabaseStatusAlertStore.ts";
@@ -12,6 +15,7 @@ import { createSupabasePurchaseReceiptStore } from "@adcode/api/adapters/supabas
 import { runPurchaseReceiptBatch } from "@adcode/api/src/purchaseReceipts.ts";
 
 export const mailingStore = createSupabaseMailingStore();
+export const adminConsoleStore = createAdminConsoleStore();
 export const accountEmailProof = createAccountEmailProof({
   store: createAccountEmailProofStore(),
   origin: process.env["NEXT_PUBLIC_SITE_ORIGIN"] ?? "https://adcode.bluethenics.com",
@@ -51,7 +55,31 @@ export async function runScheduledMailing() {
     siteOrigin: siteOrigin(),
     render: async (...args) => (await import("@/emails/Announcement")).renderAnnouncement(...args),
   });
-  return { campaign, announcements };
+  // Administrator-written campaigns (Admin > Email campaigns). Fails on its own, so a missing
+  // migration never stops the return campaign or announcements above.
+  const campaigns = await runCampaignBatch({
+    store: mailingStore,
+    campaigns: adminConsoleStore,
+    ...keys(),
+    siteOrigin: siteOrigin(),
+    render: async (...args) => (await import("@/emails/Campaign")).renderCampaign(...args),
+  }).catch((error: unknown) => ({ error: error instanceof Error ? error.message : "campaigns failed" }));
+  return { campaign, announcements, campaigns };
+}
+
+/**
+ * One campaign to the administrator who asked, before it goes to anyone else. Not bulk mail:
+ * no recipient row, nothing counted against the caps - but the verified sender is still required.
+ */
+export async function sendCampaignTest(campaign: CampaignInput, to: string, displayName: string | null): Promise<SendResult> {
+  const settings = await mailingStore.settings();
+  const { apiKey } = keys();
+  if (!apiKey) return { retry: false, code: "configuration-required" };
+  if (!settings.senderVerified) return { retry: false, code: "domain-not-verified" };
+  const mail = await (await import("@/emails/Campaign")).renderCampaign(campaign, { displayName }, siteOrigin() + "/dashboard#email-preferences", settings.postalAddress ?? "ADCode");
+  return resendEmail(fetch, apiKey, "campaign-test/" + crypto.randomUUID(), {
+    to: [to], ...mail, subject: "[Test] " + mail.subject, tags: [{ name: "campaign", value: "admin-test" }],
+  });
 }
 
 /** An administrator's reply to a report: rendered here, sent at once through Resend. */

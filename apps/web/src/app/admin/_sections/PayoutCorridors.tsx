@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { when } from "@/components/money";
 import { apiFetch, MESSAGES, type AdminPayoutCorridorView } from "@/lib/api";
+import { AdminLoader } from "@/components/AdminLoader";
 
 const FIELD_KINDS = [
   "iban", "bic", "accountNumber", "routingNumber", "sortCode", "ifsc", "bsb",
@@ -57,7 +58,7 @@ export function PayoutCorridors() {
     setError(null);
   };
 
-  if (loading) return <div className="skeleton skeleton-card" />;
+  if (loading) return <AdminLoader label="Loading payout countries" />;
 
   return <>
     {error !== null && <div className="notice" data-tone="error" role="alert">{error}</div>}

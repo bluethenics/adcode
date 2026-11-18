@@ -32,9 +32,13 @@
 .chat-usage-chip[data-tone="warn"] { color: var(--warning); }
 .chat-usage-chip[data-tone="full"] { color: var(--danger); }
 
+.chat-usage { position: relative; flex: none; }
 .chat-usage-popover {
-  position: fixed;
-  z-index: 60;
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 8px);
+  left: 0;
+  width: min(320px, calc(100vw - 32px));
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -50,6 +54,8 @@
   scrollbar-width: thin;
 }
 .chat-usage-popover[hidden] { display: none; }
+/* Focus rests on the card so Escape reaches it; its rows and actions carry their own rings. */
+.chat-usage-popover:focus { outline: none; }
 
 .chat-usage-head { display: flex; align-items: center; gap: 8px; padding: 6px 8px; color: var(--text-primary); }
 .chat-usage-head svg { width: 16px; height: 16px; color: var(--text-secondary); }

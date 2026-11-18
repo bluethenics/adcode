@@ -102,40 +102,36 @@ describe("the admin rail", () => {
    */
   const items = ADMIN_NAV.flatMap((group) => group.items);
 
-  it("keeps every destination, with everything about ads in one Ads group", () => {
+  it("keeps every destination in six groups, one row per page with tabs", () => {
     expect(ADMIN_NAV.map((group) => group.label)).toEqual([
-      "Now",
-      "Ads",
-      "Queues",
-      "Money",
-      "Growth",
+      "Today",
       "People",
-      "Publishing",
+      "AI",
+      "Ads",
+      "Money",
+      "Grow and publish",
     ]);
     expect(items.map((item) => item.href)).toEqual([
       "/admin",
       "/admin/analytics",
-      "/admin/models",
-      "/admin/tagflow",
+      "/admin/review?tab=feedback",
       "/admin/status",
+      "/admin/people",
+      "/admin/campaigns",
+      "/admin/people?tab=admins",
+      "/admin/tagflow",
+      "/admin/models",
       "/admin/ad-networks",
       "/admin/review",
       "/admin/money?tab=advertisers",
       "/admin/tools",
-      "/admin/review?tab=feedback",
       "/admin/money",
       "/admin/money?tab=countries",
       "/admin/growth",
-      "/admin/growth?tab=partners",
-      "/admin/growth?tab=links",
-      "/admin/growth?tab=loops",
-      "/admin/growth?tab=terms",
-      "/admin/people",
-      "/admin/people?tab=admins",
       "/admin/content",
-      "/admin/content?tab=releases",
-      "/admin/content?tab=notices",
     ]);
+    // Growth and Content stand for every tab on their page.
+    expect(items.filter((item) => item.wholePage === true).map((item) => item.href)).toEqual(["/admin/analytics", "/admin/growth", "/admin/content"]);
   });
 
   it("counts the three queues that can block somebody else", () => {
@@ -149,11 +145,11 @@ describe("the admin rail", () => {
     };
     const badged = items.filter((item) => item.badge !== undefined);
     expect(badged.map((item) => item.href)).toEqual([
-      "/admin/review",
       "/admin/review?tab=feedback",
+      "/admin/review",
       "/admin/money",
     ]);
-    expect(badged.map((item) => item.badge?.(counts))).toEqual([2, 4, 3]);
+    expect(badged.map((item) => item.badge?.(counts))).toEqual([4, 2, 3]);
   });
 
   it("marks each destination with the tab its page shows by default", () => {

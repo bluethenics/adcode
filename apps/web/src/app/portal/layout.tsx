@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PortalShell } from "@/components/advertisers/portal/PortalShell";
 import "./portal.css";
 
 /*
@@ -12,5 +13,5 @@ export const metadata: Metadata = {
 };
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  return <div className="advertiser-workspace">{children}</div>;
+  return <PortalShell>{children}</PortalShell>;
 }

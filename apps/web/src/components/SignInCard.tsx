@@ -25,9 +25,19 @@ import {
  */
 export type SignInAudience = "developer" | "advertiser";
 
-export function SignInCard({ heading = "Sign in", audience = "developer", headingTag: HeadingTag = "h1" }: { heading?: string; audience?: SignInAudience; headingTag?: "h1" | "h2" }) {
+export function SignInCard({ heading = "Sign in", audience = "developer", headingTag: HeadingTag = "h1", initialMode }: {
+  heading?: string;
+  audience?: SignInAudience;
+  headingTag?: "h1" | "h2";
+  /**
+   * Which tab opens first. Advertisers default to Create account, which suits somebody arriving
+   * from "Build my campaign"; a screen only an existing advertiser reaches (Billing, Settings, a
+   * campaign, "Already advertising? Sign in") passes "in" so it does not greet them as new.
+   */
+  initialMode?: "in" | "up";
+}) {
   const advertiser = audience === "advertiser";
-  const [mode, setMode] = useState<"in" | "up">(advertiser ? "up" : "in");
+  const [mode, setMode] = useState<"in" | "up">(initialMode ?? (advertiser ? "up" : "in"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);

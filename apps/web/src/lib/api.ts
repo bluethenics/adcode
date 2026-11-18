@@ -10,6 +10,7 @@
  * can say what went wrong and what to do about it.
  */
 import { API_ORIGIN } from "./site";
+import type { AdvertiserView, CampaignView, CreativeView, SeriesPointView } from "./apiViews";
 
 /**
  * Where to send an API call from.
@@ -120,6 +121,14 @@ export async function apiFetch<T>({ path, token, method = "GET", body }: ApiCall
   if (process.env["NODE_ENV"] === "development") {
     const preview = (await import("./adminFixtures")).previewResponse<T>(path, method);
     if (preview !== null) return preview;
+    // The advertiser portal's made-up data (portalPreview.ts). Also dead in production.
+    const portal = await import("./portalPreview");
+    const mode = portal.portalPreview();
+    if (mode !== null) {
+      if (method !== "GET") return { ok: true, value: portal.portalPreviewWrite(path) as T };
+      const found = portal.portalPreviewResponse(mode, path);
+      if (found !== null) return found.ok ? { ok: true, value: found.value as T } : found;
+    }
   }
   if (token === null) return { ok: false, error: "unauthenticated" };
 
@@ -150,46 +159,13 @@ export async function apiFetch<T>({ path, token, method = "GET", body }: ApiCall
 
 /* ── Shapes the API returns ─────────────────────────────────────────────── */
 
-export interface AdvertiserView {
-  advertiserId: string;
-  name: string;
-  status: string;
-  fundedMicros: string;
-  reservedMicros: string;
-  availableMicros: string;
-}
-
-export interface CampaignView {
-  campaignId: string;
-  name: string;
-  status: string;
-  cpmMicros: string;
-  budgetMicros: string;
-  spentMicros: string;
-  targetTags: string[];
-  createdAt: number;
-  serves: number;
-  impressions: number;
-  clicks: number;
-}
+export type { AdvertiserView, CampaignView, CreativeView, SeriesPointView } from "./apiViews";
 
 /** Both campaigns after a budget move, and the balance it changed. */
 export interface BudgetMoveView {
   advertiser: AdvertiserView;
   from: CampaignView;
   to: CampaignView;
-}
-
-export interface CreativeView {
-  creativeId: string;
-  campaignId: string;
-  advertiser: string;
-  headline: string;
-  body: string | null;
-  clickUrl: string;
-  logoLight: string;
-  logoDark: string;
-  status: string;
 }
 
 export interface BalanceView {
@@ -215,15 +191,6 @@ export interface CheckoutView {
   orderId: string;
   sessionId: string;
   checkoutUrl: string;
-}
-
-/** One campaign's numbers for one UTC day. `/portal/series` returns these oldest first. */
-export interface SeriesPointView {
-  day: string;
-  campaignId: string;
-  impressions: number;
-  clicks: number;
-  spentMicros: string;
 }
 
 /** A day of editing, as the desktop app reported it. Counts only - never content. */

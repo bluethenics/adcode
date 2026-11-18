@@ -21,21 +21,20 @@ describe("the advertiser landing page", () => {
     expect(html).toContain("7,027");
     expect(html).toContain("62% of the network joined this week");
     expect(html).toContain("20,116");
-    expect(html).toContain("Competing for the next card");
     // The composite activity score is not ad inventory, so it never reaches this page.
     expect(readApi).not.toHaveBeenCalledWith("/v1/impressions", expect.anything());
   });
 
-  it("tells an advertiser when no campaign is running that the next one has the slots to itself, without printing a zero", async () => {
-    vi.mocked(readApi).mockResolvedValue(Response.json({ ...LIVE, activeCampaigns: 0 }));
-    const html = text(renderToStaticMarkup(await AdvertisersPage()));
-
-    // A zero in this band reads as "nobody advertises here"; a word reads as the opening it is.
-    expect(html).toContain("The next slot");
-    expect(html).toContain("Wide open");
-    expect(html).toContain("No campaign is running, so the next one takes every slot it targets at the floor price");
-    expect(html).not.toContain("Campaigns live now");
-    expect(html).not.toContain("Competing for the next card");
+  it("never says how many campaigns are live, whether there are none or several", async () => {
+    for (const activeCampaigns of [0, 3]) {
+      vi.mocked(readApi).mockResolvedValue(Response.json({ ...LIVE, activeCampaigns }));
+      const html = text(renderToStaticMarkup(await AdvertisersPage()));
+      expect(html).toContain("The network, right now");
+      expect(html).not.toContain("The next slot");
+      expect(html).not.toContain("Wide open");
+      expect(html).not.toContain("Campaigns live now");
+      expect(html).not.toContain("Competing for the next card");
+    }
   });
 
   it("states no audience size at all when the figures are unavailable", async () => {
@@ -55,7 +54,7 @@ describe("the advertiser landing page", () => {
     expect(html).not.toContain("11,391");
   });
 
-  it("quotes prices from the billing constants, and carries the builder and the FAQ", async () => {
+  it("quotes prices from the billing constants, and sends every start into the builder, and carries the FAQ", async () => {
     vi.mocked(readApi).mockRejectedValue(new Error("offline"));
     const markup = renderToStaticMarkup(await AdvertisersPage());
 
@@ -63,7 +62,12 @@ describe("the advertiser landing page", () => {
     expect(budgetExamples([100])).toEqual([{ budget: "$100", views: 50_000 }]);
     expect(text(markup)).toContain("$1 per 500 verified views");
     expect(markup).toContain('id="start"');
-    expect(markup).toMatch(/<form\b[\s\S]*?<button\b[^>]*type="submit"/);
+    // The campaign is built in the portal's four steps, not in a form on this page.
+    expect(markup).not.toMatch(/<form\b/);
+    const starts = [...markup.matchAll(/<a\b[^>]*href="([^"]*)"[^>]*>Start a campaign/g)].map((m) => m[1]);
+    expect(starts.length).toBeGreaterThanOrEqual(3);
+    expect(new Set(starts)).toEqual(new Set(["/portal/campaigns/new"]));
+    expect(text(markup)).toContain("Can I target specific countries or regions?");
     for (const item of ADVERTISER_FAQ) expect(markup).toContain(item.q.replace("'", "&#x27;"));
     expect(markup).toContain('href="/portal"');
   });

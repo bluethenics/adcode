@@ -190,7 +190,7 @@ import { toAiTeamActivityView, toAiTeamTraceView, toAiTeamView } from "./aiTeamV
 import { createAiAutomationService, type AiAutomationService } from "./aiAutomationService.ts";
 import { toAiAutomationView } from "./aiAutomationViews.ts";
 import { askOllama, localModels, startOllama } from "./localModels.ts";
-import { cliModels, detectCliAgents, forgetCliModels, spawnCli } from "./cliAgents.ts";
+import { cliModels, cliModelsNow, detectCliAgents, forgetCliModels, spawnCli } from "./cliAgents.ts";
 import { claudeToolBridge } from "./toolBridge.ts";
 import { AUDIT_PAGE, CLI_AGENTS, DEFERRED_TOOL_NAMES, OPEN_PREVIEW, VIEW_PAGE, cliAgentFor, cliProviderId, createCliProvider } from "@adcode/ai";
 import { apiBaseUrl } from "./backend.ts";
@@ -1371,7 +1371,8 @@ export async function aiStatus(): Promise<AiStatus> {
     const spec = CLI_AGENTS.find((agent) => agent.id === view.id);
     if (spec === undefined) continue;
     const usable = view.installed && spec.headless;
-    const models = usable ? await cliModels(spec, homedir()) : [];
+    // Never awaited here: a cold ask takes up to 30 s per CLI, and the picker waits on this list.
+    const models = usable ? cliModelsNow(spec, homedir(), () => broadcast(CHANNELS.aiProvidersChanged, null)) : [];
     providers.push({
       id: cliProviderId(spec.id),
       displayName: spec.headless ? `${spec.name} (CLI)` : `${spec.name} (terminal)`,

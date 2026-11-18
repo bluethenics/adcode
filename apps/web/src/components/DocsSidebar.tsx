@@ -1,7 +1,9 @@
 import Link from "@/components/IntentLink";
+import { ChevronRight } from "lucide";
 import { docsBySection } from "@/lib/docs";
 import { DocsNavigation } from "./DocsNavigation";
 import { DocsSearchPill } from "./DocsSearchPill";
+import { Icon } from "./Icon";
 
 interface Props {
   /**
@@ -17,11 +19,10 @@ interface Props {
 /**
  * Navigation for the written parts of the site.
  *
- * Primer-shaped: grouped sections with a count, a chevron, and the pages
- * underneath. Every group is a native `<details>` so expanding needs no
- * JavaScript, stays keyboard-accessible, and animates with the same spring
- * as the rest of the docs. The open group is the one holding the current
- * page; on the index every group starts open so the whole manual is visible.
+ * Grouped sections with a chevron, a count, and the pages underneath. Every group is a
+ * native `<details>` so expanding needs no JavaScript and stays keyboard-accessible. The
+ * open group is the one holding the current page; on the index every group starts open
+ * so the whole manual is visible.
  *
  * Deliberately no `name` attribute: a shared name makes the groups a native
  * exclusive accordion, and the browser then closes all but the first one while
@@ -33,67 +34,64 @@ export async function DocsSidebar({ currentDoc, reading }: Props) {
   const onIndex = currentDoc === undefined && reading === undefined;
 
   return (
-    <aside className="docs-sidebar" aria-label="Documentation navigation">
+    <aside className="dx-sidebar" aria-label="Documentation navigation">
       <DocsNavigation>
-      <div className="docs-sidebar-primary">
-        <h2>Documentation</h2>
-        <DocsSearchPill searchOnPage={onIndex} />
-        <Link href="/docs" aria-current={onIndex ? "page" : undefined} className="docs-nav-all">
-          All pages
-        </Link>
-        {sections.map((section) => {
-          const here = currentDoc !== undefined && section.pages.some((page) => page.slug === currentDoc);
-          return (
-            <details key={section.title} className="docs-nav-group" open={onIndex || here}>
-              <summary className={here ? "is-here" : undefined}>
-                <span className="docs-nav-title">{section.title}</span>
-                <span className="docs-nav-count" aria-label={`${section.pages.length} pages`}>
-                  {section.pages.length}
-                </span>
-                <svg aria-hidden="true" viewBox="0 0 12 12" className="docs-nav-chevron">
-                  <path d="M4.2 2.4 7.8 6l-3.6 3.6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </summary>
-              <nav className="docs-sub" aria-label={`${section.title} pages`}>
-                {section.pages.map((page) => (
-                  <Link
-                    href={`/docs/${page.slug}`}
-                    key={page.slug}
-                    aria-current={page.slug === currentDoc ? "page" : undefined}
-                    title={page.description}
-                  >
-                    {page.title}
-                  </Link>
-                ))}
-              </nav>
-            </details>
-          );
-        })}
-      </div>
+        <div className="dx-nav">
+          <DocsSearchPill searchOnPage={onIndex} />
+          <Link href="/docs" aria-current={onIndex ? "page" : undefined} className="dx-nav-all">
+            All pages
+          </Link>
+          {sections.map((section) => {
+            const here = currentDoc !== undefined && section.pages.some((page) => page.slug === currentDoc);
+            return (
+              <details key={section.title} className="dx-nav-group" open={onIndex || here}>
+                <summary className={here ? "is-here" : undefined}>
+                  <Icon node={ChevronRight} className="dx-nav-chevron" />
+                  <span className="dx-nav-title">{section.title}</span>
+                  <span className="dx-nav-count" aria-label={`${section.pages.length} pages`}>
+                    {section.pages.length}
+                  </span>
+                </summary>
+                <nav className="dx-nav-pages" aria-label={`${section.title} pages`}>
+                  {section.pages.map((page) => (
+                    <Link
+                      href={`/docs/${page.slug}`}
+                      key={page.slug}
+                      aria-current={page.slug === currentDoc ? "page" : undefined}
+                      title={page.description}
+                    >
+                      {page.title}
+                    </Link>
+                  ))}
+                </nav>
+              </details>
+            );
+          })}
+        </div>
 
-      {/*
-        Straight to the destination, not through a redirect.
+        {/*
+          Straight to the destination, not through a redirect.
 
-        /blog, /changelog, /download and /advertise are redirect stubs left by the
-        single-page restructure. Linking a reader - or a crawler - at a 307 costs a
-        round trip and splits the link equity between two URLs for one page. The essays
-        the Blog row used to point at are now sections in this very sidebar.
-      */}
-      <section className="docs-sidebar-secondary">
-        <h2>Reading</h2>
-        <Link href="/versions" aria-current={reading === "changelog" ? "page" : undefined}>
-          Releases
-        </Link>
-        <Link href="/feed.xml">RSS</Link>
-      </section>
+          /blog, /changelog, /download and /advertise are redirect stubs left by the
+          single-page restructure. Linking a reader - or a crawler - at a 307 costs a
+          round trip and splits the link equity between two URLs for one page. The essays
+          the Blog row used to point at are now sections in this very sidebar.
+        */}
+        <section className="dx-nav-more">
+          <h2>Reading</h2>
+          <Link href="/versions" aria-current={reading === "changelog" ? "page" : undefined}>
+            Releases
+          </Link>
+          <Link href="/feed.xml">RSS</Link>
+        </section>
 
-      <section className="docs-sidebar-secondary">
-        <h2>The product</h2>
-        <Link href="/versions">Download</Link>
-        <Link href="/#advertise">Advertise</Link>
-        <Link href="/privacy">Privacy</Link>
-        <Link href="/terms">Terms</Link>
-      </section>
+        <section className="dx-nav-more">
+          <h2>The product</h2>
+          <Link href="/versions">Download</Link>
+          <Link href="/#advertise">Advertise</Link>
+          <Link href="/privacy">Privacy</Link>
+          <Link href="/terms">Terms</Link>
+        </section>
       </DocsNavigation>
     </aside>
   );

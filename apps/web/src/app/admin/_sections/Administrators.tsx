@@ -6,6 +6,7 @@ import { AdminFootnote, AdminPanel, AdminWorkspace } from "@/components/AdminUI"
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
 import { when } from "@/components/money";
+import { AdminLoader } from "@/components/AdminLoader";
 
 interface AdminRow {
   email: string;
@@ -99,7 +100,7 @@ export function AdminsBody() {
     setDone(`${wanted} is no longer an administrator.`);
   };
 
-  if (loading) return <p className="lede">Loading…</p>;
+  if (loading) return <AdminLoader label="Loading administrators" rows={3} />;
 
   return (
     <>

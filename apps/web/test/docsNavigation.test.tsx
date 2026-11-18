@@ -99,8 +99,8 @@ describe("public documentation navigation", () => {
   it("exposes a compact section rail and distinct entries to the responsive stylesheet", async () => {
     const markup = await renderDocsIndex();
 
-    expect(markup).toContain('class="docs-sidebar-primary"');
-    expect(markup).toContain('class="docs-index-item"');
+    expect(markup).toContain('class="dx-nav"');
+    expect(markup).toContain('class="dx-item"');
   });
 
   it("keeps sidebar groups independent so hydration matches the server HTML", async () => {
@@ -137,7 +137,7 @@ describe("public documentation navigation", () => {
 
     expect(markup).toContain("No documentation found");
     expect(markup).toContain("Try a feature name or describe what you want to do.");
-    expect(markup).not.toContain('class="docs-index-item"');
+    expect(markup).not.toContain('class="dx-item"');
   });
 
   it("maps documentation search shortcuts without stealing keys from other fields", () => {
@@ -182,9 +182,9 @@ describe("public documentation navigation", () => {
     // Pages published the same day are ordered by title.
     expect(recent.map((page) => page.slug)).toEqual([
       "real-model-coding-agent-benchmark",
+      "adcode-2-6-2-teams-and-agents",
       "coding-agent-token-benchmark",
       "adcode-2-6-1-fewer-tokens",
-      "adcode-vs-claude-code-codex-opencode-t3-code",
     ]);
   });
 
@@ -192,12 +192,12 @@ describe("public documentation navigation", () => {
     const markup = await renderDocsIndex();
 
     expect(markup).toContain("New in the docs");
-    expect(markup).toContain("Nov 14, 2026");
+    expect(markup).toContain("Nov 18, 2026");
     // The sidebar links older pages earlier in the document, so compare positions
     // inside the shelf itself rather than across the whole page.
     const shelf = markup.slice(markup.indexOf("New in the docs"));
-    const first = shelf.indexOf("/docs/adcode-vs-claude-code-codex-opencode-t3-code");
-    const second = shelf.indexOf("/docs/zeekend-sponsored-cards-phone-and-notifications");
+    const first = shelf.indexOf("/docs/adcode-2-6-2-teams-and-agents");
+    const second = shelf.indexOf("/docs/adcode-2-6-1-fewer-tokens");
     expect(first).toBeGreaterThan(-1);
     expect(second).toBeGreaterThan(-1);
     expect(first).toBeLessThan(second);

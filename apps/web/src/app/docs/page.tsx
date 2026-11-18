@@ -89,69 +89,63 @@ export default async function DocsIndex({ searchParams }: Props) {
           { name: "Documentation", path: "/docs" },
         ])}
       />
-      <section className="docs-stage">
-        <div className="docs-frame docs-frame-in">
-          <div className="docs-frame-body">
-            <DocsSidebar />
-            <main className="docs-main">
-              <Breadcrumbs items={[{ name: "Home", href: "/" }, { name: "Documentation" }]} />
-              <header className="docs-hero">
-                <div className="docs-hero-art" aria-hidden="true">
-                  <i className="docs-blob docs-blob-a" />
-                  <i className="docs-blob docs-blob-b" />
-                  <i className="docs-blob docs-blob-c" />
-                  <i className="docs-hero-sheen" />
-                </div>
-                <div className="docs-hero-copy">
-                  <Buck mood="searching" size={72} interactive greet="greeting" label="Buck, reading the docs with you. Tap him." />
-                  <p className="docs-hero-eyebrow">ADCode Docs · {total} pages</p>
-                  <h1>
-                    Every feature,
-                    <br />
-                    explained
-                  </h1>
-                  <p className="docs-hero-version mono">
-                    <span aria-hidden="true">#</span> Same source as the editor&rsquo;s <strong>?</strong> help
-                  </p>
-                  <p className="lede docs-hero-lede">
-                    What ADCode does, why you would use it, and how to start, in plain
-                    language, with steps for getting going.
-                  </p>
-                  <p className="docs-launch-note">
-                    <span>Already installed? Open your project</span>
-                    <code>adcode open .</code>
-                  </p>
-                  <div className="docs-start-actions">
-                    <Link className="btn btn-primary" href="/versions">Install ADCode <Icon node={ArrowDown} /></Link>
-                    <Link href="/docs/installing-adcode">Read the installation guide <Icon node={ArrowRight} /></Link>
+      <div className="dx">
+        <DocsSidebar />
+        <main className="dx-main dx-main--index">
+          <Breadcrumbs items={[{ name: "Home", href: "/" }, { name: "Documentation" }]} />
+          <header className={query.trim() ? "dx-hero" : "dx-hero dx-hero--split"}>
+            <div className="dx-hero-copy">
+              <p className="dx-eyebrow">ADCode Docs <span>{total} pages</span></p>
+              <h1>Every feature, explained</h1>
+              <p className="dx-lede">
+                What ADCode does, why you would use it, and how to start, in plain
+                language, with steps for getting going.
+              </p>
+              <p className="dx-source">Same source as the editor&rsquo;s <kbd>?</kbd> help</p>
+              <div className="dx-hero-actions">
+                <Link className="btn btn-primary" href="/versions">Install ADCode <Icon node={ArrowDown} /></Link>
+                <Link className="dx-text-link" href="/docs/installing-adcode">Read the installation guide <Icon node={ArrowRight} /></Link>
+              </div>
+              <p className="dx-launch">
+                <span>Already installed? Open your project</span>
+                <code>adcode open .</code>
+              </p>
+            </div>
+
+            {!query.trim() && (
+              <nav className="dx-start" aria-label="Getting started">
+                <div className="dx-start-head">
+                  <Buck mood="searching" size={56} interactive greet="greeting" label="Buck, reading the docs with you. Tap him." />
+                  <div>
+                    <h2>New here? Start with these</h2>
+                    <p>From an open folder to your first commit.</p>
                   </div>
                 </div>
-              </header>
+                <ol>
+                  <li><Link href="/docs/getting-started-with-adcode"><span className="dx-start-n">1</span><span><strong>Open your first project</strong><small>Get familiar with the editor.</small></span><Icon node={ArrowRight} className="dx-start-arrow" /></Link></li>
+                  <li><Link href="/docs/ai-connect"><span className="dx-start-n">2</span><span><strong>Connect your AI provider</strong><small>Set up your key and choose a model.</small></span><Icon node={ArrowRight} className="dx-start-arrow" /></Link></li>
+                  <li><Link href="/docs/first-commit-name-and-email"><span className="dx-start-n">3</span><span><strong>Make your first commit</strong><small>Set your Git name and email.</small></span><Icon node={ArrowRight} className="dx-start-arrow" /></Link></li>
+                </ol>
+              </nav>
+            )}
+          </header>
 
-              {!query.trim() && <nav className="docs-quickstart" aria-label="Getting started">
-                <Link href="/docs/getting-started-with-adcode"><span>01</span><strong>Open your first project</strong><small>Get familiar with the editor.</small></Link>
-                <Link href="/docs/ai-connect"><span>02</span><strong>Connect your AI provider</strong><small>Set up your key and choose a model.</small></Link>
-                <Link href="/docs/first-commit-name-and-email"><span>03</span><strong>Make your first commit</strong><small>Set your Git name and email.</small></Link>
-              </nav>}
-
-              <DocsSearch
-                initialQuery={query}
-                sections={[
-                  ...shelf,
-                  ...sections.map((section) => ({
-                    title: section.title,
-                    pages: section.pages.map(({ slug, title, description }) => ({
-                      slug,
-                      title,
-                      description,
-                    })),
-                  })),
-                ]}
-              />
-            </main>
-          </div>
-        </div>
-      </section>
+          <DocsSearch
+            initialQuery={query}
+            sections={[
+              ...shelf,
+              ...sections.map((section) => ({
+                title: section.title,
+                pages: section.pages.map(({ slug, title, description }) => ({
+                  slug,
+                  title,
+                  description,
+                })),
+              })),
+            ]}
+          />
+        </main>
+      </div>
     </>
   );
 }

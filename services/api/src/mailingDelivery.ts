@@ -168,3 +168,59 @@ export async function sendReportReply(options: { apiKey?: string; senderVerified
     to: [input.to], ...input.mail, tags: [{ name: "campaign", value: "report-reply" }],
   });
 }
+
+export interface CampaignMailerOptions {
+  store: MailingStore;
+  campaigns: import("./adminConsole.ts").AdminConsoleStore;
+  apiKey?: string;
+  webhookSecret?: string;
+  siteOrigin: string;
+  render(campaign: import("./adminConsole.ts").CampaignInput, recipient: { displayName: string | null }, unsubscribeUrl: string, postalAddress: string): Promise<RenderedMail>;
+  fetchImpl?: typeof fetch;
+  now?: () => number;
+  /** Per run. The schedule fires every 15 minutes; the database paces each campaign across the day. */
+  limit?: number;
+}
+
+/**
+ * Administrator-written campaigns. Same gates as every other bulk send - the switch, the
+ * postal address, the verified sender - and the database decides who is due: the daily cap,
+ * paced through the day, the total, suppressions and the three-day gap between campaign emails.
+ */
+export async function runCampaignBatch(options: CampaignMailerOptions): Promise<{ status: string; sent: number; failed: number }> {
+  const { store, apiKey, webhookSecret } = options;
+  const settings = await store.settings();
+  if (!settings.enabled) return { status: "disabled", sent: 0, failed: 0 };
+  if (!apiKey || !webhookSecret || !settings.postalAddress || settings.postalAddress.trim().length < 10) {
+    return { status: "configuration-required", sent: 0, failed: 0 };
+  }
+  if (!settings.senderVerified) return { status: "domain-not-verified", sent: 0, failed: 0 };
+  const origin = new URL(options.siteOrigin);
+  if (origin.protocol !== "https:") return { status: "https-required", sent: 0, failed: 0 };
+  const fetcher = options.fetchImpl ?? fetch, now = options.now ?? Date.now;
+  const jobs = await options.campaigns.claimCampaignSends(now(), options.limit ?? 20);
+  const content = new Map<string, import("./adminConsole.ts").CampaignRecord | null>();
+  let sent = 0, failed = 0;
+  for (const job of jobs) {
+    if (!content.has(job.campaignId)) content.set(job.campaignId, await options.campaigns.getCampaign(job.campaignId));
+    const campaign = content.get(job.campaignId) ?? null;
+    if (campaign === null) {
+      await options.campaigns.finishCampaignSend(job.id, { retry: false, code: "campaign-missing" }, now());
+      failed += 1;
+      continue;
+    }
+    const unsubscribeUrl = origin.origin + "/v1/email/unsubscribe?token=" + encodeURIComponent(job.unsubscribeToken);
+    const mail = await options.render(campaign, { displayName: job.displayName }, unsubscribeUrl, settings.postalAddress);
+    const outcome = await resendEmail(fetcher, apiKey, "campaign/" + job.id, {
+      to: [job.email], ...mail,
+      headers: { "List-Unsubscribe": "<" + unsubscribeUrl + ">", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
+      tags: [{ name: "campaign", value: "admin" }, { name: "campaign_id", value: campaign.id }],
+    });
+    await options.campaigns.finishCampaignSend(job.id, outcome, now());
+    if ("providerId" in outcome) sent += 1;
+    else failed += 1;
+    if (!("providerId" in outcome) && outcome.code === "provider-429") break;
+    await new Promise((resolve) => setTimeout(resolve, 600));
+  }
+  return { status: "complete", sent, failed };
+}

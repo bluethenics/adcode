@@ -73,12 +73,16 @@ export const ADVERTISER_FAQ: readonly { q: string; a: string }[] = [
     a: "Developers writing code in ADCode, on the desktop app and in the browser. Target everyone, or pick from 45 contexts (languages, frameworks, tools and platforms) and your card serves only to developers working in them.",
   },
   {
+    q: "Can I target specific countries or regions?",
+    a: "Yes. Choose worldwide, or pick countries one by one or by region (North America, the European Union, India and South Asia and more). The country comes from the connection at our edge for that one ad request and is never stored. Region and stack targeting combine: a campaign for Rust in Germany serves only to Rust developers in Germany.",
+  },
+  {
     q: "Does targeting read anyone's code?",
     a: "No. The editor matches a small, fixed vocabulary of tags (such as lang:rust or fw:next) on the device. No source code, file names or personal data reach the ad server, so there is nothing about a developer to sell.",
   },
   {
     q: "How fast can a campaign go live?",
-    a: "Minutes. One screen takes your logo, your line and your budget. Cards pass automated checks (https links, image-only logos, length limits) on submit, so a funded campaign starts serving right away. You can pause it at any time.",
+    a: "Minutes. Four short steps take your audience, your ad and your budget, then show you the ad in place before you launch. Cards pass automated checks (https links, image-only logos, length limits) on submit, so a funded campaign starts serving right away. You can pause it at any time.",
   },
   {
     q: "Is there a minimum spend or a contract?",

@@ -7,6 +7,7 @@ import { AdminModelTabs } from "@/components/AdminModelTabs";
 import { useAuth } from "@/components/AuthProvider";
 import type { ProviderModelSubmission, SubmissionStatus } from "@adcode/api/src/providerModels.ts";
 import "@/components/adminModels.css";
+import { AdminLoader } from "@/components/AdminLoader";
 
 interface TestResult { ok: boolean; status: number; model: string; reply: string; ms: number }
 const price = (value: number): string => `$${Number(value.toFixed(6))}`;
@@ -46,7 +47,7 @@ function Submissions() {
   }, [call]);
   useEffect(() => { void load(); }, [load]);
 
-  if (rows === null) return error !== null ? <div className="notice" data-tone="error" role="alert">{error}</div> : <p className="lede">Loading…</p>;
+  if (rows === null) return error !== null ? <div className="notice" data-tone="error" role="alert">{error}</div> : <AdminLoader label="Loading submissions" />;
   const shown = rows.filter((row) => filter === "all" || row.status === filter);
   return (
     <>

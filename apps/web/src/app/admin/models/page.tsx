@@ -16,6 +16,7 @@ import {
   type PanelProvider,
 } from "@/lib/modelCatalog";
 import "@/components/adminModels.css";
+import { AdminLoader } from "@/components/AdminLoader";
 
 /**
  * AI models: what the model picker in every editor offers.
@@ -194,7 +195,7 @@ function ModelsEditor() {
     });
 
   if (loadFailed) return <div className="notice" data-tone="error" role="alert">Could not load the saved model list. Reload to try again.</div>;
-  if (saved === null) return <p className="lede">Loading…</p>;
+  if (saved === null) return <AdminLoader label="Loading models" shape="cards" />;
 
   return (
     <div className="admin-models">

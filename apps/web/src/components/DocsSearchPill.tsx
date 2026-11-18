@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "@/components/IntentLink";
+import { Search } from "lucide";
+import { Icon } from "./Icon";
 
 /**
  * The docs search shortcut, at the top of the docs sidebar.
@@ -19,9 +21,9 @@ export function DocsSearchPill({ searchOnPage = false }: { searchOnPage?: boolea
     field?.scrollIntoView({ behavior: "auto", block: "center" });
   };
 
-  const content = <><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" /></svg><span>Search docs</span>{searchOnPage && <kbd>/</kbd>}</>;
+  const content = <><Icon node={Search} className="dx-pill-icon" /><span>Search docs</span>{searchOnPage && <kbd>/</kbd>}</>;
 
   return searchOnPage
-    ? <button type="button" className="docs-topbar-search docs-sidebar-search" onClick={focusSearch} aria-label="Search documentation">{content}</button>
-    : <Link href="/docs#docs-search-input" className="docs-topbar-search docs-sidebar-search" aria-label="Search documentation">{content}</Link>;
+    ? <button type="button" className="dx-pill" onClick={focusSearch} aria-label="Search documentation">{content}</button>
+    : <Link href="/docs#docs-search-input" className="dx-pill" aria-label="Search documentation">{content}</Link>;
 }

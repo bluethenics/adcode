@@ -361,6 +361,84 @@ export function previewResponse<T>(path: string, method: string): PreviewResult<
   const data = adminPreviewData();
   if (data === null) return null;
   if (method !== "GET") return { ok: true, value: { queued: 0, sendingEnabled: false } as T };
-  const fixture = FIXTURES[path] ?? FIXTURES[path.split("?")[0] ?? path];
+  const bare = path.split("?")[0] ?? path;
+  const fixture = FIXTURES[path] ?? FIXTURES[bare] ?? (bare.startsWith("/admin/console/users/") ? consoleProfile
+    : /^\/admin\/campaigns\/[0-9a-f-]{36}$/.test(bare) ? campaignDetail : undefined);
   return fixture === undefined ? { ok: false, error: "server-error" } : { ok: true, value: fixture(data) as T };
 }
+
+/* ── Admin console: user search and email campaigns ─────────────────────── */
+
+const PEOPLE = [
+  ["Maya Okafor", "maya.okafor@gmail.com"], ["Tomás Rivera", "tomas.rivera.dev@gmail.com"], ["Priya Natarajan", "priya.n@outlook.com"],
+  ["Kenji Watanabe", "kenji.w@gmail.com"], [null, "lin.builds@proton.me"], ["Amara Mensah", "amara.mensah@gmail.com"],
+  ["Jonas Lindqvist", "jonas@lindqvist.se"], [null, null], ["Fatima Zahra El Idrissi Benali-Fontaine", "fatima.zahra.elidrissi.benalifontaine.longaddress@gmail.com"],
+] as const;
+
+function consoleHits(data: AdminPreviewData) {
+  if (data === "empty") return { rows: [] };
+  return { rows: PEOPLE.map(([name, email], index) => ({
+    uid: `u${(7_381_224 + index * 9_137).toString(36)}Xk2${index}qPz9Lm`, email, displayName: name, photoUrl: null,
+    status: index === 6 ? "banned" : "active", emailVerified: email !== null, createdAt: now() - (index + 2) * 9 * DAY, lastActiveAt: index % 3 === 2 ? null : now() - index * 37 * 3_600_000,
+  })) };
+}
+
+function consoleProfile(data: AdminPreviewData) {
+  const worst = data === "worst";
+  return {
+    uid: "u4k9fXk20qPz9Lm", email: worst ? "fatima.zahra.elidrissi.benalifontaine.longaddress@gmail.com" : "maya.okafor@gmail.com",
+    displayName: worst ? "Fatima Zahra El Idrissi Benali-Fontaine" : "Maya Okafor", photoUrl: null, status: "active", emailVerified: true,
+    createdAt: now() - 74 * DAY, linkedAt: now() - 73 * DAY, isAdmin: false,
+    activity: { lastActiveAt: now() - 19 * DAY, firstSeenAt: now() - 74 * DAY, daysActive: 23, daysActive30: 4, sessions30: 7, activeMinutes30: 212, acceptedEdits30: 58 },
+    ai: { requests30: worst ? 184_220 : 1_432, inputTokens30: 3_200_000, outputTokens30: 410_000, costMicros30: worst ? "182340000" : "4812000", lastDay: dayKey(now() - 19 * DAY) },
+    subscription: { plan: "pro", status: "active", endsAt: now() + 11 * DAY, periodEnd: now() + 11 * DAY, cancelAtPeriodEnd: worst },
+    gift: null, wallet: { balanceMicros: "12480000", reservedMicros: worst ? "310000" : "0" },
+    earnings: { availableMicros: "3170000", lifetimeMicros: "9840000", pendingWithdrawalMicros: "0" }, aiBlocked: worst,
+    mail: { productUpdates: false, statusUpdates: true, modelUpdates: false, suppressed: worst ? { reason: "unsubscribe", at: now() - 3 * DAY } : null,
+      campaigns: [{ campaign: "Come back to ADCode", status: "sent", sentAt: now() - 2 * DAY, openedAt: now() - 2 * DAY + 3_600_000, clickedAt: null }] },
+    invitedBy: { code: "MAYA-7Q", referrerUid: "u1r8kXp", how: "link", at: now() - 74 * DAY }, invited: 3,
+    audit: [{ action: "gift-ai-plan", adminUid: "admin1", at: now() - 40 * DAY }, { action: "read-user-profile", adminUid: "admin1", at: now() - 3_600_000 }],
+  };
+}
+
+const CAMPAIGN_STATS = { queued: 3, sent: 287, failed: 2, delivered: 279, opened: 104, clicked: 31, bounced: 4, complained: 0, returned: 22, today: 19, lastSentAt: 0 };
+function baseCampaign() {
+  return {
+    id: "3f1c2d4e-5a6b-4c7d-8e9f-0a1b2c3d4e5f", name: "Come back to ADCode", subject: "{{name}}, your workspace is still here",
+    preheader: "Free AI, a focused editor, and your projects where you left them.", heading: "Pick up where you left off.",
+    body: "Hi {{name}},\n\nIt has been a while since you opened ADCode. Faster free models, agents that work through a task with you, and a cleaner editor.\n\nYour projects are where you left them.",
+    ctaLabel: "Open ADCode", ctaUrl: "https://adcode.bluethenics.com/", audience: "everyone", inactiveDays: 14 as number | null, totalLimit: 1000, dailyLimit: 50,
+    status: "running", createdBy: "admin1", createdAt: now() - 6 * DAY, updatedAt: now() - 6 * DAY, startedAt: now() - 6 * DAY as number | null,
+    finishedAt: null as number | null, finishReason: null as string | null,
+    stats: { ...CAMPAIGN_STATS, lastSentAt: now() - 11 * 60_000 as number | null },
+  };
+}
+
+function campaigns(data: AdminPreviewData) {
+  if (data === "empty") return { campaigns: [] };
+  const base = baseCampaign();
+  const zero = { queued: 0, sent: 0, failed: 0, delivered: 0, opened: 0, clicked: 0, bounced: 0, complained: 0, returned: 0, today: 0, lastSentAt: null };
+  const list = [
+    base,
+    { ...base, id: "7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d", name: "New free models, November", subject: "Two new free models in ADCode", status: "draft", startedAt: null, audience: "subscribed", inactiveDays: null, totalLimit: 500, dailyLimit: 100, stats: zero },
+    { ...base, id: "0d9c8b7a-6f5e-4d4c-9b3a-2f1e0d9c8b7a", name: "October win-back", status: "completed", finishReason: "total-reached", totalLimit: 300, dailyLimit: 30, finishedAt: now() - 12 * DAY,
+      stats: { queued: 0, sent: 300, failed: 0, delivered: 296, opened: 121, clicked: 44, bounced: 4, complained: 1, returned: 37, today: 0, lastSentAt: now() - 12 * DAY } },
+  ];
+  if (data === "worst") list.push({ ...base, id: "11111111-2222-4333-8444-555555555555", name: "A campaign whose administrator gave it a very long name that does not fit on one line at all", status: "paused", totalLimit: 100000, dailyLimit: 5000,
+    stats: { ...base.stats, sent: 48_211, returned: 4_102 } });
+  return { campaigns: list };
+}
+
+function campaignDetail() {
+  return { ...baseCampaign(), sends: PEOPLE.filter(([, email]) => email !== null).map(([, email], index) => ({
+    email, status: index === 3 ? "failed" : "sent", attempts: 1, claimedAt: now() - index * 47 * 60_000, sentAt: index === 3 ? null : now() - index * 47 * 60_000,
+    deliveredAt: index === 3 ? null : now() - index * 47 * 60_000 + 4_000, openedAt: index % 2 === 0 ? now() - index * 40 * 60_000 : null,
+    clickedAt: index === 0 ? now() - 30 * 60_000 : null, bouncedAt: index === 5 ? now() : null, lastError: index === 3 ? "provider-422" : null,
+  })) };
+}
+
+Object.assign(FIXTURES, {
+  "/admin/console/users": consoleHits,
+  "/admin/campaigns": campaigns,
+  "/admin/campaigns/audience": (data: AdminPreviewData) => ({ count: data === "empty" ? 0 : 14_773 }),
+});

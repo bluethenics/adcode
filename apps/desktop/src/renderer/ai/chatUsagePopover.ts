@@ -81,6 +81,7 @@ export function createChatUsagePopover(deps: ChatUsagePopoverDeps): ChatUsagePop
   card.setAttribute("role", "dialog");
   card.setAttribute("aria-label", "This chat's usage");
   card.hidden = true;
+  card.tabIndex = -1;
   element.append(chip, card);
 
   let model: ChatUsageModel = chatUsageModel(null, null, null);
@@ -182,7 +183,9 @@ export function createChatUsagePopover(deps: ChatUsagePopoverDeps): ChatUsagePop
     place();
     paintCard();
     void load();
-    (card.querySelector("button") as HTMLButtonElement | null)?.focus({ preventScroll: true });
+    // The card, not its first button: the numbers arrive a moment later and redraw the rows,
+    // and a focused button removed by that redraw drops focus to the page.
+    card.focus({ preventScroll: true });
   }
 
   function close(): void {
@@ -196,10 +199,13 @@ export function createChatUsagePopover(deps: ChatUsagePopoverDeps): ChatUsagePop
     if (card.hidden || !(event.target instanceof Node)) return;
     if (!card.contains(event.target) && !chip.contains(event.target)) close();
   });
-  document.addEventListener("keydown", (event) => {
+  // On the window, in capture: ahead of the popup coordinator's document-level Escape, which
+  // closes the whole chat. Left alone when another modal (a confirmation) sits on top.
+  window.addEventListener("keydown", (event) => {
     if (event.key !== "Escape" || card.hidden) return;
-    // Both: stopPropagation keeps the chat's own Escape handler out, preventDefault stops the
-    // modal dialog's native cancel, which would otherwise close the whole chat.
+    const modal = document.querySelector("dialog:modal");
+    if (modal !== null && !modal.contains(card)) return;
+    // preventDefault also stops the modal chat dialog's native cancel.
     event.stopPropagation();
     event.preventDefault();
     close();

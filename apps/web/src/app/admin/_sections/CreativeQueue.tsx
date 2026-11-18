@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES, type CreativeView } from "@/lib/api";
 import { AdminPanel } from "@/components/AdminUI";
+import { AdminLoader } from "@/components/AdminLoader";
 
 /**
  * The creative safety valve.
@@ -53,7 +54,7 @@ export function ReviewQueue() {
     setQueue((current) => current.filter((c) => c.creativeId !== creativeId));
   };
 
-  if (loading) return <p className="lede">Loading…</p>;
+  if (loading) return <AdminLoader label="Loading creatives" shape="cards" />;
 
   return (
     <>

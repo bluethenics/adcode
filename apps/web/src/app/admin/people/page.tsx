@@ -22,7 +22,7 @@ function PeopleBody() {
       subtitle={
         tab === "admins"
           ? "Who can operate this panel."
-          : "Accounts, balances, activity, and ledgers."
+          : "Search every account by uid, Gmail or name, then act on it. Every look and every action is audited."
       }
       tab={tab}
     >

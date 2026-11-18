@@ -184,6 +184,24 @@ export async function cliModels(spec: CliAgentSpec, home: string): Promise<CliMo
   return mergeCliModels(spec, await pending);
 }
 
+/**
+ * The CLI's models without waiting: the last list it gave (or its built-in aliases), at once.
+ * When that list is missing or stale, the CLI is asked in the background, and `onChange` runs
+ * once the answer differs from what was returned. The model picker reads this, so an installed
+ * CLI never holds the whole picker for the 25-30 s a cold ask can take.
+ */
+export function cliModelsNow(spec: CliAgentSpec, home: string, onChange: () => void): CliModelInfo[] {
+  const path = paths.get(spec.id);
+  if (path === null || path === undefined || (spec.listModels === undefined && spec.modelProtocol === undefined)) return mergeCliModels(spec, []);
+  const cached = listed.get(spec.id);
+  const now = mergeCliModels(spec, cached?.models ?? []);
+  if (cached === undefined || Date.now() - cached.at >= MODELS_TTL_MS) {
+    const before = JSON.stringify(now);
+    void cliModels(spec, home).then((models) => { if (JSON.stringify(models) !== before) onChange(); }, () => undefined);
+  }
+  return now;
+}
+
 /** The spawn the provider uses: stdout as lines, stdin the prompt, killed as a tree. */
 export const spawnCli: CliSpawn = (command, args, options) => {
   const spec = CLI_AGENTS.find((agent) => agent.command === command);

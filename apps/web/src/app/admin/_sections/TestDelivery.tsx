@@ -5,6 +5,7 @@ import { UserPicker } from "@/components/UserPicker";
 import { useAuth } from "@/components/AuthProvider";
 import { AdminPanel, AdminWorkspace } from "@/components/AdminUI";
 import { apiFetch, MESSAGES, type CreativeView } from "@/lib/api";
+import { AdminLoader } from "@/components/AdminLoader";
 
 /**
  * Sending a test ad to a running editor.
@@ -90,7 +91,7 @@ export function TestAdsBody() {
     setQueued(true);
   };
 
-  if (loading) return <p className="lede">Loading…</p>;
+  if (loading) return <AdminLoader label="Loading campaigns" rows={3} />;
 
   return (
     <>

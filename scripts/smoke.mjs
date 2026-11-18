@@ -7319,6 +7319,101 @@ checks.chatDependentPointerEvidence = await evaluate(
      };
    })()`,
 );
+
+/*
+ * The chat's usage box: a chip at the far left of the header, and the card it opens. Asserted
+ * on what the window shows - the card is the topmost thing at its own centre, under the chip,
+ * inside the chat - because a card in the page body renders beneath the chat's modal dialog
+ * while every model-level test still passes. Escape must close the card and leave the chat open.
+ */
+const visibleAt = `(node) => {
+  const r = node.getBoundingClientRect();
+  if (r.width < 8 || r.height < 8) return false;
+  const hit = document.elementFromPoint(r.left + r.width / 2, r.top + Math.min(r.height / 2, 40));
+  return hit !== null && node.contains(hit);
+}`;
+checks.chatUsageBoxOpens = await evaluate(
+  `(async () => {
+     const visible = ${visibleAt};
+     const chat = document.querySelector('dialog[data-popup-id="chat"]');
+     const header = chat?.querySelector('.chat-header');
+     const chip = header?.querySelector('.chat-usage-chip');
+     const card = header?.querySelector('.chat-usage-popover');
+     if (!chat?.open || !chip || !card) return { found: false };
+     const before = chip.getBoundingClientRect();
+     const headerBox = header.getBoundingClientRect();
+     chip.click();
+     for (let i = 0; i < 20 && card.hidden; i += 1) await new Promise((r) => setTimeout(r, 50));
+     await new Promise((r) => setTimeout(r, 400));
+     const box = card.getBoundingClientRect();
+     const chatBox = chat.querySelector('.chat-card')?.getBoundingClientRect() ?? headerBox;
+     return {
+       found: true,
+       chipAtTopLeft: before.left - headerBox.left < 40 && before.top >= headerBox.top && before.bottom <= headerBox.bottom,
+       chipSaysSomething: (chip.textContent ?? '').trim().length > 0,
+       opened: !card.hidden && chip.getAttribute('aria-expanded') === 'true',
+       topmost: visible(card),
+       underTheChip: box.top >= before.bottom && Math.abs(box.left - before.left) < 4,
+       insideTheChat: box.left >= chatBox.left && box.right <= chatBox.right + 1 && box.bottom <= chatBox.bottom + 1,
+       hasHeading: card.querySelector('.chat-usage-head')?.textContent?.includes('This chat') === true,
+       offersFullUsage: [...card.querySelectorAll('.chat-usage-action')].some((b) => b.textContent?.includes('Full usage')),
+     };
+   })()`,
+);
+await pressEscape();
+await sleep(200);
+Object.assign(checks.chatUsageBoxOpens ?? {}, await evaluate(
+  `(() => {
+     const chat = document.querySelector('dialog[data-popup-id="chat"]');
+     const card = chat?.querySelector('.chat-usage-popover');
+     return { escapeCloses: card?.hidden === true, chatStaysOpen: chat?.open === true };
+   })()`,
+));
+
+/*
+ * The live session card floats above the message box instead of taking a column out of it:
+ * the composer keeps its width, the card is topmost and sits above the composer, and a click
+ * elsewhere in the chat closes it.
+ */
+checks.liveSessionCardFloats = await evaluate(
+  `(async () => {
+     const visible = ${visibleAt};
+     const chat = document.querySelector('dialog[data-popup-id="chat"]');
+     const composer = chat?.querySelector('.chat-composer');
+     const main = composer?.querySelector('.chat-composer-main');
+     const button = composer?.querySelector('.chat-live-button');
+     const dock = composer?.querySelector('.chat-live-dock');
+     if (!chat?.open || !composer || !main || !button || !dock) return { found: false };
+     const width = main.getBoundingClientRect().width;
+     if (dock.hidden) button.click();
+     for (let i = 0; i < 20 && dock.hidden; i += 1) await new Promise((r) => setTimeout(r, 50));
+     await new Promise((r) => setTimeout(r, 400));
+     const box = dock.getBoundingClientRect();
+     const result = {
+       found: true,
+       opened: !dock.hidden,
+       topmost: visible(dock),
+       aboveTheComposer: box.bottom <= composer.getBoundingClientRect().top + 1,
+       composerKeepsWidth: Math.abs(main.getBoundingClientRect().width - width) < 2,
+       onScreen: box.top >= 0 && box.left >= 0 && box.right <= innerWidth,
+     };
+     chat.querySelector('.chat-transcript')?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+     await new Promise((r) => setTimeout(r, 100));
+     result.clickElsewhereCloses = dock.hidden && chat.open;
+     button.click();
+     await new Promise((r) => setTimeout(r, 300));
+     return result;
+   })()`,
+);
+await pressEscape();
+await sleep(200);
+Object.assign(checks.liveSessionCardFloats ?? {}, await evaluate(
+  `(() => {
+     const chat = document.querySelector('dialog[data-popup-id="chat"]');
+     return { escapeCloses: chat?.querySelector('.chat-live-dock')?.hidden === true, chatStaysOpen: chat?.open === true };
+   })()`,
+));
+
 if (chatConnectPoint !== null && typeof chatConnectPoint === "object") {
   await clickAt(chatConnectPoint.x, chatConnectPoint.y);
 }
@@ -7850,6 +7945,8 @@ const requiredEvidence = {
   updateReadyVisible: ["checkedReady", "statusBarSays", "cardShown", "cardOffersRestart", "restartAnswers"],
   packagedUpdateFeed: ["checkedCurrent", "ignoresSimulation"],
   licencesDialog: ["opened", "threeTabs", "showsApache", "closes"],
+  chatUsageBoxOpens: ["found", "chipAtTopLeft", "chipSaysSomething", "opened", "topmost", "underTheChip", "insideTheChat", "hasHeading", "offersFullUsage", "escapeCloses", "chatStaysOpen"],
+  liveSessionCardFloats: ["found", "opened", "topmost", "aboveTheComposer", "composerKeepsWidth", "onScreen", "clickElsewhereCloses", "escapeCloses", "chatStaysOpen"],
   adPartnerNoticeTells: ["namesZeekendOnly", "disclosureFirst", "offersTurnOff", "bothOnByDefault", "dismissed"],
 };
 const failed = Object.entries(checks).filter(

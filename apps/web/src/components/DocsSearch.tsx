@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "@/components/IntentLink";
+import { ArrowUpRight, Search } from "lucide";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Icon } from "./Icon";
 
 export interface DocsSearchSection {
   title: string;
@@ -85,12 +87,9 @@ export function DocsSearch({ sections, initialQuery = "" }: Props) {
 
   return (
     <>
-      <div className="docs-search-shell" role="search">
-        <div className="docs-search-field">
-          <svg aria-hidden="true" viewBox="0 0 24 24">
-            <circle cx="11" cy="11" r="6.5" />
-            <path d="m16 16 4 4" />
-          </svg>
+      <div className="dx-search" role="search">
+        <div className="dx-search-field">
+          <Icon node={Search} className="dx-search-icon" />
           <label className="sr-only" htmlFor="docs-search-input">
             Search documentation
           </label>
@@ -110,34 +109,45 @@ export function DocsSearch({ sections, initialQuery = "" }: Props) {
               Clear
             </button>
           ) : (
-            <span className="docs-search-hint">
+            <span className="dx-search-hint">
               Press <kbd>/</kbd> to search
             </span>
           )}
         </div>
-        <p id="docs-search-status" className="docs-search-status" aria-live="polite">
+        <p id="docs-search-status" className="dx-search-status" aria-live="polite">
           {query.length > 0
             ? `${resultCount} ${resultCount === 1 ? "page" : "pages"} found`
             : `${resultCount} pages`}
         </p>
       </div>
 
-      <div className="docs-index-groups" id="docs-search-results">
+      <div className="dx-groups" id="docs-search-results">
         {filteredSections.length > 0 ? (
-          filteredSections.map((section) => (
-            <section key={section.title} className="docs-index-group rise">
-              <h2>{section.title}</h2>
-              <ul>
-                {section.pages.map((page) => (
-                  <li key={page.slug} className="docs-index-item">
-                    <Link href={`/docs/${page.slug}`} className="docs-index-link">
-                      <span>
+          filteredSections.map((section, sectionIndex) => (
+            <section
+              key={section.title}
+              className={sectionIndex === 0 && section.pages.some((page) => page.meta !== undefined) ? "dx-group dx-group-fresh" : "dx-group"}
+            >
+              <header className="dx-group-head">
+                <h2>{section.title}</h2>
+                <span>{section.pages.length}</span>
+              </header>
+              <ul className="dx-cards">
+                {section.pages.map((page, index) => (
+                  <li
+                    key={page.slug}
+                    className="dx-item"
+                    style={{ ["--i" as string]: Math.min(index, 8) }}
+                  >
+                    <Link href={`/docs/${page.slug}`} className="dx-card">
+                      <span className="dx-card-title">
                         {page.title}
-                        {page.meta !== undefined && (
-                          <time className="docs-index-meta">{page.meta}</time>
-                        )}
+                        <Icon node={ArrowUpRight} className="dx-card-arrow" />
                       </span>
-                      <span>{page.description}</span>
+                      <span className="dx-card-text">{page.description}</span>
+                      {page.meta !== undefined && (
+                        <time className="dx-card-meta">{page.meta}</time>
+                      )}
                     </Link>
                   </li>
                 ))}
@@ -145,7 +155,7 @@ export function DocsSearch({ sections, initialQuery = "" }: Props) {
             </section>
           ))
         ) : (
-          <div className="docs-search-empty">
+          <div className="dx-empty">
             <strong>No documentation found</strong>
             <p>Try a feature name or describe what you want to do.</p>
             <button type="button" onClick={() => setQuery("")}>Show all pages</button>

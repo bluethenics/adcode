@@ -18,17 +18,34 @@ function publish(next: typeof current) {
   for (const listener of listeners) listener();
 }
 
+/*
+ * One failed refresh - a dropped packet, a tab waking from sleep - used to flip the badge to
+ * "Reconnecting" for a whole minute while the figures were fine. A failure now retries after ten
+ * seconds and the badge only changes after two failures in a row.
+ */
+const RETRY_MS = 10_000;
+let failures = 0;
+let retry: ReturnType<typeof setTimeout> | null = null;
+
 async function refresh() {
   if (document.visibilityState === "hidden") return;
+  let stats: PublicStats | null = null;
   try {
     const response = await fetch("/v1/stats", { cache: "no-store", signal: AbortSignal.timeout(10_000) });
     const parsed = response.ok ? parsePublicStats(await response.json()) : null;
-    const stats = parsed !== null && meetsPublicStatsThreshold(parsed) ? parsed : null;
-    // A failed refresh keeps the last good figures on screen and says it is reconnecting.
-    publish(stats === null ? { stats: current?.stats ?? null, status: "offline" } : { stats, status: "ready" });
+    stats = parsed !== null && meetsPublicStatsThreshold(parsed) ? parsed : null;
   } catch {
-    publish({ stats: current?.stats ?? null, status: "offline" });
+    stats = null;
   }
+  if (stats !== null) {
+    failures = 0;
+    publish({ stats, status: "ready" });
+    return;
+  }
+  failures += 1;
+  // The last good figures stay on screen either way.
+  if (failures >= 2) publish({ stats: current?.stats ?? null, status: "offline" });
+  if (retry === null && listeners.size > 0) retry = setTimeout(() => { retry = null; void refresh(); }, RETRY_MS);
 }
 
 function subscribe(listener: () => void) {
@@ -43,16 +60,20 @@ function subscribe(listener: () => void) {
       clearInterval(timer);
       timer = null;
     }
+    if (listeners.size === 0 && retry !== null) {
+      clearTimeout(retry);
+      retry = null;
+    }
   };
 }
 
-function useNetworkStats(initial: PublicStats | null) {
+export function useNetworkStats(initial: PublicStats | null) {
   const live = useSyncExternalStore(subscribe, () => current, () => null);
   return { stats: live?.stats ?? initial, status: live?.status ?? "ready", fresh: live !== null };
 }
 
 /** Counts from the previous value to the next, so a refresh reads as movement, not a jump. */
-function Rolling({ value }: { value: number }) {
+export function Rolling({ value }: { value: number }) {
   const [shown, setShown] = useState(value);
   const from = useRef(value);
   useEffect(() => {
@@ -93,19 +114,12 @@ export function NetworkBand({ initial }: { initial: PublicStats | null }) {
   if (stats === null) return null;
 
   const share = stats.developers === 0 ? 0 : Math.round((stats.developersThisWeek / stats.developers) * 100);
-  // A zero in this band reads as "nobody advertises here", which is the last thing a
-  // visitor deciding whether to spend should see. Where a figure would be 0 we show a
-  // word instead: the same fact, told as the opportunity it actually is.
-  const figures: readonly { label: string; value: number | null; text?: string; note: string }[] = [
+  // Three figures about the audience. The live-campaign count ("The next slot" / "Campaigns
+  // live now") was taken out on request: how many advertisers are running is not this page's to say.
+  const figures: readonly { label: string; value: number; note: string }[] = [
     { label: "Developers on ADCode", value: stats.developers, note: "Accounts active in the editor, all time" },
     { label: "New in the last 7 days", value: stats.developersThisWeek, note: `${share}% of the network joined this week` },
     { label: "Verified ad views", value: stats.impressions, note: "On screen 4+ seconds in a focused editor" },
-    // With none running, the next campaign is the only bidder: it serves every slot it targets
-    // and a second-price auction with no runner-up clears at the floor. So "none" is the
-    // strongest fact on the page, and the one place a 0 does real damage.
-    stats.activeCampaigns === 0
-      ? { label: "The next slot", value: null, text: "Wide open", note: "No campaign is running, so the next one takes every slot it targets at the floor price" }
-      : { label: "Campaigns live now", value: stats.activeCampaigns, note: "Competing for the next card" },
   ];
 
   return (
@@ -126,7 +140,7 @@ export function NetworkBand({ initial }: { initial: PublicStats | null }) {
         {figures.map((figure) => (
           <div key={figure.label}>
             <dt>{figure.label}</dt>
-            <dd>{figure.value === null ? figure.text : <Rolling value={figure.value} />}</dd>
+            <dd><Rolling value={figure.value} /></dd>
             <dd className="adv-network-note">{figure.note}</dd>
           </div>
         ))}

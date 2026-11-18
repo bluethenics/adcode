@@ -1,29 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AppShell, SideIcon, type SideNavGroup } from "@/components/AppShell";
-import { useAuth } from "@/components/AuthProvider";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowRight, CreditCard, Plus } from "lucide";
+import { Icon } from "@/components/Icon";
+import { SignInCard } from "@/components/SignInCard";
 import { Segmented } from "@/components/ios/Segmented";
-import { Donut } from "@/components/charts/Donut";
 import { TimeChart } from "@/components/charts/TimeChart";
-import { MONEY, seriesColor } from "@/components/charts/palette";
-import { money, moneyProgress, statusLabel, tone } from "@/components/money";
-import {
-  apiFetch,
-  MESSAGES,
-  type AdvertiserView,
-  type CampaignView,
-  type CreativeView,
-  type SeriesPointView,
-} from "@/lib/api";
-import { BillingBody } from "./billing/BillingBody";
-import { NewCampaignForm } from "./campaigns/new/NewCampaignForm";
-import { CreativeForm } from "./campaigns/[id]/CreativeForm";
-import { campaignRowToggle, loadPortalReport } from "@/lib/portalReport";
-import { CampaignBudgetMove } from "@/components/CampaignBudgetMove";
-import { ReferAdvertiser } from "@/components/ReferAdvertiser";
-
-type Window = "7" | "30" | "90";
+import { seriesColor } from "@/components/charts/palette";
+import { money, moneyProgress } from "@/components/money";
+import { LiveReach } from "@/components/advertisers/portal/LiveReach";
+import { PortalError, PortalSkeleton, usePortal, type PortalWindow } from "@/components/advertisers/portal/PortalShell";
+import { calendar, campaignState, ctr, legacyPortalTarget, seriesTotals } from "@/lib/portalModel";
 
 const WINDOWS = [
   { value: "7" as const, label: "7 days" },
@@ -31,593 +20,170 @@ const WINDOWS = [
   { value: "90" as const, label: "90 days" },
 ];
 
-/**
- * The advertiser portal is one long workspace, and its destinations are the rail on the
- * left. Each item is a section of this page - the sheet on a phone opens to the same
- * list, so the trip from "where am I" to the campaign builder is one tap either way.
- */
-const PORTAL_SIDEBAR: SideNavGroup[] = [
-  {
-    label: "Advertiser",
-    items: [
-      { href: "/portal", label: "Overview", icon: "grid" },
-      { href: "/portal#campaigns", label: "Campaigns", icon: "target" },
-      { href: "/portal#credits", label: "Credits", icon: "card" },
-      { href: "/portal#new-campaign", label: "New campaign", icon: "plus" },
-    ],
-  },
-];
+export default function PortalOverview() {
+  const portal = usePortal();
+  const router = useRouter();
+  const [announcement, setAnnouncement] = useState<{ tone: "ok" | "info"; text: string } | null>(null);
 
-export default function PortalHome() {
-  return (
-    <AppShell
-      title="Advertiser workspace"
-      audience="advertiser"
-      subtitle="Reach developers. Keep every campaign, credit, and result in view."
-      sidebar={PORTAL_SIDEBAR}
-    >
-      <div className="portal-launchpad">
-        <div><span className="portal-eyebrow">Advertising</span><h2>Your next customer is building here.</h2><p>Create a card, choose your audience, and set a budget you control.</p></div>
-        <a className="btn btn-primary" href="#new-campaign">Create a campaign <SideIcon name="plus" /></a>
-        <div className="portal-launchpad-facts"><span><SideIcon name="target" />Verified views</span><span><SideIcon name="card" />Budgets from $1</span><span><SideIcon name="chart" />Clear reporting</span></div>
-      </div>
-      <PortalBody />
-    </AppShell>
-  );
-}
-
-/** The last `count` UTC days, oldest first - the calendar every chart is drawn over. */
-function calendar(count: number): string[] {
-  const today = Date.now();
-  return Array.from({ length: count }, (_, index) =>
-    new Date(today - (count - 1 - index) * 86_400_000).toISOString().slice(0, 10),
-  );
-}
-
-function PortalBody() {
-  const { token } = useAuth();
-
-  const [advertiser, setAdvertiser] = useState<AdvertiserView | null>(null);
-  const [campaigns, setCampaigns] = useState<CampaignView[]>([]);
-  const [series, setSeries] = useState<SeriesPointView[]>([]);
-  const [window, setWindow] = useState<Window>("30");
-  const [state, setState] = useState<"loading" | "ready" | "signup" | "error">("loading");
-  const [error, setError] = useState<string | null>(null);
-  // Which campaign rows are unfolded. Cards load only for open rows, so a long list
-  // costs one request per row you actually look at rather than one per row you have.
-  const [openRows, setOpenRows] = useState<ReadonlySet<string>>(new Set());
-  // One-shot confirmations from redirects: `?created=1` after the builder and
-  // `?checkout=success|cancelled` from the payment provider's return URL. Neither is
-  // read anywhere else, so without this the moment passes with no confirmation.
-  const [announcement, setAnnouncement] = useState<string | null>(null);
-  const requestId = useRef(0);
-
-  const load = useCallback(async () => {
-    const id = ++requestId.current;
-    const found = await token().then((t) => loadPortalReport(t, window)).catch(() => ({
-      ok: false as const,
-      error: "offline" as const,
-    }));
-    if (id !== requestId.current) return;
-
-    if (!found.ok) {
-      // "No advertiser yet" is the sign-up path, not an error to apologise for - and it
-      // now sends people straight into the one screen that creates everything at once.
-      if (found.error === "no-advertiser") {
-        setState("signup");
-        return;
-      }
-      setError(MESSAGES[found.error]);
-      setState("error");
+  // Old one-page anchors and the builder's old return address now have pages of their own.
+  useEffect(() => {
+    const target = legacyPortalTarget(globalThis.location.hash, globalThis.location.search);
+    if (target !== null) {
+      router.replace(target);
       return;
     }
-
-    setAdvertiser(found.value.advertiser);
-    setCampaigns(found.value.campaigns);
-    setSeries(found.value.series);
-    setError(null);
-    setState("ready");
-  }, [token, window]);
-
-  useEffect(() => {
-    setState("loading");
-    let refreshing = false;
-    const refresh = async () => {
-      if (refreshing) return;
-      refreshing = true;
-      try {
-        await load();
-      } finally {
-        refreshing = false;
-      }
-    };
-    const refreshVisible = () => {
-      if (document.visibilityState === "visible") void refresh();
-    };
-    void refresh();
-    const timer = globalThis.setInterval(refreshVisible, 30_000);
-    globalThis.addEventListener("focus", refreshVisible);
-    document.addEventListener("visibilitychange", refreshVisible);
-    return () => {
-      ++requestId.current;
-      globalThis.clearInterval(timer);
-      globalThis.removeEventListener("focus", refreshVisible);
-      document.removeEventListener("visibilitychange", refreshVisible);
-    };
-  }, [load]);
-
-  useEffect(() => {
-    // `globalThis`, not `window`: the reporting-window state above is also called
-    // `window` and shadows the global inside this component.
     const params = new URLSearchParams(globalThis.location.search);
-    if (params.get("created") === "1") {
-      setAnnouncement(
-        "Campaign created. Funded campaigns go live by themselves; otherwise one click on Set live below finishes it.",
-      );
-    } else if (params.get("checkout") === "success") {
-      setAnnouncement(
-        "Payment received. Your balance updates as soon as it settles, usually within a minute.",
-      );
+    if (params.get("signin") === "1") portal.askSignIn();
+    if (params.get("checkout") === "success") {
+      setAnnouncement({ tone: "ok", text: "Payment received. Your balance updates as soon as it settles, usually within a minute, and campaigns waiting on credits can go live." });
     } else if (params.get("checkout") === "cancelled") {
-      setAnnouncement("Checkout was cancelled. Nothing was charged. Try again whenever you're ready.");
+      setAnnouncement({ tone: "info", text: "Checkout was cancelled. Nothing was charged." });
     }
-  }, []);
+  }, [router]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const days = useMemo(() => calendar(Number(window)), [window, series]);
+  if (portal.status === "checking" || portal.status === "loading") return <PortalSkeleton />;
+  if (portal.status === "error") return <PortalError message={portal.error} onRetry={() => void portal.reload()} />;
 
-  /** The series rolled up across campaigns, one value per day of the calendar. */
-  const totals = useMemo(() => {
-    const views = new Map<string, number>();
-    const clicks = new Map<string, number>();
-    const spend = new Map<string, number>();
-
-    for (const point of series) {
-      views.set(point.day, (views.get(point.day) ?? 0) + point.impressions);
-      clicks.set(point.day, (clicks.get(point.day) ?? 0) + point.clicks);
-      spend.set(point.day, (spend.get(point.day) ?? 0) + Number(point.spentMicros) / 1_000_000);
-    }
-
-    return {
-      views: days.map((day) => views.get(day) ?? 0),
-      clicks: days.map((day) => clicks.get(day) ?? 0),
-      spend: days.map((day) => spend.get(day) ?? 0),
-    };
-  }, [series, days]);
-
-  if (state === "loading") {
+  if (portal.status === "signed-out" || portal.status === "none" || portal.campaigns.length === 0) {
     return (
       <>
-        <div className="skeleton skeleton-tiles" />
-        <div className="skeleton skeleton-card" />
+        {announcement !== null && <Announcement {...announcement} onDismiss={() => setAnnouncement(null)} />}
+        <section className="ap-launch" aria-labelledby="ap-launch-title">
+          <div className="ap-launch-copy">
+            <h1 id="ap-launch-title">Launch your first campaign</h1>
+            <p>Put a sponsored card in front of developers while they code. From $1 per 500 verified views, live in minutes.</p>
+            <Link href="/portal/campaigns/new" className="ap-btn ap-btn-primary ap-btn-large">
+              Build my campaign <Icon node={ArrowRight} />
+            </Link>
+            {portal.status === "signed-out" && !portal.signInAsked && (
+              <p className="ap-launch-returning">
+                Already advertising? <button type="button" className="ap-link" onClick={portal.askSignIn}>Sign in</button>
+              </p>
+            )}
+          </div>
+          <LiveReach />
+        </section>
+        {portal.status === "signed-out" && portal.signInAsked && (
+          <div className="ap-signin">
+            <SignInCard heading="Sign in to your advertiser account" audience="advertiser" headingTag="h2" initialMode="in" />
+          </div>
+        )}
+        <ol className="ap-howto" aria-label="How a campaign starts">
+          <li><strong>Pick an audience</strong><span>Every developer, or only the stacks your product is for.</span></li>
+          <li><strong>Write your ad</strong><span>A logo, one line and a link. See it in the editor as you type.</span></li>
+          <li><strong>Set a budget</strong><span>Pay only for views held on screen four seconds or more.</span></li>
+        </ol>
       </>
     );
   }
 
-  if (state === "error") {
-    return (
-      <div className="notice" data-tone="error" role="alert">
-        <p>Campaign reporting is unavailable. {error}</p>
-        <button type="button" className="btn btn-outline btn-small" onClick={() => void load()}>
-          Retry
-        </button>
-      </div>
-    );
-  }
+  return <Dashboard announcement={announcement} onDismiss={() => setAnnouncement(null)} />;
+}
 
-  if (state === "signup") {
-    return (
-      <div className="portal-first-campaign" id="new-campaign">
-        <h3>Start your first campaign</h3>
-        <p>
-          One screen: your logo, your message, a budget. Your advertiser account is created
-          along with the campaign. There is no separate sign-up to get through first.
-        </p>
-        <NewCampaignForm />
-      </div>
-    );
-  }
+function Announcement({ tone, text, onDismiss }: { tone: "ok" | "info"; text: string; onDismiss: () => void }) {
+  return (
+    <div className="ap-banner" data-tone={tone} role="status">
+      <p>{text}</p>
+      <button type="button" className="ap-link" onClick={onDismiss}>Dismiss</button>
+    </div>
+  );
+}
 
-  const live = campaigns.filter((c) => c.status === "active").length;
-  const viewTotal = totals.views.reduce((sum, value) => sum + value, 0);
-  const clickTotal = totals.clicks.reduce((sum, value) => sum + value, 0);
-  const spentTotal = moneyProgress(series
-    .filter((point) => days.includes(point.day))
-    .reduce((sum, point) => sum + BigInt(point.spentMicros), 0n).toString());
-  /*
-   * Before the first verified view these four tiles would read 0, 0, $0.00, 0 - four zeros
-   * in a row at the exact moment an advertiser is deciding whether this works. A dash and a
-   * line saying when the figure arrives carries the same information without the verdict.
-   */
-  const noViews = viewTotal === 0 && clickTotal === 0;
+function Dashboard({ announcement, onDismiss }: { announcement: { tone: "ok" | "info"; text: string } | null; onDismiss: () => void }) {
+  const portal = usePortal();
+  const { advertiser, campaigns, series, window } = portal;
+  const days = useMemo(() => calendar(Number(window)), [window]);
+  const totals = useMemo(() => seriesTotals(series, days), [series, days]);
+  const views = totals.views.reduce((sum, value) => sum + value, 0);
+  const clicks = totals.clicks.reduce((sum, value) => sum + value, 0);
+  const spent = moneyProgress(series.filter((point) => days.includes(point.day)).reduce((sum, point) => sum + BigInt(point.spentMicros), 0n).toString());
+  const waiting = campaigns.map((campaign) => ({ campaign, state: campaignState(campaign, advertiser) })).filter((row) => row.state.tone === "waiting");
 
   return (
     <>
-      {announcement !== null && (
-        <div className="notice" data-tone="ok" role="status">
-          {announcement}
-          <div className="actions" style={{ marginTop: 8 }}>
-            <button type="button" className="btn btn-ghost btn-small" onClick={() => setAnnouncement(null)}>
-              Dismiss
-            </button>
-          </div>
+      {announcement !== null && <Announcement {...announcement} onDismiss={onDismiss} />}
+      <header className="ap-page-head">
+        <div>
+          <h1>Overview</h1>
+          <p>Verified views only. A view counts after four seconds on screen in a focused editor.</p>
+        </div>
+        <Segmented label="Reporting window" value={window} options={WINDOWS} onChange={(next: PortalWindow) => portal.setWindow(next)} />
+      </header>
+
+      {waiting.length > 0 && (
+        <div className="ap-banner" data-tone="warn" role="status">
+          <p>
+            {waiting.length === 1 ? <><strong>{waiting[0]?.campaign.name}</strong> is ready but waiting for credits.</> : <>{waiting.length} campaigns are ready but waiting for credits.</>}{" "}
+            It goes live as soon as your balance covers its budget.
+          </p>
+          <Link href="/portal/billing" className="ap-btn ap-btn-small">Add credits</Link>
         </div>
       )}
-      <div className="portal-overview">
-        <div className="ios-card hero-balance portal-balance">
-          <span className="hero-balance-label">Available to commit</span>
-          <strong className="hero-figure money">{money(advertiser?.availableMicros ?? "0")}</strong>
-          <span className="hero-balance-sub">
-            {money(advertiser?.reservedMicros ?? "0")} committed to live campaigns ·{" "}
-            {money(advertiser?.fundedMicros ?? "0")} funded all time
-          </span>
-          <div className="actions" style={{ marginTop: 18 }}>
-            <a href="#new-campaign" className="btn btn-primary btn-small">New campaign</a>
-            <a href="#credits" className="btn btn-outline btn-small">Add credits</a>
-          </div>
-        </div>
 
-        <div className="filter-row">
-          <Segmented label="Reporting window" value={window} options={WINDOWS} onChange={setWindow} />
-          <span className="portal-refresh"><i aria-hidden="true" />Refreshes every 30 seconds</span>
-        </div>
+      <dl className="ap-kpis">
+        <div><dt>Verified views</dt><dd>{views === 0 ? "-" : views.toLocaleString("en-US")}</dd></div>
+        <div><dt>Clicks</dt><dd>{clicks === 0 ? "-" : clicks.toLocaleString("en-US")}</dd></div>
+        <div><dt>Click rate</dt><dd>{ctr(clicks, views) ?? "-"}</dd></div>
+        <div><dt>Spent</dt><dd className="money">{views === 0 ? "-" : spent}</dd></div>
+      </dl>
+      {views === 0 && <p className="ap-note">No verified views in the last {window} days yet. Figures appear here from the first one.</p>}
 
-        <div className="ios-tiles">
-          <Tile
-            label="Verified views"
-            value={noViews ? "—" : viewTotal.toLocaleString("en-US")}
-            hint={noViews ? "Counted from the first verified view" : `Last ${window} days`}
-          />
-          <Tile
-            label="Clicks"
-            value={noViews ? "—" : clickTotal.toLocaleString("en-US")}
-            hint={noViews ? "Shown once someone clicks" : `${((clickTotal / viewTotal) * 100).toFixed(2)}% of views`}
-          />
-          <Tile
-            label="Spent"
-            value={noViews ? "—" : spentTotal}
-            hint={noViews ? "You are charged only for verified views" : `Last ${window} days`}
-            money
-          />
-          <Tile
-            label="Live campaigns"
-            value={live === 0 ? "—" : String(live)}
-            hint={live === 0 ? "Set live below to start serving" : `${campaigns.length} total`}
-          />
-        </div>
+      <section className="ap-panel" aria-labelledby="ap-activity-title">
+        <header className="ap-panel-head">
+          <h2 id="ap-activity-title">Views and clicks</h2>
+          <span>Last {window} days</span>
+        </header>
+        <TimeChart
+          days={days}
+          height={220}
+          summary={`Views and clicks per day over ${window} days: ${views} views, ${clicks} clicks.`}
+          series={[
+            { label: "Views", color: seriesColor(0), values: totals.views },
+            { label: "Clicks", color: seriesColor(1), values: totals.clicks },
+          ]}
+        />
+      </section>
 
-        <section className="ios-card portal-activity">
-          <header className="ios-card-head">
-            <h2>Views and clicks</h2>
-            <p>Only verified views appear here, because only verified views bill.</p>
+      <div className="ap-split">
+        <section className="ap-panel ap-panel-flush" id="campaigns" aria-labelledby="ap-campaigns-title">
+          <header className="ap-panel-head">
+            <h2 id="ap-campaigns-title">Campaigns</h2>
+            <Link href="/portal/campaigns/new" className="ap-link"><Icon node={Plus} />New campaign</Link>
           </header>
-          <TimeChart
-            days={days}
-            height={240}
-            summary={`Views and clicks per day over ${window} days: ${viewTotal} views, ${clickTotal} clicks.`}
-            series={[
-              { label: "Views", color: seriesColor(0), values: totals.views },
-              { label: "Clicks", color: seriesColor(1), values: totals.clicks },
-            ]}
-          />
-        </section>
-
-        {/*
-          Spend is a separate chart rather than a second axis on the one above. A dual axis
-          lets whoever drew it decide which line looks like it is winning, and views and
-          dollars are three orders of magnitude apart.
-        */}
-        <section className="ios-card portal-spend">
-          <header className="ios-card-head">
-            <h2>Spend</h2>
-            <p>Charged as receipts are verified. Serving stops the moment a budget is out.</p>
-          </header>
-          <TimeChart
-            days={days}
-            area
-            height={200}
-            summary={`Spend per day over ${window} days, totalling ${spentTotal}.`}
-            series={[
-              {
-                label: "Spent",
-                color: MONEY,
-                values: totals.spend,
-                format: (value) => `$${value.toFixed(2)}`,
-              },
-            ]}
-          />
-        </section>
-
-      </div>
-
-      {campaigns.length === 0 ? (
-        /* The rail's Campaigns item must land somewhere even before the list exists. */
-        <div className="empty" id="campaigns">
-          <h3>No campaigns yet</h3>
-          <p>
-            A campaign holds your budget, your card, and who sees it. One screen creates all
-            three.
-          </p>
-          <div className="actions" style={{ justifyContent: "center" }}><a href="#new-campaign" className="btn btn-primary btn-small">Create your first campaign</a></div>
-        </div>
-      ) : (
-        <>
-          <div className="ios-split">
-            <section className="ios-card">
-              <header className="ios-card-head">
-                <h2>Where the money went</h2>
-                <p>Spend by campaign, over the last {window} days.</p>
-              </header>
-              <Donut
-                summary={`Spend by campaign over ${window} days, totalling ${spentTotal}.`}
-                centerValue={spentTotal}
-                centerLabel={`in ${window} days`}
-                slices={campaigns.map((campaign) => {
-                  const spent = series
-                    .filter((point) => point.campaignId === campaign.campaignId)
-                    .reduce((sum, point) => sum + Number(point.spentMicros) / 1_000_000, 0);
-                  return {
-                    label: campaign.name,
-                    value: spent,
-                    display: `$${spent.toFixed(2)}`,
-                  };
-                })}
-              />
-            </section>
-
-            <section className="ios-card">
-              <header className="ios-card-head">
-                <h2>Budget used</h2>
-                <p>Lifetime, per campaign.</p>
-              </header>
-              <ul className="meter-list">
+          <div className="ap-table-wrap">
+            <table className="ap-table">
+              <thead>
+                <tr><th scope="col">Campaign</th><th scope="col">Status</th><th scope="col" className="num">Views</th><th scope="col" className="num">Clicks</th><th scope="col" className="num">CTR</th><th scope="col" className="num">Spent</th></tr>
+              </thead>
+              <tbody>
                 {campaigns.map((campaign) => {
-                  const budget = Number(BigInt(campaign.budgetMicros) / 1000n);
-                  const spent = Number(BigInt(campaign.spentMicros) / 1000n);
-                  const percent = budget === 0 ? 0 : Math.min(100, (spent / budget) * 100);
-
+                  const state = campaignState(campaign, advertiser);
                   return (
-                    <li key={campaign.campaignId}>
-                      <span className="meter-head">
-                        <span>{campaign.name}</span>
-                        <b className="money">{moneyProgress(campaign.spentMicros)}</b>
-                      </span>
-                      <span className="meter-track">
-                        <span
-                          className="meter-fill"
-                          style={{
-                            width: `${percent}%`,
-                            // The fill carries severity: green while there is room,
-                            // amber as it runs out, because a campaign about to stop
-                            // serving is something to notice before it does.
-                            background: percent > 90 ? "var(--warn)" : MONEY,
-                          }}
-                        />
-                      </span>
-                      <span className="meter-foot">
-                        {percent.toFixed(0)}% of {money(campaign.budgetMicros)}
-                      </span>
-                    </li>
+                    <tr key={campaign.campaignId}>
+                      <th scope="row"><Link href={`/portal/campaigns/${encodeURIComponent(campaign.campaignId)}`}>{campaign.name}</Link></th>
+                      <td><span className="ap-chip" data-tone={state.tone}>{state.label}</span></td>
+                      <td className="num">{campaign.impressions.toLocaleString("en-US")}</td>
+                      <td className="num">{campaign.clicks.toLocaleString("en-US")}</td>
+                      <td className="num">{ctr(campaign.clicks, campaign.impressions) ?? "-"}</td>
+                      <td className="num money">{moneyProgress(campaign.spentMicros)}<small> of {money(campaign.budgetMicros)}</small></td>
+                    </tr>
                   );
                 })}
-              </ul>
-            </section>
+              </tbody>
+            </table>
           </div>
+        </section>
 
-          <section id="campaigns" className="workspace-section">
-            <h2 className="section-title">All campaigns</h2>
-            <p>Lifetime totals. Ad fetches count cards downloaded by the editor, including cards that expired before display. Verified views require at least 4 seconds on screen while the editor stays focused, then syncing. Live campaigns compete for each ad slot.</p>
-            <div className="campaign-stack">
-              <div className="row row-head">
-                <span className="row-main">Campaign</span>
-                <span className="row-num">Views</span>
-                <span className="row-num">Clicks</span>
-                <span className="row-num">Spent</span>
-              </div>
-              {campaigns.map((campaign, index) => (
-                <details
-                  key={campaign.campaignId}
-                  className="campaign-inline"
-                  onToggle={campaignRowToggle(setOpenRows, campaign.campaignId)}
-                >
-                  <summary>
-                    <span className="row-main">
-                    <span className="row-title">
-                      <i className="row-dot" style={{ background: seriesColor(index) }} aria-hidden="true" />
-                      {campaign.name}
-                    </span>
-                    <span className="row-sub">
-                      <span className="pill" data-tone={tone(campaign.status)}>
-                        {statusLabel(campaign.status)}
-                      </span>{" "}
-                      {money(campaign.budgetMicros)} budget ·{" "}
-                      {campaign.targetTags.length === 0
-                        ? "everyone"
-                        : `${campaign.targetTags.length} tag${campaign.targetTags.length === 1 ? "" : "s"}`}
-                      {" · "}{campaign.serves.toLocaleString("en-US")} ad fetches
-                    </span>
-                  </span>
-                    <span className="row-num mono">{campaign.impressions.toLocaleString("en-US")} views</span>
-                    <span className="row-num mono">{campaign.clicks.toLocaleString("en-US")} clicks</span>
-                    <span className="row-num mono">{moneyProgress(campaign.spentMicros)} spent</span>
-                  </summary>
-                  <div className="campaign-inline-body"><p>Maximum bid and creative controls stay attached to this campaign. Detailed editing is being folded into this row; the current campaign remains fully tracked here.</p><dl><div><dt>Budget</dt><dd>{money(campaign.budgetMicros)}</dd></div><div><dt>Spent</dt><dd>{moneyProgress(campaign.spentMicros)}</dd></div><div><dt>Audience</dt><dd>{campaign.targetTags.length === 0 ? "Every developer" : `${campaign.targetTags.length} contexts`}</dd></div></dl><CampaignStatusToggle campaign={campaign} onChanged={load} /><CampaignBudgetMove campaign={campaign} campaigns={campaigns} advertiser={advertiser} onMoved={load} />{openRows.has(campaign.campaignId) && (<CampaignCards campaignId={campaign.campaignId} advertiserName={advertiser?.name ?? ""} onChanged={load} />)}</div>
-                </details>
-              ))}
-            </div>
-          </section>
-        </>
-      )}
-
-      {/*
-        Open, not a disclosure. The rail on the left is how these sections are reached
-        now, and collapsing them would leave the sidebar pointing at a "+" to unfold.
-      */}
-      <section className="workspace-section" id="credits" aria-labelledby="credits-title">
-        <h2 className="workspace-section-title" id="credits-title">Credits</h2>
-        <BillingBody />
-      </section>
-
-      <section className="workspace-section" id="new-campaign" aria-labelledby="new-campaign-title">
-        <h2 className="workspace-section-title" id="new-campaign-title">Create a campaign</h2>
-        <NewCampaignForm />
-      </section>
-
-      <ReferAdvertiser />
+        <aside className="ap-panel ap-balance" aria-labelledby="ap-balance-title">
+          <h2 id="ap-balance-title">Available credits</h2>
+          <strong className="money">{money(advertiser?.availableMicros ?? "0")}</strong>
+          <dl>
+            <div><dt>Held by live campaigns</dt><dd className="money">{money(advertiser?.reservedMicros ?? "0")}</dd></div>
+            <div><dt>Bought all time</dt><dd className="money">{money(advertiser?.fundedMicros ?? "0")}</dd></div>
+          </dl>
+          <Link href="/portal/billing" className="ap-btn"><Icon node={CreditCard} />Add credits</Link>
+        </aside>
+      </div>
     </>
-  );
-}
-
-function Tile({
-  label,
-  value,
-  hint,
-  money: isMoney = false,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  money?: boolean;
-}) {
-  return (
-    <div className="ios-tile">
-      <span className="stat-icon"><SideIcon name={isMoney ? "card" : label === "Clicks" ? "send" : label === "Live campaigns" ? "target" : "chart"} /></span>
-      <span className="ios-tile-label">{label}</span>
-      <span className={`ios-tile-value${isMoney ? " money" : ""}`}>{value}</span>
-      <span className="ios-tile-hint">{hint}</span>
-    </div>
-  );
-}
-
-/**
- * One click between a funded campaign and serving - no approval step.
- *
- * New cards go live by themselves when the balance covers them; this is the control
- * for everything else: a campaign created before credits arrived, or a live one to
- * pause. Failures name the fix (usually adding credits) rather than a state to wait
- * in, because there is no queue behind this button anymore.
- */
-function CampaignStatusToggle({  campaign,
-  onChanged,
-}: {
-  campaign: CampaignView;
-  onChanged: () => void;
-}) {
-  const { token } = useAuth();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  if (campaign.status !== "active" && campaign.status !== "paused") return null;
-  const next = campaign.status === "active" ? "paused" : "active";
-
-  const run = async () => {
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    const res = await apiFetch<CampaignView>({
-      path: `/portal/campaigns/${encodeURIComponent(campaign.campaignId)}/status`,
-      token: await token(),
-      method: "POST",
-      body: { status: next },
-    });
-    setBusy(false);
-    if (!res.ok) {
-      setError(MESSAGES[res.error]);
-      return;
-    }
-    onChanged();
-  };
-
-  return (
-    <div>
-      {campaign.status === "paused" && (
-        <p>Paused. Set it live and cards start serving to matching developers.</p>
-      )}
-      <div className="actions" style={{ marginTop: 12 }}>
-        <button
-          type="button"
-          className={next === "active" ? "btn btn-primary btn-small" : "btn btn-ghost"}
-          disabled={busy}
-          onClick={run}
-        >
-          {busy ? "Working…" : next === "active" ? "Set live" : "Pause"}
-        </button>
-      </div>
-      {error !== null && (
-        <div className="notice" data-tone="error" role="alert" style={{ marginTop: 12 }}>
-          {error}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
- * The cards on a campaign, with the state of each one.
- *
- * The campaign row's pill says whether the campaign serves; it says nothing about the
- * cards, so a rejected card used to look identical to a live one and the advertiser
- * funded credits into a campaign that could never serve. Every card now names its own
- * state, a rejected one says to publish a replacement, and the form that publishes it
- * sits directly underneath - the resubmission path that used to be a dead export.
- */
-function CampaignCards({
-  campaignId,
-  advertiserName,
-  onChanged,
-}: {
-  campaignId: string;
-  advertiserName: string;
-  onChanged: () => void;
-}) {
-  const { token } = useAuth();
-  const [cards, setCards] = useState<CreativeView[] | null>(null);
-
-  const loadCards = useCallback(async () => {
-    const res = await apiFetch<CreativeView[]>({
-      path: `/portal/campaigns/${encodeURIComponent(campaignId)}/creatives`,
-      token: await token(),
-    });
-    if (res.ok) setCards(res.value);
-  }, [token, campaignId]);
-
-  useEffect(() => {
-    void loadCards();
-  }, [loadCards]);
-
-  return (
-    <div style={{ marginTop: 16 }}>
-      <h4 style={{ fontSize: 15, marginBottom: 8 }}>Cards</h4>
-      {cards === null ? (
-        <p className="lede">Loading…</p>
-      ) : cards.length === 0 ? (
-        <p className="lede">No cards yet. Publish the first one below.</p>
-      ) : (
-        <ul className="meter-list">
-          {cards.map((card) => (
-            <li key={card.creativeId}>
-              <span className="meter-head">
-                <span>{card.headline}</span>
-                <span className="pill" data-tone={tone(card.status)}>
-                  {statusLabel(card.status)}
-                </span>
-              </span>
-              {card.status === "rejected" && (
-                <span className="meter-foot">Rejected. Publish a replacement below.</span>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-      <div style={{ marginTop: 12 }}>
-        <CreativeForm
-          campaignId={campaignId}
-          defaultAdvertiser={advertiserName}
-          onCreated={() => {
-            void loadCards();
-            onChanged();
-          }}
-        />
-      </div>
-    </div>
   );
 }

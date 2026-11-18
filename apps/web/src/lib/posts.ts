@@ -371,46 +371,44 @@ ADCode is not a salary. It is a capable editor whose price is a few small cards 
     slug: "publish-your-first-campaign-in-ten-minutes",
     title: "Publish your first campaign in ten minutes",
     description:
-      "Sign in, name the account, create the campaign, attach a creative, fund it, go live - the whole advertiser flow, with what each step costs and when.",
+      "Pick an audience and regions, write the ad, set a budget, review it in place, fund it, go live - the whole advertiser flow, with what each step costs and when.",
     published: "2026-08-22",
-    updated: "2026-10-10",
+    updated: "2026-11-18",
     surface: "docs",
     section: "Earning and advertising",
     order: 1,
     body: `
 Advertising in ADCode buys verified attention from developers in their actual work environment - a small card in the corner of the editor, matched against what they currently have open. Here is the entire process, start to live.
 
-## Step 1: create the campaign directly
+## Step 1: open the builder
 
-Go straight to [the new-campaign form](/portal/campaigns/new) - you do not need to tour the portal first. Signed in, submit the form; if this is your company's first campaign it asks for an advertiser name inline, creates the account, and finishes the campaign in the same submission. That name is what developers see on your cards, so pick something you want on a business card.
+Go straight to [New campaign](/portal/campaigns/new). You do not need an account to start: the four steps are saved in your browser tab, and you sign in only on the last one, to launch. Your advertiser account is created then, named after your brand.
 
-## Step 2: name and scope the campaign
+## Step 2: choose the audience
 
-Give the campaign a name only you will see ("Rust developers, Q3"), and choose who sees it from the tag picker: languages (\`lang:rust\`), frameworks (\`fw:react\`), tools (\`tool:docker\`), platforms (\`platform:backend\`). Leave targeting empty to reach everyone. There are 45 tags and that is all of them - targeting is based on what is open in the editor right now, not browsing history.
+Pick **Every developer**, or **Developers in your stack** and tick the languages (\`lang:rust\`), frameworks (\`fw:react\`), tools (\`tool:docker\`) and platforms (\`platform:backend\`) your product is for. There are 45 tags and that is all of them - targeting is based on what is open in the editor right now, not browsing history.
 
-## Step 3: set your economics
+Then choose **Worldwide** or **Chosen countries**. Region shortcuts (North America, the European Union, India and South Asia, and more) select their countries in one click, and a search adds any other country, up to 60. The country comes from the connection at ADCode's edge for that one ad request and is never stored. Stack and region combine: a campaign for Rust in Germany serves only to Rust developers in Germany.
 
-Choose a maximum bid of at least $1.00 per 500 impressions and a total budget starting at $1.00. A second-price auction decides what winning views actually cost, and half of that clearing price goes to the developer. The budget is reserved while the campaign is live and serving stops the instant it is spent.
+## Step 3: write the ad
 
-Campaigns are created paused. Nothing spends until you deliberately go live.
+Enter the https address people land on, your brand name and your logo, then one line of up to 80 characters and an optional supporting line. **Add another version** gives you up to three messages that share the budget and rotate. The live preview beside the form is the card at the size developers see it.
 
-## Step 4: attach a creative
+## Step 4: set the budget
 
-On the campaign page, add the creative: a headline, an optional line of body text, a link, and logos for light and dark themes. Small on purpose - the placement has to sit in a corner without shouting, and cards that shout perform worse anyway. Cards go live immediately; automated checks (https-only links, raster-only artwork, size and length limits) run on submit, and abuse is removed after the fact rather than held in a review queue.
+Choose a total budget from $1 and a maximum bid of at least $1.00 per 500 verified views. A second-price auction decides what winning views actually cost, and half of that clearing price goes to the developer. The panel beside the form shows how many verified views the budget buys: all blocks at your bid at one end, all at the floor at the other.
 
-## Step 5: add funds
+## Step 5: review and launch
 
-[Add funds](/portal/billing) from the portal. You are paying a payment provider directly for credit into your account; the funded balance is what campaigns reserve against. Available minus committed is always visible at the top of the portal.
+**Your campaign is ready** shows the brand, link, budget, audience and regions, the views and clicks the budget buys, and every version of the ad in the desktop app and the browser editor. **Edit** goes back; **Launch campaign** creates the campaign and its ads. Automated checks (https-only links, raster-only artwork, size and length limits) run on submit - there is no review queue, and abuse is removed after the fact.
 
-## Step 6: go live
+## Step 6: fund it and go live
 
-Funded campaigns go live by themselves the moment the card exists. If the campaign was
-created before credits arrived, one click on Set live finishes it - there is no approval
-wait. From that moment:
+If your balance already covers the budget, the campaign is live the moment you launch. Otherwise its page says **Waiting for credits** with a button for exactly the amount missing, which opens [Billing](/portal/billing) with that amount filled in. You pay the payment provider directly, and the campaign goes live by itself once the credits land. From that moment:
 
 - Cards serve only into matching, focused, non-working moments - the same respect rules users get.
 - Every serve is recorded, and a view bills only when its receipt matches a record.
-- Serves, views, clicks, and spend update on the campaign page as receipts verify.
+- Views, clicks, click rate and spend update on the campaign page as receipts verify.
 
 ## Step 7: read the results honestly
 
@@ -420,7 +418,7 @@ Reporting is aggregate: impressions, clicks, and spend per campaign and creative
 
 Put too much behind one campaign? Move it. You do not have to end the campaign or wait for it to spend out.
 
-1. In [the portal](/portal#campaigns), open the campaign the credits are in.
+1. In [the portal](/portal), open the campaign the credits are in from the sidebar.
 2. Under **Move credits to another campaign**, choose where they go and enter an amount, or press **All unspent**.
 3. Read the line under the amount - it says what the move does to your balance - then press **Move credits**.
 

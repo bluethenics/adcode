@@ -12,6 +12,7 @@ import {
   type AdminWithdrawalView,
   type PayoutDestinationView,
 } from "@/lib/api";
+import { AdminLoader } from "@/components/AdminLoader";
 
 type Filter = "requested" | "approved" | "paid" | "rejected" | "failed" | "returned" | "all";
 
@@ -119,7 +120,7 @@ export function Withdrawals({ initialQuery = "" }: { initialQuery?: string }) {
       )}
 
       {loading ? (
-        <div className="skeleton skeleton-card" />
+        <AdminLoader label="Loading payouts" />
       ) : shown.length === 0 ? (
         <div className="empty">
           <h3>Nothing here</h3>

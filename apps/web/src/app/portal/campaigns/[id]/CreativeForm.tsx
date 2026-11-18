@@ -19,10 +19,12 @@ const LIMITS = { headline: 80, body: 160, advertiser: 40 } as const;
 export function CreativeForm({
   campaignId,
   defaultAdvertiser,
+  defaultUrl,
   onCreated,
 }: {
   campaignId: string;
   defaultAdvertiser?: string;
+  defaultUrl?: string;
   onCreated: () => void;
 }) {
   const { token } = useAuth();
@@ -30,7 +32,7 @@ export function CreativeForm({
   const [advertiser, setAdvertiser] = useState(defaultAdvertiser ?? "");
   const [headline, setHeadline] = useState("");
   const [body, setBody] = useState("");
-  const [clickUrl, setClickUrl] = useState("");
+  const [clickUrl, setClickUrl] = useState(defaultUrl ?? "");
   const [logo, setLogo] = useState<string | null>(null);
   const [darkLogo, setDarkLogo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -81,10 +83,10 @@ export function CreativeForm({
   };
 
   return (
-    <form onSubmit={submit} className="ios-card">
+    <form onSubmit={submit} className="ap-creative-form">
       <header className="ios-card-head">
-        <h2>Add another card</h2>
-        <p>Two messages can share one budget. Each goes live the moment you publish it.</p>
+        <h2>Add an ad</h2>
+        <p>Ads in a campaign share its budget and rotate. A new ad serves as soon as the campaign is live.</p>
       </header>
 
       {error !== null && (
@@ -94,7 +96,7 @@ export function CreativeForm({
       )}
       {done && (
         <div className="notice" data-tone="ok">
-          Live. The card is serving to matching developers now.
+          Published. It joins the rotation whenever this campaign is live.
         </div>
       )}
 
@@ -105,7 +107,7 @@ export function CreativeForm({
           className="input"
           maxLength={LIMITS.advertiser}
           required
-          placeholder="Acme"
+          placeholder="Your product"
           value={advertiser}
           onChange={(e) => setAdvertiser(e.target.value)}
         />
@@ -149,7 +151,7 @@ export function CreativeForm({
           className="input"
           type="url"
           required
-          placeholder="https://acme.com/developers"
+          placeholder="https://yourproduct.com/developers"
           value={clickUrl}
           onChange={(e) => setClickUrl(e.target.value)}
         />
@@ -176,8 +178,8 @@ export function CreativeForm({
       </div>
 
       <div className="actions">
-        <button type="submit" className="btn btn-primary" disabled={busy}>
-          Publish card
+        <button type="submit" className="ap-btn ap-btn-primary" disabled={busy}>
+          {busy ? "Publishing…" : "Publish ad"}
         </button>
       </div>
     </form>

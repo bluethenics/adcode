@@ -26,6 +26,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { createRequestHandler, type ApiOptions } from "./server.ts";
 import { createMemoryStore } from "./memoryStore.ts";
 import { createTagflowHandler } from "./tagflow.ts";
+import { createAdminConsoleHandler } from "./adminConsole.ts";
 
 /** Just enough of `IncomingMessage` for the handler, including the body iteration. */
 class ShimRequest {
@@ -114,8 +115,12 @@ export function createFetchHandler(
   const tagflow = createTagflowHandler({ store, verifier: options.verifier!, clock: options.clock ?? { now: () => Date.now() },
     ...(options.payments === undefined ? {} : { payments: options.payments }), ...(options.siteOrigin === undefined ? {} : { siteOrigin: options.siteOrigin }),
     ...(options.providerModels === undefined ? {} : { providerModels: options.providerModels }), ...options.tagflow });
+  const adminConsole = options.adminConsole === undefined || options.verifier === undefined ? null
+    : createAdminConsoleHandler({ store, verifier: options.verifier, clock: options.clock ?? { now: () => Date.now() }, ...options.adminConsole });
 
   return async (request: Request): Promise<Response> => {
+    const answered = adminConsole === null ? null : await adminConsole(request);
+    if (answered !== null) return answered;
     // This response owns a live upstream stream and must bypass the buffering shim.
     const relayed = await tagflow(request);
     if (relayed !== null) return relayed;

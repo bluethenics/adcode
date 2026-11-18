@@ -7,6 +7,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
 import { when } from "@/components/money";
 import { MAX_DATA_URL_CHARS, toWebImage } from "@/components/MarkdownEditor";
+import { AdminLoader } from "@/components/AdminLoader";
 
 interface NoticeButton { label: string; url: string }
 
@@ -196,7 +197,7 @@ export function NoticesBody() {
     void load();
   };
 
-  if (loading) return <p className="lede">Loading…</p>;
+  if (loading) return <AdminLoader label="Loading notices" />;
 
   return (
     <>

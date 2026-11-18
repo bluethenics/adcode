@@ -16,6 +16,10 @@ only public once its installers are attached to a GitHub release.
 - **A redesigned Agents board.** Each box leads with a status chip and timer, shows what the agent is doing with a moving bar while it works, and keeps edit and delete out of the way until you need them.
 - **Coming back is easier.** The Continue card says why a conversation is worth reopening - it is waiting on your answer, or your last message never got one - and a run of days shows in the greeting.
 - **Cancelling a plan is easy to find.** The account menu's plan button now reads Manage or cancel plan and opens the subscription controls; the support page explains it in English and Russian.
+- **Saved chats stay saved.** Conversations are written to a new file and then moved into place, so a crash mid-save can no longer leave an empty file; chats filed under an older spelling of the project folder are found again, and Clear all asks before it deletes a project's history.
+- **The model picker opens at once.** With Claude Code, Codex or OpenCode installed, the picker no longer waits up to a minute and a half for each tool to list its models: it shows the last known list straight away and fills in the live one when it arrives.
+- **Look around first.** The sign-in screen offers "Look around first - sign in later"; included AI still needs a verified account.
+- **Website**: a new guide, [What's new in 2.6.2](https://adcode.bluethenics.com/docs/adcode-2-6-2-teams-and-agents), walks through team chats, Agent flow and mods step by step.
 
 ## 2.6.1 — 2026-11-14
 

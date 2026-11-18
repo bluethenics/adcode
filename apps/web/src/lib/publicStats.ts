@@ -20,12 +20,12 @@ export function parsePublicStats(value: unknown): PublicStats | null {
   const keys = ["impressions", "clicks", "activeCampaigns", "developers", "asOf"] as const;
   if (!keys.every((key) => count(data[key]))) return null;
   return {
-    impressions: data.impressions as number,
-    clicks: data.clicks as number,
-    activeCampaigns: data.activeCampaigns as number,
-    developers: data.developers as number,
+    impressions: data["impressions"] as number,
+    clicks: data["clicks"] as number,
+    activeCampaigns: data["activeCampaigns"] as number,
+    developers: data["developers"] as number,
     // Newer than the other fields; an API that predates it reads as "none this week".
-    developersThisWeek: count(data.developersThisWeek) ? data.developersThisWeek : 0,
-    asOf: data.asOf as number,
+    developersThisWeek: count(data["developersThisWeek"]) ? data["developersThisWeek"] : 0,
+    asOf: data["asOf"] as number,
   };
 }

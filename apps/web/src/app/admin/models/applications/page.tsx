@@ -5,6 +5,7 @@ import { AdminShell } from "@/components/AdminShell";
 import { AdminModelTabs } from "@/components/AdminModelTabs";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
+import { AdminLoader } from "@/components/AdminLoader";
 
 type Status = "new" | "contacted" | "accepted" | "declined";
 interface Application {
@@ -43,7 +44,7 @@ function Applications() {
     setRows((current) => current?.map((one) => (one.id === row.id ? { ...one, status, note } : one)) ?? null);
   };
 
-  if (rows === null) return error !== null ? <div className="notice" data-tone="error" role="alert">{error}</div> : <p className="lede">Loading…</p>;
+  if (rows === null) return error !== null ? <div className="notice" data-tone="error" role="alert">{error}</div> : <AdminLoader label="Loading applications" />;
   const shown = rows.filter((row) => filter === "all" || row.status === filter);
   return (
     <>

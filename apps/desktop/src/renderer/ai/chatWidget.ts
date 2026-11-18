@@ -833,7 +833,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   headerActions.insertBefore(moreActions, closeButton);
   const secondaryActions = [historyButton, connectButton, controlsButton, inspectorButton, appearanceButton, usageButton, forkButton, shareButton];
   for (const action of secondaryActions) action.addEventListener("click", () => { moreActions.open = false; });
-  header.append(identity, queueLabel, headerActions);
+  header.append(usagePopover.element, identity, queueLabel, headerActions);
 
   // Claude-style connect banner: when no model is ready, the transcript top
   // explains the assistant works with the open codebase and offers Connect.
@@ -3059,7 +3059,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
    */
   const welcomeField = createDotField({ pitch: 9, mood: "calm" });
   welcomeField.element.classList.add("chat-welcome-field");
-  welcome.append(welcomeField.element, welcomeBuck.element, welcomeTitle, welcomeText, setupSteps, welcomeImport);
+  welcome.append(welcomeField.element, welcomeBuck.element, welcomeTitle, welcomeText, welcomeStreak, setupSteps, welcomeImport);
   // A canvas field is too short to show anything along a 12px edge, so this one is CSS:
   // a dotted line with a bright band sweeping along it (dotDetails.css).
   const busyDots = document.createElement("span");

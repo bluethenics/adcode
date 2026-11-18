@@ -8,6 +8,7 @@ import { when } from "@/components/money";
 import "@/components/adminStatus.css";
 import { Icon } from "@/components/Icon";
 import { ArrowUpRight } from "lucide";
+import { AdminLoader } from "@/components/AdminLoader";
 
 interface StatusUpdate {
   updateId: string;
@@ -188,7 +189,7 @@ export function StatusBody() {
       [incidentId]: { status: "identified", body: "", ...current[incidentId], ...patch },
     }));
 
-  if (loading) return <p className="lede">Loading…</p>;
+  if (loading) return <AdminLoader label="Loading the status page" shape="cards" />;
 
   const active = rows.filter((incident) => incident.status !== "resolved");
   const sorted = [...active, ...rows.filter((incident) => incident.status === "resolved")];

@@ -4,9 +4,13 @@ import { notFound } from "next/navigation";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { DocsSidebar } from "@/components/DocsSidebar";
 import { JsonLd } from "@/components/JsonLd";
+import { DocsToc } from "@/components/DocsToc";
+import { Icon } from "@/components/Icon";
 import { ReadingProgress } from "@/components/ReadingProgress";
 import { allDocs, docsBySection, getDoc, relatedPages } from "@/lib/docs";
+import { outlineDoc } from "@/lib/docsToc";
 import { renderMarkdown } from "@/lib/markdown";
+import { ArrowLeft, ArrowRight, ArrowUpRight } from "lucide";
 import { breadcrumbs, techArticle } from "@/lib/schema";
 import { docDescription, docTitle, pageMetadata } from "@/lib/seo";
 
@@ -63,6 +67,8 @@ export default async function DocPage({ params }: Props) {
   const previous = position > 0 ? siblings[position - 1] : undefined;
   const next = position >= 0 && position < siblings.length - 1 ? siblings[position + 1] : undefined;
 
+  const { html, outline } = outlineDoc(renderMarkdown(page.body));
+
   return (
     <>
       <ReadingProgress />
@@ -74,76 +80,74 @@ export default async function DocPage({ params }: Props) {
           { name: page.title, path: `/docs/${page.slug}` },
         ])}
       />
-      <section className="docs-stage">
-        <div className="docs-frame docs-frame-in">
-          <div className="docs-frame-body">
-            <DocsSidebar currentDoc={page.slug} />
-            <main className="docs-main">
-              <Breadcrumbs
-                items={[
-                  { name: "Home", href: "/" },
-                  { name: "Documentation", href: "/docs" },
-                  { name: page.section },
-                  { name: page.title },
-                ]}
-              />
-              <header className="docs-hero docs-hero--compact">
-                <div className="docs-hero-art" aria-hidden="true">
-                  <i className="docs-blob docs-blob-a" />
-                  <i className="docs-blob docs-blob-b" />
-                  <i className="docs-blob docs-blob-c" />
-                  <i className="docs-hero-sheen" />
-                </div>
-                <div className="docs-hero-copy">
-                  <p className="docs-hero-eyebrow">{page.section}</p>
-                  <h1>{page.title}</h1>
-                  <p className="docs-hero-version mono">
-                    <span aria-hidden="true">#</span> {page.section} · {minutes} min read
-                    {page.authored && page.published !== undefined ? ` · ${page.published}` : ""}
-                  </p>
-                  <p className="lede docs-hero-lede">{page.description}</p>
-                </div>
-              </header>
-              <div className="prose docs-prose" dangerouslySetInnerHTML={{ __html: renderMarkdown(page.body) }} />
+      <div className="dx">
+        <DocsSidebar currentDoc={page.slug} />
+        <main className="dx-main dx-main--doc">
+          <article className="dx-article">
+            <Breadcrumbs
+              items={[
+                { name: "Home", href: "/" },
+                { name: "Documentation", href: "/docs" },
+                { name: page.section },
+                { name: page.title },
+              ]}
+            />
+            <header className="dx-doc-head">
+              <p className="dx-eyebrow">{page.section}</p>
+              <h1>{page.title}</h1>
+              <p className="dx-lede">{page.description}</p>
+              <p className="dx-doc-meta">
+                <span>{minutes} min read</span>
+                {page.authored && page.published !== undefined && (
+                  <time dateTime={page.published}>{page.published}</time>
+                )}
+              </p>
+            </header>
+            <div className="prose dx-prose" dangerouslySetInnerHTML={{ __html: html }} />
 
-              {(previous !== undefined || next !== undefined) && (
-                <nav className="docs-pager" aria-label="More in this section">
-                  {previous !== undefined ? (
-                    <Link href={`/docs/${previous.slug}`} className="docs-pager-link" rel="prev">
-                      <small>Previous</small>
-                      <strong>{previous.title}</strong>
-                    </Link>
-                  ) : (
-                    <span />
-                  )}
-                  {next !== undefined && (
-                    <Link href={`/docs/${next.slug}`} className="docs-pager-link docs-pager-next" rel="next">
-                      <small>Next</small>
-                      <strong>{next.title}</strong>
-                    </Link>
-                  )}
-                </nav>
-              )}
+            {(previous !== undefined || next !== undefined) && (
+              <nav className="dx-pager" aria-label="More in this section">
+                {previous !== undefined ? (
+                  <Link href={`/docs/${previous.slug}`} className="dx-pager-link" rel="prev">
+                    <small><Icon node={ArrowLeft} className="dx-pager-arrow" /> Previous</small>
+                    <strong>{previous.title}</strong>
+                  </Link>
+                ) : (
+                  <span />
+                )}
+                {next !== undefined && (
+                  <Link href={`/docs/${next.slug}`} className="dx-pager-link dx-pager-next" rel="next">
+                    <small>Next <Icon node={ArrowRight} className="dx-pager-arrow" /></small>
+                    <strong>{next.title}</strong>
+                  </Link>
+                )}
+              </nav>
+            )}
 
-              {related.length > 0 && (
-                <aside className="docs-related">
-                  <h2>See also</h2>
-                  <ul>
-                    {related.map((item) => (
-                      <li key={item.slug}>
-                        <Link href={`/docs/${item.slug}`}>
-                          <strong>{item.title}</strong>
-                          <span>{item.description}</span>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </aside>
-              )}
-            </main>
+            {related.length > 0 && (
+              <aside className="dx-related">
+                <h2>See also</h2>
+                <ul className="dx-cards">
+                  {related.map((item, index) => (
+                    <li key={item.slug} className="dx-item" style={{ ["--i" as string]: index }}>
+                      <Link href={`/docs/${item.slug}`} className="dx-card">
+                        <span className="dx-card-title">
+                          {item.title}
+                          <Icon node={ArrowUpRight} className="dx-card-arrow" />
+                        </span>
+                        <span className="dx-card-text">{item.description}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </aside>
+            )}
+          </article>
+          <div className="dx-rail">
+            <DocsToc items={outline} />
           </div>
-        </div>
-      </section>
+        </main>
+      </div>
     </>
   );
 }

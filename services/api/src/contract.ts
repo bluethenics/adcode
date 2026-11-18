@@ -10,6 +10,7 @@
  * Money is a decimal string here for the reason it is everywhere else: JSON has no
  * bigint, and a JSON number would already have lost precision above 2^53.
  */
+import { MAX_REGIONS, isRegionTag } from "./regions.ts";
 
 export type ThemeName = "light" | "dark";
 export type CadenceName = "off" | "light" | "standard" | "max";
@@ -454,7 +455,10 @@ export function parseCampaign(raw: unknown): CampaignBody | null {
   if (!Array.isArray(tags)) return null;
   // Unknown tags are dropped rather than rejected: the vocabulary can grow, and an
   // advertiser should not get a 400 for a tag a newer portal offered them.
-  const known = [...new Set(tags.filter((t): t is string => typeof t === "string" && isTag(t)))];
+  // Countries ride along as `geo:XX` (regions.ts). Too many is refused rather than trimmed:
+  // silently dropping a country the advertiser picked would serve them less than they bought.
+  const known = [...new Set(tags.filter((t): t is string => typeof t === "string" && (isTag(t) || isRegionTag(t))))];
+  if (known.filter(isRegionTag).length > MAX_REGIONS) return null;
 
   return { name, cpmMicros: cpm, budgetMicros: budget, targetTags: known };
 }

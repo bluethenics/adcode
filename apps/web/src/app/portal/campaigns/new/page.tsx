@@ -1,10 +1,5 @@
-"use client";
-
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { CampaignBuilder } from "./CampaignBuilder";
 
 export default function NewCampaign() {
-  const router = useRouter();
-  useEffect(() => router.replace("/portal#new-campaign"), [router]);
-  return null;
+  return <CampaignBuilder />;
 }

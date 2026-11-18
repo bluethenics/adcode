@@ -7,6 +7,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
 import { money, when } from "@/components/money";
 import { AdminSummary } from "@/components/AdminUI";
+import { AdminLoader } from "@/components/AdminLoader";
 
 interface AdvertiserRow {
   advertiserId: string;
@@ -70,7 +71,7 @@ export function AdvertisersBody({ initialQuery = "" }: { initialQuery?: string }
     );
   }, [rows, query]);
 
-  if (loading) return <div className="skeleton skeleton-card" />;
+  if (loading) return <AdminLoader label="Loading advertisers" />;
 
   return (
     <>

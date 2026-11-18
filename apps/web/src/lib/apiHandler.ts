@@ -28,7 +28,7 @@ import { createAppUsageStore } from "@adcode/api/adapters/appUsageStore.ts";
 import { createProviderApplicationStore } from "@adcode/api/adapters/providerApplicationStore.ts";
 import { createProviderModelStore } from "@adcode/api/adapters/providerModelStore.ts";
 import { createFirebaseIdentity } from "@adcode/api/src/accountIdentity.ts";
-import { accountEmailProof, mailingStore, sendReportReplyEmail, sendStatusConfirmationEmail, statusAlertStore } from "./mailing";
+import { accountEmailProof, adminConsoleStore, mailingStore, sendCampaignTest, sendReportReplyEmail, sendStatusConfirmationEmail, statusAlertStore } from "./mailing";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { accountRequestPriority } from "./priorityQueue";
 
@@ -48,6 +48,7 @@ export const handleApiRequest = createFetchHandler({
   providerApplications: createProviderApplicationStore(),
   providerModels: createProviderModelStore(),
   mailing: mailingStore,
+  adminConsole: { console: adminConsoleStore, sendTest: sendCampaignTest },
   mailingWebhookSecret: () => process.env["RESEND_WEBHOOK_SECRET"],
   reportReplyMailer: sendReportReplyEmail,
   statusAlerts: statusAlertStore,

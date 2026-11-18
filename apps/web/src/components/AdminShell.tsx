@@ -12,7 +12,9 @@ import { parseStatusView, type StatusView } from "@/lib/statusView";
 import { Mark } from "./Mark";
 import "./adminPanel.css";
 import "./adminShell.css";
+import "./adminConsole.css";
 import { AdminPalette } from "./AdminPalette";
+import { AdminLoader } from "./AdminLoader";
 import { readCached, writeCached } from "@/lib/adminCache";
 
 /**
@@ -45,6 +47,8 @@ export interface AdminNavItem {
   tab?: string;
   /** Which overview count belongs beside it, if any. */
   badge?: (counts: AdminOverviewView) => number;
+  /** Lit on every tab of its page: the page has its own tabs, so one rail row stands for all of them. */
+  wholePage?: boolean;
 }
 
 export interface AdminNavGroup {
@@ -52,47 +56,17 @@ export interface AdminNavGroup {
   items: AdminNavItem[];
 }
 
+/*
+ * Six groups, sixteen doors - down from seven groups and twenty. A page with tabs of its own
+ * (Growth, Content) is one entry here and lit on every tab, because its tabs are one click away
+ * on the page itself; two rail rows for the same page was the clutter.
+ */
 export const ADMIN_NAV: AdminNavGroup[] = [
   {
-    label: "Now",
+    label: "Today",
     items: [
       { href: "/admin", label: "Overview", hint: "Every queue, at a glance", icon: "grid" },
-      { href: "/admin/analytics", label: "Analytics", hint: "People, ads shown, and how the website converts", icon: "globe" },
-      { href: "/admin/models", label: "BYOK models", hint: "New models, recommendations and visibility", icon: "list" },
-      { href: "/admin/tagflow", label: "Free models", hint: "Server connections, models, allowances and usage", icon: "bubble" },
-      { href: "/admin/status", label: "Status page", hint: "Incidents and model health, in public", icon: "chart" },
-    ],
-  },
-  {
-    /*
-     * Everything about ads in one place: where they come from (networks and their keys),
-     * what is waiting for approval, who pays for them, and a safe test. It used to be spread
-     * over Queues, Money and Tools, so changing a provider key started with a hunt.
-     */
-    label: "Ads",
-    items: [
-      { href: "/admin/ad-networks", label: "Ad networks", hint: "Imprezia and other providers: API keys, on and off, per-view and per-click pay", icon: "target" },
-      {
-        href: "/admin/review",
-        label: "Creatives",
-        hint: "Ads waiting on a decision",
-        tab: "creatives",
-        icon: "doc",
-        badge: (c) => c.creativesWaiting,
-      },
-      {
-        href: "/admin/money?tab=advertisers",
-        label: "Advertisers",
-        hint: "Funding, campaigns, delivery",
-        tab: "advertisers",
-        icon: "card",
-      },
-      { href: "/admin/tools", label: "Test delivery", hint: "Show a test ad, no money moves", icon: "wrench" },
-    ],
-  },
-  {
-    label: "Queues",
-    items: [
+      { href: "/admin/analytics", label: "Analytics", hint: "People, ads shown, and how the website converts", icon: "chart", wholePage: true },
       {
         href: "/admin/review?tab=feedback",
         label: "Feedback",
@@ -101,81 +75,46 @@ export const ADMIN_NAV: AdminNavGroup[] = [
         icon: "bubble",
         badge: (c) => c.reportsOpen,
       },
-    ],
-  },
-  {
-    label: "Money",
-    items: [
-      {
-        href: "/admin/money",
-        label: "Payouts",
-        hint: "Withdrawals to review and pay",
-        tab: "payouts",
-        icon: "send",
-        badge: (c) => c.withdrawalsPending,
-      },
-      {
-        href: "/admin/money?tab=countries",
-        label: "Countries",
-        hint: "Where payouts can go",
-        tab: "countries",
-        icon: "globe",
-      },
-    ],
-  },
-  {
-    label: "Growth",
-    items: [
-      { href: "/admin/growth", label: "Growth overview", hint: "Setup, and where new people came from", tab: "overview", icon: "chart" },
-      { href: "/admin/growth?tab=partners", label: "Partners", hint: "Who invites, and what they brought", tab: "partners", icon: "person" },
-      { href: "/admin/growth?tab=links", label: "Links", hint: "A link for each post you run", tab: "links", icon: "tag" },
-      { href: "/admin/growth?tab=loops", label: "Loops", hint: "Every place ADCode asks people to share", tab: "loops", icon: "send" },
-      { href: "/admin/growth?tab=terms", label: "Terms", hint: "Rates, house advertisers, settling", tab: "terms", icon: "card" },
+      { href: "/admin/status", label: "Status page", hint: "Incidents and model health, in public", icon: "clock" },
     ],
   },
   {
     label: "People",
     items: [
-      {
-        href: "/admin/people",
-        label: "Users",
-        hint: "Accounts, balances, activity",
-        tab: "users",
-        icon: "person",
-      },
-      {
-        href: "/admin/people?tab=admins",
-        label: "Administrators",
-        hint: "Who can operate this panel",
-        tab: "admins",
-        icon: "shield",
-      },
+      { href: "/admin/people", label: "Users", hint: "Search any account by uid or email, and act on it", tab: "users", icon: "person" },
+      { href: "/admin/campaigns", label: "Email campaigns", hint: "Write a message, cap it, and send it a few a day", tab: "campaigns", icon: "send" },
+      { href: "/admin/people?tab=admins", label: "Administrators", hint: "Who can operate this panel", tab: "admins", icon: "shield" },
     ],
   },
   {
-    label: "Publishing",
+    label: "AI",
     items: [
-      {
-        href: "/admin/content",
-        label: "Blog and docs",
-        hint: "Words on the site",
-        tab: "writing",
-        icon: "doc",
-      },
-      {
-        href: "/admin/content?tab=releases",
-        label: "Releases",
-        hint: "Desktop versions and notes",
-        tab: "releases",
-        icon: "tag",
-      },
-      {
-        href: "/admin/content?tab=notices",
-        label: "Notices",
-        hint: "Messages inside the editor",
-        tab: "notices",
-        icon: "bell",
-      },
+      { href: "/admin/tagflow", label: "Free models", hint: "Server connections, models, allowances, plans and usage", icon: "bubble" },
+      { href: "/admin/models", label: "BYOK models", hint: "New models, recommendations and visibility", icon: "list" },
+    ],
+  },
+  {
+    /* Where ads come from, what waits for approval, who pays, and a safe test. */
+    label: "Ads",
+    items: [
+      { href: "/admin/ad-networks", label: "Ad networks", hint: "Providers, API keys, on and off, per-view and per-click pay", icon: "target" },
+      { href: "/admin/review", label: "Creatives", hint: "Ads waiting on a decision", tab: "creatives", icon: "doc", badge: (c) => c.creativesWaiting },
+      { href: "/admin/money?tab=advertisers", label: "Advertisers", hint: "Funding, campaigns, delivery", tab: "advertisers", icon: "card" },
+      { href: "/admin/tools", label: "Test delivery", hint: "Show a test ad, no money moves", icon: "wrench" },
+    ],
+  },
+  {
+    label: "Money",
+    items: [
+      { href: "/admin/money", label: "Payouts", hint: "Withdrawals to review and pay", tab: "payouts", icon: "card", badge: (c) => c.withdrawalsPending },
+      { href: "/admin/money?tab=countries", label: "Payout countries", hint: "Where payouts can go", tab: "countries", icon: "globe" },
+    ],
+  },
+  {
+    label: "Grow and publish",
+    items: [
+      { href: "/admin/growth", label: "Growth", hint: "Sources, partners, links, share loops and terms", tab: "overview", icon: "tag", wholePage: true },
+      { href: "/admin/content", label: "Content", hint: "Blog and docs, releases, and notices in the editor", tab: "writing", icon: "doc", wholePage: true },
     ],
   },
 ];
@@ -204,7 +143,7 @@ export function jumpTarget(raw: string): string | null {
 
 const FOLD_KEY = "adcode.admin-rail-folded";
 /** The phone dock's four destinations, by `href` in ADMIN_NAV. */
-const DOCK = ["/admin", "/admin/review", "/admin/review?tab=feedback", "/admin/money"];
+const DOCK = ["/admin", "/admin/people", "/admin/campaigns", "/admin/review?tab=feedback"];
 
 export function AdminShell({
   title,
@@ -314,9 +253,7 @@ export function AdminShell({
     return (
       <section className="band">
         <div className="wrap">
-          <div className="skeleton skeleton-title" />
-          <div className="skeleton skeleton-card" />
-          <span className="sr-only">Checking your access…</span>
+          <AdminLoader label="Checking your access" shape="cards" />
         </div>
       </section>
     );
@@ -397,7 +334,7 @@ export function AdminShell({
   }
 
   const isCurrent = (item: AdminNavItem): boolean =>
-    pathname === item.href.split("?")[0] && item.tab === tab;
+    pathname === item.href.split("?")[0] && (item.wholePage === true || item.tab === tab);
 
   const search = (
     <form

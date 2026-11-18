@@ -185,6 +185,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     benefits: [
       "You use the subscription you already pay for. ADCode bills nothing and never sees a password or key.",
       "The model list is live: new models appear the day the CLI offers them, without waiting for an ADCode update.",
+      "The model picker opens at once even with several CLIs installed: it shows each CLI's last known models straight away and swaps in the live list a few seconds later.",
       "Claude Code, Codex and OpenCode get ADCode's own tools on every message - the live preview, page viewer, page audit, skills, connectors and the Browser - so they can check what they built.",
     ],
     betterThan: "Running a CLI in a terminal gives you its model but none of your editor: no open file, no selection, no preview to check its work, and a model list you have to remember by name. Other editors that wrap a CLI usually hard-code a few model names. ADCode asks the CLI itself for its models - the same list its own picker shows - and gives the CLI ADCode's preview, page checks and connectors, so the agent you already pay for can see and test the app it is building.",
@@ -1543,7 +1544,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
   "ai-background-chats": {
     steps: [
       "Send a message in a chat - ask for a landing page, say.",
-      "While it works, open another conversation from Conversations, or press + New, and send something else. Up to four chats work at once (one at a time in Review mode).",
+      "While it works, open another conversation from Conversations, or press + New, and send something else. Up to four chats work at once (one at a time in Review mode). Send a fifth and it waits its turn: it starts by itself the moment another chat finishes, and Stop takes it out of the line.",
       "Watch Conversations: a spinner marks each chat that is working, a green dot one that finished while you were elsewhere, and an amber dot one that stopped before finishing - each until you open it.",
       "Open a working chat and its timeline so far is there, carrying on live. Stop stops only the chat on screen.",
       "Type into a chat while it works and the message waits for that chat - even if you go to another one meanwhile.",

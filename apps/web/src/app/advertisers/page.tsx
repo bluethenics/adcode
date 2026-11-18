@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { ArrowDown, ArrowRight, ArrowUpRight } from "lucide";
 import { Icon } from "@/components/Icon";
 import { JsonLd } from "@/components/JsonLd";
-import { LandingBidBuilder } from "@/components/LandingBidBuilder";
 import { SponsoredToastPreview } from "@/components/SponsoredToastPreview";
 import { NetworkBand, ReachHeadline } from "@/components/advertisers/NetworkStats";
 import { ClearingPrice } from "@/components/advertisers/ClearingPrice";
@@ -77,10 +76,12 @@ function sparkline(values: readonly number[], width = 320, height = 88): string 
     .join(" ");
 }
 
+/** The portal's four steps, in its own words, so the page promises exactly what the builder asks. */
 const LAUNCH: readonly { title: string; body: string }[] = [
-  { title: "Write your card", body: "Your logo, one line of up to 60 characters, and an https link." },
-  { title: "Choose who sees it", body: "Every developer, or only those working in the languages, frameworks and tools you pick." },
-  { title: "Fund it and go live", body: `Buy blocks of ${FLOOR.views} verified views. Cards pass automated checks on submit and start serving right away.` },
+  { title: "Audience", body: "Every developer, or only those in the languages, frameworks and tools you pick. Worldwide, or only the countries you sell in." },
+  { title: "Your ad", body: "A destination link, your logo and one line. Up to three versions that share the budget." },
+  { title: "Budget", body: `Any total from $1, and a maximum bid from ${FLOOR.block} per ${FLOOR.views} views. It stops the moment the budget is spent.` },
+  { title: "Review and launch", body: "See every ad in the desktop app and the browser editor, with the views your budget buys. Cards pass automated checks on submit, with no review queue." },
 ];
 
 export default async function AdvertisersPage() {
@@ -98,7 +99,7 @@ export default async function AdvertisersPage() {
           <ReachHeadline initial={stats} />
           <p className="adv-hero-lede">A native card inside a free AI code editor. Pay only for verified views, from {FLOOR.block} per {FLOOR.views}.</p>
           <div className="adv-actions">
-            <a className="adv-primary" href="#start">Start a campaign <Icon node={ArrowRight} /></a>
+            <a className="adv-primary" href="/portal/campaigns/new">Start a campaign <Icon node={ArrowRight} /></a>
             <a className="adv-secondary" href="#pricing">See pricing <Icon node={ArrowDown} /></a>
           </div>
         </div>
@@ -156,7 +157,7 @@ export default async function AdvertisersPage() {
 
       <section className="adv-targeting adv-wrap" aria-labelledby="adv-targeting-title">
         <h2 id="adv-targeting-title">Target the stack, not a persona.</h2>
-        <p>Pick the contexts your product is for. Your card serves only to developers working in them, or to everyone if you leave them all off.</p>
+        <p>Pick the contexts your product is for, and the countries you sell in. Your card serves only to developers working in them, or to everyone if you leave them all off.</p>
         <div className="adv-tag-groups">
           {TARGETING.map((group) => (
             <div key={group.group}>
@@ -207,7 +208,7 @@ export default async function AdvertisersPage() {
           <p className="adv-price"><strong className="money">{FLOOR.block}</strong> per {FLOOR.views} verified views</p>
           <p>That is a {FLOOR.cpm} CPM, with no minimum spend, no contract and no setup fee. Credits you do not use stay in your balance.</p>
           <ClearingPrice />
-          <a className="adv-primary adv-pricing-cta" href="#start">Start a campaign <Icon node={ArrowRight} /></a>
+          <a className="adv-primary adv-pricing-cta" href="/portal/campaigns/new">Start a campaign <Icon node={ArrowRight} /></a>
         </div>
         <table className="adv-budget">
           <caption>What a budget buys at the floor bid</caption>
@@ -227,16 +228,14 @@ export default async function AdvertisersPage() {
         </ol>
       </section>
 
-      <section className="adv-launch adv-wrap" aria-labelledby="adv-launch-title">
+      <section className="adv-launch adv-wrap" id="start" aria-labelledby="adv-launch-title">
         <h2 id="adv-launch-title">Live in about five minutes.</h2>
         <ol>
           {LAUNCH.map((step) => <li key={step.title}><h3>{step.title}</h3><p>{step.body}</p></li>)}
         </ol>
-      </section>
-
-      <section className="marketplace-bid adv-start" id="start" aria-label="Create your campaign">
-        <div className="adv-wrap">
-          <LandingBidBuilder />
+        <div className="adv-actions adv-launch-cta">
+          <a className="adv-primary" href="/portal/campaigns/new">Start a campaign <Icon node={ArrowRight} /></a>
+          <p>Build the whole campaign first. You sign in only to launch it.</p>
         </div>
       </section>
 
@@ -256,7 +255,7 @@ export default async function AdvertisersPage() {
         <h2 id="adv-closing-title">Planning a larger launch?</h2>
         <p>Talk through budgets, targeting and timing with the founder. Thirty minutes, no pitch deck required.</p>
         <div className="adv-actions">
-          <a className="adv-primary" href="#start">Start a campaign <Icon node={ArrowRight} /></a>
+          <a className="adv-primary" href="/portal/campaigns/new">Start a campaign <Icon node={ArrowRight} /></a>
           <a className="adv-secondary" href={TEAM.bookingUrl} target="_blank" rel="noopener noreferrer">Book a call <Icon node={ArrowUpRight} /></a>
         </div>
         <p className="adv-returning">Already advertising? <a href="/portal">Open your advertiser workspace</a></p>
