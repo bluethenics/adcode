@@ -3,6 +3,18 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
+## 2.6.3 — 2026-11-19
+
+- **OpenCode no longer stops half way without a word.** In a chat, OpenCode cannot ask you anything, so when it needed permission - a file outside the project, a loop it suspected - it turned itself down and ended the turn silently. ADCode now says what it wanted and how to go on: turn on Full access for the chat (which passes OpenCode its own `--auto` switch) or allow it in OpenCode's settings, then say continue. Tool calls that failed now show as failed instead of looking finished.
+- **ADCode's tools no longer time out from OpenCode after a minute.** OpenCode gave up on any ADCode tool after 60 seconds - a page audit, or a confirmation you had not answered yet. It now waits as long as ADCode lets a tool run.
+- **No more silent minutes.** OpenCode streams its thinking, and any coding CLI that says nothing for 15 seconds shows "still working" on the working line, so a thinking model no longer looks stuck.
+- **CLI turns start sooner.** A message to Claude Code, Codex, OpenCode or Gemini CLI no longer waits for ADCode to re-check every CLI's version and model list first; it uses the last answer and refreshes in the background. After ten quiet minutes this used to add up to 30 seconds before the CLI even started.
+- **Continue picks up where the CLI stopped.** After a failed or stopped turn, the next message resumes the CLI's own session - with everything it had read and run - instead of starting over from a transcript.
+- **Chats no longer get mixed up.** A message sent while another chat was still opening, or from a second window, could land in the conversation you had just left - including a team chat's message being answered as a solo one. Every message now names the chat it was typed in. Each chat also keeps its own CLI session and works in its own project, so two chats that began with the same words no longer share one.
+- **Always allow.** When an agent rule asks before a step, the dialog now offers Always allow: ADCode adds the narrowest rule that covers it - `run_command(npm test*)`, a file's path, a site's domain - to the project's `.adcode/settings.json`, keeping your comments, and shows the rule before you press it.
+- **Hooks that decide.** A preToolUse hook now runs before anyone is asked, and can answer in Claude Code's JSON form: allow a step without the question, deny it with a reason, insist on asking, or rewrite its input (checked against your rules again). A hook's allow never lifts a deny rule. A new userPromptSubmit hook runs before each message: exit 2 stops it, and whatever it prints is added to the AI's context.
+- **Agent files.** Describe a helper in a Markdown file - name, when to use it, which tools it may use, its instructions - in `.adcode/agents/`, and the chat can hand it work. Claude Code's `.claude/agents/` files work as they are, in the project and in your home folder. A project's agent always runs on your chat's own model, so a cloned repository cannot send your work, or your bill, to a model you did not choose. Run AI: New Agent File to start one.
+
 ## 2.6.2 — 2026-11-18
 
 - **A slow model no longer leaves you waiting.** If an included model has not started answering after a minute, the task switches to another included model and says so. Measured over three days, the slowest included model took 37 seconds to start at the median and 4.5 minutes for one request in ten, and a third of its turns were cancelled by the person waiting.
