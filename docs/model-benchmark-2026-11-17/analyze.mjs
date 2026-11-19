@@ -68,7 +68,8 @@ const summary = harnesses.map((harness) => {
   };
 }).sort((a, b) => b.successRate - a.successRate || (a.costPerSolved ?? Infinity) - (b.costPerSolved ?? Infinity));
 
-writeFileSync(join(HERE, "summary.json"), `${JSON.stringify({ summary, perRun: perRun.map(({ dir: _dir, ...rest }) => rest) }, null, 2)}\n`);
+// BENCH_SUMMARY names another file, so a per-model run does not replace the published summary.
+writeFileSync(process.env["BENCH_SUMMARY"] ?? join(HERE, "summary.json"), `${JSON.stringify({ summary, perRun: perRun.map(({ dir: _dir, ...rest }) => rest) }, null, 2)}\n`);
 const k = (n) => Math.round(n).toLocaleString("en-US");
 console.log("| Harness | Solved | Median wall | of which model | of which harness | Requests | Prompt tokens | Output tokens | Cached (reported) | Cost per solved task | Without any cache |");
 console.log("|---|---|---|---|---|---|---|---|---|---|---|");

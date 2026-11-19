@@ -11,7 +11,7 @@ if (root === undefined || reportFile === undefined) throw new Error("usage: publ
 const file = join(root, "apps", "web", "src", "lib", "reports202611.ts");
 let source = readFileSync(file, "utf8");
 const body = readFileSync(reportFile, "utf8").trim().replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
-const description = "ADCode, Claude Code and OpenCode on four real coding tasks with one real model: tasks solved, model time against harness time, tokens billed and cost per solved task with the provider's cache counted.";
+const description = "ADCode, Claude Code and OpenCode on eight real coding tasks with two real models: tasks solved, model time against harness time, tokens billed and cost per solved task with the provider's cache counted.";
 
 const report = `const realModel: Report = {
   slug: "real-model-coding-agent-benchmark",
@@ -40,6 +40,7 @@ if (source.includes(oldLimit)) {
   source = source.replace(oldLimit, "- Speed excludes the model. [The real-model benchmark](/docs/real-model-coding-agent-benchmark) measures the model's time, task success and cache-adjusted cost separately.");
 }
 source = source.replace('order: 0,\n  related: ["adcode-vs-claude-code-codex-opencode-t3-code", "adcode-2-6-1-fewer-tokens"],', 'order: 1,\n  related: ["real-model-coding-agent-benchmark", "adcode-vs-claude-code-codex-opencode-t3-code", "adcode-2-6-1-fewer-tokens"],');
-if (!source.includes("[realModel, benchmark,")) throw new Error("the report list did not take the new report");
+// The list may hold newer reports ahead of it (the 2.6.2 guide was added first).
+if (!/REPORTS_2026_11: readonly Report\[\] = \[[^\]]*\brealModel\b/.test(source)) throw new Error("the report list did not take the new report");
 writeFileSync(file, source);
 console.log("published into", file);

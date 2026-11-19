@@ -27,7 +27,15 @@ const TASKS = [
   { id: "slug", test: "test/slug.test.js", prompt: "Implement slugify in src/slug.js so test/slug.test.js passes. Do not change any test. Run the tests to check before you finish." },
   { id: "duration", test: "test/duration.test.js", prompt: "Implement parseDuration in src/duration.js so test/duration.test.js passes. Do not change any test. Run the tests to check before you finish." },
   { id: "format", test: "test/format.test.js", prompt: "test/format.test.js fails. Find and fix the bugs in src/ so it passes. Do not change any test. Run the tests to check before you finish." },
+  // Added 18 November: harder tasks - a parser, async control flow, a data structure from a spec,
+  // and a rename across three files.
+  { id: "csv", test: "test/csv.test.js", prompt: "parseCsvLine in src/csv.js breaks on quoted fields. Fix it so test/csv.test.js passes. Do not change any test. Run the tests to check before you finish." },
+  { id: "retry", test: "test/retry.test.js", prompt: "test/retry.test.js fails. Fix the bugs in src/retry.js so it passes. Do not change any test. Run the tests to check before you finish." },
+  { id: "lru", test: "test/lru.test.js", prompt: "Implement LruCache in src/lru.js as its comment describes, so test/lru.test.js passes. Do not change any test. Run the tests to check before you finish." },
+  { id: "rename", test: "test/shop.test.js", prompt: "Rename getPrice to priceOf everywhere in src/shop/, so test/shop.test.js passes. Do not change any test. Run the tests to check before you finish." },
 ];
+/** Which tasks a published set ran: the first four from 17 November, all eight from 18 November. */
+export const TASK_SETS = { original: ["cart", "slug", "duration", "format"], harder: ["csv", "retry", "lru", "rename"] };
 
 // Isolated homes: no user instructions, memories or plugins, the same as the 14 November run.
 const homes = join(DATA, "homes");
@@ -58,7 +66,7 @@ const HARNESSES = {
 
 const sha = (path) => createHash("sha256").update(readFileSync(path)).digest("hex");
 /** Every file of the template, hashed: a run that writes outside its own copy stops the benchmark. */
-const templateHash = () => createHash("sha256").update(["src/cart.js", "src/slug.js", "src/duration.js", "src/format.js", "src/round.js", ...TASKS.map((task) => task.test)].map((file) => readFileSync(join(HERE, "project", file))).join("|")).digest("hex");
+const templateHash = () => createHash("sha256").update(["src/cart.js", "src/slug.js", "src/duration.js", "src/format.js", "src/round.js", "src/csv.js", "src/retry.js", "src/lru.js", "src/shop/prices.js", "src/shop/order.js", "src/shop/invoice.js", ...TASKS.map((task) => task.test)].map((file) => readFileSync(join(HERE, "project", file))).join("|")).digest("hex");
 const TEMPLATE = templateHash();
 
 function runOnce(harness, task, rep) {
