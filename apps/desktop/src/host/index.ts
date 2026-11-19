@@ -90,7 +90,7 @@ async function busy(): Promise<boolean> {
   return teams.some((team) => team.state === "preparing" || team.state === "running" || team.state === "merging");
 }
 
-registerIpc(() => undefined);
+registerIpc(() => undefined, () => undefined);
 registerSupportIpc();
 registerDebugLogIpc();
 describeDebugContext({ projectRoot: () => currentWorkspace()?.root ?? null });

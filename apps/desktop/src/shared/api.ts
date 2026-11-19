@@ -880,6 +880,7 @@ export const CHANNELS = {
   windowSetZoom: "window:set-zoom",
   windowOpenIde: "window:open-ide",
   windowOpenVibe: "window:open-vibe",
+  windowOpenProject: "window:open-project",
   windowRendererReady: "window:renderer-ready",
   workspaceChanged: "workspace:changed",
   browserView: "browser:view",
@@ -2603,6 +2604,8 @@ export interface AdcodeApi {
      */
     openIde(file?: string, view?: IdeView): Promise<void>;
     openVibe(): Promise<void>;
+    /** Another project in a window of its own: empty, or with this folder open. False when the folder is not there. */
+    openProject(root?: string): Promise<boolean>;
     ready(): void;
   };
   readonly history: {

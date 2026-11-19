@@ -295,6 +295,7 @@ export const BRIDGE = [
   { path: "window.setZoom", kind: "send", channel: CHANNELS.windowSetZoom },
   { path: "window.openIde", kind: "invoke", channel: CHANNELS.windowOpenIde },
   { path: "window.openVibe", kind: "invoke", channel: CHANNELS.windowOpenVibe },
+  { path: "window.openProject", kind: "invoke", channel: CHANNELS.windowOpenProject },
   { path: "window.ready", kind: "send", channel: CHANNELS.windowRendererReady },
 
   // history

@@ -192,6 +192,9 @@ export function buildMenuBar(context: MenuContext = { recents: [] }): readonly M
         { label: "&New File", command: "file.new", accelerator: "CmdOrCtrl+N" },
         separator,
         { label: "Open &Folder…", command: "workspace.open", accelerator: "CmdOrCtrl+O" },
+        // Another project beside this one, in a window of its own.
+        { label: "New &Window", command: "workspace.newWindow" },
+        { label: "Open Recent in New W&indow…", command: "workspace.openRecentNewWindow" },
         { label: "&Open File…", command: "file.open", accelerator: "CmdOrCtrl+Shift+O" },
         recentsSubmenu(context.recents),
         { label: "&Clone Repository…", command: "workspace.clone" },

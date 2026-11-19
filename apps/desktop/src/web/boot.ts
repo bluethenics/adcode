@@ -92,6 +92,8 @@ function localOverrides(socket: HostSocket, signOut: () => Promise<void>): Local
       window.open(DESKTOP_DOWNLOAD_URL, "_blank", "noopener");
     }) as never,
     "window.openVibe": (async () => undefined) as never,
+    // A browser tab is one window: another project opens in another tab, from the web app itself.
+    "window.openProject": (async () => false) as never,
     "account.signOut": (async () => {
       await signOut();
       return { state: "unavailable" };

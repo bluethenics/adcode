@@ -14,6 +14,9 @@
 import "./profileBootstrap.ts";
 // Install its ipcMain.handle wrapper before any module registers a handler.
 import { describeDebugContext, registerDebugLogIpc } from "./debugLog.ts";
+// Then run every IPC handler as the window that called it (one project per window group).
+import "./windowScope.ts";
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { isSafeCliToken } from "@adcode/ai";
@@ -54,7 +57,7 @@ import { windowIconPath } from "./windowIcon.ts";
 import { CHANNELS } from "../shared/api.ts";
 import { launchSessionFromArguments } from "./launchIntent.ts";
 import type { SessionState } from "./sessionStore.ts";
-import { currentWorkspace } from "./workspace.ts";
+import { assignWindowToGroup, currentGroup, currentWorkspace, groupOfWindow, groupShowing, MAIN_GROUP, noteFocusedGroup, openWorkspaceAt, releaseWindow, runInGroup } from "./workspace.ts";
 
 /**
  * Whether to load from Vite's dev server.
@@ -87,8 +90,23 @@ async function handleSecondInstance(commandLine: string[], workingDirectory: str
     if (intent !== null) pendingOpenIntent = intent;
     return;
   }
+  // A folder another window already shows: that window comes forward. A different folder while
+  // this project is open: a window of its own, so the open project is never swapped out.
+  if (intent !== null && intent.root !== null) {
+    const showing = groupShowing(intent.root);
+    if (showing !== null) {
+      runInGroup(showing, () => openWindow("vibe"));
+      const shown = windowsOf(showing).vibe;
+      if (shown !== undefined && !shown.isDestroyed() && readyWindows.has(shown.webContents.id)) shown.webContents.send(CHANNELS.sessionOpenIntent, intent);
+      return;
+    }
+    if (currentWorkspace() !== null) {
+      openProjectWindow(intent.root, intent);
+      return;
+    }
+  }
   openWindow("vibe");
-  const window = windows.vibe;
+  const window = windowsOf(currentGroup()).vibe;
   if (intent === null) return;
   if (window === undefined || window.isDestroyed() || !readyWindows.has(window.webContents.id)) {
     pendingOpenIntent = intent;
@@ -179,9 +197,21 @@ type WindowRole = "vibe" | "ide";
 /** How long a blur waits to see whether another ADCode window took the focus. */
 const WINDOW_SWITCH_GRACE_MS = 150;
 
-const windows: Partial<Record<WindowRole, BrowserWindow>> = {};
+/**
+ * The windows of each project: a Vibe window and the IDE window opened from it share a group
+ * and a folder (workspace.ts). The first group is MAIN_GROUP; Open Folder in New Window adds more.
+ */
+const groups = new Map<string, Partial<Record<WindowRole, BrowserWindow>>>();
 
-function createWindow(role: WindowRole = "vibe"): BrowserWindow {
+function windowsOf(group: string): Partial<Record<WindowRole, BrowserWindow>> {
+  let found = groups.get(group);
+  if (found === undefined) groups.set(group, found = {});
+  return found;
+}
+
+const allWindows = (): BrowserWindow[] => [...groups.values()].flatMap((pair) => Object.values(pair)).filter((window) => !window.isDestroyed());
+
+function createWindow(role: WindowRole = "vibe", group: string = currentGroup()): BrowserWindow {
   const window = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -225,11 +255,15 @@ function createWindow(role: WindowRole = "vibe"): BrowserWindow {
       backgroundThrottling: false,
     },
   });
-  windows[role] = window;
+  windowsOf(group)[role] = window;
   const contentsId = window.webContents.id;
+  assignWindowToGroup(contentsId, group);
   window.webContents.on("did-start-loading", () => readyWindows.delete(contentsId));
   window.on("closed", () => {
-    if (windows[role] === window) delete windows[role];
+    const pair = groups.get(group);
+    if (pair !== undefined && pair[role] === window) delete pair[role];
+    if (pair !== undefined && Object.keys(pair).length === 0 && group !== MAIN_GROUP) groups.delete(group);
+    releaseWindow(contentsId);
     readyWindows.delete(contentsId);
     pendingFileIntents.delete(contentsId);
     pendingCommandIntents.delete(contentsId);
@@ -240,6 +274,8 @@ function createWindow(role: WindowRole = "vibe"): BrowserWindow {
   window.once("ready-to-show", () => window.show());
 
   window.on("focus", () => {
+    // Code no window called (the tool bridge, Phone link) works for the project last in front.
+    noteFocusedGroup(group);
     window.webContents.send("window:focus", true);
     getAdRuntime().setWindowFocused(true);
   });
@@ -270,6 +306,26 @@ function createWindow(role: WindowRole = "vibe"): BrowserWindow {
 }
 
 /**
+ * Another project beside the open one: a new window group with the folder already open in it,
+ * or an empty window that offers the recent folders. A folder some window already shows is
+ * brought forward instead of opened twice.
+ */
+function openProjectWindow(root: string | null, intent?: SessionState): void {
+  if (root !== null) {
+    const showing = groupShowing(root);
+    if (showing !== null) {
+      runInGroup(showing, () => openWindow("vibe"));
+      return;
+    }
+  }
+  const group = `w-${randomUUID()}`;
+  if (root !== null) runInGroup(group, () => openWorkspaceAt(root));
+  const window = createWindow("vibe", group);
+  window.once("ready-to-show", () => window.focus());
+  if (intent !== undefined) pendingFileIntents.set(window.webContents.id, intent);
+}
+
+/**
  * Open or focus a window, optionally with a file to show and a command to run in it.
  *
  * `command` is already vetted by the caller (see `IDE_VIEW_COMMANDS`). It waits for the
@@ -277,9 +333,12 @@ function createWindow(role: WindowRole = "vibe"): BrowserWindow {
  * it before its command registry exists.
  */
 function openWindow(role: WindowRole, file?: string, command?: string): void {
-  let window = windows[role];
+  // The caller's own project: an IDE window opened from a second project's Vibe window is
+  // that project's, not the first one's.
+  const group = currentGroup();
+  let window = windowsOf(group)[role];
   const created = window === undefined || window.isDestroyed();
-  if (created) window = createWindow(role);
+  if (created) window = createWindow(role, group);
   if (window === undefined) return;
   if (window.isMinimized()) window.restore();
   if (created) window.once("ready-to-show", () => window?.focus());
@@ -301,12 +360,12 @@ function openWindow(role: WindowRole, file?: string, command?: string): void {
 void app.whenReady().then(() => {
   registerAppProtocol(useDevServer);
   registerAddonProtocol(installedAddon);
-  registerIpc(openWindow);
+  registerIpc(openWindow, openProjectWindow);
   ipcMain.on(CHANNELS.windowRendererReady, (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);
     if (window === null || window.isDestroyed()) return;
     readyWindows.add(event.sender.id);
-    if (windows.vibe === window && pendingOpenIntent !== null) {
+    if (groupOfWindow(event.sender.id) === MAIN_GROUP && windowsOf(MAIN_GROUP).vibe === window && pendingOpenIntent !== null) {
       event.sender.send(CHANNELS.sessionOpenIntent, pendingOpenIntent);
       pendingOpenIntent = null;
     }
@@ -332,7 +391,7 @@ void app.whenReady().then(() => {
   registerPowerIpc();
   startPhoneLink();
   registerPinPromptIpc();
-  registerUpdateIpc(() => Object.values(windows).filter(window => !window.isDestroyed()).map(window => window.webContents));
+  registerUpdateIpc(() => allWindows().map(window => window.webContents));
   registerAccountIpc();
 
   // Broadcast status to whatever window is open. Not awaited, and failures inside are
@@ -368,7 +427,7 @@ void app.whenReady().then(() => {
     .then(() => installApplicationMenu());
 
   appReadyForWindows = true;
-  createWindow("vibe");
+  createWindow("vibe", MAIN_GROUP);
 
   // Settings first, so the ad service's very first tick reads the user's real choices
   // rather than defaults. Still not awaited by window creation: §9 requires the ad

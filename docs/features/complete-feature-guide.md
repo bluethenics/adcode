@@ -1330,6 +1330,17 @@ Access: `All Features → Restore workspace`; `Turn on or off`; `Settings`.
 
 ## The workbench
 
+<!-- feature:workbench.projectWindows -->
+### A project in each window
+
+Open a second project in a window of its own, beside the one you are working on. Each window keeps its own folder, files, terminal, source control and chats.
+
+Why use it: Real work spans more than one folder - the app and its API, a library and the project using it, a fix in one repo while you check another. Closing one project to look at another loses your place; two windows keep both in front of you.
+
+How to use it: Choose File > New Window (or run New Window for Another Project from the command palette): a fresh window opens with the welcome screen, where you open a folder or pick a recent one. To go straight to a folder, choose File > Open Recent in New Window, pick a recent folder or paste any folder's path, and it opens in its own window while this one keeps its project. A folder already open in some window is brought to the front instead of being opened twice. Each window's title starts with its project's name, so the taskbar and Alt-Tab tell them apart. Everything inside a window belongs to its project: the file tree and quick open, the terminal, source control, the problems list and language servers, and the chats, so the assistant in one window never reads or edits the other project. The live preview is the one exception: there is one at a time, so starting it in one window stops the other window's. Open IDE from a window opens that project's IDE. Settings, your account, sign-in and sponsored cards are shared by the whole app: cards still show in one place at a time and are counted once. When you restart, the first window reopens the project you had open there; other windows start fresh. In the web version a browser tab is one project, so open another tab instead.
+
+Access: `All Features → A project in each window`; `New window for another project`; `Open a recent folder in a new window`.
+
 <!-- feature:workbench.webVersion -->
 ### ADCode on the web
 

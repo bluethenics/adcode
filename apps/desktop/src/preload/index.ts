@@ -303,6 +303,7 @@ const api: AdcodeApi = {
     setZoom: (factor) => ipcRenderer.send(CHANNELS.windowSetZoom, factor),
     openIde: (file, view) => ipcRenderer.invoke(CHANNELS.windowOpenIde, file, view),
     openVibe: () => ipcRenderer.invoke(CHANNELS.windowOpenVibe),
+    openProject: (root) => ipcRenderer.invoke(CHANNELS.windowOpenProject, root ?? null),
     ready: () => ipcRenderer.send(CHANNELS.windowRendererReady),
   },
   history: {

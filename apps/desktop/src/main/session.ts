@@ -10,7 +10,7 @@ import { app } from "electron";
 import { createSessionStore, type SessionState, type SessionStore } from "./sessionStore.ts";
 import { launchSessionFromArguments } from "./launchIntent.ts";
 import { currentSettings } from "./settings.ts";
-import { currentWorkspace, setWorkspaceRoot } from "./workspace.ts";
+import { currentGroup, currentWorkspace, MAIN_GROUP, setWorkspaceRoot } from "./workspace.ts";
 
 let store: SessionStore | null = null;
 
@@ -37,6 +37,10 @@ export async function restoreSession(): Promise<SessionState> {
       ? saved
       : { root: liveRoot, openFiles: [], activeFile: null, ...(saved.layout === undefined ? {} : { layout: saved.layout }) };
   }
+
+  // A window opened for another project starts empty, or with the folder it was opened for
+  // (handled above): the last session belongs to the first window, not to every new one.
+  if (currentGroup() !== MAIN_GROUP) return empty;
 
   // An explicit `adcode open <path>` is a user action, so it wins over both the previous
   // session and the restore preference. It still returns the ordinary session shape: the

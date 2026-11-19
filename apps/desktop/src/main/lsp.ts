@@ -21,6 +21,7 @@
  * window with it over a language server that was never essential.
  */
 import { appendOutput } from "./output.ts";
+import { currentWorkspace } from "./workspace.ts";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import {
   createMessageReader,
@@ -62,6 +63,8 @@ export interface LspEvents {
 }
 
 interface Session {
+  /** The project folder it was started in: each window's project has servers of its own. */
+  readonly root: string;
   readonly spec: ServerSpec;
   readonly child: ChildProcessWithoutNullStreams;
   readonly pending: Map<number, (result: unknown) => void>;
@@ -78,7 +81,8 @@ const restarts = new Map<string, number>();
 const states = new Map<string, LanguageServerState>();
 
 let events: LspEvents | null = null;
-let workspaceRoot: string | null = null;
+/** Every project open in some window; servers for any other folder are stopped. */
+let openRoots: readonly string[] = [];
 let customServers: readonly ServerSpec[] = [];
 let enabled = true;
 
@@ -86,11 +90,36 @@ export function configureLsp(next: LspEvents): void {
   events = next;
 }
 
-export function setLspWorkspace(root: string | null): void {
-  if (root === workspaceRoot) return;
+/**
+ * The project a request is for: the calling window's (workspace.ts carries it through the IPC
+ * call), so a Rust file in one window never reaches the server indexing the other's crate.
+ */
+const rootNow = (): string | null => currentWorkspace()?.root ?? null;
+/** Servers are kept per project and language. */
+const keyOf = (languageId: string, root: string | null = rootNow()): string => `${root ?? ""}\u0000${languageId}`;
 
-  workspaceRoot = root;
-  void shutdownAllServers();
+/** The projects open now. Servers started for a folder no window shows any more are stopped. */
+export function setLspWorkspace(roots: readonly string[]): void {
+  openRoots = [...roots];
+  const gone = [...sessions.entries()].filter(([, session]) => !openRoots.includes(session.root));
+  for (const [key, session] of gone) {
+    sessions.delete(key);
+    stopSession(session);
+  }
+}
+
+function stopSession(session: Session): void {
+  try {
+    send(session, request(session.nextId, "shutdown", null));
+    send(session, notification("exit", null));
+  } catch {
+    // Already gone.
+  }
+  // A server that ignores `exit` still has to stop: it holds an index of a workspace nobody has
+  // open, and on Windows it holds file handles that block a rename.
+  setTimeout(() => {
+    if (!session.child.killed) session.child.kill();
+  }, 1000);
 }
 
 export function setCustomServers(next: readonly ServerSpec[]): void {
@@ -209,7 +238,9 @@ function handleMessage(session: Session, body: string): void {
 }
 
 export function startServerFor(languageId: string): Session | null {
-  const existing = sessions.get(languageId);
+  const workspaceRoot = rootNow();
+  const key = keyOf(languageId, workspaceRoot);
+  const existing = sessions.get(key);
   if (existing !== undefined) return existing;
 
   if (!enabled || workspaceRoot === null) return null;
@@ -217,7 +248,7 @@ export function startServerFor(languageId: string): Session | null {
   const spec = resolveServer(languageId, customServers);
   if (spec === null) return null;
 
-  if ((restarts.get(languageId) ?? 0) > MAX_RESTARTS) return null;
+  if ((restarts.get(key) ?? 0) > MAX_RESTARTS) return null;
 
   const resolved = findExecutable(spec.command, process.platform);
   if (resolved === null) {
@@ -253,6 +284,7 @@ export function startServerFor(languageId: string): Session | null {
   }
 
   const session: Session = {
+    root: workspaceRoot,
     spec,
     child,
     pending: new Map(),
@@ -261,7 +293,7 @@ export function startServerFor(languageId: string): Session | null {
     nextId: 1,
   };
 
-  sessions.set(languageId, session);
+  sessions.set(key, session);
   publishState(languageId, { languageId, label: spec.label, status: "starting", detail: null });
 
   const reader = createMessageReader();
@@ -282,7 +314,7 @@ export function startServerFor(languageId: string): Session | null {
   });
 
   child.on("error", (error) => {
-    sessions.delete(languageId);
+    if (sessions.get(key) === session) sessions.delete(key);
     publishState(languageId, {
       languageId,
       label: spec.label,
@@ -292,10 +324,10 @@ export function startServerFor(languageId: string): Session | null {
   });
 
   child.on("exit", () => {
-    sessions.delete(languageId);
+    if (sessions.get(key) === session) sessions.delete(key);
 
-    const count = (restarts.get(languageId) ?? 0) + 1;
-    restarts.set(languageId, count);
+    const count = (restarts.get(key) ?? 0) + 1;
+    restarts.set(key, count);
 
     if (count > MAX_RESTARTS) {
       publishState(languageId, {
@@ -320,8 +352,7 @@ export function startServerFor(languageId: string): Session | null {
 }
 
 async function handshake(session: Session, languageId: string): Promise<void> {
-  const root = workspaceRoot;
-  if (root === null) return;
+  const root = session.root;
 
   await ask(session, "initialize", initializeParams(root, process.pid));
 
@@ -359,7 +390,7 @@ export function documentOpened(path: string, languageId: string, text: string): 
 }
 
 export function documentChanged(path: string, languageId: string, text: string): void {
-  const session = sessions.get(languageId);
+  const session = sessions.get(keyOf(languageId));
   if (session === undefined) return;
 
   const document = session.open.get(path);
@@ -379,7 +410,7 @@ export function documentChanged(path: string, languageId: string, text: string):
 }
 
 export function documentClosed(path: string, languageId: string): void {
-  const session = sessions.get(languageId);
+  const session = sessions.get(keyOf(languageId));
   if (session === undefined) return;
 
   session.open.delete(path);
@@ -398,7 +429,7 @@ export async function completionAt(
   line: number,
   column: number,
 ): Promise<LspCompletionItem[]> {
-  const session = sessions.get(languageId);
+  const session = sessions.get(keyOf(languageId));
   if (session === undefined || !session.ready) return [];
 
   const result = await ask(
@@ -454,7 +485,7 @@ export async function hoverAt(
   line: number,
   column: number,
 ): Promise<string | null> {
-  const session = sessions.get(languageId);
+  const session = sessions.get(keyOf(languageId));
   if (session === undefined || !session.ready) return null;
 
   const result = (await ask(
@@ -493,20 +524,7 @@ export async function shutdownAllServers(): Promise<void> {
   restarts.clear();
   events?.onState([]);
 
-  for (const session of running) {
-    try {
-      send(session, request(session.nextId, "shutdown", null));
-      send(session, notification("exit", null));
-    } catch {
-      // Already gone.
-    }
-
-    // A server that ignores `exit` still has to stop: it holds an index of the workspace
-    // the user has just closed, and on Windows it holds file handles that block a rename.
-    setTimeout(() => {
-      if (!session.child.killed) session.child.kill();
-    }, 1000);
-  }
+  for (const session of running) stopSession(session);
 }
 
 /**
@@ -521,7 +539,7 @@ export async function formattingFor(
   languageId: string,
   options: FormattingOptions,
 ): Promise<EditorTextEdit[] | null> {
-  const session = sessions.get(languageId);
+  const session = sessions.get(keyOf(languageId));
   if (session === undefined || !session.ready) return null;
 
   const result = await ask(
@@ -547,7 +565,7 @@ export async function definitionAt(
   line: number,
   column: number,
 ): Promise<EditorLocation[] | null> {
-  const session = sessions.get(languageId);
+  const session = sessions.get(keyOf(languageId));
   if (session === undefined || !session.ready) return null;
 
   const result = await ask(

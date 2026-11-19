@@ -197,7 +197,25 @@ import {
   saveTextFileAs,
   setWorkspaceRoot,
   writeTextFile,
+  currentGroup,
+  groupHasWindows,
+  groupOfWindow,
+  MAIN_GROUP,
+  openWorkspaceRoots,
+  workspaceRootOfGroup,
 } from "./workspace.ts";
+
+/**
+ * The Vibe and IDE windows of one project hear that its folder changed; a window showing
+ * another project must not, or opening a folder in one window would swap the other's tree.
+ */
+function tellOtherWindowsInGroup(sender: Electron.WebContents, channel: string, payload: unknown): void {
+  const group = groupOfWindow(sender.id);
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (window.isDestroyed() || window.webContents === sender || groupOfWindow(window.webContents.id) !== group) continue;
+    window.webContents.send(channel, payload);
+  }
+}
 import {
   copyEntry,
   createFile,
@@ -299,7 +317,10 @@ const previewEvents = {
 const previewChannel = (status: PreviewStatus) =>
   status.mode === "project" ? "dev-server" : "live-server";
 
-export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, command?: string) => void): void {
+export function registerIpc(
+  openWindow: (role: "vibe" | "ide", file?: string, command?: string) => void,
+  openProjectWindow: (root: string | null) => void,
+): void {
   let ideSession: SessionState | null = null;
   // Output produced before this point is still recorded; it is replayed by `output:history`
   // when a panel first opens.
@@ -333,12 +354,16 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
    * restore is the one that gets forgotten, because no user action triggers it, so the
    * per-handler version worked everywhere except on every launch after the first.
    */
-  onWorkspaceRootChanged((root) => setLspWorkspace(root));
-  setLspWorkspace(currentWorkspace()?.root ?? null);
+  // Each window's project has its own servers; a project no window shows any more lets them go.
+  onWorkspaceRootChanged(() => setLspWorkspace(openWorkspaceRoots()));
+  setLspWorkspace(openWorkspaceRoots());
 
   // A dev server the assistant started belongs to the folder it started in, and so does the
-  // page its browser had open.
-  onWorkspaceRootChanged(() => aiStopToolProcesses());
+  // page its browser had open. Opening a second project in a new window leaves the first one's
+  // running: only a project that no window shows any more stops them.
+  onWorkspaceRootChanged((_root, change) => {
+    if (change.previous !== null && !openWorkspaceRoots().includes(change.previous)) aiStopToolProcesses();
+  });
 
   /*
    * The recent folders are part of the menu now, so every change to the list has to
@@ -363,7 +388,7 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
     const opened = await openWorkspace();
     if (opened !== null) {
       await remember(opened.root);
-      for (const window of BrowserWindow.getAllWindows()) if (window.webContents !== event.sender) window.webContents.send(CHANNELS.workspaceChanged, opened);
+      tellOtherWindowsInGroup(event.sender, CHANNELS.workspaceChanged, opened);
     }
     return opened;
   });
@@ -386,7 +411,7 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
     const opened = openWorkspaceAt(root);
     if (opened !== null) {
       await remember(opened.root);
-      for (const window of BrowserWindow.getAllWindows()) if (window.webContents !== event.sender) window.webContents.send(CHANNELS.workspaceChanged, opened);
+      tellOtherWindowsInGroup(event.sender, CHANNELS.workspaceChanged, opened);
     }
     return opened;
   });
@@ -403,7 +428,7 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
     const opened = openWorkspaceAt(root);
     if (opened !== null) {
       await remember(opened.root);
-      for (const window of BrowserWindow.getAllWindows()) if (window.webContents !== event.sender) window.webContents.send(CHANNELS.workspaceChanged, opened);
+      tellOtherWindowsInGroup(event.sender, CHANNELS.workspaceChanged, opened);
     }
     return opened;
   });
@@ -434,7 +459,7 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
 
   ipcMain.handle(CHANNELS.workspaceClose, async (event) => {
     setWorkspaceRoot(null);
-    for (const window of BrowserWindow.getAllWindows()) if (window.webContents !== event.sender) window.webContents.send(CHANNELS.workspaceChanged, null);
+    tellOtherWindowsInGroup(event.sender, CHANNELS.workspaceChanged, null);
     // The quick-open index and the git handle were both bound to the old root. The
     // language servers were too, and `onWorkspaceRootChanged` above has already heard.
     invalidateFileCache();
@@ -505,6 +530,19 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
     openWindow("ide", safeFile, command);
   });
   ipcMain.handle(CHANNELS.windowOpenVibe, () => openWindow("vibe"));
+  // Another project beside this one: a new window group, empty or with the folder named.
+  ipcMain.handle(CHANNELS.windowOpenProject, async (_event, root: unknown) => {
+    if (root === undefined || root === null) { openProjectWindow(null); return true; }
+    if (!isString(root)) return false;
+    try {
+      if (!(await stat(root)).isDirectory()) return false;
+    } catch {
+      return false;
+    }
+    await remember(root);
+    openProjectWindow(root);
+    return true;
+  });
 
   ipcMain.handle(CHANNELS.historyVersions, (_event, path: unknown) =>
     typeof path === "string" ? historyVersions(path) : [],
@@ -551,6 +589,9 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
           }
         : {}),
     };
+    // The first window group writes the session the next launch restores; another project's
+    // window would otherwise replace it with whichever folder was saved last.
+    if (currentGroup() !== MAIN_GROUP && groupHasWindows(MAIN_GROUP)) return;
     const fromIde = event.sender.getURL().endsWith("#/ide");
     if (fromIde) ideSession = parsed;
     const editorState = !fromIde && ideSession?.root === root ? ideSession : parsed;
@@ -1067,7 +1108,15 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
   ipcMain.handle(CHANNELS.lspStates, () => languageServerStates());
 
   configureLsp({
-    onDiagnostics: (file, diagnostics) => broadcast(CHANNELS.lspDiagnostics, file, diagnostics),
+    // Only to the windows whose project holds the file: another project's window has no use
+    // for it, and its Problems panel would list a file it never opened.
+    onDiagnostics: (file, diagnostics) => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        if (window.isDestroyed()) continue;
+        const root = workspaceRootOfGroup(groupOfWindow(window.webContents.id));
+        if (root === null || isInsideWorkspace(root, file)) window.webContents.send(CHANNELS.lspDiagnostics, file, diagnostics);
+      }
+    },
     onState: (list) => broadcast(CHANNELS.lspStateChanged, list),
   });
 

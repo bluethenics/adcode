@@ -7893,6 +7893,55 @@ await send("Emulation.setDeviceMetricsOverride", {
 });
 
 /*
+ * A project in each window (2.6.3+). Open a second folder in a window of its own, then check
+ * each window answers for its own project - the tree, the status line, the main process's
+ * idea of "the open folder" - and that closing the second leaves the first as it was.
+ * Last of all, because it adds a renderer the IDE-window counts above do not expect.
+ */
+checks.projectWindows = await (async () => {
+  const second = await mkdtemp(join(tmpdir(), "adcode-second-project-"));
+  await writeFile(join(second, "second-project-marker.txt"), "the second project\n");
+  const firstBefore = await evaluate("window.adcode.workspace.current().then((w) => w?.root ?? null)");
+  const pagesBefore = new Set(((await (await fetch(`http://127.0.0.1:${PORT}/json/list`)).json()) ?? []).filter((t) => t.type === "page").map((t) => t.id));
+  const opened = await evaluate(`window.adcode.window.openProject(${JSON.stringify(second)})`);
+  let page;
+  for (let attempt = 0; attempt < 80 && page === undefined; attempt++) {
+    const targets = await (await fetch(`http://127.0.0.1:${PORT}/json/list`).catch(() => null))?.json().catch(() => []) ?? [];
+    page = targets.find((t) => t.type === "page" && !pagesBefore.has(t.id) && t.url?.includes("index.html") && !t.url.includes("#/ide") && t.webSocketDebuggerUrl);
+    if (page === undefined) await sleep(250);
+  }
+  if (page === undefined) return { opened, newWindow: false };
+  const home = socket;
+  socket = new WebSocket(page.webSocketDebuggerUrl);
+  await new Promise((resolve, reject) => { socket.addEventListener("open", resolve, { once: true }); socket.addEventListener("error", reject, { once: true }); });
+  socket.addEventListener("message", onSocketMessage);
+  const folder = second.split(/[\\/]/).pop();
+  let shows = false;
+  for (let attempt = 0; attempt < 120 && !shows; attempt++) {
+    shows = await evaluate(`Boolean([...document.querySelectorAll('#filetree .tree-row')].some((row) => row.textContent.includes('second-project-marker.txt')))`) === true;
+    if (!shows) await sleep(250);
+  }
+  const secondRoot = await evaluate("window.adcode.workspace.current().then((w) => w?.root ?? null)");
+  const titled = await evaluate(`document.title.startsWith(${JSON.stringify(folder)})`);
+  const listsFirstProject = await evaluate(`Boolean([...document.querySelectorAll('#filetree .tree-row')].some((row) => row.textContent.trim() === 'package.json'))`);
+  await send("Page.close", {});
+  socket.close();
+  socket = home;
+  await sleep(500);
+  const firstAfter = await evaluate("window.adcode.workspace.current().then((w) => w?.root ?? null)");
+  await rm(second, { recursive: true, force: true }).catch(() => {});
+  return {
+    opened: opened === true,
+    newWindow: true,
+    showsItsOwnFiles: shows,
+    mainKnowsItsFolder: typeof secondRoot === "string" && secondRoot.toLowerCase() === second.toLowerCase(),
+    titledByProject: titled === true,
+    notTheFirstProject: listsFirstProject === false,
+    firstUntouched: firstBefore !== null && firstAfter === firstBefore,
+  };
+})();
+
+/*
  * Exactly one anonymous account, and made on the mock. Zero means identity went back to
  * production; two means one install became two accounts.
  */
@@ -7947,6 +7996,7 @@ const requiredEvidence = {
   licencesDialog: ["opened", "threeTabs", "showsApache", "closes"],
   chatUsageBoxOpens: ["found", "chipAtTopLeft", "chipSaysSomething", "opened", "topmost", "underTheChip", "insideTheChat", "hasHeading", "offersFullUsage", "escapeCloses", "chatStaysOpen"],
   liveSessionCardFloats: ["found", "opened", "topmost", "aboveTheComposer", "composerKeepsWidth", "onScreen", "clickElsewhereCloses", "escapeCloses", "chatStaysOpen"],
+  projectWindows: ["opened", "newWindow", "showsItsOwnFiles", "mainKnowsItsFolder", "titledByProject", "notTheFirstProject", "firstUntouched"],
   adPartnerNoticeTells: ["namesZeekendOnly", "disclosureFirst", "offersTurnOff", "bothOnByDefault", "dismissed"],
 };
 const failed = Object.entries(checks).filter(

@@ -10,18 +10,23 @@ import { appendOutput, appendOutputEvent } from "./output.ts";
 import { createWorkspaceSearch, rankCandidates, type WorkspaceSearch } from "@adcode/search";
 import { currentWorkspace } from "./workspace.ts";
 
-let bound: { root: string; git: Git; search: WorkspaceSearch } | null = null;
+/** One binding per open project: two windows on two projects must not rebuild each other's. */
+const boundByRoot = new Map<string, { root: string; git: Git; search: WorkspaceSearch }>();
 
 function services(): { git: Git; search: WorkspaceSearch } | null {
   const workspace = currentWorkspace();
   if (workspace === null) return null;
 
-  if (bound === null || bound.root !== workspace.root) {
+  let bound = boundByRoot.get(workspace.root);
+  if (bound === undefined) {
+    // A handful of projects at most; the oldest binding goes when a fifth arrives.
+    if (boundByRoot.size >= 4) boundByRoot.delete(boundByRoot.keys().next().value!);
     bound = {
       root: workspace.root,
       git: createGit({ exec: loggingGitExec, root: workspace.root }),
       search: createWorkspaceSearch({ root: workspace.root }),
     };
+    boundByRoot.set(workspace.root, bound);
   }
 
   return { git: bound.git, search: bound.search };

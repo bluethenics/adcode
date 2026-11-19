@@ -152,7 +152,7 @@ import { fullAccessApplies, isFullAccessOn, runAgentTurn } from "./fullAccess.ts
 import { describeDebugContext, recordDebug } from "./debugLog.ts";
 import { fileAgentsFor, refreshFileAgents } from "./agentFilesLoader.ts";
 import { agentPromptHooks, agentRulesContext, agentSessionStart, agentStopHooks, withAgentRules } from "./agentRules.ts";
-import { currentWorkspace } from "./workspace.ts";
+import { currentGroup, currentWorkspace, groupOfWindow } from "./workspace.ts";
 import { projectInstructions } from "./projectInstructions.ts";
 import { aiWorkspaceContext } from "./aiWorkspaceContext.ts";
 import { liveRoomContext } from "./liveRoom.ts";
@@ -722,7 +722,20 @@ function configuredStoragePolicy() {
  * own thread below, with its own agent, and a turn runs in its thread: opening another chat
  * moves this pointer and nothing else, so the turn carries on (see `chatRuns.ts`).
  */
-let session: ChatSession | null = null;
+const shownChats = new Map<string, ChatSession | null>();
+/** The conversation on screen in the calling window's project (each window group has its own). */
+function shown(): ChatSession | null {
+  return shownChats.get(currentGroup()) ?? null;
+}
+function setShown(next: ChatSession | null): void {
+  shownChats.set(currentGroup(), next);
+}
+/** A conversation moved on: every window showing it follows. */
+function followShown(next: ChatSession): void {
+  for (const [group, chat] of shownChats) if (chat?.id === next.id) shownChats.set(group, next);
+}
+/** Whether some window has this conversation on screen. */
+const shownAnywhere = (id: string): boolean => [...shownChats.values()].some((chat) => chat?.id === id);
 
 function startSession(): ChatSession {
   return {
@@ -823,7 +836,7 @@ function threadFor(chat: ChatSession): ChatThread {
     hookAbort: null,
   };
   threads.set(chat.id, created);
-  const idle = [...threads.values()].filter((thread) => !runs.isRunning(thread.session.id) && thread.session.id !== session?.id);
+  const idle = [...threads.values()].filter((thread) => !runs.isRunning(thread.session.id) && !shownAnywhere(thread.session.id));
   if (idle.length > IDLE_THREADS_KEPT) {
     idle.sort((a, b) => a.lastUsed - b.lastUsed);
     for (const thread of idle.slice(0, idle.length - IDLE_THREADS_KEPT)) threads.delete(thread.session.id);
@@ -834,12 +847,13 @@ function threadFor(chat: ChatSession): ChatThread {
 /** A thread's conversation moved on; the screen follows if it is the one shown. */
 function adoptSession(thread: ChatThread, next: ChatSession): void {
   thread.session = next;
-  if (session?.id === next.id) session = next;
+  followShown(next);
 }
 
 /** The thread of the conversation on screen, if it has one. */
 function shownThread(): ChatThread | null {
-  return session === null ? null : threads.get(session.id) ?? null;
+  const chat = shown();
+  return chat === null ? null : threads.get(chat.id) ?? null;
 }
 
 function dropThread(id: string): void {
@@ -852,15 +866,21 @@ function dropThread(id: string): void {
 }
 
 /** The chats working, each marked if it is the one on screen. */
-function runViews(): AiRunView[] {
-  return runs.list().map((run) => ({ ...run, shown: run.sessionId === session?.id }));
+function runViews(group: string = currentGroup()): AiRunView[] {
+  const onScreen = shownChats.get(group)?.id;
+  return runs.list().map((run) => ({ ...run, shown: run.sessionId === onScreen }));
 }
 
-/** Tell every window which chats are working, and keep the app awake while any is. */
+/**
+ * Tell every window which chats are working, and keep the app awake while any is. Each window
+ * hears which run is its own chat's: a new chat in one project's window must never adopt a run
+ * that another window started.
+ */
 function announceRuns(): void {
-  const list = runViews();
-  keepAwakeWhileWorking(list.length > 0);
-  broadcast(CHANNELS.aiRunsChanged, list);
+  keepAwakeWhileWorking(runs.list().length > 0);
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) window.webContents.send(CHANNELS.aiRunsChanged, runViews(groupOfWindow(window.webContents.id)));
+  }
 }
 
 /** The conversations for the open project, newest first. */
@@ -871,7 +891,7 @@ export function aiSessions(): Promise<ChatSession[]> {
 export async function aiDeleteSession(id: string): Promise<ChatSession[]> {
   dropThread(id);
   await deleteSession(currentWorkspace()?.root ?? null, id);
-  if (session?.id === id) session = null;
+  for (const [group, chat] of shownChats) if (chat?.id === id) shownChats.set(group, null);
   return aiSessions();
 }
 
@@ -880,7 +900,7 @@ export async function aiClearSessions(): Promise<ChatSession[]> {
   // Only this project's chats: a turn running in another project's chat is not this list's to stop.
   for (const [id, thread] of [...threads]) if (sameWorkspace(thread.root, root)) dropThread(id);
   await clearSessions(root);
-  session = null;
+  setShown(null);
   return aiSessions();
 }
 
@@ -898,7 +918,7 @@ export async function aiRenameSession(id: string, title: string): Promise<ChatSe
   await writeSession(threads.get(id)?.root ?? currentWorkspace()?.root ?? null, renamed);
   const thread = threads.get(id);
   if (thread !== undefined) adoptSession(thread, renamed);
-  else if (session?.id === id) session = renamed;
+  else followShown(renamed);
 
   return aiSessions();
 }
@@ -915,7 +935,7 @@ export async function aiResumeSession(id: string): Promise<ChatSession | null> {
   const found = thread?.session ?? (await aiSessions()).find((one) => one.id === id) ?? null;
   if (found === null) return null;
 
-  session = found;
+  setShown(found);
   if (thread !== undefined) thread.lastUsed = Date.now();
   activeTaskId = null;
   return found;
@@ -923,7 +943,7 @@ export async function aiResumeSession(id: string): Promise<ChatSession | null> {
 
 /** What the assistant is carrying into the next turn, for the memory strip. */
 export function aiCurrentSession(): ChatSession | null {
-  return session;
+  return shown();
 }
 
 /**
@@ -1305,11 +1325,11 @@ export function bridgeToolRunner(): ToolRunner {
 onCollabModeChange(() => markAgentsForRebuild());
 registerCollabToolHandler(async (call, signal) => {
   const root = currentWorkspace()?.root;
-  const checkpoint = root && configuredEditPolicy() === "trusted" ? checkpoints.open(root, session?.id ?? "shared-project") : null;
+  const checkpoint = root && configuredEditPolicy() === "trusted" ? checkpoints.open(root, shown()?.id ?? "shared-project") : null;
   try { return await toolRunner(() => checkpoint).run({ type: "tool-call", ...call }, signal); }
   finally {
     const saved = await checkpoint?.finish();
-    if (saved) broadcast(CHANNELS.aiCheckpoint, { ...checkpointView(saved), sessionId: session?.id ?? "shared-project" });
+    if (saved) broadcast(CHANNELS.aiCheckpoint, { ...checkpointView(saved), sessionId: shown()?.id ?? "shared-project" });
   }
 });
 
@@ -2012,15 +2032,16 @@ async function recordCompaction(thread: ChatThread, from: Agent, event: { readon
   const compacted = withSummary(thread.session, { text: event.summary, coversUntil: summaryCoverage(thread.session.messages, turns), at: Date.now() });
   adoptSession(thread, compacted);
   await writeSession(thread.root, compacted);
-  if (session?.id === compacted.id) broadcast(CHANNELS.aiSessionChanged, compacted);
+  if (shownAnywhere(compacted.id)) broadcast(CHANNELS.aiSessionChanged, compacted);
 }
 
 /** Summarise the older part of the conversation now: `/compact`, or Compact now on the meter. */
 export async function aiCompact(rawFocus: unknown): Promise<AiCompactResultView> {
   const focus = parseCompactFocus(rawFocus);
   if (focus === null) return { ok: false, message: "Keep the focus under 500 characters." };
-  if (session === null || session.messages.length === 0) return { ok: false, message: "There is nothing to compact yet." };
-  const chat = session;
+  const onScreen = shown();
+  if (onScreen === null || onScreen.messages.length === 0) return { ok: false, message: "There is nothing to compact yet." };
+  const chat = onScreen;
   const thread = threadFor(chat);
   // Compacting is a turn of its own: it waits for this chat's answer, not for anyone else's.
   const begun = runs.begin(chat.id, chat.title, Date.now());
@@ -2052,7 +2073,7 @@ export function aiContextUsage(): AiContextUsageView {
   const agent = thread?.agent ?? null;
   const live = agent !== null && thread?.agentProvider === providerId && thread.agentModel === model ? agent.contextUsage() : null;
   return {
-    tokens: live?.tokens ?? estimateTokens("", agent === null ? session === null ? [] : restoreHistory(session) : historyForModelSwitch(agent.history()), chatTools()),
+    tokens: live?.tokens ?? estimateTokens("", agent === null ? shown() === null ? [] : restoreHistory(shown()!) : historyForModelSwitch(agent.history()), chatTools()),
     contextWindow: contextWindowFor(catalogue, providerId, model),
     thresholdPercent: compactThreshold({ ...settings, "adcode.ai.autoCompact": true }) ?? 80,
     autoCompact: settings["adcode.ai.autoCompact"] !== false,
@@ -2085,8 +2106,8 @@ export async function aiSend(
   editor: AiEditorContextView | null = null,
   sessionId?: string,
 ): Promise<boolean> {
-  const targetId = sessionId ?? session?.id;
-  const target = targetId === undefined ? null : threads.get(targetId)?.session ?? (session?.id === targetId ? session : null) ?? (sessionId === undefined ? null : (await aiSessions()).find((one) => one.id === sessionId) ?? null);
+  const targetId = sessionId ?? shown()?.id;
+  const target = targetId === undefined ? null : threads.get(targetId)?.session ?? (shown()?.id === targetId ? shown() : null) ?? (sessionId === undefined ? null : (await aiSessions()).find((one) => one.id === sessionId) ?? null);
   if (target?.team !== undefined) return sendTeamMessage(target, text, attachments, editor);
   // Everything this message causes - model calls, tools, helper agents, confirmations -
   // runs inside one agent turn. That scope is the only place full access can answer a
@@ -2116,7 +2137,7 @@ async function syncTeamSession(chat: ChatSession): Promise<{ readonly session: C
     adoptSession(thread, next);
     // A teammate's words are not in the agent's own history yet: rebuild it from the chat.
     if (merged.fromOthers > 0) thread.rebuild = true;
-  } else if (session?.id === next.id) session = next;
+  } else followShown(next);
   await writeSession(threads.get(next.id)?.root ?? currentWorkspace()?.root ?? null, next);
   return { session: next, added: merged.added };
 }
@@ -2140,7 +2161,7 @@ export async function aiTeamSync(idRaw: unknown): Promise<{ readonly added: numb
   const chat = threads.get(idRaw)?.session ?? (await aiSessions()).find((one) => one.id === idRaw) ?? null;
   if (chat?.team === undefined) return { added: 0 };
   const { added, session: synced } = await syncTeamSession(chat);
-  if (added > 0 && session?.id === synced.id) broadcast(CHANNELS.aiSessionChanged, synced);
+  if (added > 0 && shownAnywhere(synced.id)) broadcast(CHANNELS.aiSessionChanged, synced);
   return { added };
 }
 
@@ -2151,7 +2172,7 @@ export async function aiTeamSetAi(idRaw: unknown, on: unknown): Promise<boolean>
   if (chat?.team === undefined) return false;
   const next: ChatSession = { ...chat, team: { ...chat.team, aiReplies: on } };
   const thread = threads.get(chat.id);
-  if (thread !== undefined) adoptSession(thread, next); else if (session?.id === next.id) session = next;
+  if (thread !== undefined) adoptSession(thread, next); else followShown(next);
   await writeSession(thread?.root ?? currentWorkspace()?.root ?? null, next);
   return true;
 }
@@ -2174,7 +2195,7 @@ async function sendTeamMessage(chat: ChatSession, raw: string, attachments: read
   }
   if (!ask || posted.lease === null) {
     // A message for the people only: it joins the chat, and the composer is free again.
-    await syncTeamSession(threads.get(chat.id)?.session ?? chat).then(({ session: synced }) => { if (session?.id === synced.id) broadcast(CHANNELS.aiSessionChanged, synced); }).catch(() => undefined);
+    await syncTeamSession(threads.get(chat.id)?.session ?? chat).then(({ session: synced }) => { if (shownAnywhere(synced.id)) broadcast(CHANNELS.aiSessionChanged, synced); }).catch(() => undefined);
     broadcast(CHANNELS.aiEvent, { kind: "turn-end", reason: "end-turn", sessionId: chat.id });
     if (ask) broadcast(CHANNELS.aiEvent, { kind: "status", text: "Someone else's request to the AI is still being answered - yours is in the chat, ask again when it finishes.", sessionId: chat.id });
     return true;
@@ -2207,12 +2228,12 @@ async function sendMessage(
   let chat: ChatSession;
   if (sessionId !== undefined) {
     // The chat on screen may not be saved yet (a new chat's first turn): it is `session` then.
-    const named = threads.get(sessionId)?.session ?? (session?.id === sessionId ? session : null) ?? (await aiSessions()).find((one) => one.id === sessionId) ?? null;
+    const named = threads.get(sessionId)?.session ?? (shown()?.id === sessionId ? shown() : null) ?? (await aiSessions()).find((one) => one.id === sessionId) ?? null;
     if (named === null) throw new Error("That conversation is no longer here.");
     chat = named;
   } else {
-    session ??= startSession();
-    chat = session;
+    if (shown() === null) setShown(startSession());
+    chat = shown()!;
   }
   const thread = threadFor(chat);
   let begun = runs.begin(chat.id, chat.title, Date.now());
@@ -2521,7 +2542,7 @@ async function runTurn(
 
     await writeSession(turnRoot, turnSession);
     adoptSession(thread, turnSession);
-    if (session?.id === turnSession.id) broadcast(CHANNELS.aiSessionChanged, session);
+    if (shownAnywhere(turnSession.id)) broadcast(CHANNELS.aiSessionChanged, turnSession);
     const checkpoint = await (thread.checkpoint?.finish() ?? Promise.resolve(null)).catch(() => null);
     thread.checkpoint = null;
     if (checkpoint !== null) {
@@ -3166,7 +3187,7 @@ export function aiReset(): void {
       });
   }
   activeTaskId = null;
-  session = null;
+  setShown(null);
 }
 
 export async function aiWorkspaceTasks(): Promise<AiWorkspaceTaskView[]> {

@@ -56,6 +56,25 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     ],
     betterThan: "In most editors, customising means a settings file, a theme extension, or writing an extension in TypeScript. Here you ask the assistant you are already talking to, read the list of changes, and confirm. Because a mod is a plugin underneath, it is just as safe and just as removable as one from the directory - and limited to what plugins may do, so it cannot rewrite the editor itself.",
   },
+  "workbench-project-windows": {
+    steps: [
+      "With a project open, choose File > New Window, or run New Window for Another Project from the command palette (Ctrl+Shift+P).",
+      "A second window opens with the welcome screen. Open a folder there, pick one of your recent folders, or start a new project - the first window keeps the project it had.",
+      "To skip the welcome screen, choose File > Open Recent in New Window instead, pick a recent folder or paste a folder's full path, and press Open in new window.",
+      "Work in either window as usual. Each one has its own file tree, terminal, source control, problems list and chats; the window title starts with the project's name. The live preview runs one at a time: starting it in one window stops the other's.",
+      "Asking for a folder that another window already shows brings that window to the front rather than opening it twice.",
+      "Close a window when you are done with its project. The next time ADCode starts, the first window reopens its project.",
+    ],
+    benefits: [
+      "Two projects side by side - an app and its API, a library and the project that uses it - without closing either.",
+      "Nothing leaks between them: the assistant in one window only reads and edits its own project, its terminal opens in its own folder, and its language servers index only that project.",
+      "One app underneath: your settings, account and plan are shared, and sponsored cards are shown and counted once, not once per window.",
+      "A long chat, a terminal or a dev server the assistant started in one project keeps running while you open another.",
+    ],
+    betterThan:
+      "Most editors open a second project by starting a second copy of themselves, and two copies on one profile fight over the same settings and caches. ADCode keeps one app and gives each window its own project, so switching windows is instant and the second project costs no second app. The honest limit: windows do not share open files or chats, and a session restore after a restart brings back only the first window's project - open the others again from File > Open Recent in New Window.",
+  },
+
   "workbench-solo-team": {
     steps: [
       "Open ADCode's Vibe window. Above Conversations in the left sidebar there is a switch: Solo and Team.",

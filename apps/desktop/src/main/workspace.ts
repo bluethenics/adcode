@@ -5,6 +5,7 @@
  * reaches the disk. The renderer is hostile by assumption (brief §1), and the AI layer
  * makes that concrete rather than theoretical: model output reaches these handlers.
  */
+import { AsyncLocalStorage } from "node:async_hooks";
 import { readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
 import { dialog } from "electron";
@@ -24,10 +25,87 @@ const SKIP = new Set(HIDDEN_DIRECTORIES);
 /** §7 budgets a 100MB file as "no freeze; degrade features, never the frame rate". */
 const MAX_READ_BYTES = 100 * 1024 * 1024;
 
-let workspaceRoot: string | null = null;
+/*
+ * One project per window group.
+ *
+ * A group is a Vibe window and the IDE window opened from it: the same project in two views.
+ * "Open Folder in New Window" starts another group with a project of its own, so two projects
+ * can be open side by side in one ADCode process - one ad runtime, one set of settings - with
+ * nothing shared between them that belongs to a project.
+ *
+ * Which group a piece of main-process code is working for is carried with the call, not passed
+ * through every function: each IPC handler runs inside `runInGroup` for the window that sent it
+ * (windowScope.ts), and Node's AsyncLocalStorage keeps that through every await, timer and
+ * callback the handler starts. So `currentWorkspace()` - read in some sixty places - answers
+ * for the window that asked. Code that no window called (the tool bridge, Phone link, a timer
+ * started at launch) gets the group of the window that was focused last.
+ */
+export const MAIN_GROUP = "main";
+
+const roots = new Map<string, string | null>();
+const groupOfContents = new Map<number, string>();
+const scope = new AsyncLocalStorage<string>();
+let focusedGroup = MAIN_GROUP;
+
+/** Run `work` as the given window group: everything it starts sees that group's project. */
+export function runInGroup<T>(group: string, work: () => T): T {
+  return scope.run(group, work);
+}
+
+/** The group a call is working for: the calling window's, else the window focused last. */
+export function currentGroup(): string {
+  return scope.getStore() ?? focusedGroup;
+}
+
+/** The group a window (by its webContents id) belongs to; unknown contents count as the focused one. */
+export function groupOfWindow(contentsId: number): string {
+  return groupOfContents.get(contentsId) ?? focusedGroup;
+}
+
+export function assignWindowToGroup(contentsId: number, group: string): void {
+  groupOfContents.set(contentsId, group);
+}
+
+/** A window closed. A group with no windows left lets its project go. */
+export function releaseWindow(contentsId: number): void {
+  const group = groupOfContents.get(contentsId);
+  groupOfContents.delete(contentsId);
+  if (group === undefined || group === MAIN_GROUP || [...groupOfContents.values()].includes(group)) return;
+  runInGroup(group, () => setWorkspaceRoot(null));
+  roots.delete(group);
+  if (focusedGroup === group) focusedGroup = MAIN_GROUP;
+}
+
+/** The project a window group has open. */
+export function workspaceRootOfGroup(group: string): string | null {
+  return roots.get(group) ?? null;
+}
+
+export function groupHasWindows(group: string): boolean {
+  return [...groupOfContents.values()].includes(group);
+}
+
+export function noteFocusedGroup(group: string): void {
+  focusedGroup = group;
+}
+
+/** Every project open in some window, each once. */
+export function openWorkspaceRoots(): string[] {
+  return [...new Set([...roots.values()].filter((root): root is string => root !== null))];
+}
+
+/** The group whose window has this project open, if any. */
+export function groupShowing(root: string): string | null {
+  const wanted = root.replace(/[\\/]+$/, "").toLowerCase();
+  for (const [group, open] of roots) if (open !== null && open.replace(/[\\/]+$/, "").toLowerCase() === wanted && [...groupOfContents.values()].includes(group)) return group;
+  return null;
+}
+
+const rootNow = (): string | null => roots.get(currentGroup()) ?? null;
 
 export function currentWorkspace(): OpenedWorkspace | null {
-  return workspaceRoot === null ? null : { root: workspaceRoot, name: basename(workspaceRoot) };
+  const root = rootNow();
+  return root === null ? null : { root, name: basename(root) };
 }
 
 export async function openWorkspace(): Promise<OpenedWorkspace | null> {
@@ -97,7 +175,7 @@ export async function saveTextFileAs(text: string, suggestedName: string): Promi
 
   const result = await dialog.showSaveDialog({
     title: "Save As",
-    defaultPath: workspaceRoot === null ? suggestedName : join(workspaceRoot, suggestedName),
+    defaultPath: rootNow() === null ? suggestedName : join(rootNow()!, suggestedName),
   });
 
   const picked = result.filePath;
@@ -120,22 +198,29 @@ export async function saveTextFileAs(text: string, suggestedName: string): Promi
  * language servers then never started on a restored workspace, which is every launch after
  * the first.
  */
-const rootListeners: ((root: string | null) => void)[] = [];
+/**
+ * Listeners hear which group changed and what it had before, so per-project work (language
+ * servers, the assistant's dev servers) stops only when no other window still has that project.
+ * They run inside the changed group's scope.
+ */
+const rootListeners: ((root: string | null, change: { readonly group: string; readonly previous: string | null }) => void)[] = [];
 
-export function onWorkspaceRootChanged(listener: (root: string | null) => void): void {
+export function onWorkspaceRootChanged(listener: (root: string | null, change: { readonly group: string; readonly previous: string | null }) => void): void {
   rootListeners.push(listener);
 }
 
-/** Used by tests and by session restore, which supplies a previously opened root. */
+/** Used by tests and by session restore, which supplies a previously opened root. Sets the current group's project. */
 export function setWorkspaceRoot(root: string | null): void {
-  if (workspaceRoot === root) return;
+  const group = currentGroup();
+  const previous = roots.get(group) ?? null;
+  if (previous === root) return;
 
-  workspaceRoot = root;
-  for (const listener of rootListeners) listener(root);
+  roots.set(group, root);
+  for (const listener of rootListeners) listener(root, { group, previous });
 }
 
 export async function listDirectory(dirPath: string): Promise<DirEntry[]> {
-  if (!isInsideWorkspace(workspaceRoot, dirPath)) {
+  if (!isInsideWorkspace(rootNow(), dirPath)) {
     throw new Error("path is outside the opened workspace");
   }
 
@@ -158,7 +243,7 @@ export async function listDirectory(dirPath: string): Promise<DirEntry[]> {
 }
 
 export async function readTextFile(filePath: string): Promise<FileContent> {
-  if (!isInsideWorkspace(workspaceRoot, filePath)) {
+  if (!isInsideWorkspace(rootNow(), filePath)) {
     throw new Error("path is outside the opened workspace");
   }
 
@@ -195,7 +280,7 @@ export function imageMediaTypeFor(filePath: string): string | null {
 }
 
 export async function readImageFile(filePath: string): Promise<FileImageContent> {
-  if (!isInsideWorkspace(workspaceRoot, filePath)) {
+  if (!isInsideWorkspace(rootNow(), filePath)) {
     throw new Error("path is outside the opened workspace");
   }
 
@@ -217,7 +302,7 @@ export async function readImageFile(filePath: string): Promise<FileImageContent>
 }
 
 export async function writeTextFile(filePath: string, text: string): Promise<SaveResult> {
-  if (!isInsideWorkspace(workspaceRoot, filePath)) {
+  if (!isInsideWorkspace(rootNow(), filePath)) {
     return { ok: false, mtimeMs: 0, reason: "path is outside the opened workspace" };
   }
   if (typeof text !== "string") {

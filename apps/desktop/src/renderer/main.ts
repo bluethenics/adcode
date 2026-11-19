@@ -2037,6 +2037,10 @@ function setStatusWorkspace(root: string | null): void {
   const label = el("status-workspace");
   label.textContent = root === null ? "No folder" : shortenPath(root);
   label.title = root ?? "No folder is open";
+  // With a project per window, the taskbar and Alt-Tab must say which window is which.
+  const app = window.location.hash === "#/ide" ? "ADCode IDE" : "ADCode";
+  const name = root === null ? null : root.split(/[\\/]/).filter(Boolean).pop() ?? root;
+  document.title = name === null ? app : `${name} - ${app}`;
 }
 
 /**
@@ -6062,6 +6066,30 @@ function registerCommands(): void {
   add("workspace.openRecentAt", "Open Recent Folder by Path", async (path) => {
     if (path === undefined) return;
     await openFolderAt(path);
+  });
+
+  /*
+   * Another project beside this one. The new window is a project of its own: its own file tree,
+   * terminal, source control and chats, while this window keeps the folder it has.
+   */
+  add("workspace.newWindow", "New Window for Another Project", () => {
+    void window.adcode.window.openProject().then((opened) => {
+      if (!opened) setStatus("This version opens one project per tab - open another tab instead.", 4000);
+    });
+  });
+  add("workspace.openRecentNewWindow", "Open Recent Folder in New Window", () => {
+    void (async () => {
+      const recents = await window.adcode.workspace.recents();
+      const picked = await promptDialog.ask({
+        title: "Open in a new window",
+        body: "A recent folder, or the full path of any folder. It opens beside this project, which stays open here.",
+        value: recents.find((folder) => folder.path !== workspaceRoot)?.path ?? "",
+        suggestions: recents.map((folder) => folder.path),
+        confirmLabel: "Open in new window",
+      });
+      if (picked === null || picked.trim() === "") return;
+      if (!(await window.adcode.window.openProject(picked.trim()))) setStatus(`Could not open ${picked.trim()}: it is not a folder on this computer.`, 5000);
+    })();
   });
 
   add("workspace.clearRecents", "Clear Recently Opened", async () => {

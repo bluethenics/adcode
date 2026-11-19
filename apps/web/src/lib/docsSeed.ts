@@ -1293,6 +1293,17 @@ export const DOC_SEED: readonly DocSeed[] = [
     related: ["session-crash-recovery"],
   },
   {
+    slug: "workbench-project-windows",
+    title: "A project in each window",
+    section: "The workbench",
+    description: "Open a second project in a window of its own, beside the one you are working on. Each window keeps its own folder, files, terminal, source control and chats.",
+    why: "Real work spans more than one folder - the app and its API, a library and the project using it, a fix in one repo while you check another. Closing one project to look at another loses your place; two windows keep both in front of you.",
+    how: "Choose File > New Window (or run New Window for Another Project from the command palette): a fresh window opens with the welcome screen, where you open a folder or pick a recent one. To go straight to a folder, choose File > Open Recent in New Window, pick a recent folder or paste any folder's path, and it opens in its own window while this one keeps its project. A folder already open in some window is brought to the front instead of being opened twice. Each window's title starts with its project's name, so the taskbar and Alt-Tab tell them apart. Everything inside a window belongs to its project: the file tree and quick open, the terminal, source control, the problems list and language servers, and the chats, so the assistant in one window never reads or edits the other project. The live preview is the one exception: there is one at a time, so starting it in one window stops the other window's. Open IDE from a window opens that project's IDE. Settings, your account, sign-in and sponsored cards are shared by the whole app: cards still show in one place at a time and are counted once. When you restart, the first window reopens the project you had open there; other windows start fresh. In the web version a browser tab is one project, so open another tab instead.",
+    keywords: ["A project in each window", "The workbench", "new window", "second window", "another project", "two projects", "multiple projects", "open in new window", "separate window", "side by side", "multi window", "multi-root", "other folder", "several projects"],
+    access: ["All Features → A project in each window", "New window for another project (command:workspace.newWindow)", "Open a recent folder in a new window (command:workspace.openRecentNewWindow)"],
+    related: ["workbench-open-ide", "session-workspace-restore"],
+  },
+  {
     slug: "workbench-web-version",
     title: "ADCode on the web",
     section: "The workbench",
@@ -1523,7 +1534,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     how: "Choose Open IDE at the bottom of the Vibe sidebar - in a narrow window, open the drawer with the top bar's menu button or Ctrl+B first. ADCode opens one editor-first IDE window and focuses it on later clicks. The Vibe window stays open; use Vibe in the IDE toolbar to return to it.",
     keywords: ["Open IDE in a separate window", "The workbench", "separate window", "second window", "open ide", "pop out editor", "ide arrow", "vibe launcher", "editor first"],
     access: ["All Features → Open IDE in a separate window", "Open IDE in a separate window (command:workspace.openIde)"],
-    related: ["workbench-modes", "workbench-vibe-sidebar", "workbench-all-features"],
+    related: ["workbench-modes", "workbench-vibe-sidebar", "workbench-all-features", "workbench-project-windows"],
   },
   {
     slug: "workbench-open-source",

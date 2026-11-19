@@ -94,6 +94,11 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("workspace.openIde", "Open IDE in a separate window")],
     keywords: ["separate window", "second window", "open ide", "pop out editor", "ide arrow", "vibe launcher", "editor first"],
   },
+  "workbench.projectWindows": {
+    added: "2026-11-19",
+    actions: [command("workspace.newWindow", "New window for another project"), command("workspace.openRecentNewWindow", "Open a recent folder in a new window")],
+    keywords: ["new window", "second window", "another project", "two projects", "multiple projects", "open in new window", "separate window", "side by side", "multi window", "multi-root", "other folder", "several projects"],
+  },
   "workbench.debugLog": {
     actions: [command("help.report", "Report a problem"), command("help.copyDebugLog", "Copy debug log"), command("help.saveDebugLog", "Save debug log")],
     keywords: ["bug report", "report a bug", "debug log", "logs", "diagnostics", "send logs", "support", "something is broken", "ai not working", "error details", "crash"],
@@ -784,7 +789,7 @@ const DESKTOP_ONLY: ReadonlySet<string> = new Set([
   "ai.inlineEdit", "adcode.ai.inlineCompletion", "adcode.ai.terminalAgentDetection", "ai.terminalTeam", "adcode.ai.autoContinue", "adcode.ai.mcpServer", "ai.agentRules", "ai.agentFiles",
   // The tool bridge listens on this computer's loopback; the web version has no computer to listen on.
   "ai.toolBridge",
-  "workbench.modes", "workbench.openIde", "workbench.aiContext", "workbench.terminal", "workbench.run", "workbench.collab",
+  "workbench.modes", "workbench.openIde", "workbench.projectWindows", "workbench.aiContext", "workbench.terminal", "workbench.run", "workbench.collab",
   "workbench.imagePreview", "workbench.webVersion", "gestures.multiSelect", "structure.popup", "structure.cssLinks",
 ]);
 
