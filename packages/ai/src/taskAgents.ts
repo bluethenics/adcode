@@ -42,6 +42,8 @@ export interface TaskAgent {
   readonly useCurrentModel: boolean;
   readonly toolAccess?: ToolAccess;
   readonly helperFor: readonly HelperDuty[];
+  /** When to use it, in its author's words (agent files); the roster shows this over the instructions. */
+  readonly description?: string;
 }
 
 const AGENT_ID = /^[a-z][a-z0-9-]{2,47}$/;
@@ -122,7 +124,7 @@ export function rosterContext(agents: readonly TaskAgent[], lead: { readonly pro
   const lines = agents.slice(0, 12).map((agent) => {
     const duties = agent.helperFor.length === 0 ? "" : ` Default helper for ${agent.helperFor.map((duty) => HELPER_DUTY_LABELS[duty]).join(" and ")} tasks.`;
     const access = agent.toolAccess === "read-only" ? " Read-only." : "";
-    return `- ${agent.id}: ${agent.name}, on ${agentModelLabel(agent)}.${duties}${access} ${agent.instructions.replace(/\s+/g, " ").slice(0, 160)}`;
+    return `- ${agent.id}: ${agent.name}, on ${agentModelLabel(agent)}.${duties}${access} ${(agent.description ?? agent.instructions).replace(/\s+/g, " ").slice(0, 160)}`;
   });
   const defaults = HELPER_DUTIES.map((duty) => {
     const agent = agents.find((item) => item.helperFor.includes(duty));

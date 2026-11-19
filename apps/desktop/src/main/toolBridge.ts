@@ -226,6 +226,13 @@ const STATE_FILE = "tool-bridge.json";
 const CLAUDE_FILE = "tool-bridge-claude.json";
 /** OpenCode's config with the bridge in it, named to OpenCode by `OPENCODE_CONFIG` for each run. */
 const OPENCODE_FILE = "tool-bridge-opencode.json";
+/**
+ * OpenCode gives up on an MCP call after 60 s unless the server says otherwise (opencode 1.19.5:
+ * "MCP error -32001: Request timed out" on a 75 s call; with `timeout` set, the same call
+ * finished). ADCode's tools can wait longer than that - a confirmation the person has not
+ * answered yet, a page audit - so it waits as long as the bridge itself lets a call run.
+ */
+const OPENCODE_CALL_TIMEOUT_MS = BRIDGE_CALL_CEILING_MS + 30_000;
 
 let deps: ToolBridgeDeps | null = null;
 let state: BridgeState | null = null;
@@ -273,7 +280,7 @@ async function writeClaudeConfig(port: number, token: string): Promise<void> {
     await writeAtomic(join(directory, CLAUDE_FILE), claudeMcpConfig(bridgeUrl(port), token));
     claudeFile = join(directory, CLAUDE_FILE);
     // OpenCode's own shape: a remote server with its headers. Merged with the person's config, not replacing it.
-    await writeAtomic(join(directory, OPENCODE_FILE), `${JSON.stringify({ $schema: "https://opencode.ai/config.json", mcp: { [BRIDGE_SERVER_NAME]: { type: "remote", url: bridgeUrl(port), headers: { Authorization: `Bearer ${token}` }, enabled: true } } }, null, 2)}\n`);
+    await writeAtomic(join(directory, OPENCODE_FILE), `${JSON.stringify({ $schema: "https://opencode.ai/config.json", mcp: { [BRIDGE_SERVER_NAME]: { type: "remote", url: bridgeUrl(port), headers: { Authorization: `Bearer ${token}` }, enabled: true, timeout: OPENCODE_CALL_TIMEOUT_MS } } }, null, 2)}\n`);
     openCodeFile = join(directory, OPENCODE_FILE);
   } catch {
     // Claude Code as the chat model then runs without ADCode's tools; the bridge itself is fine.

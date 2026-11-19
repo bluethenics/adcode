@@ -196,6 +196,11 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("ai.taskAgents", "Use a cheaper model for coding")],
     keywords: ["task agent", "task agents", "create agent", "new agent", "different model", "cheaper model", "cheap model", "deepseek for coding", "model per task", "lead model", "planner model", "orchestrator", "worker model", "model routing", "mixture of models", "save tokens", "fewer tokens", "less tokens", "cost saving", "coding model", "expensive model thinks"],
   },
+  "ai.agentFiles": {
+    added: "2026-11-19",
+    actions: [command("ai.agentFiles", "New agent file")],
+    keywords: ["agent file", "agents folder", ".adcode/agents", ".claude/agents", "claude code subagents", "subagent file", "custom agent", "agent markdown", "agent definition", "reviewer agent", "test writer", "shared agents", "team agents in repo", "agent front matter"],
+  },
   "ai.chatForks": {
     added: "2026-11-03",
     actions: [command("ai.forkConversation", "Fork this conversation")],
@@ -203,7 +208,7 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   },
   "ai.agentRules": {
     actions: [command("ai.agentRules", "Open the project rules"), command("ai.agentRulesUser", "Open my rules for every project")],
-    keywords: ["permissions", "permission rules", "allow", "deny", "ask first", "approval", "block a command", "git push", "hooks", "pre tool use", "post tool use", "stop hook", "session start", "settings.json", ".adcode/settings.json", "unattended", "guardrails", "safety", "claude code hooks", "lint after edit"],
+    keywords: ["permissions", "permission rules", "allow", "deny", "ask first", "approval", "always allow", "allow always", "remember permission", "user prompt submit", "prompt hook", "permissionDecision", "updatedInput", "hook json", "block a command", "git push", "hooks", "pre tool use", "post tool use", "stop hook", "session start", "settings.json", ".adcode/settings.json", "unattended", "guardrails", "safety", "claude code hooks", "lint after edit"],
   },
   "ai.tagflow": {
     actions: [command("ai.tagflow", "Choose included AI")],
@@ -776,7 +781,7 @@ const DESKTOP_ONLY: ReadonlySet<string> = new Set([
   "adcode.git.gutterDiff", "adcode.git.blame", "adcode.git.fileTimeline", "adcode.git.mergeConflict",
   "adcode.session.autoSave", "adcode.session.localFileHistory", "adcode.session.crashRecovery",
   "adcode.updates.auto", "adcode.appearance.zoom", "adcode.ads.chatSponsored", "adcode.ads.partnerNotifications",
-  "ai.inlineEdit", "adcode.ai.inlineCompletion", "adcode.ai.terminalAgentDetection", "ai.terminalTeam", "adcode.ai.autoContinue", "adcode.ai.mcpServer", "ai.agentRules",
+  "ai.inlineEdit", "adcode.ai.inlineCompletion", "adcode.ai.terminalAgentDetection", "ai.terminalTeam", "adcode.ai.autoContinue", "adcode.ai.mcpServer", "ai.agentRules", "ai.agentFiles",
   // The tool bridge listens on this computer's loopback; the web version has no computer to listen on.
   "ai.toolBridge",
   "workbench.modes", "workbench.openIde", "workbench.aiContext", "workbench.terminal", "workbench.run", "workbench.collab",

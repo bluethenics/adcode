@@ -135,7 +135,12 @@ export function cliArgs(id: CliAgentId, options: { readonly model: string; reado
       // Full access drops both the sandbox and the approval prompts for this turn.
       return ["exec", ...(session ? ["resume", session] : []), "--json", "--skip-git-repo-check", ...(bypass ? ["--dangerously-bypass-approvals-and-sandbox"] : session ? [] : ["--sandbox", "workspace-write"]), ...(model ? ["-m", model] : []), ...(effort ? ["-c", `model_reasoning_effort=${effort}`] : []), ...(codexBridge.length === 2 ? codexBridge.flatMap((value) => ["-c", value]) : []), "-"];
     case "opencode":
-      return ["run", "--format", "json", ...(model ? ["-m", model] : []), ...(effort ? ["--variant", effort] : []), ...(session ? ["--session", session] : [])];
+      // `--thinking` streams the model's reasoning: without it a thinking model (DeepSeek)
+      // sends nothing for a minute or more and the chat looks stuck. `run` turns down every
+      // permission question by itself and then ends the turn (checked with opencode 1.19.5:
+      // "permission requested: external_directory; auto-rejecting"), so Full access passes
+      // `--auto`, its own switch for approving what is not explicitly denied.
+      return ["run", "--format", "json", "--thinking", ...(bypass ? ["--auto"] : []), ...(model ? ["-m", model] : []), ...(effort ? ["--variant", effort] : []), ...(session ? ["--session", session] : [])];
     case "gemini":
       return ["--output-format", "stream-json", ...(model ? ["-m", model] : []), ...(session ? ["--resume", session] : [])];
     case "freebuff":
@@ -306,7 +311,11 @@ export type CliEvent =
   | { readonly kind: "thinking"; readonly text: string }
   | { readonly kind: "session"; readonly id: string }
   | { readonly kind: "usage"; readonly input: number; readonly output: number; readonly cached: number }
-  | { readonly kind: "error"; readonly message: string };
+  | { readonly kind: "error"; readonly message: string }
+  /** The CLI turned down one of its own tool calls for want of permission (it asked nobody). */
+  | { readonly kind: "denied"; readonly tool: string; readonly detail: string }
+  /** One model step ended; `reason` is the CLI's word for why ("stop", "tool-calls"). */
+  | { readonly kind: "step"; readonly reason: string };
 
 const record = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 const str = (value: unknown): string => (typeof value === "string" ? value : "");
@@ -389,13 +398,21 @@ function openCodeLine(event: Record<string, unknown>): CliEvent[] {
     case "reasoning": if (str(part["text"])) out.push({ kind: "thinking", text: `${str(part["text"])}\n` }); break;
     case "tool_use": {
       const state = record(part["state"]) ? part["state"] : {};
-      out.push(activity(str(part["tool"]) || "Tool", str(state["title"]) || toolDetail(state["input"])));
+      const tool = str(part["tool"]) || "Tool";
+      const detail = str(state["title"]) || toolDetail(state["input"]);
+      if (state["status"] === "error") {
+        // A failed call used to read like a finished one: the run then ended and nobody knew why.
+        const problem = str(state["error"]).replace(/\s+/g, " ").trim();
+        out.push(activity(`${tool} failed`, `${detail}${detail && problem ? " - " : ""}${problem.slice(0, 200)}`));
+        if (/rejected permission|permission (was )?denied|auto-reject/i.test(problem)) out.push({ kind: "denied", tool, detail });
+      } else out.push(activity(tool, detail));
       break;
     }
     case "step_finish": {
       const tokens = record(part["tokens"]) ? part["tokens"] : {};
       const cache = record(tokens["cache"]) ? tokens["cache"] : {};
       out.push({ kind: "usage", input: num(tokens["input"]) + num(cache["read"]), output: num(tokens["output"]) + num(tokens["reasoning"]), cached: num(cache["read"]) });
+      if (str(part["reason"])) out.push({ kind: "step", reason: str(part["reason"]) });
       break;
     }
     case "error": out.push({ kind: "error", message: errorText(event["error"]) || "the request failed" }); break;
@@ -479,6 +496,52 @@ export interface CliProviderOptions {
    * applies to the very next message.
    */
   readonly bypassPermissions?: () => boolean;
+  /**
+   * The ADCode chat this provider answers, read per turn. The CLI's own session is remembered
+   * per chat, so two chats that began with the same words ("hi", "continue") never resume each
+   * other's conversation. Without it, the conversation is recognised by its first message.
+   */
+  readonly conversation?: () => string | undefined;
+  /** How long the CLI may say nothing before the chat is told it is still working. */
+  readonly heartbeatMs?: number;
+}
+
+/** Quiet for this long and the chat says so: a thinking model or a slow tool, not a hang. */
+const HEARTBEAT_MS = 15_000;
+
+type Beat<T> = { readonly line: T } | { readonly quietMs: number };
+
+/** `source`, with a tick every `everyMs` of silence so the caller can say it is still going. */
+export async function* withHeartbeat<T>(source: AsyncIterable<T>, everyMs: number): AsyncIterable<Beat<T>> {
+  const iterator = source[Symbol.asyncIterator]();
+  let pending = iterator.next();
+  let quietSince = Date.now();
+  for (;;) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const tick = new Promise<"tick">((resolve) => { timer = setTimeout(() => resolve("tick"), everyMs); });
+    const next = await Promise.race([pending, tick]);
+    clearTimeout(timer);
+    if (next === "tick") { yield { quietMs: Date.now() - quietSince }; continue; }
+    if (next.done === true) return;
+    quietSince = Date.now();
+    pending = iterator.next();
+    yield { line: next.value };
+  }
+}
+
+/**
+ * What to tell the person when a run ended part way: the CLI's last step asked for tools and
+ * then it stopped, without a word. Null when it finished properly.
+ */
+export function unfinishedRunNote(name: string, lastStep: string | null, denied: readonly { readonly tool: string; readonly detail: string }[], bypass: boolean): string | null {
+  if (denied.length > 0) {
+    const what = denied.slice(-3).map((item) => (item.detail ? `${item.tool} (${item.detail.slice(0, 80)})` : item.tool)).join(", ");
+    return bypass
+      ? `${name} stopped: it was refused permission for ${what}. Its own settings deny that; change them in its config file, then say "continue".`
+      : `${name} stopped: in a chat it cannot ask you, so it turned down its own permission request for ${what} and ended the turn. Turn on Full access for this chat, or allow it in ${name}'s permission settings, then say "continue".`;
+  }
+  if (lastStep === "tool-calls") return `${name} ended its run straight after a tool call, without an answer. Say "continue" to pick up where it stopped.`;
+  return null;
 }
 
 /** The person's effort (low ... max) as the nearest level this model has, or nothing for Auto or a model with no levels. */
@@ -497,11 +560,13 @@ export function createCliProvider(options: CliProviderOptions): Provider {
     displayName: spec.name,
     models: options.models,
     async *stream(request: ProviderRequest, signal: AbortSignal): AsyncIterable<ProviderEvent> {
-      const key = conversationKey(spec.id, request.model, request);
+      const chat = options.conversation?.();
+      const key = chat !== undefined && chat !== "" ? `${spec.id}:${request.model}:chat:${chat}` : conversationKey(spec.id, request.model, request);
       const prior = sessions.get(key);
       const resume = prior !== undefined && request.messages.length > prior.messages;
+      const bypass = options.bypassPermissions?.() === true;
       const mcp = spec.id === "claude" || spec.id === "codex" || spec.id === "opencode" ? options.mcp?.() ?? null : null;
-      const process = options.spawn(spec.command, cliArgs(spec.id, { model: request.model, ...(resume ? { session: prior.id } : {}), mcp: spec.id === "claude" || spec.id === "codex" ? mcp : null, ...cliEffort(request, options.modelEfforts), bypassPermissions: options.bypassPermissions?.() === true }), { cwd: options.cwd(), env: cliEnv(spec.id, mcp), input: cliPrompt(request, resume) });
+      const process = options.spawn(spec.command, cliArgs(spec.id, { model: request.model, ...(resume ? { session: prior.id } : {}), mcp: spec.id === "claude" || spec.id === "codex" ? mcp : null, ...cliEffort(request, options.modelEfforts), bypassPermissions: bypass }), { cwd: options.cwd(), env: cliEnv(spec.id, mcp), input: cliPrompt(request, resume) });
       const stop = (): void => process.kill();
       signal.addEventListener("abort", stop, { once: true });
       const parse = createCliLineParser(spec.id);
@@ -509,30 +574,46 @@ export function createCliProvider(options: CliProviderOptions): Provider {
       let failure: string | null = null;
       let wrote = false;
       let lastText = "";
+      let lastStep: string | null = null;
+      /** Text since the last step that asked for tools: an answer, not narration before a call. */
+      let answeredSinceTools = false;
+      const denied: { tool: string; detail: string }[] = [];
       const usage = { input: 0, output: 0, cached: 0 };
+      // The CLI's own session is kept whenever it named one - also after a failure or a Stop -
+      // so "continue" resumes its conversation, tool results and all, instead of a transcript.
+      const remember = (): void => { if (session !== null) sessions.set(key, { id: session, messages: request.messages.length }); };
       try {
-        for await (const line of process.lines) {
+        for await (const beat of withHeartbeat(process.lines, options.heartbeatMs ?? HEARTBEAT_MS)) {
           if (signal.aborted) break;
-          for (const event of parse(line)) {
+          if ("quietMs" in beat) {
+            yield { kind: "status", text: `${spec.name} is still working - nothing new for ${Math.round(beat.quietMs / 1000)} s. It may be thinking, or waiting on a slow tool.` };
+            continue;
+          }
+          for (const event of parse(beat.line)) {
             if (event.kind === "session") session = event.id;
             else if (event.kind === "usage") { usage.input += event.input; usage.output += event.output; usage.cached += event.cached; }
             else if (event.kind === "error") failure ??= event.message;
+            else if (event.kind === "denied") denied.push({ tool: event.tool, detail: event.detail });
+            else if (event.kind === "step") { lastStep = event.reason; if (event.reason === "tool-calls") answeredSinceTools = false; }
             else if (event.kind === "text") {
               // Separate answers the CLI sent as separate messages, as it would show them.
               const text = wrote && !lastText.endsWith("\n") && !event.text.startsWith("\n") ? `\n\n${event.text}` : event.text;
-              wrote = true; lastText = event.text;
+              wrote = true; lastText = event.text; answeredSinceTools = true;
               yield { kind: "text", text };
             } else yield { kind: "thinking", text: event.text };
           }
         }
         const code = await process.exit;
+        remember();
         if (signal.aborted) { yield { kind: "stop", reason: "cancelled" }; return; }
         if (failure === null && code !== 0 && !wrote) failure = process.stderr().trim().split(/\r?\n/).slice(-3).join(" ") || `it exited with code ${String(code)}`;
         if (failure !== null) {
           const hint = SIGNED_OUT.test(failure) ? ` Sign in by running \`${spec.signIn}\` in a terminal, then send your message again.` : "";
           throw Object.assign(new Error(`${spec.name}: ${failure}${hint}`), { code: SIGNED_OUT.test(failure) ? "cli-signed-out" : "cli-failed", retryable: false });
         }
-        if (session !== null) sessions.set(key, { id: session, messages: request.messages.length });
+        // A run that ended right after asking for tools stopped part way: say so, and why.
+        const note = answeredSinceTools ? null : unfinishedRunNote(spec.name, lastStep, denied, bypass);
+        if (note !== null) yield { kind: "text", text: `${wrote && !lastText.endsWith("\n") ? "\n\n" : ""}${note}` };
         if (usage.input + usage.output > 0) yield { kind: "usage", inputTokens: usage.input, outputTokens: usage.output, cachedTokens: usage.cached };
         yield { kind: "stop", reason: "end-turn" };
       } finally {

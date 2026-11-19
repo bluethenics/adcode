@@ -3364,9 +3364,9 @@ const confirmDialog = createConfirmDialog(document.body);
 let mainConfirmId: string | null = null;
 window.adcode.dialogs.onConfirmRequest((id, request) => {
   mainConfirmId = id;
-  void confirmDialog.ask(request).then((answer) => {
+  void confirmDialog.choose(request).then((choice) => {
     if (mainConfirmId === id) mainConfirmId = null;
-    window.adcode.dialogs.answerConfirm(id, answer);
+    window.adcode.dialogs.answerConfirm(id, choice === "confirm" ? true : choice === "alternate" ? "alternate" : false);
   });
 });
 window.adcode.dialogs.onConfirmCancel((id) => {
@@ -6441,7 +6441,7 @@ function registerCommands(): void {
   add("ai.taskAgents", "AI: Use a Cheaper Model for Coding", () => { showChatSurface(); chat.draft("Make a task agent for all coding work on this model, and keep the current model to plan and check: "); });
   add("ai.initInstructions", "AI: Write Project Instructions (AGENTS.md)", () => { showChatSurface(); chat.ask("/init"); });
   // The agents' rules and hooks: opened in the editor, created with a commented starter if missing.
-  const openAgentSettings = async (scope: "project" | "user"): Promise<void> => {
+  const openAgentSettings = async (scope: "project" | "user" | "agentFile"): Promise<void> => {
     const opened = await window.adcode.ai.openAgentSettings(scope).catch((error: unknown) => ({ ok: false as const, message: error instanceof Error ? error.message : "Could not open the rules file." }));
     if (!opened.ok) {
       setStatus(opened.message, 5000);
@@ -6451,6 +6451,7 @@ function registerCommands(): void {
   };
   add("ai.agentRules", "AI: Open Agent Rules and Hooks (.adcode/settings.json)", () => void openAgentSettings("project"));
   add("ai.agentRulesUser", "AI: Open My Agent Rules for Every Project (~/.adcode/settings.json)", () => void openAgentSettings("user"));
+  add("ai.agentFiles", "AI: New Agent File (.adcode/agents)", () => void openAgentSettings("agentFile"));
   add("ai.customizeChat", "AI: Customise Chat", () => void openChatAppearanceDialog({ openAgents: () => openAgents() }));
   add("ai.viewConversationSummary", "AI: View Conversation Summary", () => chat.viewConversationSummary());
   add("ai.askSelection", "Ask AI about Selection or File", () => editorHost.runAction("adcode.askSelection"));

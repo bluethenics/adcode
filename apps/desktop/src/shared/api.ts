@@ -1581,7 +1581,12 @@ export interface ThemedConfirmRequest {
   readonly confirmLabel?: string;
   readonly cancelLabel?: string;
   readonly danger?: boolean;
+  /** A third button, answered as "alternate" - "Always allow in this project". */
+  readonly alternateLabel?: string;
 }
+
+/** How a themed question was answered: its confirm button, its third button, or anything else. */
+export type ThemedConfirmAnswer = boolean | "alternate";
 
 /** One automatic-mode turn's edits, undoable from the chat. Paths are workspace-relative. */
 /** A conversation that is working, in the background or on screen. */
@@ -2301,7 +2306,7 @@ export interface AdcodeApi {
     /** Ask for a connector file or folder with the OS picker. Null when the picker was closed. */
     pickConnectorFile(): Promise<string | null>;
     /** The agents' rules file - the project's .adcode/settings.json or your own - created with a commented starter if missing. */
-    openAgentSettings(scope: "project" | "user"): Promise<{ readonly ok: true; readonly path: string } | { readonly ok: false; readonly message: string }>;
+    openAgentSettings(scope: "project" | "user" | "agentFile"): Promise<{ readonly ok: true; readonly path: string } | { readonly ok: false; readonly message: string }>;
     onControlsChanged(listener: () => void): () => void;
     status(): Promise<AiStatus>;
     onStatusChanged(listener: () => void): () => void;
@@ -2682,7 +2687,7 @@ export interface AdcodeApi {
   readonly dialogs: {
     onConfirmRequest(listener: (id: string, request: ThemedConfirmRequest) => void): () => void;
     onConfirmCancel(listener: (id: string) => void): () => void;
-    answerConfirm(id: string, answer: boolean): void;
+    answerConfirm(id: string, answer: ThemedConfirmAnswer): void;
   };
   readonly debugLog: {
     /** Add a renderer-side event. Rate limited in main. */

@@ -27,6 +27,7 @@ import {
   describeCreateAgent,
   planCreateAgent,
   readTaskAgents,
+  withFileAgents,
   rosterContext,
   routeHelper,
   withTaskAgent,
@@ -149,7 +150,8 @@ import { currentSettings, writeSetting } from "./settings.ts";
 import { confirmInWindow } from "./themedConfirm.ts";
 import { fullAccessApplies, isFullAccessOn, runAgentTurn } from "./fullAccess.ts";
 import { describeDebugContext, recordDebug } from "./debugLog.ts";
-import { agentRulesContext, agentSessionStart, agentStopHooks, withAgentRules } from "./agentRules.ts";
+import { fileAgentsFor, refreshFileAgents } from "./agentFilesLoader.ts";
+import { agentPromptHooks, agentRulesContext, agentSessionStart, agentStopHooks, withAgentRules } from "./agentRules.ts";
 import { currentWorkspace } from "./workspace.ts";
 import { projectInstructions } from "./projectInstructions.ts";
 import { aiWorkspaceContext } from "./aiWorkspaceContext.ts";
@@ -190,7 +192,7 @@ import { toAiTeamActivityView, toAiTeamTraceView, toAiTeamView } from "./aiTeamV
 import { createAiAutomationService, type AiAutomationService } from "./aiAutomationService.ts";
 import { toAiAutomationView } from "./aiAutomationViews.ts";
 import { askOllama, localModels, startOllama } from "./localModels.ts";
-import { cliModels, cliModelsNow, detectCliAgents, forgetCliModels, spawnCli } from "./cliAgents.ts";
+import { cliModels, cliModelsNow, cliModelsQuick, detectCliAgents, detectCliAgentsQuick, forgetCliModels, spawnCli } from "./cliAgents.ts";
 import { claudeToolBridge } from "./toolBridge.ts";
 import { AUDIT_PAGE, CLI_AGENTS, DEFERRED_TOOL_NAMES, OPEN_PREVIEW, VIEW_PAGE, cliAgentFor, cliProviderId, createCliProvider } from "@adcode/ai";
 import { apiBaseUrl } from "./backend.ts";
@@ -1130,16 +1132,22 @@ export async function buildProvider(
   roleId?: string,
   /** The chat whose replies this provider writes: an included request is noted on that chat. */
   onIncludedRequest?: (requestId: string) => void,
+  /**
+   * The chat this provider answers, for a CLI agent: its own session is kept per chat, and it
+   * works in that chat's project - not whichever project happens to be open when a turn starts.
+   */
+  chat?: { readonly id: () => string; readonly root: () => string | null },
 ): Promise<Provider | null> {
   if (id === "tagflow") return buildTagflowProvider(source, source === "chat" ? onIncludedRequest : undefined, roleId);
   const cli = cliAgentFor(id);
   if (cli !== undefined) {
     // A CLI on this computer: its own account and tools answer, in the open project.
-    if (!cli.headless || !(await detectCliAgents(homedir())).some((view) => view.id === cli.id && view.installed)) return null;
+    // The last answers, at once: a turn never waits on a background refresh of either.
+    if (!cli.headless || !(await detectCliAgentsQuick(homedir())).some((view) => view.id === cli.id && view.installed)) return null;
     let sessions = cliSessions.get(cli.id);
     if (sessions === undefined) cliSessions.set(cli.id, sessions = new Map());
-    const listedModels = await cliModels(cli, homedir());
-    return createCliProvider({ spec: cli, models: listedModels.map((model) => model.id), modelEfforts: Object.fromEntries(listedModels.filter((model) => model.efforts !== undefined).map((model) => [model.id, model.efforts!])), spawn: spawnCli, cwd: () => currentWorkspace()?.root ?? homedir(), sessions, mcp: claudeToolBridge, bypassPermissions: () => fullAccessActive() });
+    const listedModels = await cliModelsQuick(cli, homedir());
+    return createCliProvider({ spec: cli, models: listedModels.map((model) => model.id), modelEfforts: Object.fromEntries(listedModels.filter((model) => model.efforts !== undefined).map((model) => [model.id, model.efforts!])), spawn: spawnCli, cwd: () => chat?.root() ?? currentWorkspace()?.root ?? homedir(), sessions, mcp: claudeToolBridge, bypassPermissions: () => fullAccessActive(), ...(chat === undefined ? {} : { conversation: chat.id }) });
   }
   const key = offeredKey ?? (KEYLESS.has(id) ? "" : ((await keys.get(id)) ?? ""));
   const paced = (provider: Provider) => requestScheduler.wrap(provider, id, () => connections().find(item => item.id === id)?.rpm ?? 6000);
@@ -1717,15 +1725,21 @@ async function projectFilesHint(root: string): Promise<string | null> {
 
 /** The named agents saved on the Agents board, read fresh so an edit applies to the next helper. */
 const AGENT_PROFILES_SETTING = "adcode.ai.agentProfiles";
-const taskAgents = () => readTaskAgents(currentSettings()[AGENT_PROFILES_SETTING]);
+const savedTaskAgents = () => readTaskAgents(currentSettings()[AGENT_PROFILES_SETTING]);
+/**
+ * The saved agents, then the project's and the person's agent files (.adcode/agents,
+ * .claude/agents) as read when the turn began - `refreshFileAgents` in runTurn.
+ */
+const taskAgents = (root: string | null = currentWorkspace()?.root ?? null) => withFileAgents(savedTaskAgents(), fileAgentsFor(root));
 /** The agent flow running in this chat, if any (the Flow page; setting `adcode.ai.agentFlows`). */
 const flowFor = (chatId: string): AgentFlow | null => activeFlowFor(readFlows(currentSettings()["adcode.ai.agentFlows"]), chatId);
 /** A chat's agents: its flow's agents first (they take its work), then the saved ones. */
 const chatTaskAgents = (chatId: string) => {
   const flow = flowFor(chatId);
-  if (flow === null) return taskAgents();
+  const root = threads.get(chatId)?.root ?? currentWorkspace()?.root ?? null;
+  if (flow === null) return taskAgents(root);
   const own = flowTaskAgents(flow);
-  return [...own, ...taskAgents().filter((agent) => !own.some((one) => one.id === agent.id))];
+  return [...own, ...taskAgents(root).filter((agent) => !own.some((one) => one.id === agent.id))];
 };
 
 /**
@@ -1753,7 +1767,7 @@ function withCreateAgent(base: ToolRunner): ToolRunner {
   return {
     async run(call, signal) {
       if (call.name !== CREATE_AGENT_NAME) return base.run(call, signal);
-      const plan = planCreateAgent(call.input, await taskAgentCandidates(), taskAgents());
+      const plan = planCreateAgent(call.input, await taskAgentCandidates(), savedTaskAgents());
       if (!plan.ok) return { content: plan.message, isError: true };
       const ask = describeCreateAgent(plan);
       const window = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows().find((item) => !item.isDestroyed()) ?? null;
@@ -1833,7 +1847,7 @@ async function ensureChatAgent(thread: ChatThread, providerId: string, model: st
   const provider = await buildProvider(providerId, undefined, "chat", undefined, (requestId) => {
     thread.includedRequestId = requestId;
     broadcast(CHANNELS.aiEvent, { kind: "included-request", requestId, sessionId: thread.session.id });
-  });
+  }, { id: () => thread.session.id, root: () => thread.root });
 
   if (provider === null) {
     const name = providerIn(catalogue, providerId)?.name ?? providerId;
@@ -1907,7 +1921,7 @@ async function ensureChatAgent(thread: ChatThread, providerId: string, model: st
     // With a flow, the flow's own briefing replaces the roster: it names the same agents and
     // says which of them takes this message over.
     const lastAsk = [...thread.session.messages].reverse().find((message) => message.role === "user")?.text ?? "";
-    const roster = lean || isFork ? null : flow !== null ? flowContext(flow, lastAsk) : rosterContext(taskAgents(), { provider: providerId, model });
+    const roster = lean || isFork ? null : flow !== null ? flowContext(flow, lastAsk) : rosterContext(taskAgents(thread.root), { provider: providerId, model });
     const base = await context();
     return roster === null ? base : `${base}\n${roster}`;
   };
@@ -2072,7 +2086,7 @@ export async function aiSend(
   sessionId?: string,
 ): Promise<boolean> {
   const targetId = sessionId ?? session?.id;
-  const target = targetId === undefined ? null : threads.get(targetId)?.session ?? (session?.id === targetId ? session : null);
+  const target = targetId === undefined ? null : threads.get(targetId)?.session ?? (session?.id === targetId ? session : null) ?? (sessionId === undefined ? null : (await aiSessions()).find((one) => one.id === sessionId) ?? null);
   if (target?.team !== undefined) return sendTeamMessage(target, text, attachments, editor);
   // Everything this message causes - model calls, tools, helper agents, confirmations -
   // runs inside one agent turn. That scope is the only place full access can answer a
@@ -2103,7 +2117,7 @@ async function syncTeamSession(chat: ChatSession): Promise<{ readonly session: C
     // A teammate's words are not in the agent's own history yet: rebuild it from the chat.
     if (merged.fromOthers > 0) thread.rebuild = true;
   } else if (session?.id === next.id) session = next;
-  await writeSession(currentWorkspace()?.root ?? null, next);
+  await writeSession(threads.get(next.id)?.root ?? currentWorkspace()?.root ?? null, next);
   return { session: next, added: merged.added };
 }
 
@@ -2138,7 +2152,7 @@ export async function aiTeamSetAi(idRaw: unknown, on: unknown): Promise<boolean>
   const next: ChatSession = { ...chat, team: { ...chat.team, aiReplies: on } };
   const thread = threads.get(chat.id);
   if (thread !== undefined) adoptSession(thread, next); else if (session?.id === next.id) session = next;
-  await writeSession(currentWorkspace()?.root ?? null, next);
+  await writeSession(thread?.root ?? currentWorkspace()?.root ?? null, next);
   return true;
 }
 
@@ -2192,7 +2206,8 @@ async function sendMessage(
 ): Promise<boolean> {
   let chat: ChatSession;
   if (sessionId !== undefined) {
-    const named = threads.get(sessionId)?.session ?? (await aiSessions()).find((one) => one.id === sessionId) ?? null;
+    // The chat on screen may not be saved yet (a new chat's first turn): it is `session` then.
+    const named = threads.get(sessionId)?.session ?? (session?.id === sessionId ? session : null) ?? (await aiSessions()).find((one) => one.id === sessionId) ?? null;
     if (named === null) throw new Error("That conversation is no longer here.");
     chat = named;
   } else {
@@ -2319,6 +2334,8 @@ async function runTurn(
         return null;
       });
     }
+    // Agent files can change between turns; each turn reads them once, before anything lists them.
+    await refreshFileAgents(thread.root).catch(() => undefined);
     const ready = await ensureChatAgent(thread, providerId, model);
     if (typeof ready === "string") {
       send({ kind: "error", detail: ready });
@@ -2335,6 +2352,19 @@ async function runTurn(
     // `/fix the login bug` is recorded as typed - the bubble and the title read that way -
     // and only the model is given the command's full instruction.
     let turnText = `${expandSlashCommand(text)}${documentText}`;
+    // userPromptSubmit hooks see the message before the model does: they may stop it, or add
+    // context (a ticket, the branch's rules). Continuations the agent sends itself skip them.
+    if (text !== CONTINUE_PROMPT) {
+      const prompted = await agentPromptHooks(thread.root, { sessionId, prompt: text }, thread.hookAbort?.signal ?? new AbortController().signal).catch((error: unknown) => {
+        recordDebug("warn", "ai:hooks", `userPromptSubmit hooks failed: ${error instanceof Error ? error.message : String(error)}`);
+        return { blocked: null, context: null };
+      });
+      if (prompted.blocked !== null) {
+        send({ kind: "error", detail: `A userPromptSubmit hook in .adcode/settings.json stopped this message: ${prompted.blocked}` });
+        return { kind: "done", ok: false, ended: "failed" };
+      }
+      if (prompted.context !== null) turnText = `${turnText}\n\nContext from this project's userPromptSubmit hooks:\n${prompted.context}`;
+    }
     // A fork's first request explains the family it belongs to. The task itself is the
     // message, so this is context rather than another bubble in the transcript.
     if (!thread.forkBriefed && thread.session.parentId !== undefined) {

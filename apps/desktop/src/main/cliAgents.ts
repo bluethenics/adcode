@@ -185,6 +185,30 @@ export async function cliModels(spec: CliAgentSpec, home: string): Promise<CliMo
 }
 
 /**
+ * Which CLIs are installed, for starting a turn: the last answer at once, refreshed in the
+ * background when it is older than a minute. Every chat turn used to wait for five `--version`
+ * runs (up to 8 s each on a cold disk) once a minute had passed since the last look.
+ */
+export function detectCliAgentsQuick(home: string): Promise<CliAgentView[]> {
+  if (detected === null) return detectCliAgents(home);
+  const last = detected.views;
+  if (Date.now() - detected.at > DETECT_TTL_MS) void detectCliAgents(home, true).catch(() => undefined);
+  return last;
+}
+
+/**
+ * The CLI's models for starting a turn: any list it gave before, even an old one, with a fresh
+ * ask in the background; only the very first turn waits for the CLI to answer. A turn after ten
+ * quiet minutes used to wait up to 30 s for `opencode models` before the CLI even started.
+ */
+export async function cliModelsQuick(spec: CliAgentSpec, home: string): Promise<CliModelInfo[]> {
+  const cached = listed.get(spec.id);
+  if (cached === undefined) return cliModels(spec, home);
+  if (Date.now() - cached.at >= MODELS_TTL_MS) void cliModels(spec, home).catch(() => undefined);
+  return mergeCliModels(spec, cached.models);
+}
+
+/**
  * The CLI's models without waiting: the last list it gave (or its built-in aliases), at once.
  * When that list is missing or stale, the CLI is asked in the background, and `onChange` runs
  * once the answer differs from what was returned. The model picker reads this, so an installed

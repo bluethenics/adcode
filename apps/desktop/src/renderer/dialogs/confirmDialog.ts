@@ -19,10 +19,16 @@ export interface ConfirmRequest {
   readonly cancelLabel?: string;
   /** Renders the confirm button in the danger colour. */
   readonly danger?: boolean;
+  /** A third button between the two, answered as "alternate" by `choose`. */
+  readonly alternateLabel?: string;
 }
+
+export type ConfirmChoice = "confirm" | "alternate" | "cancel";
 
 export interface ConfirmDialog {
   ask(request: ConfirmRequest): Promise<boolean>;
+  /** The same question, with the third button when the request names one. */
+  choose(request: ConfirmRequest): Promise<ConfirmChoice>;
   /** Close an open question as a no - its asker withdrew it. */
   cancel(): void;
   isOpen(): boolean;
@@ -65,33 +71,38 @@ export function createConfirmDialog(host: HTMLElement): ConfirmDialog {
   confirm.className = "result-close";
   confirm.type = "button";
 
-  buttons.append(cancel, confirm);
+  const alternate = document.createElement("button");
+  alternate.className = "confirm-cancel confirm-alternate";
+  alternate.type = "button";
+  alternate.hidden = true;
+
+  buttons.append(cancel, alternate, confirm);
   card.append(title, body, buttons);
   dialog.append(card);
   host.append(dialog);
 
-  let settle: ((answer: boolean) => void) | null = null;
+  let settle: ((answer: ConfirmChoice) => void) | null = null;
 
-  function finish(answer: boolean): void {
+  function finish(answer: ConfirmChoice): void {
     const pending = settle;
     settle = null;
     if (dialog.open) dialog.close();
     pending?.(answer);
   }
 
-  confirm.addEventListener("click", () => finish(true));
-  cancel.addEventListener("click", () => finish(false));
+  confirm.addEventListener("click", () => finish("confirm"));
+  cancel.addEventListener("click", () => finish("cancel"));
+  alternate.addEventListener("click", () => finish("alternate"));
 
   // Escape closes the dialog natively; `close` is where every route out converges, so a
   // dismissal that never reached a button still resolves the promise rather than leaking it.
   // A queued close from the previous request must not dismiss its replacement.
-  dialog.addEventListener("close", () => { if (!dialog.open) finish(false); });
-  bindBackdropDismissal(dialog, card, () => { finish(false); });
+  dialog.addEventListener("close", () => { if (!dialog.open) finish("cancel"); });
+  bindBackdropDismissal(dialog, card, () => { finish("cancel"); });
 
-  return {
-    ask(request) {
+  function choose(request: ConfirmRequest): Promise<ConfirmChoice> {
       // An unanswered previous question resolves as a no rather than being abandoned.
-      finish(false);
+      finish("cancel");
 
       title.textContent = request.title;
       body.textContent = request.body ?? "";
@@ -100,17 +111,28 @@ export function createConfirmDialog(host: HTMLElement): ConfirmDialog {
       confirm.textContent = request.confirmLabel ?? "OK";
       cancel.textContent = request.cancelLabel ?? "Cancel";
       dialog.dataset["danger"] = String(request.danger === true);
+      alternate.textContent = request.alternateLabel ?? "";
+      alternate.hidden = request.alternateLabel === undefined;
 
       dialog.showModal();
       cancel.focus();
 
-      return new Promise<boolean>((resolve) => {
+      return new Promise<ConfirmChoice>((resolve) => {
         settle = resolve;
       });
+  }
+
+  return {
+    ask(request) {
+      // A yes/no: any third button a caller named is left out.
+      const { alternateLabel: _alternate, ...plain } = request;
+      return choose(plain).then((answer) => answer === "confirm");
     },
 
+    choose,
+
     cancel(): void {
-      finish(false);
+      finish("cancel");
     },
 
     isOpen: () => dialog.open,

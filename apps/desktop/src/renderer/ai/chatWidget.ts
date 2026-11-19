@@ -3524,13 +3524,13 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     };
     choice("Remove limit", "Never pause tasks for tokens again", () => {
       void window.adcode.settings.write("adcode.ai.taskTokenBudget", "unlimited").then(
-        () => void window.adcode.ai.send("Continue where you left off."),
+        () => void window.adcode.ai.send("Continue where you left off.", undefined, null, activeSessionId ?? undefined),
         () => undefined,
       );
     });
     choice("Raise to 250k", "Keep a cap, but a larger one", () => {
       void window.adcode.settings.write("adcode.ai.taskTokenBudget", "250000").then(
-        () => void window.adcode.ai.send("Continue where you left off."),
+        () => void window.adcode.ai.send("Continue where you left off.", undefined, null, activeSessionId ?? undefined),
         () => undefined,
       );
     });
@@ -3542,7 +3542,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           const cleaned = raw.trim().replace(/[,_\s]/g, "");
           if (cleaned.length === 0) {
             void window.adcode.settings.write("adcode.ai.taskTokenBudgetCustom", "").then(
-              () => void window.adcode.ai.send("Continue where you left off."),
+              () => void window.adcode.ai.send("Continue where you left off.", undefined, null, activeSessionId ?? undefined),
               () => undefined,
             );
             return;
@@ -3552,7 +3552,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
             return;
           }
           void window.adcode.settings.write("adcode.ai.taskTokenBudgetCustom", cleaned).then(
-            () => void window.adcode.ai.send("Continue where you left off."),
+            () => void window.adcode.ai.send("Continue where you left off.", undefined, null, activeSessionId ?? undefined),
             () => undefined,
           );
         },
@@ -5517,7 +5517,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         text,
         {
           showUser: (message, attachments) => bubble("user", message, attachments),
-          aiSend: (message, attachments) => window.adcode.ai.send(message, attachments, editor),
+          // The chat this composer shows, by id: left out, the main process used whichever chat it
+          // last had on screen, and a message sent while another chat was still opening (or from
+          // a second window) landed in the wrong conversation.
+          aiSend: (message, attachments) => window.adcode.ai.send(message, attachments, editor, activeSessionId ?? undefined),
           onFailure: () => {
             // A send that returned false failed, whichever of this and the error event
             // arrives first - the block must never read "Worked for" after a failure.

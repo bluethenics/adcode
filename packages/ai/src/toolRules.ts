@@ -6,7 +6,7 @@
  * project can say, in `.adcode/settings.json` (and a person in `~/.adcode/settings.json`):
  *
  *   { "permissions": { "allow": [...], "ask": [...], "deny": [...] },
- *     "hooks": { "preToolUse": [...], "postToolUse": [...], "sessionStart": [...], "stop": [...] } }
+ *     "hooks": { "preToolUse": [...], "postToolUse": [...], "sessionStart": [...], "userPromptSubmit": [...], "stop": [...] } }
  *
  * A rule is a tool name, optionally with a pattern: `run_command(npm test*)`,
  * `edit_file(src/**)`, `delete_file(*)`, `call_mcp(github/*)`. Every call is checked before
@@ -16,6 +16,8 @@
  *
  * A hook is a shell command. It gets the call as JSON on stdin (the field names Claude Code
  * uses, so its hook scripts carry over); exit code 2 blocks, with its stderr as the reason.
+ * A hook may instead print Claude Code's JSON answer (`parseHookOutput`): a preToolUse hook
+ * can allow a call without the question, deny it, insist on asking, or rewrite its input.
  *
  * Plain TypeScript: no Electron, no file system, no processes. The host reads the files,
  * asks the person and runs the commands; everything that decides is here, under test.
@@ -25,16 +27,17 @@ import type { ToolCallBlock, ToolRunner, ToolRunResult } from "./types.ts";
 export type RuleDecision = "allow" | "ask" | "deny";
 /** Whose file a rule came from. A project's file cannot loosen what the person's own file asks. */
 export type RuleSource = "user" | "project";
-export type HookEvent = "preToolUse" | "postToolUse" | "sessionStart" | "stop";
+export type HookEvent = "preToolUse" | "postToolUse" | "sessionStart" | "userPromptSubmit" | "stop";
 
 export const PROJECT_AGENT_SETTINGS = ".adcode/settings.json";
 export const USER_AGENT_SETTINGS = "~/.adcode/settings.json";
-export const HOOK_EVENTS: readonly HookEvent[] = ["preToolUse", "postToolUse", "sessionStart", "stop"];
+export const HOOK_EVENTS: readonly HookEvent[] = ["preToolUse", "postToolUse", "sessionStart", "userPromptSubmit", "stop"];
 /** Claude Code spells the events in PascalCase; both spellings are read. */
 const HOOK_EVENT_NAMES: Readonly<Record<HookEvent, string>> = {
   preToolUse: "PreToolUse",
   postToolUse: "PostToolUse",
   sessionStart: "SessionStart",
+  userPromptSubmit: "UserPromptSubmit",
   stop: "Stop",
 };
 export const DEFAULT_HOOK_TIMEOUT_SECONDS = 60;
@@ -417,12 +420,12 @@ export function parseAgentSettings(source: string, from: RuleSource): AgentSetti
   }
   const hooks: AgentHook[] = [];
   const hookTable = parsed["hooks"];
-  if (hookTable !== undefined && !isRecord(hookTable)) problems.push(`"hooks" should be an object keyed by preToolUse, postToolUse, sessionStart or stop.`);
+  if (hookTable !== undefined && !isRecord(hookTable)) problems.push(`"hooks" should be an object keyed by preToolUse, postToolUse, sessionStart, userPromptSubmit or stop.`);
   if (isRecord(hookTable)) {
     for (const [key, raw] of Object.entries(hookTable)) {
       const event = HOOK_EVENTS.find((name) => name === key || HOOK_EVENT_NAMES[name] === key);
       if (event === undefined) {
-        problems.push(`hooks.${key} is not a hook event; use preToolUse, postToolUse, sessionStart or stop.`);
+        problems.push(`hooks.${key} is not a hook event; use preToolUse, postToolUse, sessionStart, userPromptSubmit or stop.`);
         continue;
       }
       hooks.push(...parseHookEntries(event, raw, from, problems));
@@ -485,18 +488,57 @@ export function hookInput(event: HookEvent, fields: Readonly<Record<string, unkn
 const clip = (value: string, max = MAX_HOOK_TEXT): string => (value.length > max ? `${value.slice(0, max)}\n[cut at ${max} characters]` : value);
 const reasonOf = (run: HookRun): string => clip(run.stderr.trim() || run.stdout.trim() || "it gave no reason");
 
+/**
+ * What a hook said in Claude Code's JSON form, when its stdout is one JSON object. Plain text
+ * (or nothing) is not an answer: exit codes decide then, as before.
+ *
+ * - `hookSpecificOutput.permissionDecision`: "allow" | "deny" | "ask" (preToolUse), with
+ *   `permissionDecisionReason`, and `updatedInput` to replace the call's input;
+ * - `decision`: "block" (or the older "approve") with `reason` - any event;
+ * - `hookSpecificOutput.additionalContext`: words for the agent's context.
+ */
+export interface HookAnswer {
+  readonly permission: "allow" | "deny" | "ask" | null;
+  readonly block: boolean;
+  readonly reason: string | null;
+  readonly updatedInput: Record<string, unknown> | null;
+  readonly context: string | null;
+}
+
+export function parseHookOutput(stdout: string): HookAnswer | null {
+  const trimmed = stdout.trim();
+  if (!trimmed.startsWith("{")) return null;
+  let parsed: unknown;
+  try { parsed = JSON.parse(trimmed); } catch { return null; }
+  if (!isRecord(parsed)) return null;
+  const specific = isRecord(parsed["hookSpecificOutput"]) ? parsed["hookSpecificOutput"] : {};
+  const permissionRaw = specific["permissionDecision"];
+  const legacy = parsed["decision"];
+  const permission = permissionRaw === "allow" || permissionRaw === "deny" || permissionRaw === "ask"
+    ? permissionRaw
+    : legacy === "approve" ? "allow" : null;
+  const words = (value: unknown): string | null => (typeof value === "string" && value.trim().length > 0 ? clip(value.trim()) : null);
+  return {
+    permission,
+    block: legacy === "block" || permission === "deny",
+    reason: words(specific["permissionDecisionReason"]) ?? words(parsed["reason"]) ?? words(parsed["stopReason"]),
+    updatedInput: isRecord(specific["updatedInput"]) ? specific["updatedInput"] : null,
+    context: words(specific["additionalContext"]),
+  };
+}
+
 export interface EventHooksOutcome {
-  /** A stop hook's reason for not finishing yet: exit code 2. */
+  /** A stop or userPromptSubmit hook's reason for not going ahead: exit code 2, or `decision: "block"`. */
   readonly blocked: string | null;
-  /** What sessionStart hooks printed, for the agent's context. */
+  /** What sessionStart and userPromptSubmit hooks printed, for the agent's context. */
   readonly output: string;
   /** Hooks that failed in some other way, for the debug log. Never fatal. */
   readonly failures: readonly string[];
 }
 
-/** Run every hook of an event that is not about one tool call: sessionStart, stop. */
+/** Run every hook of an event that is not about one tool call: sessionStart, userPromptSubmit, stop. */
 export async function runEventHooks(
-  event: "sessionStart" | "stop",
+  event: "sessionStart" | "userPromptSubmit" | "stop",
   hooks: readonly AgentHook[],
   input: Readonly<Record<string, unknown>>,
   runHook: (hook: AgentHook, input: unknown, signal: AbortSignal) => Promise<HookRun>,
@@ -507,9 +549,16 @@ export async function runEventHooks(
   for (const hook of hooks.filter((candidate) => candidate.event === event)) {
     if (signal.aborted) break;
     const run = await runHook(hook, hookInput(event, input), signal);
+    const canBlock = event === "stop" || event === "userPromptSubmit";
     if (run.exitCode === 0) {
-      if (run.stdout.trim().length > 0) output.push(run.stdout.trim());
-    } else if (run.exitCode === 2 && event === "stop") {
+      const answer = parseHookOutput(run.stdout);
+      if (answer === null) {
+        if (run.stdout.trim().length > 0) output.push(run.stdout.trim());
+        continue;
+      }
+      if (answer.block && canBlock) return { blocked: answer.reason ?? "a hook said no", output: clip(output.join("\n")), failures };
+      if (answer.context !== null) output.push(answer.context);
+    } else if (run.exitCode === 2 && canBlock) {
       return { blocked: reasonOf(run), output: clip(output.join("\n")), failures };
     } else {
       failures.push(`${event} hook "${hook.command}" ${run.timedOut ? "timed out" : `exited ${run.exitCode ?? "without a code"}`}: ${reasonOf(run)}`);
@@ -530,6 +579,8 @@ export interface PolicyQuestion {
   readonly title: string;
   readonly body: string;
   readonly call: ToolCallBlock;
+  /** An allow rule that would let calls like this one through, for "Always allow". */
+  readonly suggestedRule: string | null;
 }
 
 export interface ToolPolicyDeps {
@@ -566,8 +617,51 @@ export function questionFor(call: ToolCallBlock, verdict: RuleVerdict, root: str
   const because = verdict.rule !== null
     ? `Asked because ${settingsFileName(verdict.rule.source)} says ask: ${verdict.rule.text}`
     : `Asked because ${unreadable ?? "a settings file could not be read"}, so its rules are not in force.`;
-  return { title: QUESTION_TITLES[call.name] ?? `Let the AI use ${call.name}?`, body: `${shown}\n\n${because}`, call };
+  return { title: QUESTION_TITLES[call.name] ?? `Let the AI use ${call.name}?`, body: `${shown}\n\n${because}`, call, suggestedRule: suggestAllowRule(call, root) };
 }
+
+/**
+ * The narrowest allow rule a person would mean by "always allow this": a command by its first
+ * two words (`run_command(npm test*)`), a file by its path, a page by its domain, an external
+ * tool by server and name. Null for a call no safe rule describes - a command line that chains
+ * several commands, where allowing the first would read as allowing the rest.
+ */
+export function suggestAllowRule(call: ToolCallBlock, root: string | null): string | null {
+  const targets = callTargets(call, root);
+  if (targets === null) return /^[A-Za-z0-9_]+$/.test(call.name) ? call.name : null;
+  const value = targets.values[0] ?? "";
+  if (value === "" || /[()]/.test(value)) return null;
+  switch (targets.kind) {
+    case "command": {
+      if (targets.values.length > 1) return null;
+      const words = value.split(" ").filter(Boolean).slice(0, 2);
+      return words.length === 0 ? null : `${call.name}(${words.join(" ")}*)`;
+    }
+    case "url":
+      try { return `${call.name}(domain:${new URL(value).hostname})`; } catch { return null; }
+    default:
+      return targets.values.length > 1 ? null : `${call.name}(${value})`;
+  }
+}
+
+/**
+ * A settings file's text with one more allow rule, comments and layout kept: the rule goes at
+ * the front of the existing `"allow": [...]` list. Null when the file has no such list, or more
+ * than one: the caller then writes the file afresh from its parsed form.
+ */
+export function addAllowRule(source: string, rule: string): string | null {
+  const quoted = JSON.stringify(rule);
+  if (source.trim().length === 0) return `{\n  "permissions": {\n    "allow": [${quoted}]\n  }\n}\n`;
+  if (source.includes(quoted)) return source;
+  const lists = [...stripJsonComments(source).matchAll(/"allow"\s*:\s*\[/g)];
+  const written = [...source.matchAll(/"allow"\s*:\s*\[/g)];
+  // The one list the parser reads, and no commented-out copy that could be mistaken for it.
+  if (lists.length !== 1 || written.length !== 1) return null;
+  const at = written[0]!.index! + written[0]![0].length;
+  const empty = /^\s*\]/.test(source.slice(at));
+  return `${source.slice(0, at)}${quoted}${empty ? "" : ", "}${source.slice(at)}`;
+}
+
 
 const refuse = (content: string): ToolRunResult => ({ content, isError: true });
 
@@ -578,25 +672,63 @@ const refuse = (content: string): ToolRunResult => ({ content, isError: true });
  * call any of them makes is checked exactly once.
  */
 export function withToolPolicy(inner: ToolRunner, deps: ToolPolicyDeps): ToolRunner {
+  const denied = (rule: ToolRule, target: string | null): ToolRunResult => {
+    const what = target === null || target === "" ? "" : ` (${target})`;
+    return refuse(
+      `Not allowed: the rule deny "${rule.text}" in ${settingsFileName(rule.source)} blocks this call${what}. ` +
+        "Do not retry it or work around it with another tool; carry on without it, or tell the user this step needs them.",
+    );
+  };
   return {
-    async run(call, signal) {
+    async run(original, signal) {
       const { root, settings } = await deps.policy(signal);
-      let verdict = decideToolCall([...SELF_PROTECTION_RULES, ...settings.rules], call, root);
-      // A file that cannot be read has rules nobody can see: whatever changes things asks.
-      if (verdict.decision === "allow" && verdict.rule === null && settings.unreadable !== null && CHANGING_TOOLS.has(call.name)) {
-        verdict = { decision: "ask", rule: null, target: null };
+      const verdictFor = (target: ToolCallBlock): RuleVerdict => {
+        const verdict = decideToolCall([...SELF_PROTECTION_RULES, ...settings.rules], target, root);
+        // A file that cannot be read has rules nobody can see: whatever changes things asks.
+        return verdict.decision === "allow" && verdict.rule === null && settings.unreadable !== null && CHANGING_TOOLS.has(target.name)
+          ? { decision: "ask", rule: null, target: null }
+          : verdict;
+      };
+      let call = original;
+      let verdict = verdictFor(call);
+      if (verdict.decision === "deny" && verdict.rule !== null) return denied(verdict.rule, verdict.target);
+
+      // preToolUse hooks run before anyone is asked, as in Claude Code: a hook can answer the
+      // question itself (allow), refuse the call, insist on asking, or rewrite the input.
+      const extra = deps.hookFields?.() ?? {};
+      let hookAllows = false;
+      let hookAsks: string | null = null;
+      for (const hook of settings.hooks.filter((candidate) => candidate.event === "preToolUse" && hookApplies(candidate, call, root))) {
+        const run = await deps.runHook(hook, hookInput("preToolUse", { ...extra, cwd: root, tool_name: call.name, tool_input: call.input }), signal);
+        const where = `a preToolUse hook in ${settingsFileName(hook.source)} ("${hook.command}")`;
+        if (run.exitCode === 2) return refuse(`Blocked by ${where}: ${reasonOf(run)}`);
+        if (run.exitCode !== 0) {
+          deps.onNote?.(`preToolUse hook "${hook.command}" ${run.timedOut ? "timed out" : `exited ${run.exitCode ?? "without a code"}`}; the call went ahead: ${reasonOf(run)}`);
+          continue;
+        }
+        const answer = parseHookOutput(run.stdout);
+        if (answer === null) continue;
+        if (answer.block) return refuse(`Blocked by ${where}: ${answer.reason ?? "it gave no reason"}`);
+        if (answer.updatedInput !== null) call = { ...call, input: answer.updatedInput };
+        if (answer.permission === "allow") hookAllows = true;
+        if (answer.permission === "ask") hookAsks = answer.reason ?? `${where} asks first`;
       }
-      if (verdict.decision === "deny" && verdict.rule !== null) {
-        const what = verdict.target === null || verdict.target === "" ? "" : ` (${verdict.target})`;
-        return refuse(
-          `Not allowed: the rule deny "${verdict.rule.text}" in ${settingsFileName(verdict.rule.source)} blocks this call${what}. ` +
-            "Do not retry it or work around it with another tool; carry on without it, or tell the user this step needs them.",
-        );
+      // Rewritten input is checked again: a hook cannot steer a call into a denied target.
+      if (call !== original) {
+        verdict = verdictFor(call);
+        if (verdict.decision === "deny" && verdict.rule !== null) return denied(verdict.rule, verdict.target);
       }
-      if (verdict.decision === "ask" && !(deps.asksItself?.(call.name) ?? false)) {
-        const allowed = await deps.ask(questionFor(call, verdict, root, settings.unreadable), signal);
+
+      // A hook's allow answers an ask rule; it never loosens a deny (checked above). A hook that
+      // insists on asking asks even where a rule allows, and even for a tool with its own dialog.
+      const ruleAsks = verdict.decision === "ask" && !hookAllows && !(deps.asksItself?.(call.name) ?? false);
+      if (ruleAsks || hookAsks !== null) {
+        const question = questionFor(call, verdict, root, settings.unreadable);
+        const shown = question.body.split("\n\n")[0] ?? "";
+        const asked = hookAsks === null ? question : { ...question, body: `${shown}\n\nAsked because ${hookAsks}` };
+        const allowed = await deps.ask(asked, signal);
         if (!allowed) {
-          const rule = verdict.rule === null ? "a settings file it could not read" : `the rule ask "${verdict.rule.text}" in ${settingsFileName(verdict.rule.source)}`;
+          const rule = hookAsks !== null ? "a preToolUse hook" : verdict.rule === null ? "a settings file it could not read" : `the rule ask "${verdict.rule.text}" in ${settingsFileName(verdict.rule.source)}`;
           return refuse(
             `The user did not allow this call (${rule} asks first, and the answer was no or nobody was there to answer). ` +
               "Do not retry it; carry on without it, or ask the user how they want to proceed.",
@@ -604,24 +736,23 @@ export function withToolPolicy(inner: ToolRunner, deps: ToolPolicyDeps): ToolRun
         }
       }
 
-      const extra = deps.hookFields?.() ?? {};
-      const base = { ...extra, cwd: root, tool_name: call.name, tool_input: call.input };
-      for (const hook of settings.hooks.filter((candidate) => candidate.event === "preToolUse" && hookApplies(candidate, call, root))) {
-        const run = await deps.runHook(hook, hookInput("preToolUse", base), signal);
-        if (run.exitCode === 2) return refuse(`Blocked by a preToolUse hook in ${settingsFileName(hook.source)} ("${hook.command}"): ${reasonOf(run)}`);
-        if (run.exitCode !== 0) deps.onNote?.(`preToolUse hook "${hook.command}" ${run.timedOut ? "timed out" : `exited ${run.exitCode ?? "without a code"}`}; the call went ahead: ${reasonOf(run)}`);
-      }
-
       const result = await inner.run(call, signal);
 
       const post = settings.hooks.filter((candidate) => candidate.event === "postToolUse" && hookApplies(candidate, call, root));
       if (post.length === 0) return result;
+      const base = { ...extra, cwd: root, tool_name: call.name, tool_input: call.input };
       const notes: string[] = [];
       for (const hook of post) {
         if (signal.aborted) break;
         const run = await deps.runHook(hook, hookInput("postToolUse", { ...base, tool_response: { content: clip(result.content, MAX_HOOK_RESPONSE), is_error: result.isError } }), signal);
-        if (run.exitCode === 2) notes.push(`A postToolUse hook in ${settingsFileName(hook.source)} ("${hook.command}") reported a problem with this result: ${reasonOf(run)}`);
+        const where = `A postToolUse hook in ${settingsFileName(hook.source)} ("${hook.command}")`;
+        if (run.exitCode === 2) notes.push(`${where} reported a problem with this result: ${reasonOf(run)}`);
         else if (run.exitCode !== 0) deps.onNote?.(`postToolUse hook "${hook.command}" ${run.timedOut ? "timed out" : `exited ${run.exitCode ?? "without a code"}`}: ${reasonOf(run)}`);
+        else {
+          const answer = parseHookOutput(run.stdout);
+          if (answer?.block === true) notes.push(`${where} reported a problem with this result: ${answer.reason ?? "it gave no reason"}`);
+          if (answer !== null && answer.context !== null) notes.push(`${where} adds: ${answer.context}`);
+        }
       }
       return notes.length === 0 ? result : { ...result, content: `${result.content}\n\n${notes.join("\n")}` };
     },

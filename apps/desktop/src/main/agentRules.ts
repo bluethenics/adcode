@@ -19,6 +19,8 @@ import { dirname, join, resolve } from "node:path";
 import { app, BrowserWindow } from "electron";
 import {
   EMPTY_AGENT_SETTINGS,
+  addAllowRule,
+  stripJsonComments,
   describeRules,
   hooksFingerprint,
   mergeAgentSettings,
@@ -30,12 +32,13 @@ import {
   type AgentPolicy,
   type AgentSettings,
   type HookRun,
+  type PolicyQuestion,
   type RuleSource,
   type ToolRunner,
 } from "@adcode/ai";
 import { killTree, shellFor } from "./aiCommands.ts";
 import { recordDebug } from "./debugLog.ts";
-import { confirmInWindow } from "./themedConfirm.ts";
+import { chooseInWindow, confirmInWindow } from "./themedConfirm.ts";
 import { currentSettings } from "./settings.ts";
 import { fullAccessApplies } from "./fullAccess.ts";
 
@@ -234,17 +237,51 @@ export interface AgentRulesOptions {
  * new one arrives, and helpers working side by side can reach ask rules together.
  */
 let questions: Promise<unknown> = Promise.resolve();
-function askInTurn(title: string, body: string, signal: AbortSignal): Promise<boolean> {
-  const answer = questions.then(() => (signal.aborted ? false : confirmInWindow(BrowserWindow.getFocusedWindow(), { title, body, confirmLabel: "Allow once", cancelLabel: "Don't allow" }, signal)));
+function askInTurn(question: PolicyQuestion, root: string | null, signal: AbortSignal): Promise<boolean> {
+  const rule = root === null ? null : question.suggestedRule;
+  const answer = questions.then(async () => {
+    if (signal.aborted) return false;
+    const choice = await chooseInWindow(BrowserWindow.getFocusedWindow(), {
+      title: question.title,
+      body: rule === null ? question.body : `${question.body}\n\nAlways allow adds "${rule}" to this project's .adcode/settings.json.`,
+      confirmLabel: "Allow once",
+      cancelLabel: "Don't allow",
+      ...(rule === null ? {} : { alternateLabel: "Always allow" }),
+    }, signal);
+    if (choice === "alternate" && rule !== null && root !== null) {
+      await rememberAllowRule(root, rule).catch((error: unknown) => recordDebug("warn", "ai:rules", `Could not save the allow rule: ${error instanceof Error ? error.message : String(error)}`));
+    }
+    return choice !== "cancel";
+  });
   questions = answer.catch(() => undefined);
   return answer;
+}
+
+/**
+ * "Always allow": the rule joins the project's `permissions.allow` list, with the file's
+ * comments kept. A file whose list cannot be found is rewritten from its parsed form.
+ */
+export async function rememberAllowRule(root: string, rule: string): Promise<void> {
+  const path = projectSettingsPath(root);
+  const before = await readFile(path, "utf8").catch(() => "");
+  let next = addAllowRule(before, rule);
+  if (next === null) {
+    const parsed: unknown = JSON.parse(stripJsonComments(before));
+    const object = typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+    const permissions = typeof object["permissions"] === "object" && object["permissions"] !== null ? object["permissions"] as Record<string, unknown> : {};
+    const allow = Array.isArray(permissions["allow"]) ? permissions["allow"] : [];
+    next = `${JSON.stringify({ ...object, permissions: { ...permissions, allow: [rule, ...allow] } }, null, 2)}\n`;
+  }
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, next, "utf8");
+  recordDebug("info", "ai:rules", `Always allowed in this project: ${rule}`);
 }
 
 /** Check every call an agent makes against the rules and hooks. Wrap each agent's runner once. */
 export function withAgentRules(runner: ToolRunner, options: AgentRulesOptions): ToolRunner {
   return withToolPolicy(runner, {
     policy: (signal) => agentPolicy(options.root(), signal),
-    ask: (question, signal) => askInTurn(question.title, question.body, signal),
+    ask: (question, signal) => askInTurn(question, options.root(), signal),
     runHook: (hook, input, signal) => runAgentHook(hook, input, options.root(), signal),
     hookFields: () => ({ session_id: options.sessionId?.() ?? null, agent: options.agent }),
     // External MCP calls ask in their own dialog when the person wants that; an ask rule does
@@ -261,6 +298,18 @@ export async function agentSessionStart(root: string | null, sessionId: string, 
   const outcome = await runEventHooks("sessionStart", settings.hooks, { session_id: sessionId, cwd: root, source: "startup" }, (hook, input, hookSignal) => runAgentHook(hook, input, root, hookSignal), signal);
   for (const failure of outcome.failures) recordDebug("warn", "ai:hooks", failure);
   return outcome.output.length === 0 ? null : `Output of this project's sessionStart hooks:\n${outcome.output}`;
+}
+
+/**
+ * userPromptSubmit hooks, before a message reaches the model: a reason to stop it (exit code 2,
+ * or `decision: "block"`), and what they printed for the model's context.
+ */
+export async function agentPromptHooks(root: string | null, input: { readonly sessionId: string; readonly prompt: string }, signal: AbortSignal): Promise<{ readonly blocked: string | null; readonly context: string | null }> {
+  const { settings } = await agentPolicy(root, signal);
+  if (!settings.hooks.some((hook) => hook.event === "userPromptSubmit")) return { blocked: null, context: null };
+  const outcome = await runEventHooks("userPromptSubmit", settings.hooks, { session_id: input.sessionId, cwd: root, prompt: input.prompt }, (hook, hookInput, hookSignal) => runAgentHook(hook, hookInput, root, hookSignal), signal);
+  for (const failure of outcome.failures) recordDebug("warn", "ai:hooks", failure);
+  return { blocked: outcome.blocked, context: outcome.output.length === 0 ? null : outcome.output };
 }
 
 /** A stop hook's reason the agent is not done yet (exit code 2), or null to let it finish. */
@@ -301,7 +350,9 @@ const STARTER = `{
 
   // Shell commands run at points in the agent's work. Each gets the call as JSON on stdin;
   // exit code 2 blocks the call (or, for stop, sends the agent back to work) with what the
-  // command printed to stderr as the reason.
+  // command printed to stderr as the reason. A hook may print Claude Code's JSON instead, e.g.
+  // {"hookSpecificOutput":{"permissionDecision":"allow"}} to skip the question for a call.
+  // userPromptSubmit runs before each message: exit 2 stops it, and what it prints is context.
   //
   // Example: "preToolUse": [{ "matcher": "run_command", "command": "node .adcode/check.mjs" }],
   //          "stop": [{ "command": "npm test --silent" }]
@@ -309,13 +360,57 @@ const STARTER = `{
     "preToolUse": [],
     "postToolUse": [],
     "sessionStart": [],
+    "userPromptSubmit": [],
     "stop": []
   }
 }
 `;
 
-/** The settings file, created with a commented starter when it does not exist yet. */
+const AGENT_FILE_STARTER = `---
+name: test-writer
+description: Writes and runs unit tests for code that just changed. Use after a feature or a fix.
+# Which tools it may use - ADCode's names or Claude Code's (Read, Grep, Glob, Edit, Write, Bash).
+# Leave the line out for every tool.
+tools: Read, Grep, Glob, Edit, Bash
+# build: it takes coding helper work by default. explore: research. Leave out for neither.
+# helper-for: build
+---
+
+You write focused unit tests for the code the lead agent names.
+
+1. Read the changed files and the tests next to them, and follow their style.
+2. Add tests for the new behaviour and its edge cases. Do not change the code under test.
+3. Run the tests. Report what you added, and anything that fails, with the error.
+`;
+
+/** A new agent file in the project's .adcode/agents, from a starter; the first free name. */
+async function newAgentFile(root: string): Promise<string> {
+  const folder = join(root, ".adcode", "agents");
+  await mkdir(folder, { recursive: true });
+  for (let index = 1; index < 100; index++) {
+    const name = index === 1 ? "test-writer.md" : `agent-${index}.md`;
+    const path = join(folder, name);
+    const text = index === 1 ? AGENT_FILE_STARTER : AGENT_FILE_STARTER.replace("name: test-writer", `name: agent-${index}`);
+    try {
+      await writeFile(path, text, { encoding: "utf8", flag: "wx" });
+      return path;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException | null)?.code !== "EEXIST") throw error;
+    }
+  }
+  throw new Error("There are already 99 agent files in .adcode/agents.");
+}
+
+/** The settings file, created with a commented starter when it does not exist yet - or a new agent file. */
 export async function openAgentSettings(scope: unknown, root: string | null): Promise<{ readonly ok: true; readonly path: string } | { readonly ok: false; readonly message: string }> {
+  if (scope === "agentFile") {
+    if (root === null) return { ok: false, message: "Open a project folder first: its agents live in .adcode/agents inside it." };
+    try {
+      return { ok: true, path: await newAgentFile(root) };
+    } catch (error) {
+      return { ok: false, message: `Could not create an agent file: ${error instanceof Error ? error.message : "unknown error"}` };
+    }
+  }
   if (scope !== "project" && scope !== "user") return { ok: false, message: "Choose the project's rules or your own." };
   if (scope === "project" && root === null) return { ok: false, message: "Open a project folder first: its rules live in .adcode/settings.json inside it." };
   const path = scope === "project" ? projectSettingsPath(root!) : userSettingsPath();

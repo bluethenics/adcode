@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cliAgentFor, cliArgs, cliPrompt, createCliLineParser, createCliProvider, isSafeCliToken, parseModelList, CLI_AGENTS, type CliProcess, type CliSpawn } from "../src/cliAgents.ts";
+import { cliAgentFor, cliArgs, unfinishedRunNote, withHeartbeat, cliPrompt, createCliLineParser, createCliProvider, isSafeCliToken, parseModelList, CLI_AGENTS, type CliProcess, type CliSpawn } from "../src/cliAgents.ts";
 import type { ProviderEvent, ProviderRequest } from "../src/types.ts";
 
 // Captured from the real CLIs (Claude Code 2.1.284, Codex 0.157.1, OpenCode 1.19.3), trimmed.
@@ -64,7 +64,7 @@ describe("CLI agents", () => {
     expect(OPENCODE.flatMap(parse)).toEqual([
       { kind: "session", id: "ses_e4f213668ffegjeZH9BuHdbh8K" },
       { kind: "session", id: "ses_e4f213668ffegjeZH9BuHdbh8K" }, { kind: "text", text: "ok" },
-      { kind: "session", id: "ses_e4f213668ffegjeZH9BuHdbh8K" }, { kind: "usage", input: 7449, output: 23, cached: 0 },
+      { kind: "session", id: "ses_e4f213668ffegjeZH9BuHdbh8K" }, { kind: "usage", input: 7449, output: 23, cached: 0 }, { kind: "step", reason: "stop" },
     ]);
   });
 
@@ -128,7 +128,7 @@ describe("CLI agents", () => {
 
   it("never puts anything a shell could read into an argument", () => {
     expect(cliArgs("claude", { model: "opus; rm -rf /", session: "$(whoami)" })).toEqual(["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits"]);
-    expect(cliArgs("opencode", { model: "opencode/big-pickle", session: "ses_1" })).toEqual(["run", "--format", "json", "-m", "opencode/big-pickle", "--session", "ses_1"]);
+    expect(cliArgs("opencode", { model: "opencode/big-pickle", session: "ses_1" })).toEqual(["run", "--format", "json", "--thinking", "-m", "opencode/big-pickle", "--session", "ses_1"]);
     expect(isSafeCliToken("nvidia/google/gemma-4-31b-it")).toBe(true);
     expect(isSafeCliToken("a&b")).toBe(false);
     expect(isSafeCliToken("\"x\"")).toBe(false);
@@ -186,5 +186,66 @@ describe("CLI agents", () => {
     expect(cliAgentFor("cli-codex")?.name).toBe("Codex CLI");
     expect(cliAgentFor("codex")).toBeUndefined();
     expect(CLI_AGENTS.find((agent) => agent.id === "freebuff")?.headless).toBe(false);
+  });
+  it("says why an OpenCode run stopped part way when it turned down its own permission request", async () => {
+    // Captured from opencode 1.19.5: a read outside the project, auto-rejected in `run`, and the run ends.
+    const lines = [
+      `{"type":"step_start","sessionID":"ses_x","part":{"type":"step-start"}}`,
+      `{"type":"tool_use","sessionID":"ses_x","part":{"type":"tool","tool":"read","state":{"status":"error","input":{"filePath":"C:\\\\Windows\\\\win.ini"},"error":"The user rejected permission to use this specific tool call."}}}`,
+      `{"type":"step_finish","sessionID":"ses_x","part":{"reason":"tool-calls","type":"step-finish","tokens":{"input":75,"output":44,"reasoning":0,"cache":{"read":7808}}}}`,
+    ];
+    const opencode = CLI_AGENTS.find((agent) => agent.id === "opencode")!;
+    const events = await collect(createCliProvider({ spec: opencode, models: ["default"], spawn: fakeSpawn(lines).spawn, cwd: () => "." }).stream(request(["read win.ini"]), new AbortController().signal));
+    expect(events).toContainEqual({ kind: "thinking", text: "› read failed: C:\\Windows\\win.ini - The user rejected permission to use this specific tool call.\n" });
+    const text = events.filter((event) => event.kind === "text").map((event) => event.kind === "text" && event.text).join("");
+    expect(text).toContain("turned down its own permission request for read");
+    expect(text).toContain("Full access");
+    expect(events.at(-1)).toEqual({ kind: "stop", reason: "end-turn" });
+  });
+
+  it("adds no note to a run that answered after its last tool call", async () => {
+    const opencode = CLI_AGENTS.find((agent) => agent.id === "opencode")!;
+    const events = await collect(createCliProvider({ spec: opencode, models: ["default"], spawn: fakeSpawn(OPENCODE).spawn, cwd: () => "." }).stream(request(["hi"]), new AbortController().signal));
+    expect(events.filter((event) => event.kind === "text")).toEqual([{ kind: "text", text: "ok" }]);
+    expect(unfinishedRunNote("OpenCode", "stop", [], false)).toBeNull();
+    expect(unfinishedRunNote("OpenCode", "tool-calls", [], false)).toContain("continue");
+  });
+
+  it("passes OpenCode's own approval switch only under Full access, and streams its thinking", () => {
+    expect(cliArgs("opencode", { model: "default" })).toEqual(["run", "--format", "json", "--thinking"]);
+    expect(cliArgs("opencode", { model: "default", bypassPermissions: true })).toEqual(["run", "--format", "json", "--thinking", "--auto"]);
+  });
+
+  it("keeps each chat's CLI session apart, even when two chats began with the same words", async () => {
+    const opencode = CLI_AGENTS.find((agent) => agent.id === "opencode")!;
+    const fake = fakeSpawn(OPENCODE);
+    let chat = "chat-a";
+    const provider = createCliProvider({ spec: opencode, models: ["default"], spawn: fake.spawn, cwd: () => ".", conversation: () => chat });
+    await collect(provider.stream(request(["hi"]), new AbortController().signal));
+    chat = "chat-b";
+    await collect(provider.stream(request(["hi", "ok", "more"]), new AbortController().signal));
+    expect(fake.calls[1]?.args).not.toContain("--session");
+    chat = "chat-a";
+    await collect(provider.stream(request(["hi", "ok", "more"]), new AbortController().signal));
+    expect(fake.calls[2]?.args).toContain("--session");
+  });
+
+  it("keeps the CLI's session after a failed turn, so continue resumes it", async () => {
+    const opencode = CLI_AGENTS.find((agent) => agent.id === "opencode")!;
+    const failing = [`{"type":"step_start","sessionID":"ses_f","part":{}}`, `{"type":"error","sessionID":"ses_f","error":{"name":"APIError","data":{"message":"rate limited"}}}`];
+    const sessions = new Map<string, { id: string; messages: number }>();
+    const first = fakeSpawn(failing, 1);
+    await expect(collect(createCliProvider({ spec: opencode, models: ["default"], spawn: first.spawn, cwd: () => ".", sessions, conversation: () => "c" }).stream(request(["build it"]), new AbortController().signal))).rejects.toThrow("rate limited");
+    const second = fakeSpawn(OPENCODE);
+    await collect(createCliProvider({ spec: opencode, models: ["default"], spawn: second.spawn, cwd: () => ".", sessions, conversation: () => "c" }).stream(request(["build it", "", "continue"]), new AbortController().signal));
+    expect(second.calls[0]?.args.slice(-2)).toEqual(["--session", "ses_f"]);
+  });
+
+  it("ticks while a CLI says nothing, and stops ticking when it speaks", async () => {
+    async function* slow() { await new Promise((resolve) => setTimeout(resolve, 60)); yield "line"; }
+    const beats: unknown[] = [];
+    for await (const beat of withHeartbeat(slow(), 20)) beats.push("line" in beat ? beat.line : "tick");
+    expect(beats.filter((beat) => beat === "tick").length).toBeGreaterThanOrEqual(1);
+    expect(beats.at(-1)).toBe("line");
   });
 });

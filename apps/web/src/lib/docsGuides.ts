@@ -187,6 +187,8 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "The model list is live: new models appear the day the CLI offers them, without waiting for an ADCode update.",
       "The model picker opens at once even with several CLIs installed: it shows each CLI's last known models straight away and swaps in the live list a few seconds later.",
       "Claude Code, Codex and OpenCode get ADCode's own tools on every message - the live preview, page viewer, page audit, skills, connectors and the Browser - so they can check what they built.",
+      "No silent stalls: a quiet CLI shows that it is still working, OpenCode streams its thinking, and a run that stops part way says why - a permission it turned down, with the switch that lets it through - instead of just ending.",
+      "Each chat keeps its own CLI session, in its own project, and continue after a failure resumes the CLI's session with everything it had done.",
     ],
     betterThan: "Running a CLI in a terminal gives you its model but none of your editor: no open file, no selection, no preview to check its work, and a model list you have to remember by name. Other editors that wrap a CLI usually hard-code a few model names. ADCode asks the CLI itself for its models - the same list its own picker shows - and gives the CLI ADCode's preview, page checks and connectors, so the agent you already pay for can see and test the app it is building.",
   },
@@ -1695,13 +1697,16 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Add hooks for your own checks: \"postToolUse\": [{ \"matcher\": \"edit_file\", \"command\": \"npx eslint --quiet .\" }] tells the AI about lint errors right after an edit, and \"stop\": [{ \"command\": \"npm test --silent\" }] sends it back to work while the tests fail. A hook blocks by exiting with code 2 and printing the reason to stderr.",
       "The first time a chat starts in a project with hooks, ADCode lists the commands and asks Run them or Don't run. You are asked again only when they change.",
       "For rules you want in every project - never push, never touch .env - run AI: Open My Agent Rules for Every Project to edit ~/.adcode/settings.json.",
+      "Tired of answering the same question? Press Always allow in the dialog. ADCode adds the narrowest rule that covers that call - run_command(npm test*), a file's path, a site's domain - to the project's allow list, keeping your comments, and shows the rule before you press it.",
+      "Let a script decide instead of a dialog: a preToolUse hook that prints {\"hookSpecificOutput\":{\"permissionDecision\":\"allow\"}} lets a call through without asking, \"deny\" blocks it, \"ask\" asks even where no rule does, and updatedInput rewrites the call. A userPromptSubmit hook runs before each message: exit 2 stops it, and whatever it prints is added to the AI's context.",
     ],
     benefits: [
       "Leave the AI working unattended without leaving it free to push, publish or delete: a denied step fails with the rule's name, and an ask nobody answers is refused.",
       "Nothing changes until you write a rule. The default stays fast - edits apply with Undo - and only the steps you name slow down.",
       "Chained commands are checked part by part, so npm test && git push does not slip past a deny on git push.",
       "One file, committed with the project, binds the chat, every helper and every Team agent alike.",
-      "Hooks receive the same JSON fields Claude Code's do, so scripts you already wrote for it work here, and exit code 2 means the same thing.",
+      "Hooks receive the same JSON fields Claude Code's do, and answer the same way - exit code 2, or permissionDecision, updatedInput and additionalContext in JSON - so scripts you already wrote for it work here.",
+      "Always allow turns a repeated question into a rule you can read, review and commit, instead of a hidden per-session switch.",
       "A cloned repository cannot run anything on your machine through its hooks until you approve them, and cannot loosen what your own file asks.",
     ],
     betterThan:
@@ -1745,6 +1750,26 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     ],
     betterThan:
       "Most editors run one model for everything in a conversation. You either pay frontier prices for every line of boilerplate, or you switch to a cheap model and lose its judgement on the hard parts. Tools that route between models usually pick for you, behind the scenes. Here you choose the routing in plain words, can see it in the timeline, and pay for it per model. The honest limit: a cheap model's code is only as good as the brief it gets and the check that follows. Task agents work because the strong model writes the brief and does the check, not because the cheap model gets smarter. For a small, delicate change it can still be cheaper to let the lead do it alone, and the chat does exactly that.",
+  },
+
+  "ai-agent-files": {
+    steps: [
+      "Open your project and run AI: New Agent File (.adcode/agents) from the command palette or the feature library. ADCode creates .adcode/agents/test-writer.md from a commented starter and opens it.",
+      "Edit the front matter between the --- lines: name (it becomes the agent's id), description (say when the chat should use it - this is what the chat reads), and tools (Read, Grep, Glob, Edit, Write, Bash, or ADCode's own tool names; leave the line out for every tool).",
+      "Optionally add helper-for: build to make it the default helper for coding tasks, or helper-for: explore for research.",
+      "Write the agent's instructions below the second --- line: what it owns, how it works, what it reports back. Save.",
+      "Ask for work as usual - \"add the checkout page and have the test writer cover it\". The chat sees the agent in its list of task agents and hands it the task; its row in the timeline shows the report.",
+      "Already use Claude Code? Its .claude/agents folder is read too, in the project and in your home folder, so your existing subagents work without copying anything.",
+    ],
+    benefits: [
+      "The prompts that make a good reviewer or test writer live in the repository, reviewed in pull requests and shared by everyone who clones it.",
+      "Claude Code subagent files work unchanged, so one folder serves both tools.",
+      "A helper only gets the tools its file lists: a reviewer with Read, Grep and Glob can never edit a file.",
+      "Safe by default: a project's agent runs on your chat's own model, so a cloned repository cannot send your work - or your bill - to a model you did not choose. Your agent rules and hooks apply to every helper.",
+      "Edits apply to the next message: files are read at the start of every turn.",
+    ],
+    betterThan:
+      "Claude Code introduced subagent files, but they only run in its terminal. ADCode reads the same files in the editor and runs them as task agents, with each helper's progress, model and token count in the chat's timeline and one Undo for everything they changed. Agents saved on ADCode's Agents board are still the right place for a personal helper on a different model; agent files are for helpers a whole team shares.",
   },
 
   "ai-chat-forks": {

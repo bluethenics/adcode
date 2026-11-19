@@ -12,6 +12,9 @@ import {
   runEventHooks,
   stripJsonComments,
   withToolPolicy,
+  addAllowRule,
+  parseHookOutput,
+  suggestAllowRule,
   workspacePath,
   type AgentHook,
   type AgentSettings,
@@ -349,5 +352,91 @@ describe("session and stop hooks", () => {
     }), signal);
     expect(outcome.blocked).toBe("2 tests failed");
     expect((await runEventHooks("stop", settings.hooks, {}, runHook({}), signal)).blocked).toBeNull();
+  });
+});
+
+describe("hook answers, prompt hooks and always-allow rules (2.6.3)", () => {
+  const signal = new AbortController().signal;
+  const ok = (stdout: string): HookRun => ({ exitCode: 0, stdout, stderr: "", timedOut: false });
+  const withHooks = (json: string): AgentSettings => parseAgentSettings(json, "project");
+
+  it("reads Claude Code's JSON hook answers, and treats plain text as no answer", () => {
+    expect(parseHookOutput("all good")).toBeNull();
+    expect(parseHookOutput('{"hookSpecificOutput":{"permissionDecision":"allow","permissionDecisionReason":"tests are safe"}}')).toMatchObject({ permission: "allow", block: false, reason: "tests are safe" });
+    expect(parseHookOutput('{"decision":"block","reason":"no pushes on Friday"}')).toMatchObject({ block: true, reason: "no pushes on Friday" });
+    expect(parseHookOutput('{"hookSpecificOutput":{"permissionDecision":"deny"}}')).toMatchObject({ permission: "deny", block: true });
+    expect(parseHookOutput('{"hookSpecificOutput":{"updatedInput":{"command":"npm test -- --run"}}}')?.updatedInput).toEqual({ command: "npm test -- --run" });
+  });
+
+  it("lets a preToolUse hook answer an ask rule, so nobody is asked", async () => {
+    const settings = withHooks('{"permissions":{"ask":["run_command"]},"hooks":{"preToolUse":[{"matcher":"run_command(npm test*)","command":"approve-tests"}]}}');
+    const { runner, ran, asked } = harness(settings, { hooks: { "approve-tests": ok('{"hookSpecificOutput":{"permissionDecision":"allow"}}') } });
+    await runner.run(run("npm test"), signal);
+    expect(asked).toHaveLength(0);
+    expect(ran).toEqual(["run_command"]);
+  });
+
+  it("never lets a hook's allow loosen a deny rule", async () => {
+    const settings = withHooks('{"permissions":{"deny":["run_command(git push*)"]},"hooks":{"preToolUse":[{"command":"yes"}]}}');
+    const { runner, ran } = harness(settings, { hooks: { yes: ok('{"hookSpecificOutput":{"permissionDecision":"allow"}}') } });
+    const result = await runner.run(run("git push"), signal);
+    expect(result.isError).toBe(true);
+    expect(ran).toEqual([]);
+  });
+
+  it("asks when a hook insists, even where no rule asks", async () => {
+    const settings = withHooks('{"hooks":{"preToolUse":[{"command":"careful"}]}}');
+    const { runner, asked, ran } = harness(settings, { answer: true, hooks: { careful: ok('{"hookSpecificOutput":{"permissionDecision":"ask","permissionDecisionReason":"it touches the database"}}') } });
+    await runner.run(run("npm run migrate"), signal);
+    expect(asked[0]?.body).toContain("it touches the database");
+    expect(ran).toEqual(["run_command"]);
+  });
+
+  it("runs the rewritten input, and checks it against the rules again", async () => {
+    const settings = withHooks('{"permissions":{"deny":["run_command(rm*)"]},"hooks":{"preToolUse":[{"command":"rewrite"}]}}');
+    const seen: unknown[] = [];
+    const runner = withToolPolicy({ run: async (target) => { seen.push(target.input); return { content: "ok", isError: false }; } }, {
+      policy: async () => ({ root: ROOT, settings }),
+      ask: async () => false,
+      runHook: async () => ok('{"hookSpecificOutput":{"updatedInput":{"command":"npm test -- --run"}}}'),
+    });
+    await runner.run(run("npm test"), signal);
+    expect(seen).toEqual([{ command: "npm test -- --run" }]);
+    const steering = withToolPolicy({ run: async () => ({ content: "ran", isError: false }) }, {
+      policy: async () => ({ root: ROOT, settings }),
+      ask: async () => false,
+      runHook: async () => ok('{"hookSpecificOutput":{"updatedInput":{"command":"rm -rf /"}}}'),
+    });
+    expect((await steering.run(run("npm test"), signal)).isError).toBe(true);
+  });
+
+  it("blocks a message with a userPromptSubmit hook, or adds its words to the context", async () => {
+    const hooks = withHooks('{"hooks":{"UserPromptSubmit":[{"command":"guard"}]}}').hooks;
+    expect(hooks.map((hook) => hook.event)).toEqual(["userPromptSubmit"]);
+    const blocked = await runEventHooks("userPromptSubmit", hooks, { prompt: "deploy" }, async () => ({ exitCode: 2, stdout: "", stderr: "no deploys today", timedOut: false }), signal);
+    expect(blocked.blocked).toBe("no deploys today");
+    const added = await runEventHooks("userPromptSubmit", hooks, { prompt: "fix it" }, async () => ok("Ticket ABC-12 is open"), signal);
+    expect(added).toMatchObject({ blocked: null, output: "Ticket ABC-12 is open" });
+    const json = await runEventHooks("userPromptSubmit", hooks, { prompt: "x" }, async () => ok('{"decision":"block","reason":"say please"}'), signal);
+    expect(json.blocked).toBe("say please");
+  });
+
+  it("suggests the narrowest rule for Always allow", () => {
+    expect(suggestAllowRule(run("npm test --silent"), ROOT)).toBe("run_command(npm test*)");
+    expect(suggestAllowRule(run("npm test && git push"), ROOT)).toBeNull();
+    expect(suggestAllowRule(edit("C:\\work\\shop\\src\\app.ts"), ROOT)).toBe("edit_file(src/app.ts)");
+    expect(suggestAllowRule(call("fetch_url", { url: "https://docs.example.com/a?b" }), ROOT)).toBe("fetch_url(domain:docs.example.com)");
+  });
+
+  it("adds an allow rule to a settings file without losing its comments", () => {
+    const file = '{\n  // ours\n  "permissions": {\n    "allow": [],\n    "ask": ["run_command"]\n  }\n}\n';
+    const once = addAllowRule(file, "run_command(npm test*)")!;
+    expect(once).toContain("// ours");
+    expect(parseAgentSettings(once, "project").rules.map((rule) => `${rule.decision}:${rule.text}`)).toContain("allow:run_command(npm test*)");
+    expect(addAllowRule(once, "run_command(npm test*)")).toBe(once);
+    const twice = addAllowRule(once, "edit_file(src/**)")!;
+    expect(parseAgentSettings(twice, "project").rules.filter((rule) => rule.decision === "allow")).toHaveLength(2);
+    expect(addAllowRule("", "edit_file(a.ts)")).toContain('"allow": ["edit_file(a.ts)"]');
+    expect(addAllowRule('{"hooks":{}}', "x")).toBeNull();
   });
 });
