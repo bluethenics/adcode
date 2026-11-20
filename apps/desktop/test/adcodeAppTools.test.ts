@@ -189,3 +189,92 @@ describe("the MCP catalogue per platform", () => {
     expect(mcpCatalogueFor("linux").length).toBe(MCP_CATALOGUE.length - 1);
   });
 });
+
+describe("adcode_action: arguments, projects and earnings", () => {
+  const quote = {
+    availableMicros: "12500000", creditBalanceMicros: "3000000", convertedTodayMicros: "0", minMicros: "500000", maxMicros: "1000000000",
+    dailyCapMicros: "1000000000", stepMicros: "10000", convertibleMaxMicros: "12500000", rate: { earningsMicros: "1", creditMicros: "1" }, blocked: null,
+  } as const;
+  function app(options: { confirm?: boolean; blocked?: "verify-email" | null } = {}) {
+    const sent: [string, string | undefined][] = [];
+    const confirms: [string, string][] = [];
+    const conversions: { requestId: string; amountMicros: string }[] = [];
+    const log: string[] = [];
+    const values = defaultSettings();
+    const tools = createAdcodeAppTools({
+      platform: "win32",
+      controls: { snapshot: () => Promise.reject(new Error("unused")), action: () => Promise.reject(new Error("unused")) },
+      confirm: (title, detail) => { confirms.push([title, detail]); return Promise.resolve(options.confirm ?? true); },
+      settings: () => values,
+      writeSetting: () => Promise.resolve(values),
+      runCommand: (command, arg) => { sent.push([command, arg]); return true; },
+      projects: () => Promise.resolve({ open: ["E:/shop"], recent: [{ path: "E:/shop", name: "shop" }, { path: "E:/blog", name: "blog" }] }),
+      earnings: {
+        quote: () => Promise.resolve({ ok: true as const, quote: { ...quote, blocked: options.blocked ?? null } }),
+        convert: (request) => {
+          conversions.push(request);
+          return Promise.resolve({ ok: true as const, status: "converted" as const, earningsMicros: request.amountMicros, creditMicros: request.amountMicros, availableMicros: "7500000", creditBalanceMicros: "8000000" });
+        },
+      },
+      record: (line) => log.push(line),
+    });
+    return { tools, sent, confirms, conversions, log };
+  }
+
+  it("passes an argument to the commands that take one, and refuses it elsewhere", async () => {
+    const { tools, sent, log } = app();
+    expect((await tools.run(call("adcode_action", { command: "workspace.openRecentAt", arg: "E:/blog" }), signal)).isError).toBe(false);
+    expect(sent).toEqual([["workspace.openRecentAt", "E:/blog"]]);
+    expect(log).toEqual(["Assistant ran workspace.openRecentAt (E:/blog)"]);
+    expect((await tools.run(call("adcode_action", { command: "workspace.openRecentAt" }), signal)).content).toContain("needs arg");
+    expect((await tools.run(call("adcode_action", { command: "ai.showUsage", arg: "x" }), signal)).content).toContain("takes no arg");
+  });
+
+  it("lists open and recent projects", async () => {
+    const { tools } = app();
+    const answer = await tools.run(call("adcode_action", { app: "projects" }), signal);
+    expect(JSON.parse(answer.content)).toMatchObject({ open: ["E:/shop"], recent: [{ name: "shop" }, { name: "blog", path: "E:/blog" }] });
+  });
+
+  it("reads earnings without asking", async () => {
+    const { tools, confirms } = app();
+    const answer = JSON.parse((await tools.run(call("adcode_action", { app: "earnings" }), signal)).content);
+    expect(answer).toMatchObject({ earningsAvailable: "$12.50", aiCredits: "$3.00", canConvertNow: "$0.50 to $12.50" });
+    expect(confirms).toHaveLength(0);
+  });
+
+  it("converts earnings only after the person confirms the exact before and after", async () => {
+    const { tools, confirms, conversions, log } = app();
+    const answer = await tools.run(call("adcode_action", { app: "convert_earnings", amount: "5" }), signal);
+    expect(answer.isError).toBe(false);
+    expect(confirms[0]![0]).toBe("Convert $5.00 of ad earnings to AI credits?");
+    expect(confirms[0]![1]).toContain("Earnings available: $12.50 -> $7.50");
+    expect(confirms[0]![1]).toContain("AI credits: $3.00 -> $8.00 (you get $5.00)");
+    expect(confirms[0]![1]).toContain("can't be undone");
+    expect(conversions).toHaveLength(1);
+    expect(conversions[0]!.amountMicros).toBe("5000000");
+    expect(conversions[0]!.requestId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(answer.content).toContain("Converted $5.00 of ad earnings into $5.00 of AI credits");
+    expect(log.at(-1)).toContain("Converted $5.00 of earnings");
+  });
+
+  it("moves nothing when declined, blocked, over the limit, or without an amount", async () => {
+    const declined = app({ confirm: false });
+    expect((await declined.tools.run(call("adcode_action", { app: "convert_earnings", amount: "5" }), signal)).isError).toBe(true);
+    expect(declined.conversions).toHaveLength(0);
+    const blocked = app({ blocked: "verify-email" });
+    expect((await blocked.tools.run(call("adcode_action", { app: "convert_earnings", amount: "5" }), signal)).content).toContain("confirm your email");
+    const { tools, conversions, confirms } = app();
+    expect((await tools.run(call("adcode_action", { app: "convert_earnings", amount: "50" }), signal)).content).toContain("up to $12.50");
+    expect((await tools.run(call("adcode_action", { app: "convert_earnings" }), signal)).content).toContain("Pass amount");
+    expect(conversions).toHaveLength(0);
+    expect(confirms).toHaveLength(0);
+  });
+
+  it("still refuses Full access and its warning card", async () => {
+    const { tools, sent } = app();
+    expect((await tools.run(call("adcode_action", { setting: "adcode.ai.fullAccess", value: true }), signal)).isError).toBe(true);
+    expect((await tools.run(call("adcode_action", { command: "ai.fullAccess" }), signal)).isError).toBe(true);
+    expect(sent).toHaveLength(0);
+  });
+});

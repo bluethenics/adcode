@@ -23,6 +23,11 @@ import { FEATURE_COMMANDS, searchFeatures, type FeatureRecord } from "@adcode/he
 import { getSetting, isValidSettingValue, type SettingsValues } from "@adcode/settings";
 import type { AssistantControlsView, AssistantServerView } from "../shared/assistantControls.ts";
 import { mcpCatalogueFor } from "../shared/mcpCatalogue.ts";
+import { randomUUID } from "node:crypto";
+import {
+  blockedMessage, conversionErrorMessage, creditsAtRate, dollarInputText, formatUsd, previewConversion,
+  type CreditConversionQuoteResult, type CreditConversionRequest, type CreditConversionResult,
+} from "../shared/creditConversion.ts";
 
 export const ADCODE_APP_TOOLS: readonly ToolDefinition[] = [
   {
@@ -36,13 +41,16 @@ export const ADCODE_APP_TOOLS: readonly ToolDefinition[] = [
   {
     name: "adcode_action",
     description:
-      "Do something in ADCode for the user: run one command adcode_features returned (it opens that view or runs that action in the window), or change one setting to a value adcode_features listed. Pass command, or setting with value. steps runs up to twenty of those in order in one call - use it to set up a whole workflow instead of one call per button. Prefer this to telling the user which button to press.",
+      "Do something in ADCode for the user: run one command adcode_features returned (it opens that view or runs that action in the window), or change one setting to a value adcode_features listed. Pass command, or setting with value. steps runs up to twenty of those in order in one call - use it to set up a whole workflow instead of one call per button. app: projects (open and recent folders; open one with command workspace.openRecentAt, arg its path), earnings, or convert_earnings with amount (the user confirms). Prefer this to telling the user which button to press.",
     inputSchema: {
       type: "object",
       properties: {
         command: { type: "string", description: "A command id from adcode_features, e.g. ai.showUsage" },
         setting: { type: "string", description: "A setting id from adcode_features, e.g. adcode.appearance.theme" },
         value: { description: "The setting's new value: true/false for a switch, one of the listed options for a choice" },
+        arg: { type: "string", description: "For workspace.openRecentAt (path), agents.editAgent, community.remixFeature (id)" },
+        app: { type: "string", enum: ["projects", "earnings", "convert_earnings"] },
+        amount: { type: "string", description: "Dollars, or max" },
         steps: {
           type: "array",
           maxItems: 20,
@@ -51,6 +59,7 @@ export const ADCODE_APP_TOOLS: readonly ToolDefinition[] = [
             type: "object",
             properties: {
               command: { type: "string", description: "A command id from adcode_features" },
+              arg: { type: "string" },
               setting: { type: "string", description: "A setting id from adcode_features" },
               value: { description: "The setting's new value" },
             },
@@ -178,9 +187,25 @@ export interface AdcodeAppDeps {
   readonly platform: string;
   readonly settings: () => SettingsValues;
   readonly writeSetting: (id: string, value: boolean | string) => Promise<unknown>;
-  /** Ask the workbench window to run a command. False when there is no window to ask. */
-  readonly runCommand: (command: string) => boolean;
+  /** Ask the workbench window to run a command, with its argument. False when there is no window to ask. */
+  readonly runCommand: (command: string, arg?: string) => boolean;
+  /** Folders open in a window and recently opened, for app: projects. */
+  readonly projects?: () => Promise<{ readonly open: readonly string[]; readonly recent: readonly { readonly path: string; readonly name: string }[] }>;
+  /** The earnings card's own calls (ads.ts): the server quotes and converts. Absent where there are no earnings. */
+  readonly earnings?: {
+    quote(): Promise<CreditConversionQuoteResult>;
+    convert(request: CreditConversionRequest): Promise<CreditConversionResult>;
+  };
+  /** One line in the debug log for each change made here. */
+  readonly record?: (message: string) => void;
 }
+
+/** The commands that take one argument, and what it is. Everything else runs bare. */
+export const ARG_COMMANDS: Readonly<Record<string, string>> = {
+  "workspace.openRecentAt": "a folder path",
+  "agents.editAgent": "an agent id",
+  "community.remixFeature": "a feature id",
+};
 
 /**
  * Every command a feature offers; nothing else can be run from here.
@@ -199,6 +224,17 @@ const RUNNABLE: ReadonlySet<string> = new Set(
  */
 const GUARDED_PREFIXES = ["adcode.ads.", "adcode.updates."];
 const GUARDED = new Set(["adcode.ai.editPolicy", "adcode.ai.fullAccess", "adcode.ai.askBeforeConnectorTools","adcode.ai.isolatedWorkspaces", "adcode.ai.customBaseUrl", "adcode.ai.provider", "adcode.ai.connections", "adcode.ai.agentProfiles", "adcode.language.customServers"]);
+
+/** Whether adcode_action can run this command. */
+export const chatCanRunCommand = (command: string): boolean => RUNNABLE.has(command);
+
+/** How adcode_action treats a setting: changed at once, changed after the person confirms, or never. */
+export function chatSettingRoute(id: string): "direct" | "asks" | "refused" | "unavailable" {
+  if (id === "adcode.ai.fullAccess") return "refused";
+  const setting = getSetting(id);
+  if (setting === undefined || !setting.available) return "unavailable";
+  return setting.kind === "text" || GUARDED.has(id) || GUARDED_PREFIXES.some((prefix) => id.startsWith(prefix)) ? "asks" : "direct";
+}
 
 const result = (content: string, isError = false) => ({ content, isError });
 const text = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
@@ -320,6 +356,7 @@ export function createAdcodeAppTools(deps: AdcodeAppDeps): ToolRunner {
       if (action === "remove") {
         if (!(await deps.confirm(`Remove ${server.name}?`, `The assistant wants to remove the connector ${server.name} and forget its saved values. You can add it again later.`, signal))) return result("The user kept the connector.", true);
         await deps.controls.action({ kind: "remove-server", id });
+        deps.record?.(`Assistant removed connector ${id}`);
         return result(`Removed ${server.name}.`);
       }
       if (action === "enable_tools") {
@@ -334,6 +371,7 @@ export function createAdcodeAppTools(deps: AdcodeAppDeps): ToolRunner {
         const asks = deps.askBeforeConnectorTools?.() ?? true;
         if (asks && !(await deps.confirm(`Let the assistant use ${server.name}?`, `It asks to use these ${toEnable.length.toString()} tools: ${shown}.\n\nEach call is still shown to you before it runs.`, signal))) return result("The user did not enable those tools.", true);
         for (const tool of toEnable) await deps.controls.action({ kind: "set-tool", id, tool, enabled: true });
+        deps.record?.(`Assistant enabled ${toEnable.length.toString()} tools on connector ${id}`);
         return result(`Enabled ${toEnable.length.toString()} tools on ${server.name}. Find them with discover_capabilities and call them with call_mcp.`);
       }
     } catch (error) {
@@ -348,7 +386,13 @@ export function createAdcodeAppTools(deps: AdcodeAppDeps): ToolRunner {
     const command = text(input["command"]);
     if (command !== "") {
       if (!RUNNABLE.has(command)) return result(`${command} is not an ADCode feature command. Find the right one with adcode_features.`, true);
-      if (!deps.runCommand(command)) return result("No ADCode window is open to run it in.", true);
+      const arg = text(input["arg"]);
+      const takes = ARG_COMMANDS[command];
+      if (arg !== "" && takes === undefined) return result(`${command} takes no arg.`, true);
+      if (takes !== undefined && arg === "") return result(`${command} needs arg: ${takes}.`, true);
+      if (arg.length > 1_024 || arg.includes("\0")) return result("That arg is not valid.", true);
+      if (!deps.runCommand(command, arg === "" ? undefined : arg)) return result("No ADCode window is open to run it in.", true);
+      deps.record?.(`Assistant ran ${command}${arg === "" ? "" : ` (${arg})`}`);
       // The window runs it without answering, so say only what is known.
       return result(`Sent ${command} to the ADCode window. It opens or runs there; the window does not report back, so do not claim more than that.`);
     }
@@ -379,10 +423,66 @@ export function createAdcodeAppTools(deps: AdcodeAppDeps): ToolRunner {
       return result("The user kept the setting as it was.", true);
     }
     await deps.writeSetting(id, value as boolean | string);
+    deps.record?.(`Assistant changed ${id} from ${String(before)} to ${String(value)}`);
     return result(`${setting.label} changed from ${String(before)} to ${String(value)}.`);
   }
 
+  async function appAction(input: Record<string, unknown>, signal: AbortSignal): Promise<ActionResult> {
+    const kind = text(input["app"]);
+    if (kind === "projects") {
+      if (deps.projects === undefined) return result("Projects are not available here.", true);
+      const { open, recent } = await deps.projects();
+      return result(JSON.stringify({
+        open,
+        recent: recent.slice(0, 15).map((folder) => ({ name: folder.name, path: folder.path })),
+        hint: "Open one with command workspace.openRecentAt and arg its path: with a project open it opens in a new window, or brings forward the window that has it. workspace.newWindow opens an empty window; workspace.open lets the user pick a folder.",
+      }));
+    }
+    if (kind !== "earnings" && kind !== "convert_earnings") return result("app is projects, earnings or convert_earnings.", true);
+    if (deps.earnings === undefined) return result("Ad earnings are not available here.", true);
+    const quoted = await deps.earnings.quote();
+    if (!quoted.ok) return result(quoted.reason === "signed-out" ? "The user is not signed in to ADCode, so earnings cannot be read. Ask them to sign in (command account.open)." : "Could not reach ADCode's server. Try again in a moment.", true);
+    const { quote } = quoted;
+    if (kind === "earnings") {
+      return result(JSON.stringify({
+        earningsAvailable: formatUsd(quote.availableMicros),
+        aiCredits: formatUsd(quote.creditBalanceMicros),
+        canConvertNow: quote.blocked === null ? `${formatUsd(quote.minMicros)} to ${formatUsd(quote.convertibleMaxMicros)}` : blockedMessage(quote.blocked, quote),
+        convertedToday: formatUsd(quote.convertedTodayMicros),
+        note: "Open the earnings card with command view.earnings. Withdrawals happen on the website (command ads.withdrawEarnings); you cannot withdraw.",
+      }));
+    }
+    if (quote.blocked !== null) return result(blockedMessage(quote.blocked, quote), true);
+    const typed = text(input["amount"]).toLowerCase();
+    if (typed === "") return result("Pass amount: the dollars to convert, e.g. 5. Ask the user how much if they did not say.", true);
+    const preview = previewConversion(quote, typed === "max" || typed === "all" ? dollarInputText(quote.convertibleMaxMicros) : typed);
+    if (!preview.ok) return result(preview.message, true);
+    const amount = BigInt(preview.amountMicros);
+    const allowed = await deps.confirm(
+      `Convert ${preview.amountLabel} of ad earnings to AI credits?`,
+      [
+        `Earnings available: ${formatUsd(quote.availableMicros)} -> ${formatUsd(BigInt(quote.availableMicros) - amount)}`,
+        `AI credits: ${formatUsd(quote.creditBalanceMicros)} -> ${formatUsd(BigInt(quote.creditBalanceMicros) + creditsAtRate(quote, amount))} (you get ${preview.creditLabel})`,
+        "This can't be undone: credits are not turned back into earnings you can withdraw. Credits never expire and pay for paid models at their listed prices.",
+        "The assistant asked for this; nothing moves unless you confirm.",
+      ].join("\n"),
+      signal,
+    );
+    if (!allowed) {
+      deps.record?.(`Declined converting ${preview.amountLabel} of earnings`);
+      return result("The user declined, so nothing was converted.", true);
+    }
+    const converted = await deps.earnings.convert({ requestId: randomUUID(), amountMicros: preview.amountMicros });
+    if (!converted.ok) {
+      deps.record?.(`Earnings conversion of ${preview.amountLabel} failed: ${converted.error}`);
+      return result(conversionErrorMessage(converted.error), true);
+    }
+    deps.record?.(`Converted ${formatUsd(converted.earningsMicros)} of earnings to ${formatUsd(converted.creditMicros)} AI credits from the chat`);
+    return result(`Converted ${formatUsd(converted.earningsMicros)} of ad earnings into ${formatUsd(converted.creditMicros)} of AI credits. Earnings available now ${formatUsd(converted.availableMicros)}; AI credits ${formatUsd(converted.creditBalanceMicros)}.`);
+  }
+
   async function act(input: Record<string, unknown>, signal: AbortSignal): Promise<ActionResult> {
+    if (text(input["app"]) !== "") return appAction(input, signal);
     const steps = input["steps"];
     if (steps === undefined) return actOne(input, signal);
     if (!Array.isArray(steps) || steps.length === 0) return result("steps must be a list of one to twenty steps.", true);
@@ -408,7 +508,7 @@ export function createAdcodeAppTools(deps: AdcodeAppDeps): ToolRunner {
         if (found.length === 0) {
           return result("No ADCode feature matches those words. Try other words before concluding ADCode cannot do it; if it still is not there, tell the user plainly that ADCode does not have it.");
         }
-        return result(JSON.stringify({ features: found.map((record) => describeFeature(record, values)), hint: "Run a command or change a setting with adcode_action. For MCP servers use adcode_connectors." }));
+        return result(JSON.stringify({ features: found.map((record) => describeFeature(record, values)), hint: "Run a command or change a setting with adcode_action. Dedicated tools (load them with load_tools): adcode_connectors for MCP servers, manage_agent_flow for agent flows, create_agent for task agents, customize_adcode for themes and other changes to ADCode itself." }));
       }
       if (call.name === "adcode_action") return act(input, signal);
       if (call.name === "adcode_connectors") return connectors(input, signal);

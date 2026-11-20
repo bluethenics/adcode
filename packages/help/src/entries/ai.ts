@@ -115,6 +115,16 @@ export const AI_ENTRIES: readonly HelpEntry[] = [
     related: ["workbench.toolsPage", "ai.agentTools", "workbench.allFeatures"],
   },
   {
+    id: "ai.chatBuildsFlows",
+    title: "Ask the chat to build an agent flow",
+    plain: "Describe the team you want in the chat - who plans, who codes, who checks - and the assistant builds the agent flow, shows you exactly what it made, and saves it once you say yes.",
+    why: "Drawing a flow by hand is clear but slow when you already know what you want: \"Fable plans, DeepSeek codes, a read-only reviewer checks\" is one sentence, and the canvas is several minutes of dragging. The chat turns that sentence into the same flow the Flow page draws, picks the models by the names you use, and asks which one you meant when a name fits several. You still decide: nothing is saved, switched on or deleted until you confirm, and the result is on the Flow page to look at or change by hand.",
+    how: "In any chat, say what you want (the command palette's Agents: Ask the Chat to Build a Flow starts the message): \"make a flow where Fable plans, DeepSeek codes and a read-only reviewer checks, and turn it on for this chat\". ADCode shows a dialog listing every agent, the model each runs on, what work it takes, how they are linked and which chats the flow runs in; press Create flow to save it, and it appears on the Flow page at once. The first agent is the chat itself, so it runs on the chat's model - the dialog says so if you asked for a different one. Change it the same way: \"use GPT-5 for the coder\", \"add a tester after the coder\", \"rename the flow to Ship it\", \"turn it on for every chat\", \"switch it off in this chat\", \"delete the flow\", or \"give me a link to share it\"; each change is listed for you to confirm first. The same chat can open another project in its own window, read your ad earnings and convert some to AI credits after you confirm the amounts, and change mods, connectors and settings.",
+    group: "ai",
+    settingIds: [],
+    related: ["workbench.agentFlow", "ai.operatesAdcode", "ai.taskAgents"],
+  },
+  {
     id: "ai.team",
     title: "AI Team",
     plain: "Create named agents with their own instructions and models, then let a team divide a task - messaging each other as they work and sharing the project's memory - and bring its results back for review.",

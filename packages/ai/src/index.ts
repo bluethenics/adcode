@@ -21,6 +21,7 @@ export * from "./teamMailbox.ts";
 export * from "./chatForks.ts";
 export * from "./subagents.ts";
 export * from "./taskAgents.ts";
+export * from "./agentFlowTool.ts";
 export * from "./toolRules.ts";
 export * from "./agentFiles.ts";
 export * from "./toolDraft.ts";

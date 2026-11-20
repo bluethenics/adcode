@@ -56,6 +56,23 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     ],
     betterThan: "In most editors, customising means a settings file, a theme extension, or writing an extension in TypeScript. Here you ask the assistant you are already talking to, read the list of changes, and confirm. Because a mod is a plugin underneath, it is just as safe and just as removable as one from the directory - and limited to what plugins may do, so it cannot rewrite the editor itself.",
   },
+  "ai-chat-builds-flows": {
+    steps: [
+      "Open any chat in ADCode. You do not need the Flow page for this - the chat builds the flow.",
+      "Describe the team in your own words, including where it should run. For example: make a flow where Fable plans, DeepSeek codes and a read-only reviewer checks, and turn it on for this chat.",
+      "Read the dialog ADCode shows. It lists every agent with its role, the model it runs on and the work it takes over, every link (who hands work to whom, who reviews), and the chats the flow will run in. If a model name matched several of your connected models, the chat asks which one first.",
+      "Press Create flow. The flow is saved and appears on the Flow page straight away (Agents on the left rail, then Flow). Your next message in the chosen chats goes through it.",
+      "Change it by asking: use GPT-5 for the coder, add a tester after the coder, rename the flow, turn it on for every chat, switch it off in this chat. Each time the dialog lists exactly what changes, and nothing is saved until you confirm.",
+      "Ask for a link to share it, or paste a link someone sent you and ask the chat to import it. Ask it to delete the flow when you are done; that is confirmed too.",
+    ],
+    benefits: [
+      "One sentence instead of several minutes of dragging, with the same result the canvas would give you.",
+      "Models are picked by the names you use - fable, deepseek, qwen coder - and the chat asks when a name is ambiguous instead of guessing.",
+      "Every change is shown in full before it is saved, and the flow stays editable by hand on the Flow page.",
+      "The same chat can also open another project in a new window, read your earnings and convert some to AI credits (after you confirm the amounts), and change mods, connectors and settings.",
+    ],
+    betterThan: "Multi-agent setups in other tools are configured in YAML or JSON files, or drawn in a separate builder you have to learn. Here the assistant you are already talking to builds the team, and ADCode's own dialog - not the model - tells you what will be saved. The flow is the same one the Flow page draws, so there is no second format to keep in sync, and the safety rules do not loosen: the assistant cannot save a flow, switch one on or delete one without your yes.",
+  },
   "workbench-project-windows": {
     steps: [
       "With a project open, choose File > New Window, or run New Window for Another Project from the command palette (Ctrl+Shift+P).",

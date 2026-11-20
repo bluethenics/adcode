@@ -443,6 +443,11 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("ai.setUpConnector", "Set up a connector for me")],
     keywords: ["do it for me", "ai does it", "connect roblox", "roblox studio", "roblox mcp", "connect mcp", "add mcp server", "change a setting for me", "open a view", "ai settings", "ai can't", "ai said it cannot", "does adcode support", "ai lied", "honest", "operate adcode", "use adcode"],
   },
+  "ai.chatBuildsFlows": {
+    added: "2026-11-20",
+    actions: [command("ai.askForFlow", "Ask the chat to build a flow")],
+    keywords: ["make a flow in the chat", "ask the chat for a flow", "build a flow by chatting", "flow from chat", "create agent flow", "chat creates agents", "turn on flow for this chat", "edit flow by asking", "share flow link", "manage agent flow", "fable plans deepseek codes", "open project from chat", "convert earnings from chat", "do anything by chatting"],
+  },
   "ai.memoryEditor": {
     actions: [command("tools.memory", "Open project memory")],
     keywords: ["memory", "remember", "forget", "what does the ai know", "conventions", "decisions", "preferences", "agents.md", "claude.md", "shared memory", "edit memory"],

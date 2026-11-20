@@ -6570,6 +6570,8 @@ function registerCommands(): void {
   add("agents.race", "Agents: Race Several Agents on One Task", () => { openAgents(); agentsPage.newRace(); });
   add("tools.open", "Open Tools", () => openTools());
   add("agents.flow", "Agents: Agent Flow (Connect a Team of Agents)", () => openFlow());
+  // The chat builds the flow (manage_agent_flow) and ADCode's dialog confirms it; this only starts the message.
+  add("ai.askForFlow", "Agents: Ask the Chat to Build a Flow", () => { showChatSurface(); chat.draft("Make an agent flow where "); });
   add("mods.open", "Mods: Customise ADCode by Asking the Chat", () => openMods());
   add("tools.servers", "Tools: Connectors", () => openTools("servers"));
   add("tools.skills", "Tools: Skills", () => openTools("skills"));

@@ -4,7 +4,10 @@ import { join } from "node:path";
 import { readFile } from "node:fs/promises";
 import type { ToolDefinition, ToolRunner } from "@adcode/ai";
 import { CHANNELS } from "../shared/api.ts";
-import { currentWorkspace, onWorkspaceRootChanged } from "./workspace.ts";
+import { currentWorkspace, onWorkspaceRootChanged, openWorkspaceRoots } from "./workspace.ts";
+import { recentFolders } from "./recents.ts";
+import { getAdRuntime } from "./adRuntime.ts";
+import { recordDebug } from "./debugLog.ts";
 import { connectAssistantMcp } from "./assistantMcp.ts";
 import { createOpenApiSession } from "./openapiSession.ts";
 import { installedSkillRoots } from "./assistantSkills.ts";
@@ -123,12 +126,16 @@ function buildAppTools(confirm: (title: string, detail: string, signal?: AbortSi
     ...(onWeb ? {} : { chats: () => readSessions(currentWorkspace()?.root ?? null) }),
     ...(onWeb ? {} : { browser: async (input: Record<string, unknown>, signal: AbortSignal) => (await import("./liveBrowser.ts")).runLiveBrowser(input, signal) }),
     // The window the person is using; the menu's own channel, so it runs like a menu choice.
-    runCommand: (command) => {
+    runCommand: (command, arg) => {
       const target = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows().find((window) => !window.isDestroyed()) ?? null;
       if (target === null || target.isDestroyed()) return false;
-      target.webContents.send(CHANNELS.menuCommand, command);
+      target.webContents.send(CHANNELS.menuCommand, command, arg);
       return true;
     },
+    projects: async () => ({ open: openWorkspaceRoots(), recent: await recentFolders() }),
+    // The earnings card's own calls: the same quote, the same server-side move, the same retry rules.
+    ...(onWeb ? {} : { earnings: { quote: () => getAdRuntime().conversionQuote(), convert: (request) => getAdRuntime().convertToCredits(request) } }),
+    record: (message) => recordDebug("info", "ai", message),
   });
 }
 
