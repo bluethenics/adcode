@@ -20,7 +20,9 @@ export type LedgerKind =
   /** A day of invite earnings - see `referrals.ts`. One per referrer per day. */
   | "referral"
   /** A thank-you an admin awarded for a report or idea that shipped. One per report. */
-  | "contribution";
+  | "contribution"
+  /** Earnings the person moved into AI credits - see `earningsConversion.ts`. Negative. */
+  | "credit_conversion";
 
 export interface LedgerEntry {
   entryId: string;
@@ -81,6 +83,11 @@ export function applyEntry(balance: Balance, entry: LedgerEntry): Balance {
       };
 
     case "adjustment":
+      return { ...balance, availableMicros: balance.availableMicros + micros };
+
+    case "credit_conversion":
+      // Spent, not unearned: the money leaves the withdrawable balance, and the lifetime
+      // figure keeps it, because the person did earn it - they chose credits over cash.
       return { ...balance, availableMicros: balance.availableMicros + micros };
 
     case "withdrawal_requested":

@@ -6135,6 +6135,60 @@ checks.earningsCloseButtonVisible =
   checks.earningsCloseButtonEvidence.distinctTitles === true;
 
 /*
+ * Convert to AI credits, and Withdraw on the website, under the balance.
+ *
+ * Withdraw is checked by its address and never clicked: clicking would open the system
+ * browser. Convert opens its panel, answers a typed amount with a sentence (a preview, a
+ * limit, or why it cannot convert here - never blank), and Cancel puts the button back.
+ * Nothing is converted: the smoke account has no confirmed email, and Convert is not pressed.
+ */
+checks.earningsMoneyActionsEvidence = await evaluate(
+  `(async () => {
+     document.getElementById('open-earnings')?.click();
+     await new Promise((r) => setTimeout(r, 300));
+     const card = document.querySelector('.earnings-card');
+     const popup = document.querySelector('[data-popup-id="earnings"]');
+     if (!card || popup?.open !== true) return 'earnings view did not open';
+     const buttons = [...card.querySelectorAll('.earnings-money-actions button')];
+     const convert = buttons.find((b) => b.textContent === 'Convert to AI credits');
+     const withdraw = buttons.find((b) => b.textContent === 'Withdraw on the website');
+     if (!convert || !withdraw) return 'missing convert or withdraw button';
+     const visible = (el) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.height > 0 && b.right <= window.innerWidth && b.bottom <= window.innerHeight; };
+     const result = { convertVisible: visible(convert), withdrawVisible: visible(withdraw), withdrawUrl: withdraw.getAttribute('title') };
+     convert.click();
+     await new Promise((r) => setTimeout(r, 50));
+     const panel = card.querySelector('.earnings-convert');
+     result.panelOpened = panel instanceof HTMLElement && !panel.hidden && panel.getBoundingClientRect().height > 0;
+     result.convertButtonHidden = convert.hidden;
+     const preview = panel?.querySelector('.earnings-convert-preview');
+     for (let i = 0; i < 60 && (preview?.textContent ?? '') === 'Checking your balances…'; i += 1) await new Promise((r) => setTimeout(r, 250));
+     const input = panel?.querySelector('#earnings-convert-amount');
+     if (input instanceof HTMLInputElement && !input.disabled) {
+       input.value = '0.10';
+       input.dispatchEvent(new Event('input', { bubbles: true }));
+     }
+     result.previewText = preview?.textContent ?? '';
+     result.previewSaysSomething = result.previewText.length > 0 && result.previewText !== 'Checking your balances…';
+     result.confirmNotPressable = panel?.querySelector('.earnings-convert-actions .ad-btn-primary')?.disabled === true;
+     [...(panel?.querySelectorAll('button') ?? [])].find((b) => b.textContent === 'Cancel')?.click();
+     await new Promise((r) => setTimeout(r, 50));
+     result.cancelClosed = panel?.hidden === true && convert.hidden === false;
+     card.querySelector('.earnings-close')?.click();
+     return result;
+   })()`,
+);
+checks.earningsMoneyActions =
+  typeof checks.earningsMoneyActionsEvidence === "object" &&
+  checks.earningsMoneyActionsEvidence.convertVisible === true &&
+  checks.earningsMoneyActionsEvidence.withdrawVisible === true &&
+  checks.earningsMoneyActionsEvidence.withdrawUrl === "https://adcode.bluethenics.com/dashboard#payouts" &&
+  checks.earningsMoneyActionsEvidence.panelOpened === true &&
+  checks.earningsMoneyActionsEvidence.convertButtonHidden === true &&
+  checks.earningsMoneyActionsEvidence.previewSaysSomething === true &&
+  checks.earningsMoneyActionsEvidence.confirmNotPressable === true &&
+  checks.earningsMoneyActionsEvidence.cancelClosed === true;
+
+/*
  * The one button inside the earnings popover actually does something.
  *
  * It did not. "Ad settings" called \`showView("settings")\`, and settings is an overlay rather

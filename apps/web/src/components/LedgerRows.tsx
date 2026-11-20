@@ -24,6 +24,7 @@ const KIND_LABEL: Record<string, string> = {
   withdrawal_failed: "Withdrawal failed",
   referral: "Invite earnings",
   contribution: "Thanks from ADCode",
+  credit_conversion: "Converted to AI credits",
 };
 
 export function LedgerRows({ rows }: { rows: LedgerRowView[] }) {

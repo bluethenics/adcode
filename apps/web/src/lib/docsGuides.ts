@@ -2644,6 +2644,42 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "A balance figure on any platform is only as trustworthy as the promise not to change it. An append-only ledger removes the need for trust entirely - the balance is the rows.",
   },
 
+  "ads-convert-earnings": {
+    steps: [
+      "Open Earnings: the Earnings row in the Vibe sidebar, or run Earnings: Convert to AI Credits from the command palette (Ctrl+Shift+P).",
+      "Choose Convert to AI credits under your balance. The card shows the earnings you can convert, your AI credits now, and the rate - $1.00 of earnings becomes $1.00 of credits.",
+      "Type an amount in dollars, or press All to fill in everything you can convert right now.",
+      "Read the line under the box: it says exactly how many credits you will get and how much comes off your withdrawable earnings.",
+      "Press the Convert button. A pop-up shows your earnings and your AI credits before and after the conversion. Press Convert in the pop-up to confirm, or Back to change the amount - nothing moves until you confirm.",
+      "Watch the coins land in AI credits, and both figures count to their new values. Press Done. The earnings card, the status bar, and the paid-credit meter in the chat and AI usage all show the new balances. Pick a paid model and the credits pay for it straight away.",
+      "If the connection drops, the pop-up says nothing was converted and offers Try again. It repeats the same request, so it can never convert twice.",
+    ],
+    benefits: [
+      "Works from $0.50 - you do not have to reach the $50 payout minimum before your earnings are useful.",
+      "No fee, no card, no checkout: one dollar of earnings is one dollar of credits, and the credits never expire.",
+      "The server sets the rate, checks your balance and moves the money in one step, so it is never counted twice; a double click or a retry after a dropped connection converts once.",
+      "Every conversion is on the record: Converted to AI credits in your earnings ledger, From ad earnings in your credit activity.",
+    ],
+    betterThan:
+      "Elsewhere, getting value out of ad or referral earnings means waiting for a payout threshold, handing over bank details, losing a cut to transfer fees, and then paying again with a card to buy credits. Here the money you earned while coding pays for the AI you code with, in one click, at face value. It is honest about the trade-off: a conversion cannot be undone, it is limited to $1,000 at a time and $1,000 a day, and it needs a confirmed email - the same bar as a withdrawal. If you would rather have the cash, Withdraw on the website is right next to it.",
+  },
+
+  "ads-withdraw-earnings": {
+    steps: [
+      "Open Earnings and press Withdraw on the website, or run Earnings: Withdraw on the Website from the command palette.",
+      "Your browser opens adcode.bluethenics.com/dashboard at Payouts. Sign in with the same account you use in the editor.",
+      "Check the list of requirements: at least $50 available, a confirmed email, an account at least 7 days old, confirming you are 18 or older, payout details on file, and no other request in progress. Each one says what is missing.",
+      "Add your payout details once, enter the amount, and send the request. It stays on the page with its status until it is paid.",
+    ],
+    benefits: [
+      "One click from the balance in the editor to the page that pays it out.",
+      "Bank details are entered on the website and stored encrypted, never in the editor.",
+      "Every requirement is shown at once with what is missing, so you never find them one at a time.",
+    ],
+    betterThan:
+      "Many apps that pay you hide the payout behind support tickets or a settings maze. The editor shows your balance and puts the door to the payout next to it; the website lists every rule up front. Below the $50 minimum, converting to AI credits is the way to use what you earned.",
+  },
+
   "account-invite": {
     steps: [
       "Open Invite & earn - from the Earnings card in the title bar, or by typing \"invite\" in the command palette.",

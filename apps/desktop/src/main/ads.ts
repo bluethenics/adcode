@@ -39,6 +39,14 @@ import { adsHeldForNewcomer } from "./milestones.ts";
 import { PARTNER_DISMISS_MS, nextTickDelay, partnerExchange, partnerRetryDelay } from "./partnerNotification.ts";
 import { currentDebugState } from "./debug.ts";
 import { isAgentBrowserWindow } from "./agentBrowser.ts";
+import { announceAiUsageChanged } from "./aiUsage.ts";
+import {
+  isConversionRequest,
+  parseConversionQuote,
+  parseConversionResponse,
+  type CreditConversionQuoteResult,
+  type CreditConversionResult,
+} from "../shared/creditConversion.ts";
 
 /** §8.1: the 60s tick that asks the scheduler whether now is a moment to interrupt. */
 const DEFAULT_TICK_MS = 60_000;
@@ -124,6 +132,10 @@ interface AdRuntime {
    * button can answer "is it stuck, or is it just zero" without the user waiting out a minute.
    */
   refreshEarnings(): Promise<EarningsSnapshot>;
+  /** `GET /v1/earnings/convert`: what converting earnings to AI credits would look like now. */
+  conversionQuote(): Promise<CreditConversionQuoteResult>;
+  /** `POST /v1/earnings/convert`, then the earnings and every credit display refresh. */
+  convertToCredits(request: unknown): Promise<CreditConversionResult>;
 }
 
 /**
@@ -621,6 +633,76 @@ export function createAdRuntime(): AdRuntime {
       }
 
       return pushEarnings();
+    },
+
+    async conversionQuote(): Promise<CreditConversionQuoteResult> {
+      try {
+        const token = await tokens.getToken();
+        if (!token.ok) return { ok: false, reason: "signed-out" };
+        const response = await fetch(`${apiBaseUrl()}/earnings/convert`, {
+          headers: { authorization: `Bearer ${token.value}` },
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (response.status === 401) return { ok: false, reason: "signed-out" };
+        const quote = response.ok ? parseConversionQuote(await response.json().catch(() => null)) : null;
+        return quote === null ? { ok: false, reason: "offline" } : { ok: true, quote };
+      } catch (error) {
+        debug("conversion quote failed", String(error));
+        return { ok: false, reason: "offline" };
+      }
+    },
+
+    /*
+     * The server decides the credit and does the move in one transaction; this only carries
+     * the amount and the request id. A lost answer is retried once with the same id, which the
+     * server turns into "already done" if the first attempt landed, so it can never pay twice.
+     */
+    async convertToCredits(request: unknown): Promise<CreditConversionResult> {
+      if (!isConversionRequest(request)) return { ok: false, error: "invalid-request", retryable: false };
+      const attempt = async (): Promise<CreditConversionResult> => {
+        const token = await tokens.getToken();
+        if (!token.ok) return { ok: false, error: "signed-out", retryable: false };
+        const response = await fetch(`${apiBaseUrl()}/earnings/convert`, {
+          method: "POST",
+          headers: { authorization: `Bearer ${token.value}`, "content-type": "application/json" },
+          body: JSON.stringify({ requestId: request.requestId, amountMicros: request.amountMicros }),
+          signal: AbortSignal.timeout(15_000),
+        });
+        const body = (await response.json().catch(() => null)) as unknown;
+        if (response.ok) {
+          const parsed = parseConversionResponse(body);
+          return parsed ?? { ok: false, error: "unexpected", retryable: true };
+        }
+        const error = typeof body === "object" && body !== null && typeof (body as { error?: unknown }).error === "string"
+          ? (body as { error: string }).error
+          : "unexpected";
+        return { ok: false, error: response.status === 401 ? "signed-out" : error, retryable: response.status >= 500 };
+      };
+      let result: CreditConversionResult;
+      try {
+        result = await attempt();
+        if (!result.ok && result.retryable) result = await attempt();
+      } catch (first) {
+        debug("conversion failed, retrying with the same id", String(first));
+        try {
+          result = await attempt();
+        } catch (error) {
+          debug("conversion failed", String(error));
+          return { ok: false, error: "offline", retryable: true };
+        }
+      }
+      if (result.ok) {
+        // Both balances moved on the server: the earnings card, the status bar and every
+        // credit meter read them again now, not at the next tick.
+        announceAiUsageChanged();
+        try {
+          await service.tick();
+        } catch {
+          // The card already has the new figures from the answer itself.
+        }
+        void pushEarnings();
+      }
+      return result;
     },
   };
 }

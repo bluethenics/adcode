@@ -838,6 +838,17 @@ export interface Store extends TagflowStore {
     withdrawal: WithdrawalRecord,
     entry: import("./ledger.ts").LedgerEntry,
   ): Promise<"created" | "in-flight" | "insufficient-funds">;
+  /**
+   * Moves earnings into the AI credit wallet in one transaction: the ledger entry, the
+   * earnings balance, the credit balance, the credit ledger and the audit row all land
+   * together or not at all. Idempotent on (uid, requestId). Absent on legacy adapters,
+   * where the route answers 503 rather than half-supporting money movement.
+   */
+  convertEarningsToCredits?(
+    input: import("./earningsConversion.ts").EarningsConversionInput,
+  ): Promise<import("./earningsConversion.ts").EarningsConversionOutcome>;
+  /** Earnings this account has converted since `dayStart`, for the daily cap. */
+  earningsConvertedSince?(uid: string, dayStart: number): Promise<bigint>;
   /** Atomically moves a request from one state and applies its optional ledger entry. */
   transitionWithdrawal(input: {
     withdrawalId: string;

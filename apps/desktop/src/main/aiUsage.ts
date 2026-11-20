@@ -77,6 +77,10 @@ function scheduleWrite(): void {
 }
 
 /** Tell open windows the numbers moved, at most a few times a second. */
+export function announceAiUsageChanged(): void {
+  announce();
+}
+
 function announce(): void {
   if (announceTimer !== null) return;
   announceTimer = setTimeout(() => {

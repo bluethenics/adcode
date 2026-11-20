@@ -57,6 +57,7 @@ import {
   fromCreative,
   fromCreditOrder,
   fromMicros,
+  conversionOutcomeFromRpc,
   fromNotice,
   fromPost,
   fromRelease,
@@ -1044,6 +1045,31 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
           p_pending_delta: fromMicros(delta.pendingWithdrawalMicros),
         }),
       );
+    },
+
+    // One rpc, one transaction: see supabase/migrations/20261119120000_earnings_to_credits.sql.
+    async convertEarningsToCredits(input) {
+      const result = await scalar<Record<string, unknown>>("convertEarningsToCredits", (db) =>
+        db.rpc("convert_earnings_to_credits", {
+          p_uid: input.uid,
+          p_request: input.requestId,
+          p_earnings: fromMicros(input.earningsMicros),
+          p_credit: fromMicros(input.creditMicros),
+          p_daily_cap: fromMicros(input.dailyCapMicros),
+          p_day_start: input.dayStart,
+          p_now: input.now,
+          p_entry_id: input.entry.entryId,
+          p_description: input.entry.description,
+        }),
+      );
+      return conversionOutcomeFromRpc(input.uid, input.requestId, result);
+    },
+
+    async earningsConvertedSince(uid, dayStart) {
+      const rows = await many<{ earnings_micros: string | number }>("earningsConvertedSince", (db) =>
+        db.from("earnings_conversions").select("earnings_micros").eq("uid", uid).gte("created_at", dayStart),
+      );
+      return rows.reduce((sum, row) => sum + BigInt(row.earnings_micros), 0n);
     },
 
     async transitionWithdrawal(input) {

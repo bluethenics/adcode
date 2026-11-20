@@ -733,6 +733,8 @@ export const CHANNELS = {
   adSuppressionChanged: "ads:suppression",
   adSignals: "ads:signals",
   adRefreshEarnings: "ads:refresh-earnings",
+  adConversionQuote: "ads:conversion-quote",
+  adConvertToCredits: "ads:convert-to-credits",
   earningsChanged: "ads:earnings",
   settingsRead: "settings:read",
   settingsWrite: "settings:write",
@@ -2814,6 +2816,17 @@ export interface AdcodeApi {
      * answers "is this stuck?" without the user waiting one out.
      */
     refreshEarnings(): Promise<EarningsSnapshot>;
+    /**
+     * What converting earnings to AI credits would look like now: both balances, the rate
+     * and the limits, all as the server quoted them (shared/creditConversion.ts).
+     */
+    conversionQuote(): Promise<import("./creditConversion.ts").CreditConversionQuoteResult>;
+    /**
+     * Move earnings into AI credits. The server does the move in one transaction and decides
+     * the credit; the same request id never pays twice. Refreshes the earnings and every
+     * credit display on success.
+     */
+    convertToCredits(request: import("./creditConversion.ts").CreditConversionRequest): Promise<import("./creditConversion.ts").CreditConversionResult>;
     /** Zen, full-screen, and presentation mode (§8.3). */
     setSuppressed(suppressed: boolean): void;
     /**

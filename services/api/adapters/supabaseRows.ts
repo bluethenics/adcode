@@ -521,6 +521,7 @@ const LEDGER_KINDS = new Set([
   "withdrawal_failed",
   "referral",
   "contribution",
+  "credit_conversion",
 ]);
 
 export function toEntry(row: LedgerRow): LedgerEntry {
@@ -1134,4 +1135,46 @@ export function toReferrerSummary(raw: {
     earnedMicros: toMicros(raw.earnedMicros),
     last30Micros: toMicros(raw.last30Micros),
   };
+}
+
+/**
+ * `convert_earnings_to_credits`'s jsonb answer, as the store's outcome.
+ *
+ * Micros arrive as decimal strings (the SQL casts them), so nothing passes through a JS
+ * number. An unknown status throws: guessing what a money rpc meant is worse than failing.
+ */
+export function conversionOutcomeFromRpc(
+  uid: string,
+  requestId: string,
+  raw: Record<string, unknown> | null,
+): import("../src/earningsConversion.ts").EarningsConversionOutcome {
+  const micros = (key: string): bigint => {
+    const value = raw?.[key];
+    if (typeof value !== "string" && typeof value !== "number") throw new Error(`convert_earnings_to_credits: missing ${key}`);
+    return BigInt(value);
+  };
+  switch (raw?.["status"]) {
+    case "converted":
+    case "replayed":
+      return {
+        status: raw["status"],
+        conversion: {
+          requestId,
+          uid,
+          earningsMicros: micros("earningsMicros"),
+          creditMicros: micros("creditMicros"),
+          createdAt: Number(raw["createdAt"]),
+        },
+        availableMicros: micros("availableMicros"),
+        creditBalanceMicros: micros("creditBalanceMicros"),
+      };
+    case "insufficient-funds":
+      return { status: "insufficient-funds", availableMicros: micros("availableMicros") };
+    case "daily-cap":
+      return { status: "daily-cap", convertedTodayMicros: micros("convertedTodayMicros") };
+    case "conflict":
+      return { status: "conflict" };
+    default:
+      throw new Error("convert_earnings_to_credits: unexpected answer");
+  }
 }

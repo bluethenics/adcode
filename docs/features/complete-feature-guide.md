@@ -1899,6 +1899,17 @@ How to use it: Open Ad network settings on the website and sign in as an adminis
 
 Access: `All Features → Ad network connections`; `Open ad network settings`.
 
+<!-- feature:ads.convertEarnings -->
+### Convert earnings to AI credits
+
+Turn the money you earned from sponsored cards into AI credits for paid models, in one click, without withdrawing it first.
+
+Why use it: Withdrawing needs at least $50, payout details and a week-old account, and then you would pay again to buy credits. Converting works from 50 cents, takes a second, costs nothing, and the credits are ready for the next message.
+
+How to use it: Open Earnings (the Earnings row in the Vibe sidebar, or Earnings: Convert to AI Credits in the command palette) and choose Convert to AI credits. The card shows the earnings you can convert, your AI credits now, and the rate: $1.00 of earnings becomes $1.00 of credits, with no fee. Type an amount or press All, check the line that says what you will get, and press the Convert button. A pop-up shows both balances before and after; press Convert there to confirm, or Back to change your mind - nothing moves until you confirm. While it converts, a coin runs from Earnings to AI credits; when it is done, coins land in your credits, both figures count to their new values, and a check mark appears. Press Done. Both balances update at once: the earnings card, the status bar, and the paid-credit meters in the chat and AI usage. If the connection drops, the pop-up says nothing was converted and offers Try again, which repeats the same request. The smallest conversion is $0.50, the largest $1,000 at a time and $1,000 a day in total; amounts are in whole cents. You need a signed-in account with a confirmed email, the same as for a withdrawal. The server sets the rate and checks your balance, and moves the money in one step, so it is never in both places or neither; a double click or a retry after a dropped connection converts once. It cannot be undone: credits stay credits. They never expire and pay for paid models at each model's listed price. Your lifetime earned figure keeps the converted money - you earned it. Each conversion appears in your earnings ledger on the website as Converted to AI credits, and in your credit activity as From ad earnings.
+
+Access: `All Features → Convert earnings to AI credits`; `Convert earnings to AI credits`.
+
 <!-- feature:adcode.ads.frequency -->
 ### Frequency
 
@@ -1942,6 +1953,17 @@ Why use it: Sponsored messages are what keep ADCode free, but on many days no AD
 How to use it: It is on from ADCode 2.5.1 unless you switched sponsored messages off; the one-time card about sponsored cards mentions it too, with Turn off. To change it, open Settings, choose Ads, and switch Sponsored notifications from ADCode's ad partner; it needs Sponsored messages on too. When a sponsored message is due and no ADCode advertiser has one, the desktop app asks Zeekend instead, telling it only the names of the languages and frameworks you have open (like typescript, react, docker), which notification of this session it is, an identifier that changes every time ADCode starts, and your IP address and browser details. If Zeekend has a card, it slides in like any sponsored message, with a countdown that pauses while you read and a close button. The next one comes as soon as your Frequency allows (every 5 minutes on Max, 10 on Standard, 30 on Light), so cards follow each other without extra waiting. If Zeekend has nothing, nothing appears, the slot does not count toward your daily limit, and ADCode asks again about 20 seconds later. The card is a page from adcode.bluethenics.com walled off from the editor, so the ad partner cannot reach your files. Clicking it opens your browser. ADCode advertisers always come first. Each Zeekend card you are shown - here, under a reply or in the box above the message box - credits $0.002 to your earnings, once per card, up to 300 cards ($0.60) a day. Not in the web version.
 
 Access: `All Features → Sponsored notifications from ADCode's ad partner`; `Turn on or off`; `Settings`.
+
+<!-- feature:ads.withdrawEarnings -->
+### Withdraw earnings on the website
+
+Earnings are paid out to you from the website. The Withdraw button in the earnings card takes you straight there.
+
+Why use it: A payout needs your bank or payment details and some checks, which are kept on the website rather than in the editor.
+
+How to use it: Open Earnings and press Withdraw on the website (or run Earnings: Withdraw on the Website from the command palette). Your browser opens adcode.bluethenics.com/dashboard at Payouts; sign in with the same account as the editor. The page lists what you need before a payout: at least $50 available, a confirmed email, an account at least 7 days old, confirming you are 18 or older, payout details on file, and no other request in progress. Enter the amount and send the request; it shows there until it is paid. Earnings you converted to AI credits are no longer available to withdraw.
+
+Access: `All Features → Withdraw earnings on the website`; `Withdraw on the website`.
 
 ## Updates
 

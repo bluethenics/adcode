@@ -2297,3 +2297,362 @@
   font-family: var(--font-ui);
   font-style: italic;
 }
+
+/* ── Convert to AI credits, and withdraw ─────────────────────────────────── */
+
+/*
+ * The two things a balance is for, directly under it. Convert is the primary action because
+ * it finishes here; Withdraw opens the website, where payout details and checks live.
+ */
+.earnings-money-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.earnings-money-actions .ad-btn {
+  flex: 1 1 0;
+  min-width: 140px;
+}
+
+.earnings-money-actions .ad-btn[hidden],
+.earnings-convert[hidden] {
+  display: none;
+}
+
+.earnings-convert {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-editor);
+}
+
+.earnings-convert-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.earnings-convert-intro {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.earnings-convert-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: var(--text-xs);
+}
+
+.earnings-convert-facts dt {
+  color: var(--text-secondary);
+}
+
+.earnings-convert-facts dd {
+  margin: 0;
+  text-align: right;
+  font-weight: 560;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.earnings-convert-input-row {
+  display: flex;
+  gap: 6px;
+}
+
+.earnings-convert-input-row .ad-input {
+  flex: 1;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Reserved height, so the buttons do not jump as the sentence above them changes length. */
+.earnings-convert-preview {
+  min-height: 2.8em;
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.earnings-convert-preview[data-tone="warning"] {
+  color: var(--warning);
+}
+
+.earnings-convert-preview[data-tone="success"] {
+  color: var(--success);
+}
+
+.earnings-convert-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ── Conversion pop-up ───────────────────────────────────────────────────── */
+
+/*
+ * Confirm, converting, done, failed: one layer over the earnings card (conversionDialog.ts).
+ *
+ * Converting is rare, so the done state spends the delight budget - coins cross from
+ * Earnings into AI credits - while confirm stays a plain, quick modal entrance. Every
+ * animation is transform/opacity (plus a stroke for the check mark). Reduced motion: the
+ * global rule in tokens.css ends each animation at its final frame, and the coins are
+ * hidden outright.
+ */
+.earnings-card {
+  position: relative;
+}
+
+.conv-layer {
+  --conv-ease-out: var(--ease-toast);
+  --conv-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: color-mix(in srgb, var(--bg-app) 72%, transparent);
+  opacity: 0;
+  transition: opacity var(--duration-exit) var(--conv-ease-out);
+}
+
+.conv-layer[hidden] {
+  display: none;
+}
+
+.conv-layer[data-state="open"] {
+  opacity: 1;
+  transition-duration: var(--duration-enter);
+}
+
+/* Centred and not anchored to a trigger, so it scales from its own middle. */
+.conv-dialog {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  background: var(--bg-elevated);
+  box-shadow: 0 18px 48px rgb(0 0 0 / 0.28);
+  opacity: 0;
+  transform: translateY(6px) scale(0.96);
+  transition:
+    opacity var(--duration-exit) var(--conv-ease-out),
+    transform var(--duration-exit) var(--conv-ease-out);
+}
+
+.conv-dialog:focus {
+  outline: none;
+}
+
+.conv-layer[data-state="open"] .conv-dialog {
+  opacity: 1;
+  transform: none;
+  transition-duration: var(--duration-enter);
+}
+
+.conv-title {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+/* Earnings ── track ── AI credits. */
+.conv-stage {
+  display: grid;
+  grid-template-columns: 1fr 56px 1fr;
+  align-items: center;
+}
+
+.conv-pocket {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--bg-editor);
+  min-width: 0;
+}
+
+.conv-pocket-label {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.conv-pocket-value {
+  font-size: var(--text-lg);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.conv-pocket-change {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+}
+
+.conv-pocket[data-kind="credits"] .conv-pocket-change {
+  color: var(--success);
+}
+
+.conv-track {
+  position: relative;
+  height: 24px;
+  --conv-travel: 42px;
+}
+
+.conv-track-line {
+  position: absolute;
+  top: 50%;
+  left: 4px;
+  right: 4px;
+  border-top: 1.5px dashed var(--border-strong);
+}
+
+.conv-coin {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 14px;
+  height: 14px;
+  margin-top: -7px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--success) 55%, #fff), var(--success));
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Converting: one coin flows along the track until the server answers. Constant motion. */
+.conv-dialog[data-view="converting"] .conv-coin-flow {
+  animation: conv-flow 900ms linear infinite;
+}
+
+@keyframes conv-flow {
+  0% { opacity: 0; transform: translateX(0); }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(var(--conv-travel)); }
+}
+
+/* Done: three coins arc across, staggered, moving on screen so ease-in-out. */
+.conv-dialog[data-view="done"][data-run="true"] .conv-coin-flight {
+  animation: conv-flight 560ms var(--conv-ease-in-out) both;
+}
+
+@keyframes conv-flight {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.9); }
+  15% { opacity: 1; }
+  50% { transform: translate(calc(var(--conv-travel) / 2), -14px) scale(1); }
+  85% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--conv-travel), 0) scale(0.9); }
+}
+
+/* The credits pocket takes the coins in: a small press as the first one lands. */
+.conv-dialog[data-view="done"][data-run="true"] .conv-pocket[data-kind="credits"] {
+  animation: conv-receive 240ms var(--conv-ease-out) 480ms both;
+  border-color: color-mix(in srgb, var(--success) 45%, var(--border-subtle));
+}
+
+@keyframes conv-receive {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+
+.conv-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.conv-message {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.conv-dialog[data-view="failed"] .conv-message {
+  color: var(--warning);
+}
+
+/* The check mark exists only in the done view, and draws after the coins land. */
+.conv-check {
+  display: none;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: var(--success);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.conv-dialog[data-view="done"] .conv-check {
+  display: block;
+}
+
+.conv-check-ring {
+  opacity: 0.35;
+}
+
+.conv-check-tick {
+  stroke-dasharray: 16;
+  stroke-dashoffset: 16;
+}
+
+.conv-dialog[data-view="done"][data-run="true"] .conv-check-tick {
+  animation: conv-tick 280ms var(--conv-ease-out) 620ms both;
+}
+
+@keyframes conv-tick {
+  to { stroke-dashoffset: 0; }
+}
+
+.conv-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.conv-actions .ad-btn[hidden] {
+  display: none;
+}
+
+.conv-actions .ad-btn-primary {
+  flex: 1 1 auto;
+}
+
+/* Reduced motion: no travelling coins and no press; the figures and the tick just appear. */
+@media (prefers-reduced-motion: reduce) {
+  .conv-coin { display: none; }
+  .conv-dialog { transform: none; }
+}
+
+:root[data-reduced-motion="true"] .conv-coin {
+  display: none;
+}
+
+:root[data-reduced-motion="true"] .conv-dialog {
+  transform: none;
+}

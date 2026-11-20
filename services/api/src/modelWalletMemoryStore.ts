@@ -1,7 +1,17 @@
 import { randomUUID } from "node:crypto";
 import { summarizeWalletSales, type WalletStore, type WalletView, type WalletEvent } from "./modelWallet.ts";
 
-export function createModelWalletMemoryStore(): WalletStore {
+/**
+ * What the in-memory wallet offers beyond `WalletStore`: crediting converted earnings.
+ * The SQL does this inside `convert_earnings_to_credits`; the memory store's conversion
+ * calls this in the same synchronous block as the earnings debit.
+ */
+export interface MemoryWalletExtras {
+  /** Adds converted earnings to the balance and returns the new balance, in micros. */
+  creditFromEarnings(uid: string, micros: number, ref: string, now: number): number;
+}
+
+export function createModelWalletMemoryStore(): WalletStore & MemoryWalletExtras {
   const balances = new Map<string, number>();
   const orders = new Map<string, { orderId: string; uid: string; priceCents: number; status: string; createdAt: number; session: string | null; payment: string | null; refunded: number; disputed: number; gross: number }>();
   const holds = new Map<string, { uid: string; model: string; amount: number; createdAt: number; done: boolean }>();
@@ -11,7 +21,8 @@ export function createModelWalletMemoryStore(): WalletStore {
   const held = (uid: string) => [...holds.values()].filter(h => h.uid === uid && !h.done).reduce((n,h) => n + h.amount,0);
   const expire = (uid: string, now: number) => { for (const h of holds.values()) if (h.uid === uid && !h.done && h.createdAt < now - 1_800_000) h.done = true; };
   const move = (uid: string, delta: number, kind: string, model: string, now: number, estimated = false) => { balances.set(uid,(balances.get(uid) ?? 0) + delta); activity.unshift({ id:randomUUID(),uid,deltaMicros:delta,kind,model,createdAt:now,estimated }); };
-  const store: WalletStore = {
+  const store: WalletStore & MemoryWalletExtras = {
+    creditFromEarnings(uid, micros, _ref, now) { move(uid,micros,"earnings","",now); return balances.get(uid) ?? 0; },
     async getModelWallet(uid, now) {
       expire(uid,now); const balanceMicros=balances.get(uid) ?? 0; const reservedMicros=held(uid);
       return { balanceMicros,reservedMicros,availableMicros:Math.max(0,balanceMicros-reservedMicros),orders:[...orders.values()].filter(o=>o.uid===uid).map(({orderId,priceCents,status,createdAt})=>({orderId,priceCents,status,createdAt})),activity:activity.filter(a=>a.uid===uid).slice(0,100).map(({uid:_,...a})=>a) };

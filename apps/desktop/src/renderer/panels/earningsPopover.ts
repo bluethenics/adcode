@@ -32,6 +32,8 @@
  */
 import type { AccountState, EarningsSnapshot } from "../../shared/api.ts";
 import { ICON, iconButton } from "../workbench/icons.ts";
+import { WITHDRAW_URL } from "../../shared/creditConversion.ts";
+import { createCreditConversionPanel } from "./creditConversionPanel.ts";
 
 export interface EarningsPopoverDeps {
   /** Used only by the visible close button; the workbench shell owns all other dismissal. */
@@ -52,6 +54,8 @@ export interface AnchoredTool {
 export interface EarningsPopover extends AnchoredTool {
   /** The main process broadcasts on every tick; the card redraws whether or not it is open. */
   update(snapshot: EarningsSnapshot): void;
+  /** Shows "Convert to AI credits" with a fresh quote. The card must already be open. */
+  openConversion(): void;
 }
 
 function row(label: string, value: string): HTMLElement {
@@ -189,6 +193,52 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
   balanceLabel.className = "earnings-balance-label";
   balanceLabel.textContent = "Your balance";
   hero.prepend(balanceLabel);
+
+  /* ── What to do with it ─────────────────────────────────────────────────── */
+
+  /*
+   * The two things somebody with a balance can do with it, right under the balance.
+   *
+   * Converting happens here, in one confirmed step (creditConversionPanel.ts). Withdrawing
+   * needs payout details, identity checks and a review, which live on the website - so this
+   * button opens that page in the system browser (the window-open handler sends https links
+   * there) rather than pretending the editor can pay anybody out.
+   */
+  const moneyActions = document.createElement("div");
+  moneyActions.className = "earnings-money-actions";
+
+  const convertButton = document.createElement("button");
+  convertButton.type = "button";
+  convertButton.className = "ad-btn ad-btn-primary";
+  convertButton.textContent = "Convert to AI credits";
+  convertButton.setAttribute("aria-expanded", "false");
+  convertButton.setAttribute("aria-controls", "earnings-convert-panel");
+
+  const withdrawButton = document.createElement("button");
+  withdrawButton.type = "button";
+  withdrawButton.className = "ad-btn";
+  withdrawButton.textContent = "Withdraw on the website";
+  withdrawButton.title = WITHDRAW_URL;
+  withdrawButton.addEventListener("click", () => {
+    window.open(WITHDRAW_URL, "_blank", "noopener,noreferrer");
+  });
+
+  moneyActions.append(convertButton, withdrawButton);
+
+  const conversion = createCreditConversionPanel({
+    onConverted: () => void refreshEarnings(),
+    onClose: () => setConversionOpen(false),
+  });
+  conversion.element.id = "earnings-convert-panel";
+
+  function setConversionOpen(open: boolean): void {
+    if (open) conversion.open();
+    else conversion.close();
+    convertButton.setAttribute("aria-expanded", String(open));
+    convertButton.hidden = open;
+    if (!open) convertButton.focus();
+  }
+  convertButton.addEventListener("click", () => setConversionOpen(true));
 
   /* ── The facts ──────────────────────────────────────────────────────────── */
 
@@ -353,9 +403,9 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
 
   const body = document.createElement("div");
   body.className = "earnings-body";
-  body.append(hero, facts, invite, accountRow, footer);
+  body.append(hero, moneyActions, conversion.element, facts, invite, accountRow, footer);
 
-  card.append(header, body);
+  card.append(header, body, conversion.dialogElement);
 
   let visible = false;
   let latest: EarningsSnapshot | null = null;
@@ -421,6 +471,16 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
 
     hidden(): void {
       visible = false;
+      // Closed with the card, so the next opening starts from a fresh quote.
+      if (conversion.isOpen()) {
+        conversion.close();
+        convertButton.setAttribute("aria-expanded", "false");
+        convertButton.hidden = false;
+      }
+    },
+
+    openConversion(): void {
+      setConversionOpen(true);
     },
 
     isOpen: () => visible,

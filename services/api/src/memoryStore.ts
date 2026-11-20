@@ -9,6 +9,7 @@
 import { createAdNetworkMemoryStore } from "./adNetworkMemoryStore.ts";
 import { planBudgetMove } from "./campaignBudget.ts";
 import { createTagflowMemoryStore } from "./tagflowMemoryStore.ts";
+import type { EarningsConversionRecord } from "./earningsConversion.ts";
 import { utcDay } from "./day.ts";
 import { countDevelopers, sightings, summarizeGrowth, type MilestoneRow, type PresenceRow } from "./growth.ts";
 import { applyEntry, EMPTY_BALANCE, type Balance, type LedgerEntry } from "./ledger.ts";
@@ -114,6 +115,8 @@ export function createMemoryStore(): Store & { reset(): void } {
   let payoutProfiles = new Map<string, PayoutProfileRecord>();
   let payoutCorridors = new Map<string, PayoutCorridorRecord>();
   let withdrawals = new Map<string, WithdrawalRecord>();
+  /** Keyed uid NUL requestId, like the table's composite primary key. The audit trail. */
+  let conversions = new Map<string, EarningsConversionRecord>();
   let creditOrders = new Map<string, CreditOrderRecord>();
   let providerWebhookIds = new Set<string>();
   let providerObjectIds = new Set<string>();
@@ -173,6 +176,7 @@ export function createMemoryStore(): Store & { reset(): void } {
       requestCounts = new Map();
       reports = new Map();
       payoutProfiles = new Map();
+      conversions = new Map();
       payoutCorridors = new Map();
       withdrawals = new Map();
       creditOrders = new Map();
@@ -726,6 +730,52 @@ export function createMemoryStore(): Store & { reset(): void } {
 
     async createWithdrawal(withdrawal) {
       withdrawals.set(withdrawal.withdrawalId, withdrawal);
+    },
+
+    /*
+     * One synchronous block after the replay check, so no other request can interleave
+     * between the balance check and the moves - the in-memory stand-in for the SQL's lock.
+     */
+    async convertEarningsToCredits(input) {
+      const key = `${input.uid} ${input.requestId}`;
+      const previous = conversions.get(key);
+      if (previous !== undefined) {
+        if (previous.earningsMicros !== input.earningsMicros) return { status: "conflict" };
+        return {
+          status: "replayed",
+          conversion: previous,
+          availableMicros: (balances.get(input.uid) ?? EMPTY_BALANCE).availableMicros,
+          creditBalanceMicros: BigInt((await tagflow.getModelWallet(input.uid, input.now)).balanceMicros),
+        };
+      }
+      const today = [...conversions.values()]
+        .filter((row) => row.uid === input.uid && row.createdAt >= input.dayStart)
+        .reduce((sum, row) => sum + row.earningsMicros, 0n);
+      if (today + input.earningsMicros > input.dailyCapMicros) return { status: "daily-cap", convertedTodayMicros: today };
+      const current = balances.get(input.uid) ?? EMPTY_BALANCE;
+      if (current.availableMicros < input.earningsMicros) return { status: "insufficient-funds", availableMicros: current.availableMicros };
+      if (entries.some((candidate) => candidate.entryId === input.entry.entryId)) {
+        throw new Error(`ledger entry ${input.entry.entryId} already exists`);
+      }
+      const conversion: EarningsConversionRecord = {
+        requestId: input.requestId,
+        uid: input.uid,
+        earningsMicros: input.earningsMicros,
+        creditMicros: input.creditMicros,
+        createdAt: input.now,
+      };
+      entries.push(input.entry);
+      const next = applyEntry(current, input.entry);
+      balances.set(input.uid, next);
+      conversions.set(key, conversion);
+      const creditBalance = tagflow.creditFromEarnings(input.uid, Number(input.creditMicros), key, input.now);
+      return { status: "converted", conversion, availableMicros: next.availableMicros, creditBalanceMicros: BigInt(creditBalance) };
+    },
+
+    async earningsConvertedSince(uid, dayStart) {
+      return [...conversions.values()]
+        .filter((row) => row.uid === uid && row.createdAt >= dayStart)
+        .reduce((sum, row) => sum + row.earningsMicros, 0n);
     },
 
     async reserveWithdrawal(withdrawal, entry) {
