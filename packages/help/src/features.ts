@@ -51,6 +51,9 @@ const command = (commandId: string, label: string): FeatureCommandAction => ({
  * looking for the feature actually wants: Commit, not Fetch.
  */
 const METADATA: Readonly<Record<string, FeatureMetadata>> = {
+  "adcode.privacy.usageStats": {
+    keywords: ["telemetry", "usage statistics", "analytics", "what does adcode send", "what is collected", "data collection", "opt out", "retention", "crash reports", "error reports", "diagnostics", "tracking"],
+  },
   "community.plugins": {
     added: "2026-11-04",
     actions: [command("community.plugins", "Browse plugins"), command("community.installed", "Installed plugins")],

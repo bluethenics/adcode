@@ -442,3 +442,66 @@ Object.assign(FIXTURES, {
   "/admin/campaigns": campaigns,
   "/admin/campaigns/audience": (data: AdminPreviewData) => ({ count: data === "empty" ? 0 : 14_773 }),
 });
+
+/* ── Retention ─────────────────────────────────────────────────────────── */
+
+function retentionSummary(data: AdminPreviewData) {
+  const empty = data === "empty", k = data === "worst" ? 140 : 1;
+  const weekMonday = (ago: number) => { const d = new Date(now() - ago * 7 * DAY); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return dayKey(d.getTime()); };
+  const cohorts = Array.from({ length: 12 }, (_, index) => {
+    const age = 11 - index, users = empty ? 0 : Math.round((38 + index * 4 + (index % 3) * 7) * k);
+    const point = (n: number, rate: number) => (age * 7 + 3 < n ? { eligible: 0, retained: 0 } : { eligible: users, retained: Math.round(users * rate) });
+    return { weekStart: weekMonday(age), users, d1: point(1, 0.31 + (index % 4) * 0.02), d7: point(7, 0.14 + (index % 3) * 0.015), d30: point(30, 0.07) };
+  });
+  const base = empty ? 0 : 612 * k;
+  const steps = [["first_launch", 1], ["signed_in", 0.58], ["project_opened", 0.71], ["ai_message", 0.52], ["ai_turn_ok", 0.39], ["edit_applied", 0.27], ["preview_opened", 0.16], ["returned_day1", 0.3], ["returned_day7", 0.13]] as const;
+  const churned = empty ? 0 : 388 * k;
+  const reasons = [["no_project", 0.24], ["first_turn_failed", 0.16], ["hit_limit", 0.13], ["no_ai_message", 0.11], ["faded", 0.1], ["sign_in_dead_end", 0.08], ["no_api_key", 0.06], ["ai_failing", 0.04], ["slow_answers", 0.03], ["crashed", 0.02], ["gave_up_waiting", 0.02], ["no_edit", 0.01], ["update_failed", 0]] as const;
+  return {
+    builtAt: now() - 23 * 60_000, silentDays: 7,
+    totals: { users: empty ? 0 : 1_204 * k, newInstalls: base, active1d: empty ? 0 : 141 * k, active7d: empty ? 0 : 402 * k, active30d: empty ? 0 : 816 * k, churned },
+    cohorts,
+    funnel: { base, steps: steps.map(([step, rate]) => ({ step, users: Math.round(base * rate) })) },
+    reasons: reasons.map(([reason, rate]) => ({ reason, users: Math.round(churned * rate) })),
+    friction: empty ? [] : [
+      { name: "turn_failed", churned: 104 * k, users: 233 * k, topCodes: [{ code: "auth", churned: 41 * k }, { code: "rate_limit", churned: 27 * k }, { code: "network", churned: 19 * k }] },
+      { name: "limit_reached", churned: 61 * k, users: 172 * k, topCodes: [{ code: "daily", churned: 52 * k }, { code: "tokens", churned: 9 * k }] },
+      { name: "sign_in_needed", churned: 44 * k, users: 120 * k, topCodes: [] },
+      { name: "cli_failed", churned: 29 * k, users: 58 * k, topCodes: [{ code: "opencode.stopped_part_way", churned: 17 * k }, { code: "claude.signed_out", churned: 8 * k }] },
+      { name: "slow_first_answer", churned: 22 * k, users: 97 * k, topCodes: [] },
+      { name: "renderer_gone", churned: 6 * k, users: 9 * k, topCodes: [{ code: "oom", churned: 5 * k }] },
+    ],
+  };
+}
+
+function retentionPerson(index: number) {
+  const reasons = ["no_project", "first_turn_failed", "hit_limit", "sign_in_dead_end", "crashed", "faded"];
+  const reason = reasons[index % reasons.length]!;
+  return {
+    uid: index === 2 ? "anonymous-account-with-an-identifier-that-goes-on-and-on-7Hq2" : `u${(91_381 + index * 7_717).toString(36)}Kp${index}Lm2x`,
+    firstSeenAt: now() - (20 + index) * DAY, lastSeenAt: now() - (8 + index) * DAY, activeDays: 1 + (index % 4), newInstall: index % 5 !== 0,
+    furthestStep: reason === "no_project" ? "first_launch" : reason === "first_turn_failed" ? "ai_message" : "edit_applied", reason,
+    lastError: reason === "first_turn_failed" ? { name: "turn_failed", code: "auth", at: now() - (8 + index) * DAY } : reason === "crashed" ? { name: "renderer_gone", code: "oom", at: now() - (8 + index) * DAY } : null,
+    lastSession: { code: reason === "crashed" ? "unclean" : "quit", ms: 240_000 + index * 91_000, at: now() - (8 + index) * DAY }, version: "2.6.3",
+  };
+}
+
+Object.assign(FIXTURES, {
+  "/admin/retention": retentionSummary,
+  "/admin/retention/churned": (data: AdminPreviewData) => (data === "empty" ? { total: 0, users: [] } : { total: data === "worst" ? 54_320 : 388, users: Array.from({ length: 25 }, (_, index) => retentionPerson(index)) }),
+  "/admin/retention/user": (data: AdminPreviewData) => (data === "empty" ? { user: null, daily: [], events: [] } : {
+    user: { ...retentionPerson(1), counts: { turn_failed: 3, "turn_failed:auth": 3 } },
+    daily: [{ day: dayKey(now() - 9 * DAY), events: 14, counts: { ai_message: 1 } }],
+    events: [
+      { name: "session_end", code: "quit", ms: 331_000, at: now() - 9 * DAY },
+      { name: "turn_failed", code: "auth", ms: null, at: now() - 9 * DAY - 60_000 },
+      { name: "turn_failed", code: "auth", ms: null, at: now() - 9 * DAY - 120_000 },
+      { name: "no_api_key", code: "key", ms: null, at: now() - 9 * DAY - 180_000 },
+      { name: "ai_message", code: null, ms: null, at: now() - 9 * DAY - 200_000 },
+      { name: "project_opened", code: null, ms: null, at: now() - 9 * DAY - 260_000 },
+      { name: "day_active", code: null, ms: null, at: now() - 9 * DAY - 300_000 },
+      { name: "session_start", code: "2.6.3", ms: null, at: now() - 9 * DAY - 300_000 },
+      { name: "first_launch", code: null, ms: null, at: now() - 9 * DAY - 300_000 },
+    ],
+  }),
+});
