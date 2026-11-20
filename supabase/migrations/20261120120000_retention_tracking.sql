@@ -500,7 +500,13 @@ begin
     'public.refresh_retention(bigint)',
     'public.read_retention_summary(integer)',
     'public.read_retention_churned(bigint, integer, text, integer, integer)',
-    'public.read_retention_user(text)'
+    'public.read_retention_user(text)',
+    'public.retention_jsonb_least(jsonb, jsonb)',
+    'public.retention_jsonb_greatest(jsonb, jsonb)',
+    'public.retention_jsonb_sum(jsonb, jsonb)',
+    'public.retention_churn_reason(jsonb, jsonb, bigint, integer, text, bigint)',
+    'public.retention_furthest_step(jsonb)',
+    'public.retention_user_json(public.retention_users)'
   ] loop
     execute format('revoke all on function %s from public, anon, authenticated', f);
     execute format('grant execute on function %s to service_role', f);
