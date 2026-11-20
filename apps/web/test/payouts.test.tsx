@@ -117,6 +117,7 @@ describe("the admin rail", () => {
       "/admin/review?tab=feedback",
       "/admin/status",
       "/admin/people",
+      "/admin/retention",
       "/admin/campaigns",
       "/admin/people?tab=admins",
       "/admin/tagflow",
@@ -131,7 +132,7 @@ describe("the admin rail", () => {
       "/admin/content",
     ]);
     // Growth and Content stand for every tab on their page.
-    expect(items.filter((item) => item.wholePage === true).map((item) => item.href)).toEqual(["/admin/analytics", "/admin/growth", "/admin/content"]);
+    expect(items.filter((item) => item.wholePage === true).map((item) => item.href)).toEqual(["/admin/analytics", "/admin/retention", "/admin/growth", "/admin/content"]);
   });
 
   it("counts the three queues that can block somebody else", () => {

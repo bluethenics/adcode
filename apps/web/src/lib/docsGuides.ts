@@ -2824,17 +2824,18 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "privacy-usage-stats": {
     steps: [
-      "Help improve ADCode is on by default. To check it, open Settings and choose Privacy.",
-      "Switch it off to stop counting at once. Anything counted and not yet sent is deleted.",
+      "Help improve ADCode is on by default. To check it, open Settings and choose Privacy, or search All Features for \"Help improve ADCode\".",
+      "Read what it sends: daily feature counts (which commands, pages and add-ons you used), and retention signals - fixed event names such as first launch, first AI answer that worked, a failed AI request with an error word like auth, a limit screen, a crash, and how each session ended.",
+      "Switch it off to stop both at once. Anything counted and not yet sent is deleted from your computer.",
       "Switch it back on at any time; counting starts again from that moment.",
     ],
     benefits: [
-      "Only fixed names and daily counts are sent - which commands, pages and add-ons were used - never code, prompts, file names or anything typed.",
-      "The report carries no account: the service stores totals per day, not per person.",
-      "Plugins you tried privately in the Studio are never named.",
+      "Only fixed names, fixed codes, counts and timings are sent. Every name and code comes from a list built into the app, and the server refuses anything else - so code, prompts, AI replies, file names, paths, error messages and chat text cannot travel this way.",
+      "Feature counts carry no account. Retention signals carry your ADCode account id, because \"who stopped coming back, and what went wrong just before\" needs one; raw signals are deleted after 90 days.",
+      "What you report is what gets fixed: the team ranks problems by how many people hit them before they left.",
     ],
     betterThan:
-      "Many editors send detailed telemetry by default and bury the switch. ADCode sends one small report a day, says exactly what is in it, and puts the off switch in its own Privacy section.",
+      "Many editors send detailed telemetry by default, including error text that can contain file paths, and bury the switch. ADCode sends only words from a fixed list, documents every one of them here and in the privacy policy, and puts one switch that stops everything in its own Privacy section.",
   },
 
   "community-addons": {

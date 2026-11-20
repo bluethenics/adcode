@@ -4,7 +4,7 @@
  * from the client's side, since the service may not import from `packages/`.
  */
 import { describe, expect, it } from "vitest";
-import * as api from "@adcode/api/src/retention.ts";
+import * as api from "../../../services/api/src/retention.ts";
 import { CHURN_REASONS, EVENT_CODES, FRICTION_EVENTS, FUNNEL_STEPS, RETENTION_EVENTS, SILENT_DAY_CHOICES, VERSION } from "@adcode/retention";
 
 describe("the service's copy of the retention vocabulary", () => {
