@@ -286,6 +286,8 @@ export interface ApiOptions {
   adNetworks?: AdNetworkRuntime;
   /** Admin user search and actions, and email campaigns (`adminConsole.ts`). Answered before the main router. */
   adminConsole?: Pick<import("./adminConsole.ts").AdminConsoleOptions, "console" | "sendTest">;
+  /** Admin analytics and per-model figures from summary tables (`adminInsights.ts`). Answered before the main router. */
+  adminInsights?: import("./adminInsights.ts").AdminInsightsStore;
   tagflow?: { modelMetadata?: boolean; priority?: import("./requestPriority.ts").RequestPriority; apiKey?: string; fetchImpl?: typeof fetch; country?: (request: Request) => string | undefined; workerSecrets?: WorkerSecrets; rateLimitWaitsMs?: readonly number[]; fallback?: boolean; identity?: AccountIdentity; emailProof?: import("./accountEmailProof.ts").AccountEmailProof; timeouts?: Partial<{ firstMs: number; idleMs: number; maxMs: number }>; encryptionKeys?: () => readonly string[]; salesOpen?: boolean };
   websiteAnalytics?: WebsiteAnalyticsStore;
   /** Desktop feature-use totals (appUsage.ts). Absent: the editor's reports are accepted and dropped. */

@@ -27,6 +27,7 @@ import { createRequestHandler, type ApiOptions } from "./server.ts";
 import { createMemoryStore } from "./memoryStore.ts";
 import { createTagflowHandler } from "./tagflow.ts";
 import { createAdminConsoleHandler } from "./adminConsole.ts";
+import { createAdminInsightsHandler } from "./adminInsights.ts";
 
 /** Just enough of `IncomingMessage` for the handler, including the body iteration. */
 class ShimRequest {
@@ -118,9 +119,15 @@ export function createFetchHandler(
   const adminConsole = options.adminConsole === undefined || options.verifier === undefined ? null
     : createAdminConsoleHandler({ store, verifier: options.verifier, clock: options.clock ?? { now: () => Date.now() }, ...options.adminConsole });
 
+  // Admin > Analytics and the model data on Admin > ADCode models (adminInsights.ts).
+  const insights = options.adminInsights === undefined || options.verifier === undefined ? null
+    : createAdminInsightsHandler({ store, verifier: options.verifier, clock: options.clock ?? { now: () => Date.now() }, insights: options.adminInsights, ...(options.appUsage === undefined ? {} : { appUsage: options.appUsage }) });
+
   return async (request: Request): Promise<Response> => {
     const answered = adminConsole === null ? null : await adminConsole(request);
     if (answered !== null) return answered;
+    const insight = insights === null ? null : await insights(request);
+    if (insight !== null) return insight;
     // This response owns a live upstream stream and must bypass the buffering shim.
     const relayed = await tagflow(request);
     if (relayed !== null) return relayed;

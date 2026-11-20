@@ -42,6 +42,8 @@ export interface ModelRequestRecord extends ModelIdentity {
   estimated: boolean;
   durationMs: number | null;
   firstTokenMs: number | null;
+  /** Input tokens the provider served from its prompt cache; absent when it did not say. */
+  cachedInputTokens?: number | null;
 }
 
 export interface ModelFeedbackRecord {

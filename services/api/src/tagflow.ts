@@ -200,6 +200,8 @@ class UsageObserver {
   restart(): void { this.pending = ""; this.decoder = new TextDecoder(); this.completed = false; this.finishReason = null; }
   reported: { input: number; output: number } | null = null;
   cachedInput = 0;
+  /** Whether the provider said how much input came from its cache at all (zero is an answer; silence is not). */
+  cacheReported = false;
   cacheWritten = 0;
   providerCost: number | undefined;
   outputBytes = 0;
@@ -245,8 +247,8 @@ class UsageObserver {
       this.reported = { input: usage["prompt_tokens"], output: usage["completion_tokens"] };
       const details = usage["prompt_tokens_details"];
       if (isRecord(details) && count(details["cache_write_tokens"])) this.cacheWritten = Math.min(usage["prompt_tokens"],details["cache_write_tokens"]);
-      if (isRecord(details) && count(details["cached_tokens"])) this.cachedInput = Math.min(usage["prompt_tokens"], details["cached_tokens"]);
-      else if (count(usage["prompt_cache_hit_tokens"])) this.cachedInput = Math.min(usage["prompt_tokens"],usage["prompt_cache_hit_tokens"]);
+      if (isRecord(details) && count(details["cached_tokens"])) { this.cachedInput = Math.min(usage["prompt_tokens"], details["cached_tokens"]); this.cacheReported = true; }
+      else if (count(usage["prompt_cache_hit_tokens"])) { this.cachedInput = Math.min(usage["prompt_tokens"],usage["prompt_cache_hit_tokens"]); this.cacheReported = true; }
       if (typeof usage["cost"] === "number" && Number.isFinite(usage["cost"]) && usage["cost"] >= 0 && usage["cost"] <= 100) this.providerCost = usage["cost"];
     }
     if (Array.isArray(raw["choices"])) for (const choice of raw["choices"]) {
@@ -1115,6 +1117,8 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
           metric.finishedAt ??= deps.clock.now();
           metric.inputTokens = inputTokens; metric.outputTokens = outputTokens; metric.costMicros = result.costMicros; metric.estimated = !failed && result.estimated;
           metric.toolCalls = observer.toolCalls.size; metric.finishReason = observer.finishReason;
+          // For the admin Models page's cached share; only what the provider actually reported.
+          if (!failed && observer.cacheReported) metric.cachedInputTokens = observer.cachedInput;
         }
         try {
           if (walletHeld) await deps.store.settleModelWallet(reservation.id, failed ? 0 : walletCharge(walletRates(served.model,reservation.minute*60_000,inputTokens),inputTokens,outputTokens,observer.cachedInput,modelProvider(served.model)==="openrouter" ? observer.providerCost : undefined,observer.cacheWritten,walletDiscount),reported===null,deps.clock.now());

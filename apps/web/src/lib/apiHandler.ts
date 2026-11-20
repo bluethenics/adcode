@@ -26,6 +26,7 @@ import { createDodoProvider } from "@adcode/api/adapters/dodoPayments.ts";
 import { createWebsiteAnalyticsStore } from "@adcode/api/adapters/websiteAnalyticsStore.ts";
 import { createAppUsageStore } from "@adcode/api/adapters/appUsageStore.ts";
 import { createRetentionStore } from "@adcode/api/adapters/retentionStore.ts";
+import { createAdminInsightsStore } from "@adcode/api/adapters/adminInsightsStore.ts";
 import { createProviderApplicationStore } from "@adcode/api/adapters/providerApplicationStore.ts";
 import { createProviderModelStore } from "@adcode/api/adapters/providerModelStore.ts";
 import { createFirebaseIdentity } from "@adcode/api/src/accountIdentity.ts";
@@ -47,6 +48,7 @@ export const handleApiRequest = createFetchHandler({
   websiteAnalytics: createWebsiteAnalyticsStore(),
   appUsage: createAppUsageStore(),
   retention: createRetentionStore(),
+  adminInsights: createAdminInsightsStore(),
   providerApplications: createProviderApplicationStore(),
   providerModels: createProviderModelStore(),
   mailing: mailingStore,

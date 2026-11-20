@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
+import { useCachedResource } from "@/lib/adminCache";
+import { RefreshStamp } from "@/components/RefreshStamp";
+import { ChartSkeleton, ExportButtons, InsightProblem, Loading, StatSkeleton } from "@/components/AdminInsightsUI";
+import { rangeLabel } from "@/lib/adminInsights";
 import { TimeChart } from "@/components/charts/TimeChart";
 import { apiFetch } from "@/lib/api";
 import { buildPost, DEFAULT_SHARE, dollars, MILESTONE_LABELS, parseGrowth, percent, SHARE_METRICS, shareLine, xIntentUrl, type Growth, type GrowthFunnel, type ShareMetric } from "@/lib/growth";
@@ -18,38 +22,28 @@ import type { GrowthDayValues } from "@/lib/growth";
  */
 export function GrowthPanel() {
   const { token } = useAuth();
-  const [growth, setGrowth] = useState<Growth | null>(null);
-  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
-  const [refresh, setRefresh] = useState(0);
-
-  useEffect(() => {
-    let active = true;
-    setState("loading");
-    void (async () => {
-      try {
-        const result = await apiFetch<unknown>({ path: "/admin/growth", token: await token() });
-        const parsed = result.ok ? parseGrowth(result.value) : null;
-        if (!active) return;
-        setGrowth(parsed);
-        setState(parsed === null ? "error" : "ready");
-      } catch {
-        if (active) setState("error");
-      }
-    })();
-    return () => { active = false; };
-  }, [refresh, token]);
+  // The last figures this browser saw show at once, with their age; fresh ones replace them.
+  const load = useCallback(async (signal: AbortSignal): Promise<Growth | null> => {
+    const result = await apiFetch<unknown>({ path: "/admin/growth", token: await token(), signal });
+    return result.ok ? parseGrowth(result.value) : null;
+  }, [token]);
+  const cached = useCachedResource("growth", load);
+  const growth = cached.value;
 
   return (
     <section className="growth-panel" aria-labelledby="growth-heading">
       <header className="growth-head">
         <div>
           <h2 id="growth-heading">Growth</h2>
-          <p className="website-analytics-note">People using the editor and the ads it showed. Counted from accounts, ad requests and billed views, not from website visits.</p>
+          <p className="website-analytics-note">People using the editor and the ads it showed. Counted from accounts, ad requests and billed views, not from website visits.{growth !== null ? ` As of ${new Date(growth.asOf).toLocaleString()}.` : ""}</p>
         </div>
-        <button type="button" className="btn btn-small" disabled={state === "loading"} onClick={() => setRefresh((n) => n + 1)}>Refresh</button>
+        <div className="insight-toolbar-group">
+          <RefreshStamp asOf={cached.asOf} refreshing={cached.refreshing} fromCache={cached.fromCache} onRefresh={() => void cached.refresh()} />
+          <ExportButtons label="Export" query="dataset=growth" disabled={growth === null} />
+        </div>
       </header>
-      {state === "loading" && growth === null && <p role="status">Counting…</p>}
-      {state === "error" && <p role="alert">Growth numbers could not be loaded. Refresh to retry; if it keeps failing, check that the growth_stats migration has been applied.</p>}
+      {growth === null && !cached.failed && <Loading label="Counting"><StatSkeleton count={6} /><ChartSkeleton height={260} /></Loading>}
+      {cached.failed && <InsightProblem kind="server" message={growth === null ? "Growth numbers could not be loaded. If it keeps failing, check that the growth_stats migration has been applied." : "Fresh figures could not be loaded; the ones below are from earlier."} onRetry={() => void cached.refresh()} />}
       {growth !== null && <GrowthReport growth={growth} />}
     </section>
   );
@@ -98,6 +92,7 @@ function GrowthReport({ growth }: { growth: Growth }) {
       </p>
       <section className="website-analytics-card">
         <h2>Last 30 days</h2>
+        {growth.daily.length > 0 && <p className="insight-range">{rangeLabel({ from: growth.daily[0]!.day, to: growth.daily.at(-1)!.day }, growth.asOf)}</p>}
         <TimeChart
           days={growth.daily.map((d) => d.day)}
           series={[
