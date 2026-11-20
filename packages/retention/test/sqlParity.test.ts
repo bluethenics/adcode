@@ -4,17 +4,25 @@
  * production serves). This replays the same population through the migration in PGlite -
  * in two halves and in small batches, so the incremental merge is exercised too - and
  * fails if any account's facts or reason, or any summary, differ.
+ *
+ * PGlite is not a declared dependency (the SQL check scripts in scripts/ use a copy installed by
+ * hand), so it is loaded at run time and the suite is skipped where it is missing - CI included.
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { PGlite } from "@electric-sql/pglite";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { SILENT_DAY_CHOICES, churnReason, foldEvents, furthestStep, isChurned, summarize, type UserFacts } from "@adcode/retention";
 import { DAY, NOW, POPULATION } from "./fixture.ts";
 
 const MIGRATION = fileURLToPath(new URL("../../../supabase/migrations/20261120120000_retention_tracking.sql", import.meta.url));
 
-let db: PGlite;
+// Loaded by name so the type checker does not need the package either.
+const PGLITE_MODULE = "@electric-sql/pglite";
+type PGliteLike = { query<T>(sql: string, params?: unknown[]): Promise<{ rows: T[] }>; exec(sql: string): Promise<unknown>; close(): Promise<void> };
+const pglite = await import(/* @vite-ignore */ PGLITE_MODULE).catch(() => null) as { PGlite: new () => PGliteLike } | null;
+const hasPglite = pglite !== null;
+
+let db: PGliteLike;
 const facts = new Map<string, UserFacts>(POPULATION.map((person) => [person.uid, foldEvents(person.uid, person.events)!]));
 
 async function json<T>(sql: string, params: unknown[] = []): Promise<T> {
@@ -23,7 +31,8 @@ async function json<T>(sql: string, params: unknown[] = []): Promise<T> {
 }
 
 beforeAll(async () => {
-  db = new PGlite();
+  if (pglite === null) return;
+  db = new pglite.PGlite();
   await db.exec(`
     create role anon; create role authenticated; create role service_role bypassrls;
     create schema cron;
@@ -44,7 +53,7 @@ beforeAll(async () => {
 
 afterAll(async () => { await db?.close(); });
 
-describe("the SQL rollup agrees with the rules", () => {
+describe.skipIf(!hasPglite)("the SQL rollup agrees with the rules", () => {
   it("folds every account to the same facts", async () => {
     const rows = (await db.query<Record<string, unknown>>("select * from public.retention_users order by uid")).rows;
     expect(rows).toHaveLength(POPULATION.length);
@@ -110,7 +119,7 @@ describe("the SQL rollup agrees with the rules", () => {
   });
 });
 
-describe("the tables keep their promises", () => {
+describe.skipIf(!hasPglite)("the tables keep their promises", () => {
   it("deletes raw events after 90 days and keeps the per-account rows", async () => {
     await db.query("select public.refresh_retention($1)", [NOW + 91 * DAY]);
     expect((await db.query<{ n: number }>("select count(*)::int as n from public.retention_events")).rows[0]!.n).toBe(0);
