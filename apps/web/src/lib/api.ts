@@ -114,9 +114,11 @@ export interface ApiCall {
   token: string | null;
   method?: "GET" | "POST" | "PATCH";
   body?: unknown;
+  /** Cancels the request: a page whose filters changed drops the answer it no longer wants. */
+  signal?: AbortSignal;
 }
 
-export async function apiFetch<T>({ path, token, method = "GET", body }: ApiCall): Promise<ApiResult<T>> {
+export async function apiFetch<T>({ path, token, method = "GET", body, signal }: ApiCall): Promise<ApiResult<T>> {
   // The admin panel's made-up data for building it (adminPreview.ts). Dead code in a production build.
   if (process.env["NODE_ENV"] === "development") {
     const preview = (await import("./adminFixtures")).previewResponse<T>(path, method);
@@ -140,6 +142,7 @@ export async function apiFetch<T>({ path, token, method = "GET", body }: ApiCall
         ...(body === undefined ? {} : { "content-type": "application/json" }),
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      ...(signal === undefined ? {} : { signal }),
     });
 
     let parsed: unknown = null;

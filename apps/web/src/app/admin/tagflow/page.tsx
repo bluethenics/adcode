@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AdminShell } from "@/components/AdminShell";
 import { AdminModelTabs } from "@/components/AdminModelTabs";
@@ -13,10 +13,16 @@ import { DEFAULT_CREDIT_PLAN, MAX_CREDITS, MAX_CREDIT_RATE, modelCreditRate, typ
 import { CustomProviderEditor } from "@/components/CustomProviderEditor";
 import { PaidTokensActivity, PaidTokensSettings } from "@/components/PaidTokensAdmin";
 import { PlansAdmin } from "@/components/PlansAdmin";
+import { ExportButtons, InsightProblem, useInsightResource, RangeSelect } from "@/components/AdminInsightsUI";
+import { KindBadge, ModelCompareDrawer, ModelDetailDrawer, ModelRowFigures, RetiredModels } from "@/components/ModelInsights";
+import { RefreshStamp } from "@/components/RefreshStamp";
+import { DEFAULT_MODEL_FILTER, SORT_KEYS, SORT_LABELS, filterModelRows, modelsQuery, presetRange, rangeLabel, rowsForCatalogue, sortModelRows, type ModelFilter, type ModelInsightRow, type RangePreset, type RawInsightDay, type SortKey } from "@/lib/adminInsights";
+import { seriesColor } from "@/components/charts/palette";
 import "@/components/adminModels.css";
 import "@/components/adminTagflow.css";
 
 interface Saved { config: TagflowConfig; keyConfigured: boolean; updatedAt: number; updatedBy: string; connections: { id: IncludedProviderId; configured: boolean }[]; keysManageable?: boolean }
+interface ModelInsightsResponse { range: { from: string; to: string }; refreshedAt: number | null; coverageFrom: string | null; users: number; previousUsers: number; rows: ModelInsightRow[]; daily: RawInsightDay[] }
 interface UserView { policy: TagflowUserPolicy | null; limits: TagflowLimits; usage: TagflowUsage; resetsAt: number; credits?: CreditsView }
 const money = (micros: number): string => `$${(micros / 1_000_000).toFixed(4)}`;
 
@@ -96,8 +102,17 @@ function TagflowEditor() {
   const [userLimits, setUserLimits] = useState<TagflowLimits | null>(null);
   const [inheritCredits, setInheritCredits] = useState(true);
   const [userCredits, setUserCredits] = useState<CreditPlan>(DEFAULT_CREDIT_PLAN);
-  const [modelSearch, setModelSearch] = useState("");
-  const [modelFilter, setModelFilter] = useState<"all" | "offered" | "hidden" | "wallet">("all");
+  // Finding a model: search, filters and sort, over figures for the chosen range (ModelInsights.tsx).
+  const [filter, setFilter] = useState<ModelFilter>(DEFAULT_MODEL_FILTER);
+  const [sort, setSort] = useState<SortKey>("requests");
+  const [direction, setDirection] = useState<"asc" | "desc">("desc");
+  const [rangePreset, setRangePreset] = useState<RangePreset>("30");
+  const [compare, setCompare] = useState<string[]>([]);
+  const [comparing, setComparing] = useState(false);
+  const [detail, setDetail] = useState<ModelInsightRow | null>(null);
+  const [recounting, setRecounting] = useState(false);
+  const range = useMemo(() => presetRange(Number(rangePreset), Date.now()), [rangePreset]);
+  const insights = useInsightResource<ModelInsightsResponse>(view === "models" ? `/admin/insights/models?${modelsQuery(range)}` : null);
   /** Models open for editing, by their position in the catalogue. */
   const [open, setOpen] = useState<ReadonlySet<number>>(new Set());
   /** Models added since the last save, shown first so a new one is never out of sight. */
@@ -177,7 +192,7 @@ function TagflowEditor() {
     change({ models: [...draft.models, { id: "", name: "", contextWindow: 32_768, maxOutput: 4096, inputPrice: 0, outputPrice: 0 }] });
     setOpen((current) => new Set(current).add(index));
     setAdded((current) => new Set(current).add(index));
-    setModelSearch(""); setModelFilter("all");
+    setFilter(DEFAULT_MODEL_FILTER);
     window.setTimeout(() => document.getElementById(`model-${index}-name`)?.focus(), 50);
   }
   function removeModel(index: number): void {
@@ -254,13 +269,26 @@ function TagflowEditor() {
 
   const offered = draft.models.filter((model) => model.enabled !== false).length;
   const configuredKeys = providerConnections(customProviders).filter((provider) => keyStatus(provider.id) === true).length;
-  const search = modelSearch.trim().toLowerCase();
-  const visible = draft.models
-    .map((model, index) => ({ model, index }))
-    .filter(({ model, index }) => added.has(index) || (
-      (search === "" || `${model.name} ${model.id} ${model.upstreamModel ?? ""} ${providerName(model)}`.toLowerCase().includes(search)) &&
-      (modelFilter === "all" || (modelFilter === "offered" ? model.enabled !== false : modelFilter === "hidden" ? model.enabled === false : model.billing === "wallet"))))
-    .sort((a, b) => Number(added.has(b.index)) - Number(added.has(a.index)));
+  // The draft decides names, labels and status; the figures are the saved models' (rowsForCatalogue).
+  const catalogue = rowsForCatalogue(insights.value?.rows ?? [], draft);
+  // Without figures every model reads zero, so only a sort by name changes the catalogue's own order.
+  const filtered = filterModelRows(catalogue.rows, filter);
+  const matching = insights.value !== null || sort === "name" ? sortModelRows(filtered, sort, direction) : filtered;
+  const visible = [
+    ...catalogue.rows.filter((row) => added.has(row.catalogueIndex!)),
+    ...matching.filter((row) => !added.has(row.catalogueIndex!)),
+  ].map((row) => ({ row, index: row.catalogueIndex!, model: draft.models[row.catalogueIndex!]! }));
+  const figuresLoaded = insights.value !== null;
+  const allRows = [...catalogue.rows, ...catalogue.retired];
+  const compared = compare.map((key) => allRows.find((row) => row.key === key)).filter((row): row is ModelInsightRow => row !== undefined);
+  const toggleCompare = (key: string): void => setCompare((current) => current.includes(key) ? current.filter((one) => one !== key) : current.length >= 4 ? current : [...current, key]);
+  const usedProviders = providerConnections(customProviders).filter((provider) => draft.models.some((model) => modelProvider(model) === provider.id));
+  async function recount(): Promise<void> {
+    setRecounting(true);
+    try { await call("/admin/insights/models/rebuild", {}); await insights.refresh(); }
+    catch (error) { setNotice(error instanceof Error ? error.message : "Could not recount. Try again."); }
+    finally { setRecounting(false); }
+  }
   const configView = view === "models" || view === "providers" || view === "allowances";
 
   return <div className="admin-models tagflow-admin">
@@ -287,27 +315,49 @@ function TagflowEditor() {
       {view === "models" && <section className="admin-models-provider tagflow-models">
         <header className="admin-card-head"><div><h3>Models offered to users</h3><p className="row-sub">Open a model to edit it. New models appear at the top until you save. Save before using Test.</p></div>
           <button type="button" className="btn btn-primary" disabled={draft.models.length >= MAX_TAGFLOW_MODELS} onClick={addModel}>Add model</button></header>
+        <div className="insight-toolbar">
+          <div className="insight-toolbar-group">
+            <label className="insight-field"><span>Find a model</span><input className="input" type="search" value={filter.q} onChange={(event) => setFilter({ ...filter, q: event.target.value })} placeholder="Name, ID or provider" /></label>
+            <label className="insight-field"><span>Provider</span><select className="select" value={filter.provider} onChange={(event) => setFilter({ ...filter, provider: event.target.value })}><option value="all">All providers</option>{usedProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.name || provider.id}</option>)}</select></label>
+            <label className="insight-field"><span>Charged as</span><select className="select" value={filter.kind} onChange={(event) => setFilter({ ...filter, kind: event.target.value as ModelFilter["kind"] })}><option value="all">Free, included and paid</option><option value="free">Free</option><option value="included">Included (allowance or plan)</option><option value="paid">Paid (dollar wallet)</option></select></label>
+            <label className="insight-field"><span>Status</span><select className="select" value={filter.status} onChange={(event) => setFilter({ ...filter, status: event.target.value as ModelFilter["status"] })}><option value="all">Any status</option><option value="offered">Offered</option><option value="hidden">Hidden</option><option value="active">Used in this range</option></select></label>
+          </div>
+          <div className="insight-toolbar-group">
+            <label className="insight-field"><span>Sort by</span><select className="select" value={sort} onChange={(event) => setSort(event.target.value as SortKey)}>{SORT_KEYS.map((key) => <option key={key} value={key}>{SORT_LABELS[key]}</option>)}</select></label>
+            <button type="button" className="btn btn-small" onClick={() => setDirection(direction === "desc" ? "asc" : "desc")} aria-label={direction === "desc" ? "Highest first; switch to lowest first" : "Lowest first; switch to highest first"}>{direction === "desc" ? "Highest first" : "Lowest first"}</button>
+            <RangeSelect value={rangePreset} onChange={setRangePreset} label="Figures for" />
+          </div>
+        </div>
+        <div className="insight-toolbar">
+          <p className="insight-range">Figures: <strong>{rangeLabel(range)}</strong>{insights.value?.refreshedAt ? `, counted ${new Date(insights.value.refreshedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} (every 10 minutes)` : ""}</p>
+          <div className="insight-toolbar-group">
+            <RefreshStamp asOf={insights.asOf} refreshing={insights.refreshing} fromCache={insights.fromCache} onRefresh={() => void insights.refresh()} />
+            <button type="button" className="btn btn-small" disabled={recounting || insights.failure?.kind === "migration"} onClick={() => void recount()}>{recounting ? "Recounting…" : "Recount now"}</button>
+            <ExportButtons label="Export list" query={`dataset=models&${modelsQuery(range, filter, { key: sort, direction })}`} disabled={!figuresLoaded} />
+          </div>
+        </div>
+        {insights.failure !== null && <InsightProblem {...insights.failure} onRetry={() => void insights.refresh()} fills="Requests, users, errors and time to first token per model come from the daily rollup added by migration 20261120180100; pg_cron fills it every 10 minutes. The catalogue below still works." />}
         <div className="tagflow-model-tools">
-          <label className="tagflow-field"><span>Find a model</span><input className="input" type="search" value={modelSearch} onChange={(event) => setModelSearch(event.target.value)} placeholder="Name, ID or provider" /></label>
-          <label className="tagflow-field"><span>Show</span><select className="select" value={modelFilter} onChange={(event) => setModelFilter(event.target.value as typeof modelFilter)}><option value="all">All models</option><option value="offered">Offered</option><option value="hidden">Hidden</option><option value="wallet">Paid USD credits</option></select></label>
           <label className="tagflow-field"><span>Default model</span><select className="select" value={draft.defaultModel} onChange={(event) => change({ defaultModel: event.target.value })}><option value="">Choose a model</option>{draft.models.filter((model) => model.id && model.enabled !== false).map((model, index) => <option key={index} value={model.id}>{model.name || model.id}</option>)}</select></label>
           <button type="button" className="btn" disabled={busy} onClick={() => void checkHeabsyAccess()}>Check Heabsy access</button>
         </div>
-        <p className="row-sub">{visible.length === draft.models.length ? `${draft.models.length} models` : `Showing ${visible.length} of ${draft.models.length} models`} · up to {MAX_TAGFLOW_MODELS}</p>
+        <p className="row-sub">{visible.length === draft.models.length ? `${draft.models.length} models` : `Showing ${visible.length} of ${draft.models.length} models`} · up to {MAX_TAGFLOW_MODELS} · tick up to four to compare</p>
         <ul className="tagflow-model-list">
-          {visible.map(({ model, index }) => {
+          {visible.map(({ model, index, row }) => {
             const expanded = open.has(index);
             return <li key={index} className="tagflow-model-row" data-open={expanded} data-hidden={model.enabled === false} data-new={added.has(index)}>
-              <div className="tagflow-model-summary">
+              <div className="tagflow-model-summary with-figures">
+                <span className="model-compare-check"><input type="checkbox" checked={compare.includes(row.key)} disabled={!model.id || (!compare.includes(row.key) && compare.length >= 4)} onChange={() => toggleCompare(row.key)} aria-label={`Compare ${model.name || "this model"}`} /></span>
                 <button type="button" className="tagflow-model-name" aria-expanded={expanded} onClick={() => toggle(index)}>
                   <strong>{model.name || "New model"}</strong>
                   <span>{model.id || "No ID yet"} · {providerName(model)}</span>
                 </button>
-                <span className="tagflow-model-meta">{model.billing === "wallet" ? "Paid USD" : "Included"} · {priceLabel(model.inputPrice)} in · {priceLabel(model.outputPrice)} out</span>
+                <span className="tagflow-model-meta"><KindBadge kind={row.kind} /> {priceLabel(model.inputPrice)} in, {priceLabel(model.outputPrice)} out<br /><ModelRowFigures row={row} loaded={figuresLoaded || insights.failure !== null} /></span>
                 <label className="admin-models-check"><input type="checkbox" checked={model.enabled !== false} onChange={(event) => { const enabled = event.target.checked; change({ models: draft.models.map((one, at) => at === index ? { ...one, enabled } : one), defaultModel: !enabled && draft.defaultModel === model.id ? "" : draft.defaultModel }); }} /> Offer</label>
                 <div className="admin-row-actions">
                   <button type="button" className="btn btn-small" onClick={() => toggle(index)}>{expanded ? "Close" : "Edit"}</button>
                   <button type="button" className="btn btn-small" disabled={dirty || busy || testingModel !== null || !draft.enabled || model.enabled === false || !model.id} onClick={() => void testModel(model)}>{testingModel === model.id ? "Testing…" : "Test"}</button>
+                  <button type="button" className="btn btn-small" disabled={!model.id || insights.failure?.kind === "migration"} onClick={() => setDetail(row)}>Data</button>
                   {model.id && <Link className="btn btn-small" href={`/admin/tagflow/reports?model=${encodeURIComponent(model.id)}`}>Report</Link>}
                 </div>
               </div>
@@ -332,7 +382,17 @@ function TagflowEditor() {
             </li>;
           })}
         </ul>
-        {visible.length === 0 && <p className="row-sub">No models match. Clear the search or choose All models.</p>}
+        {visible.length === 0 && <p className="row-sub">No models match. <button type="button" className="admin-models-link" onClick={() => setFilter(DEFAULT_MODEL_FILTER)}>Clear the search and filters</button>.</p>}
+        <RetiredModels rows={filterModelRows(catalogue.retired, { ...filter, status: "all", kind: "all" })} onOpen={setDetail} />
+        {compared.length > 0 && <div className="model-compare-bar" role="region" aria-label="Models to compare">
+          <ul>{compared.map((row, at) => <li key={row.key}><i style={{ background: seriesColor(at) }} aria-hidden="true" />{row.name}<button type="button" onClick={() => toggleCompare(row.key)} aria-label={`Remove ${row.name} from the comparison`}>×</button></li>)}</ul>
+          <div className="admin-row-actions">
+            <button type="button" className="btn btn-small" onClick={() => setCompare([])}>Clear</button>
+            <button type="button" className="btn btn-small btn-primary" disabled={compared.length < 2} onClick={() => setComparing(true)}>{compared.length < 2 ? "Pick one more to compare" : `Compare ${compared.length}`}</button>
+          </div>
+        </div>}
+        {detail !== null && <ModelDetailDrawer row={detail} range={range} onClose={() => setDetail(null)} {...(detail.catalogueIndex === null ? {} : { onEdit: () => { const at = detail.catalogueIndex!; setDetail(null); setOpen((current) => new Set(current).add(at)); window.setTimeout(() => document.getElementById(`model-${at}-name`)?.focus(), 80); } })} />}
+        {comparing && compared.length >= 2 && <ModelCompareDrawer rows={compared} range={range} onClose={() => setComparing(false)} onOpen={(row) => { setComparing(false); setDetail(row); }} />}
         <p className="row-sub">Use unique ADCode IDs; set an optional provider ID when you need an alias. Enter your actual upstream prices for spending limits. A Tagflow model priced at zero is sponsored and free to everyone; on any other provider a zero price counts as missing, and the model stays hidden until you enter one. Offer models that support text chat and tool calls. Paid USD models use the dollar wallet with a fixed 35% markup and never draw on included tokens or Heabsy plans.</p>
       </section>}
 

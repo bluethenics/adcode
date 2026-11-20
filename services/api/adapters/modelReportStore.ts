@@ -35,7 +35,21 @@ export function createModelReportStore(lazy: () => Promise<SupabaseClient>): Rep
     async getModelAudienceProfile(uid) { const { data,error } = await (await lazy()).from("ai_model_audience_profiles").select("*").eq("uid",uid).maybeSingle(); check(error); return data === null ? null : decode(data,audienceFields) as unknown as import("../src/modelAudience.ts").ModelAudienceProfile; },
     async putModelAudienceProfile(profile) { const { error } = await (await lazy()).from("ai_model_audience_profiles").upsert(encode(profile,audienceFields)); check(error); },
     async deleteModelAudienceProfile(uid) { const { error } = await (await lazy()).from("ai_model_audience_profiles").delete().eq("uid",uid); check(error); },
-    async putModelRequest(record) { const { error } = await (await lazy()).from("ai_model_requests").upsert(encode({ country:"unknown", aiPersona:"unknown", useCase:"unknown", platform:"unknown", ...record }, requestFields)); check(error); },
+    /*
+     * cached_input_tokens arrives with migration 20261120180000. Until it is applied, a write that
+     * names it fails on the unknown column, so it is retried without it rather than losing the row.
+     */
+    async putModelRequest(record) {
+      const row = encode({ country:"unknown", aiPersona:"unknown", useCase:"unknown", platform:"unknown", ...record }, [...requestFields, "cachedInputTokens"]);
+      if (row["cached_input_tokens"] === undefined) delete row["cached_input_tokens"];
+      const client = await lazy();
+      let { error } = await client.from("ai_model_requests").upsert(row);
+      if (error && "cached_input_tokens" in row && /cached_input_tokens/.test(error.message)) {
+        delete row["cached_input_tokens"];
+        ({ error } = await client.from("ai_model_requests").upsert(row));
+      }
+      check(error);
+    },
     async getModelRequest(id) { const { data,error } = await (await lazy()).from("ai_model_requests").select("*").eq("id",id).maybeSingle(); check(error); return data === null ? null : decode(data,requestFields) as unknown as ModelRequestRecord; },
     async putModelFeedback(record) { const { error } = await (await lazy()).from("ai_model_feedback").upsert(encode(record,feedbackFields)); check(error); },
     async getModelFeedback(requestId,uid) { const { data,error } = await (await lazy()).from("ai_model_feedback").select("*").eq("request_id",requestId).eq("uid",uid).maybeSingle(); check(error); return data === null ? null : decode(data,feedbackFields) as unknown as ModelFeedbackRecord; },

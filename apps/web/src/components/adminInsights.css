@@ -1,0 +1,96 @@
+/*
+ * Admin > Analytics and the model data on Admin > ADCode models (AdminInsightsUI.tsx,
+ * ModelInsights.tsx). Uses the admin panel's own tokens - --card, --hairline, --muted, --adm-* -
+ * so it reads as the same panel. Figures use tabular numbers; motion is opacity and transform.
+ */
+.insight-toolbar { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 10px 16px; margin: 0 0 14px; }
+.insight-toolbar-group { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; min-width: 0; }
+.insight-field { display: grid; gap: 5px; font-size: 12px; color: var(--muted); min-width: 0; }
+.insight-field .select, .insight-field .input { min-width: 0; color: var(--text); }
+.insight-range { margin: 0 0 12px; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.insight-range strong { color: var(--text); font-weight: 600; }
+.insight-muted { color: var(--muted); font-size: 12px; }
+
+.insight-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 0 0 14px; }
+.insight-stat { display: grid; align-content: start; gap: 4px; min-height: 92px; padding: 13px 15px; border: 1px solid var(--hairline); border-radius: var(--adm-radius, 14px); background: var(--card); }
+.insight-stat dt { color: var(--muted); font-size: 12px; font-weight: 520; }
+.insight-stat dd { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.insight-stat p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.insight-stat.adm-skel { gap: 10px; }
+.insight-delta { margin-right: 6px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.insight-delta[data-tone="good"] { color: var(--adm-ok, #3fb27f); }
+.insight-delta[data-tone="bad"] { color: var(--adm-bad, #ef6b5f); }
+
+.insight-card { min-width: 0; margin: 0 0 14px; padding: 18px 20px; border: 1px solid var(--hairline); border-radius: var(--adm-radius, 14px); background: var(--card); }
+.insight-card > header { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 8px 16px; margin: 0 0 12px; }
+.insight-card h2, .insight-card h3 { margin: 0; font-size: 16px; font-weight: 600; }
+.insight-card header p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+.insight-chart-skeleton { display: flex; align-items: start; padding: 16px; }
+.insight-table-skeleton { display: grid; gap: 6px; }
+.insight-table-skeleton-row { display: grid; gap: 14px; align-items: center; padding: 12px 14px; }
+
+.insight-table-wrap { overflow-x: auto; }
+.insight-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.insight-table th, .insight-table td { padding: 8px 10px; border-bottom: 1px solid var(--hairline); text-align: right; white-space: nowrap; }
+.insight-table th:first-child, .insight-table td:first-child { text-align: left; white-space: normal; }
+.insight-table thead th { color: var(--muted); font-size: 12px; font-weight: 520; }
+.insight-table tbody tr:last-child td { border-bottom: 0; }
+
+.insight-empty { display: grid; gap: 6px; justify-items: start; padding: 18px 20px; border: 1px dashed var(--faint, var(--hairline)); border-radius: var(--adm-radius, 14px); }
+.insight-empty strong { font-size: 14px; font-weight: 600; }
+.insight-empty p { margin: 0; max-width: 68ch; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.insight-problem { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+
+.insight-export { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.insight-export-note { color: var(--adm-bad, #ef6b5f); font-size: 12px; }
+
+/* ── Models: figures on each row ───────────────────────────────────────────────────────── */
+.model-figures { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.model-figures b { color: var(--text); font-weight: 600; }
+.model-figures [data-tone="bad"] b { color: var(--adm-bad, #ef6b5f); }
+.model-figures [data-tone="warn"] b { color: var(--adm-warn, #f3c16c); }
+.model-kind { display: inline-block; padding: 1px 7px; border: 1px solid var(--hairline); border-radius: 6px; color: var(--muted); font-size: 11px; font-weight: 600; }
+.model-kind[data-kind="paid"] { color: var(--text); border-color: var(--faint, var(--hairline)); }
+.tagflow-model-summary.with-figures { grid-template-columns: auto minmax(0, 1.5fr) minmax(0, 1.6fr) auto auto; }
+.model-compare-check { display: grid; place-items: center; width: 28px; }
+@media (max-width: 1100px) {
+  .tagflow-model-summary.with-figures { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .tagflow-model-summary.with-figures .model-figures, .tagflow-model-summary.with-figures .tagflow-model-meta { grid-column: 2 / -1; }
+  .tagflow-model-summary.with-figures .admin-row-actions { grid-column: 2 / -1; }
+}
+
+/* ── Models: one model's data (slide-over) ─────────────────────────────────────────────── */
+.model-drawer-backdrop { position: fixed; inset: 0; z-index: 40; background: color-mix(in srgb, #000 45%, transparent); animation: insight-fade 160ms ease both; }
+.model-drawer { position: fixed; inset: 0 0 0 auto; z-index: 41; display: flex; flex-direction: column; width: min(860px, 100vw); background: var(--bg, #0f0f0e); border-left: 1px solid var(--hairline); box-shadow: -18px 0 40px color-mix(in srgb, #000 35%, transparent); animation: insight-slide 220ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.model-drawer > header { display: flex; align-items: start; justify-content: space-between; gap: 12px; padding: 18px 22px 12px; border-bottom: 1px solid var(--hairline); }
+.model-drawer > header h2 { margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -0.01em; }
+.model-drawer > header p { margin: 4px 0 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.model-drawer-body { flex: 1; overflow-y: auto; padding: 16px 22px 28px; }
+.model-drawer-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 14px; }
+@keyframes insight-slide { from { opacity: 0; transform: translateX(24px); } }
+@keyframes insight-fade { from { opacity: 0; } }
+
+/* ── Models: comparison ────────────────────────────────────────────────────────────────── */
+.model-compare-bar { position: sticky; bottom: 12px; z-index: 7; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; margin: 12px 0 0; padding: 10px 14px; border: 1px solid var(--faint, var(--hairline)); border-radius: 12px; background: color-mix(in srgb, var(--bg, #0f0f0e) 94%, transparent); backdrop-filter: blur(8px); animation: insight-rise 200ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.model-compare-bar ul { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 12px; }
+.model-compare-bar li { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border: 1px solid var(--hairline); border-radius: 8px; }
+.model-compare-bar li i { width: 8px; height: 8px; border-radius: 2px; }
+.model-compare-bar li button { padding: 0; border: 0; background: none; color: var(--muted); cursor: pointer; font: inherit; }
+.insight-table .best { color: var(--adm-ok, #3fb27f); font-weight: 600; }
+@keyframes insight-rise { from { opacity: 0; transform: translateY(6px); } }
+
+.retired-models { margin-top: 18px; }
+.retired-models ul { display: grid; gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }
+.retired-models li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 8px 12px; border: 1px dashed var(--hairline); border-radius: 10px; }
+
+.insight-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin: 0 0 14px; }
+.insight-card-head h2 { margin: 0; }
+.insight-tabs-note { margin: -4px 0 14px; color: var(--muted); font-size: 13px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .model-drawer, .model-drawer-backdrop, .model-compare-bar { animation: none; }
+}
+@media (max-width: 640px) {
+  .model-drawer > header, .model-drawer-body { padding-left: 16px; padding-right: 16px; }
+  .insight-card { padding: 14px 16px; }
+}
