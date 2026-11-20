@@ -82,6 +82,7 @@ export const ADMIN_NAV: AdminNavGroup[] = [
     label: "People",
     items: [
       { href: "/admin/people", label: "Users", hint: "Search any account by uid or email, and act on it", tab: "users", icon: "person" },
+      { href: "/admin/retention", label: "Retention", hint: "Who stops coming back, where new people drop, and why", icon: "chart", wholePage: true },
       { href: "/admin/campaigns", label: "Email campaigns", hint: "Write a message, cap it, and send it a few a day", tab: "campaigns", icon: "send" },
       { href: "/admin/people?tab=admins", label: "Administrators", hint: "Who can operate this panel", tab: "admins", icon: "shield" },
     ],
