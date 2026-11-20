@@ -11,7 +11,8 @@ interface Report {
   readonly description: string;
   readonly published: string;
   readonly body: string;
-  readonly surface: "docs";
+  /** "both": also listed on the blog. */
+  readonly surface: "docs" | "both";
   readonly section: string;
   readonly order: number;
   readonly related: string[];
@@ -526,4 +527,116 @@ ADCode updates itself: when 2.6.2 is ready on your computer, a notice asks you t
 `,
 };
 
-export const REPORTS_2026_11: readonly Report[] = [whatsNew262, realModel, benchmark, comparison, efficiency, ads];
+const whatsNew263: Report = {
+  slug: "adcode-2-6-3-reliable-agents-and-project-windows",
+  title: "What's new in ADCode 2.6.3: agents that finish, a project in every window",
+  description:
+    "OpenCode and the other coding CLIs no longer stall or stop without a word, chats stop getting mixed up, each project gets its own window, and agent rules gain Always allow, hooks that decide and agent files.",
+  published: "2026-11-20",
+  surface: "both",
+  section: "How ADCode works",
+  order: 30,
+  related: ["adcode-2-6-2-teams-and-agents", "ai-coding-cli", "workbench-project-windows", "ai-agent-rules", "ai-agent-files"],
+  body: `
+ADCode 2.6.3 is a reliability release with three new abilities on top. Most of it came straight from reports: a coding CLI that went quiet for a minute and then stopped half way, and a message that landed in the wrong chat. Both are fixed. Update and it all applies; nothing needs switching on.
+
+## Coding CLIs that finish what they start
+
+If you run OpenCode, Claude Code, Codex or Gemini CLI as ADCode's model (Connect a model, Coding CLIs tab), these changes are for you. We reproduced each problem against the real CLIs before fixing it.
+
+- **OpenCode no longer stops without a word.** In a chat, OpenCode cannot ask you a question. When it needed permission - a file outside the project, a loop it suspected - it turned its own request down and ended the turn silently. Now ADCode says what it wanted and how to carry on: turn on **Full access** for that chat (ADCode then passes OpenCode its own approval switch), or allow it in OpenCode's settings, then say "continue". A tool call that failed now shows as failed instead of looking finished.
+- **ADCode's tools no longer time out after a minute.** OpenCode gave up on any ADCode tool after 60 seconds. That cut off a page audit, or a confirmation you had not answered yet. It now waits as long as ADCode lets a tool run.
+- **No more silent minutes.** OpenCode now streams its thinking, so a reasoning model like DeepSeek shows what it is working on. Any CLI that says nothing for 15 seconds shows "still working" on the working line.
+- **Turns start sooner.** A message no longer waits for ADCode to re-check every CLI's version and model list; it uses the last answer and refreshes in the background. After a quiet spell this used to add up to half a minute before the CLI even started.
+- **"Continue" picks up where it stopped.** After a failed or stopped turn, the next message resumes the CLI's own session - with everything it had already read and run - instead of starting again from a transcript.
+
+[The coding CLI guide](/docs/ai-coding-cli) has the setup.
+
+## Chats stay where you typed them
+
+A message sent while another chat was still opening - or from a second window, or in a team chat - could land in the conversation you had just left. Every message now names the chat it was typed in, so that cannot happen. Each chat also keeps its own CLI session and works in its own project, so two chats that began with the same words no longer share one.
+
+## A project in each window
+
+Real work spans more than one folder: the app and its API, a library and the project using it. Closing one to look at the other loses your place.
+
+1. With a project open, choose **Open Folder** or pick any recent folder. It opens in a **new window**, and the window you were in keeps its project.
+2. Or choose **File > New Window** for an empty one, or **File > Open Recent in New Window** to go straight to a folder.
+3. Each window has its own file tree, terminal, source control, problems list, language servers and chats, and its title starts with the project's name. The assistant in one window never reads or edits the other project.
+4. To swap the project in the same window instead, choose **File > Close Folder** first.
+
+It is still one app underneath: settings, your account and plan are shared, and sponsored cards are shown and counted once, not once per window. The live preview runs one at a time. [Guide](/docs/workbench-project-windows).
+
+## Agent rules: Always allow, and hooks that decide
+
+Agent rules (\`.adcode/settings.json\`) let a project say what the AI may do on its own, what it must ask about, and what it may never do. Three additions make them easier to live with:
+
+- **Always allow.** When a rule asks before a step, the dialog now offers **Always allow**. ADCode adds the narrowest rule that covers it - \`run_command(npm test*)\` for a command, the file's own path for an edit, the domain for a fetch - to the project's allow list. Your comments in the file are kept, and the dialog shows the rule before you press it.
+- **Hooks that decide.** A preToolUse hook now runs before anyone is asked. It can answer in the same JSON Claude Code's hooks use: allow a step without the question, deny it with a reason, insist on asking, or rewrite its input (the rewritten step is checked against your rules again). A hook can never loosen a deny rule.
+- **A hook before every message.** The new **userPromptSubmit** hook runs before each message reaches the model. Exit with code 2 to stop the message with a reason; anything it prints is added to the AI's context - a ticket number, the rules for this branch.
+
+[The agent rules guide](/docs/ai-agent-rules) has examples.
+
+## Agent files: helpers your team shares
+
+Write a helper agent as a Markdown file in your project - its name, when to use it, which tools it may use, and its instructions - and the chat can hand it work. Run **AI: New Agent File** to start from a commented example in \`.adcode/agents/\`.
+
+If you already use Claude Code, its \`.claude/agents\` files work as they are, so one folder serves both tools. A reviewer that lists only Read, Grep and Glob can never edit a file. And a project's agent always runs on your chat's own model: a repository someone cloned cannot send your work - or your bill - to a model you did not pick. [Guide](/docs/ai-agent-files).
+
+## Updating
+
+ADCode updates itself: when 2.6.3 is ready, a notice asks you to restart. To update by hand, download the installer from [Versions](/versions), or update from the Microsoft Store. Your chats, settings and keys carry over.
+`,
+};
+
+const teamPost: Report = {
+  slug: "build-with-your-team-in-adcode",
+  title: "Build with your team in ADCode: people and the AI in one chat",
+  description:
+    "Team chats put your teammates and the AI in the chat you already use. Share a project, invite people, and let anyone ask the AI to build - everyone sees what it did and who asked.",
+  published: "2026-11-20",
+  surface: "both",
+  section: "How ADCode works",
+  order: 31,
+  related: ["workbench-solo-team", "adcode-2-6-2-teams-and-agents", "adcode-2-6-3-reliable-agents-and-project-windows"],
+  body: `
+Most AI coding tools are single-player. Each person's chat lives on their own machine, and "sharing" means pasting screenshots into another app. ADCode's **Team** works like a group chat with the AI in it - for a code project, with the project in front of it.
+
+## What a team chat is
+
+A team chat is ADCode's normal chat - the same message box, model picker, tools and build cards - shared with the people on a project. A strip above it shows who is in the chat, an **Invite** button and an **AI replies** switch. Every message carries the name of whoever wrote it, and teammates' messages arrive within a few seconds.
+
+When someone asks the AI to do something, it works right there in the chat: it reads the project, edits files and runs commands on the computer of the person who asked. Everyone sees the answer, marked with who asked for it.
+
+## Start in five steps
+
+1. In the Vibe window, find the **Solo / Team** switch above Conversations and press **Team**. Sign in if asked - team projects belong to your account.
+2. Choose **Share this project** to turn the open folder into a team project (it must be on GitHub), or **Join with an invite** and paste the invite a teammate sent you.
+3. Press **+** beside the project to start a chat and give it a name - "Checkout redesign", "Bug bash".
+4. Press **Invite** in the strip to copy a link for the rest of the team.
+5. Write and press Enter. With **AI replies** on, every message is also a task for the AI. With it off, messages go to the people only; start a message with **@ai** to ask the AI just that once.
+
+Press **Solo** to go back to your own chats. A solo chat that was working keeps going while you are in Team, and team chats never mix with your private ones - so there is nothing to tidy away before you share your screen.
+
+## What teams use it for
+
+- **Building together.** One person asks for the page, another asks for the tests, and both see each change land. Nobody pastes chat logs into Slack to explain what the AI did.
+- **Reviewing as a group.** Ask the AI to explain a change or find what a pull request breaks, and the whole team reads the same answer.
+- **Onboarding.** A new teammate joins with an invite and scrolls up: the project's decisions and the AI's work are already in the chat.
+- **Editing live.** The **...** menu starts editing files together live, when talking about the code is not enough.
+
+## New in 2.6.3: team chats stay separate
+
+Before 2.6.3, a message typed in a team chat while you were switching between chats could be answered in your solo chat, or the other way round. Every message now names the chat it was typed in, so a team message always goes to the team and a private one stays private.
+
+## Good to know
+
+- The AI runs on the computer of the person who asked, with that person's model and allowance. When two people ask at once, the second request is noted in the chat and they can ask again when the first finishes.
+- The project owner can replace the invite link or archive the project from the **...** menu; anyone can leave.
+- Team chats are saved with the project's shared session, and they appear for everyone on the project.
+
+[The full Team guide](/docs/workbench-solo-team) covers every option.
+`,
+};
+
+export const REPORTS_2026_11: readonly Report[] = [whatsNew263, teamPost, whatsNew262, realModel, benchmark, comparison, efficiency, ads];

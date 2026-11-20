@@ -181,10 +181,10 @@ describe("public documentation navigation", () => {
     expect(recent.every((page) => page.authored)).toBe(true);
     // Pages published the same day are ordered by title.
     expect(recent.map((page) => page.slug)).toEqual([
+      "build-with-your-team-in-adcode",
+      "adcode-2-6-3-reliable-agents-and-project-windows",
       "real-model-coding-agent-benchmark",
       "adcode-2-6-2-teams-and-agents",
-      "coding-agent-token-benchmark",
-      "adcode-2-6-1-fewer-tokens",
     ]);
   });
 
