@@ -15,6 +15,9 @@
  *    Checks the files moved, the Undo card lists the deletion, and Undo puts everything back.
  * 3. It loads production guidance, discovers and runs real project scripts, then audits the
  *    page at three sizes with reduced motion. Missing check categories remain unverified.
+ * 4. It builds an agent flow: `manage_agent_flow` create, on for this chat. The smoke answers
+ *    ADCode's own confirmation dialog as a person would, then checks the saved setting and that
+ *    the Flow page draws the three agents.
  *
  * Prints `agentToolsEvidence: {...}` - read the values, not just the exit code.
  * ADCODE_AGENT_SMOKE_PORT picks the DevTools port (default 9461).
@@ -73,6 +76,7 @@ const fake = createServer(async (req, res) => {
   const look = progress(request, "look-smoke");
   const files = progress(request, "files-smoke");
   const quality = progress(request, "quality-smoke");
+  const flow = progress(request, "flow-smoke");
   if (look !== null) {
     delta = look.answered === 0
       ? { tool_calls: [call(0, "plan-1", "update_plan", steps("in_progress")), call(1, "look-1", "view_page", { path: "about.html", width: 390, height: 844, actions: [{ type: "click", text: "Go" }] })] }
@@ -97,6 +101,16 @@ const fake = createServer(async (req, res) => {
       call(0, "quality-audit", "audit_page", { path: "about.html" }),
     ];
     delta = quality.answered < actions.length ? { tool_calls: [actions[quality.answered]] } : { content: "Quality checks finished; the page findings need review." };
+  } else if (flow !== null) {
+    delta = flow.answered === 0
+      ? { tool_calls: [call(0, "flow-1", "manage_agent_flow", {
+        action: "create",
+        name: "Smoke flow",
+        agents: [{ name: "Planner", role: "planner" }, { name: "Coder", role: "coder", model: "current" }, { name: "Reviewer", role: "reviewer", read_only: true }],
+        links: [{ from: "Planner", to: "Coder" }, { from: "Coder", to: "Reviewer", kind: "review" }],
+        chats: ["this"],
+      })] }
+      : { content: "FLOW-SMOKE-DONE" };
   }
   res.end(`data: ${JSON.stringify({ choices: [{ delta, finish_reason: delta.tool_calls ? "tool_calls" : "stop" }] })}\n\ndata: [DONE]\n\n`);
 });
@@ -283,9 +297,53 @@ try {
     reducedMotion: toolResult("quality-audit").includes("Reduced motion: emulated"),
     toolsOffered: requests.some(request => ["inspect_project", "run_project_checks", "audit_page"].every(name => request.tools?.some(tool => tool.function?.name === name))),
   };
-  const evidence = { look, files, quality };
+  /* 4. An agent flow made in the chat, confirmed in ADCode's dialog, drawn on the Flow page. */
+  await evaluate("document.querySelector('[aria-label=\"Start a new conversation\"]')?.click()");
+  await sleep(300);
+  await evaluate(`void window.adcode.ai.send("flow-smoke"); true`);
+  let flowDialog = null;
+  const flowUntil = Date.now() + 120_000;
+  while (Date.now() < flowUntil) {
+    const open = await evaluate(`(() => {
+      const dialog = document.querySelector('dialog.confirm-dialog[open]');
+      if (!dialog) return null;
+      return { title: dialog.querySelector('.result-title')?.textContent ?? '', body: dialog.querySelector('.result-summary')?.textContent ?? '', confirm: dialog.querySelector('.result-close')?.textContent ?? '' };
+    })()`);
+    if (open !== null && flowDialog === null) {
+      flowDialog = open;
+      await screenshot("flow-confirm");
+      await evaluate("document.querySelector('dialog.confirm-dialog[open] .result-close')?.click()");
+      await sleep(300);
+      continue;
+    }
+    if (await evaluate(`[...document.querySelectorAll('.chat-bubble-assistant')].some((node) => node.textContent.includes('FLOW-SMOKE-DONE')) && document.querySelector('.chat-card')?.dataset.working !== 'true'`)) break;
+    await sleep(150);
+  }
+  const savedFlows = await evaluate("window.adcode.settings.read().then((values) => values['adcode.ai.agentFlows'])");
+  const chatId = await evaluate("window.adcode.chat.sessions().then((list) => list.find((one) => one.messages?.some((message) => message.text === 'flow-smoke'))?.id ?? null)");
+  const parsedFlows = (() => { try { return JSON.parse(savedFlows); } catch { return []; } })();
+  const smokeFlow = parsedFlows.find((one) => one.name === "Smoke flow");
+  await evaluate("document.querySelector('[data-rail=\"agents\"]')?.click()");
+  await sleep(300);
+  await evaluate("document.querySelector('#vibe-page-agents .agents-hub-tab[data-tab=\"flow\"]')?.click()");
+  await waitFor("[...document.querySelectorAll('.flow-node')].length > 0", 15_000).catch(() => undefined);
+  await sleep(400);
+  await screenshot("flow-page");
+  const agentFlow = {
+    dialogTitle: flowDialog?.title === 'Create the flow "Smoke flow"?',
+    dialogListsAgents: ["Planner", "Coder", "Reviewer (reviewer, read-only)", "Coder sends for review to Reviewer", "Runs: on in this chat."].every((part) => flowDialog?.body.includes(part) === true),
+    dialogConfirmLabel: flowDialog?.confirm === "Create flow",
+    toolSaid: toolResult("flow-1").includes('Saved the flow "Smoke flow"'),
+    savedThreeAgents: smokeFlow?.agents?.length === 3 && smokeFlow?.links?.length === 2,
+    onForThisChat: smokeFlow?.enabled === true && smokeFlow?.scope?.kind === "chats" && chatId !== null && smokeFlow.scope.chatIds.length === 1 && smokeFlow.scope.chatIds[0] === chatId,
+    reviewerReadOnly: smokeFlow?.agents?.find((agent) => agent.name === "Reviewer")?.readOnly === true,
+    flowPageDrawsIt: await evaluate("(() => { const names = [...document.querySelectorAll('.flow-node')].map((node) => node.textContent ?? ''); return ['Planner', 'Coder', 'Reviewer'].every((name) => names.some((text) => text.includes(name))); })()"),
+  };
+  await evaluate("document.querySelector('[data-rail=\"chat\"]')?.click()");
+
+  const evidence = { look, files, quality, agentFlow };
   process.stdout.write(`agentToolsEvidence: ${JSON.stringify(evidence)}\n`);
-  for (const [name, value] of Object.entries({ ...look, ...Object.fromEntries(Object.entries(files).map(([key, item]) => [`files.${key}`, item])), ...Object.fromEntries(Object.entries(quality).map(([key, item]) => [`quality.${key}`, item])) })) {
+  for (const [name, value] of Object.entries({ ...look, ...Object.fromEntries(Object.entries(files).map(([key, item]) => [`files.${key}`, item])), ...Object.fromEntries(Object.entries(quality).map(([key, item]) => [`quality.${key}`, item])), ...Object.fromEntries(Object.entries(agentFlow).map(([key, item]) => [`agentFlow.${key}`, item])) })) {
     if (name === "mostMascotsWhileWorking" || name === "files.mostMascotsWhileWorking") assert.ok(value <= 1, `${name}: at most one mascot while working, saw ${value}`);
     else if (name === "mascotsAfter") assert.equal(value, 0, "No mascot is left once the turn is over");
     else if (name === "finishedTurns") assert.ok(value >= 1, "A finished turn keeps its folded timeline");
@@ -294,7 +352,7 @@ try {
     else if (name === "agentViewVerdict") assert.match(value, /problems? found/);
     else assert.equal(value, true, name);
   }
-  process.stdout.write("PASS: page interaction, preview, plans, file Undo, background commands, production guidance, project checks and responsive accessibility audits.\n");
+  process.stdout.write("PASS: page interaction, preview, plans, file Undo, background commands, production guidance, project checks and responsive accessibility audits, and an agent flow made in the chat.\n");
 } catch (error) {
   failed = true;
   await globalThis.__smokeShot?.("failure").catch(() => undefined);

@@ -24,6 +24,7 @@ import {
   withSubagents,
   CREATE_AGENT,
   CREATE_AGENT_NAME,
+  MANAGE_AGENT_FLOW,
   describeCreateAgent,
   planCreateAgent,
   readTaskAgents,
@@ -149,6 +150,7 @@ import { ASSISTANT_EXTENSION_TOOLS, bridgeAppTools, offeredAppTools, withAssista
 import { memoryForWorkspace } from "./memory.ts";
 import { currentSettings, writeSetting } from "./settings.ts";
 import { confirmInWindow } from "./themedConfirm.ts";
+import { withFlowTool } from "./flowTool.ts";
 import { fullAccessApplies, isFullAccessOn, runAgentTurn } from "./fullAccess.ts";
 import { describeDebugContext, recordDebug } from "./debugLog.ts";
 import { fileAgentsFor, refreshFileAgents } from "./agentFilesLoader.ts";
@@ -1830,7 +1832,7 @@ function withModTool(base: ToolRunner): ToolRunner {
             confirmLabel: existing === undefined ? "Apply mod" : "Update mod",
             cancelLabel: "Cancel",
           }, signal);
-          if (!allowed) return { content: "The user declined, so nothing changed. Ask what they would like instead.", isError: true };
+          if (!allowed) { recordDebug("info", "ai", `Declined mod ${draft.manifest.id}`); return { content: "The user declined, so nothing changed. Ask what they would like instead.", isError: true }; }
           await installLocalPlugin(draft.text);
           recordDebug("info", "ai", `Applied mod ${draft.manifest.id} v${draft.manifest.version}`);
           return { content: `Applied ${draft.manifest.id} v${draft.manifest.version}: ${changes.join("; ")}. It is on now.`, isError: false };
@@ -1843,6 +1845,7 @@ function withModTool(base: ToolRunner): ToolRunner {
             return { content: "The user kept the mod.", isError: true };
           }
           if (action === "remove") await uninstallPlugin(id); else await setPluginEnabled(id, action === "on");
+          recordDebug("info", "ai", `Mod ${id} ${action === "remove" ? "removed" : `switched ${action}`} from the chat`);
           return { content: `${found.manifest.name} is ${action === "remove" ? "removed" : action}.`, isError: false };
         }
         return { content: 'action is one of "apply", "list", "on", "off", "remove".', isError: true };
@@ -1905,7 +1908,7 @@ async function ensureChatAgent(thread: ChatThread, providerId: string, model: st
   const tools = [
     ...chatTools(),
     ...(isFork ? CHAT_FORK_PARTICIPANT_TOOLS : CHAT_FORK_TOOLS),
-    ...(lean || isFork ? [] : [DELEGATE_TASK, CREATE_AGENT, modToolDefinition(builtInSlashCommands())]),
+    ...(lean || isFork ? [] : [DELEGATE_TASK, CREATE_AGENT, MANAGE_AGENT_FLOW, modToolDefinition(builtInSlashCommands())]),
   ];
   const context = async (): Promise<string> => {
       const root = thread.root;
@@ -1995,7 +1998,15 @@ async function ensureChatAgent(thread: ChatThread, providerId: string, model: st
     compaction: compactionFor(providerId, model),
     initialMessages: carried ?? restoreHistory(thread.session),
     context: leadContext,
-    runner: withAgentRules(withSubagents(withCreateAgent(withModTool(forkRunner)), {
+    runner: withAgentRules(withSubagents(withCreateAgent(withModTool(withFlowTool(forkRunner, {
+      settings: currentSettings,
+      writeSetting: (id, value) => writeSetting(id, value),
+      candidates: taskAgentCandidates,
+      chatId: () => thread.session.id,
+      chats: async () => (await readSessions(thread.root)).map((session) => ({ id: session.id, title: session.title })),
+      confirm: (ask, signal) => confirmInWindow(BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows().find((item) => !item.isDestroyed()) ?? null, { title: ask.title, body: ask.body, confirmLabel: ask.confirmLabel, cancelLabel: "Cancel" }, signal),
+      record: (message) => recordDebug("info", "ai", message),
+    }))), {
       start: (task, helperTools) => helper(task, helperTools),
       // Helpers are hidden and cannot reach the fork service; a fork must stay a visible chat
       // started by the main conversation.

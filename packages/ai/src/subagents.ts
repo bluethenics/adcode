@@ -20,6 +20,8 @@ export const ASK_USER_NAME = "ask_user";
 export const MAX_SUBAGENTS = 4;
 /** Only the chat makes task agents: a helper never adds helpers. The same name as `CREATE_AGENT_NAME`. */
 const CREATE_AGENT_TOOL = "create_agent";
+/** ADCode's own setup - flows and mods - is the chat's to change with the person, never a helper's. */
+const CHAT_ONLY_TOOLS: ReadonlySet<string> = new Set([CREATE_AGENT_TOOL, "manage_agent_flow", "customize_adcode"]);
 /** What one helper's report may add to the parent's context. */
 const REPORT_CHARS = 6000;
 
@@ -96,7 +98,7 @@ export function parseDelegation(input: unknown): readonly SubagentTask[] | strin
 
 /** A helper's tools: reads only to explore; everything but delegation and questions to build. */
 export function subagentTools(tools: readonly ToolDefinition[], mode: SubagentMode): readonly ToolDefinition[] {
-  return tools.filter((tool) => tool.name !== DELEGATE_TASK_NAME && tool.name !== ASK_USER_NAME && tool.name !== CREATE_AGENT_TOOL && (mode === "build" || !tool.mutating));
+  return tools.filter((tool) => tool.name !== DELEGATE_TASK_NAME && tool.name !== ASK_USER_NAME && !CHAT_ONLY_TOOLS.has(tool.name) && (mode === "build" || !tool.mutating));
 }
 
 /** The helper's first message: the task and how to finish. */
