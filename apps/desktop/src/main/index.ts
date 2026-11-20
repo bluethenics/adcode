@@ -310,12 +310,12 @@ function createWindow(role: WindowRole = "vibe", group: string = currentGroup())
  * or an empty window that offers the recent folders. A folder some window already shows is
  * brought forward instead of opened twice.
  */
-function openProjectWindow(root: string | null, intent?: SessionState): void {
+function openProjectWindow(root: string | null, intent?: SessionState): boolean {
   if (root !== null) {
     const showing = groupShowing(root);
     if (showing !== null) {
       runInGroup(showing, () => openWindow("vibe"));
-      return;
+      return true;
     }
   }
   const group = `w-${randomUUID()}`;
@@ -323,6 +323,7 @@ function openProjectWindow(root: string | null, intent?: SessionState): void {
   const window = createWindow("vibe", group);
   window.once("ready-to-show", () => window.focus());
   if (intent !== undefined) pendingFileIntents.set(window.webContents.id, intent);
+  return true;
 }
 
 /**

@@ -97,7 +97,7 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   "workbench.projectWindows": {
     added: "2026-11-19",
     actions: [command("workspace.newWindow", "New window for another project"), command("workspace.openRecentNewWindow", "Open a recent folder in a new window")],
-    keywords: ["new window", "second window", "another project", "two projects", "multiple projects", "open in new window", "separate window", "side by side", "multi window", "multi-root", "other folder", "several projects"],
+    keywords: ["new window", "second window", "another project", "two projects", "multiple projects", "open in new window", "separate window", "side by side", "multi window", "multi-root", "other folder", "several projects", "switch project", "change project", "open folder new window", "keep project open"],
   },
   "workbench.debugLog": {
     actions: [command("help.report", "Report a problem"), command("help.copyDebugLog", "Copy debug log"), command("help.saveDebugLog", "Save debug log")],

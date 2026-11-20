@@ -7903,7 +7903,29 @@ checks.projectWindows = await (async () => {
   await writeFile(join(second, "second-project-marker.txt"), "the second project\n");
   const firstBefore = await evaluate("window.adcode.workspace.current().then((w) => w?.root ?? null)");
   const pagesBefore = new Set(((await (await fetch(`http://127.0.0.1:${PORT}/json/list`)).json()) ?? []).filter((t) => t.type === "page").map((t) => t.id));
-  const opened = await evaluate(`window.adcode.window.openProject(${JSON.stringify(second)})`);
+  // The way a person changes projects: Open Recent Folder from the palette, with a project
+  // already open here. It must open beside this one, not replace it.
+  await evaluate(`(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'P', ctrlKey: true, shiftKey: true, bubbles: true })); return true; })()`);
+  await sleep(350);
+  const opened = await evaluate(
+    `(async () => {
+       const input = document.querySelector('.quickopen-input[aria-label="Command palette"]');
+       if (!input) return 'no palette';
+       input.value = 'Open Recent Folder';
+       input.dispatchEvent(new Event('input', { bubbles: true }));
+       await new Promise((r) => setTimeout(r, 250));
+       const row = [...document.querySelectorAll('.palette-row')].find((one) => one.querySelector('.palette-id')?.textContent === 'workspace.openRecent');
+       if (!row) return 'no Open Recent Folder row';
+       row.click();
+       for (let i = 0; i < 40 && !document.querySelector('.prompt-dialog[open] .prompt-input'); i++) await new Promise((r) => setTimeout(r, 50));
+       const field = document.querySelector('.prompt-dialog[open] .prompt-input');
+       if (!field) return 'no prompt';
+       field.value = ${JSON.stringify(second)};
+       field.dispatchEvent(new Event('input', { bubbles: true }));
+       document.querySelector('.prompt-dialog[open] .result-close').click();
+       return true;
+     })()`,
+  );
   let page;
   for (let attempt = 0; attempt < 80 && page === undefined; attempt++) {
     const targets = await (await fetch(`http://127.0.0.1:${PORT}/json/list`).catch(() => null))?.json().catch(() => []) ?? [];

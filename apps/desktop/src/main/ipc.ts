@@ -12,6 +12,7 @@ import { parseAnnotateProbe, parseAnnotateTarget } from "./liveBrowserModel.ts";
  * - a compromised renderer talks to `ipcRenderer` directly.
  */
 import { stat } from "node:fs/promises";
+import { basename } from "node:path";
 import { createProjectFolder } from "./newProject.ts";
 import { recordMilestone } from "./milestones.ts";
 import { GEMINI_KEY_PAGE, OLLAMA_DOWNLOAD_PAGE } from "../shared/quickConnect.ts";
@@ -202,6 +203,7 @@ import {
   groupOfWindow,
   MAIN_GROUP,
   openWorkspaceRoots,
+  pickFolder,
   workspaceRootOfGroup,
 } from "./workspace.ts";
 
@@ -209,6 +211,8 @@ import {
  * The Vibe and IDE windows of one project hear that its folder changed; a window showing
  * another project must not, or opening a folder in one window would swap the other's tree.
  */
+const sameFolder = (a: string, b: string): boolean => a.replace(/[\\/]+$/, "").toLowerCase() === b.replace(/[\\/]+$/, "").toLowerCase();
+
 function tellOtherWindowsInGroup(sender: Electron.WebContents, channel: string, payload: unknown): void {
   const group = groupOfWindow(sender.id);
   for (const window of BrowserWindow.getAllWindows()) {
@@ -319,7 +323,8 @@ const previewChannel = (status: PreviewStatus) =>
 
 export function registerIpc(
   openWindow: (role: "vibe" | "ide", file?: string, command?: string) => void,
-  openProjectWindow: (root: string | null) => void,
+  /** False where there are no windows to open (the web version): the caller opens it here. */
+  openProjectWindow: (root: string | null) => boolean,
 ): void {
   let ideSession: SessionState | null = null;
   // Output produced before this point is still recorded; it is replayed by `output:history`
@@ -384,7 +389,18 @@ export function registerIpc(
     rebuildMenu();
   };
 
-  ipcMain.handle(CHANNELS.workspaceOpen, async (event) => {
+  ipcMain.handle(CHANNELS.workspaceOpen, async (event, options: unknown) => {
+    // Changing projects keeps the one open here: a different folder gets a window of its own.
+    if (typeof options === "object" && options !== null && (options as { newWindowIfOpen?: unknown }).newWindowIfOpen === true && currentWorkspace() !== null) {
+      const picked = await pickFolder();
+      if (picked === null) return null;
+      if (sameFolder(picked, currentWorkspace()?.root ?? "")) return currentWorkspace();
+      await remember(picked);
+      if (openProjectWindow(picked)) return { root: picked, name: basename(picked), inNewWindow: true as const };
+      const here = openWorkspaceAt(picked);
+      if (here !== null) tellOtherWindowsInGroup(event.sender, CHANNELS.workspaceChanged, here);
+      return here;
+    }
     const opened = await openWorkspace();
     if (opened !== null) {
       await remember(opened.root);
@@ -532,15 +548,15 @@ export function registerIpc(
   ipcMain.handle(CHANNELS.windowOpenVibe, () => openWindow("vibe"));
   // Another project beside this one: a new window group, empty or with the folder named.
   ipcMain.handle(CHANNELS.windowOpenProject, async (_event, root: unknown) => {
-    if (root === undefined || root === null) { openProjectWindow(null); return true; }
+    if (root === undefined || root === null) return openProjectWindow(null);
     if (!isString(root)) return false;
     try {
       if (!(await stat(root)).isDirectory()) return false;
     } catch {
       return false;
     }
+    if (!openProjectWindow(root)) return false;
     await remember(root);
-    openProjectWindow(root);
     return true;
   });
 

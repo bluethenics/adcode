@@ -24,7 +24,7 @@ function subscribe<Args extends unknown[]>(
 
 const api: AdcodeApi = {
   workspace: {
-    open: () => ipcRenderer.invoke(CHANNELS.workspaceOpen),
+    open: (options) => ipcRenderer.invoke(CHANNELS.workspaceOpen, options ?? null),
     openPath: (root) => ipcRenderer.invoke(CHANNELS.workspaceOpenPath, root),
     createProject: (idea) => ipcRenderer.invoke(CHANNELS.workspaceCreateProject, idea),
     recents: () => ipcRenderer.invoke(CHANNELS.workspaceRecents),

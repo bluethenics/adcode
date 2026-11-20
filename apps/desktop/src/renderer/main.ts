@@ -2093,14 +2093,38 @@ async function clearWorkspaceView(): Promise<void> {
 }
 
 async function openFolder(): Promise<void> {
-  const opened = await window.adcode.workspace.open();
+  // A project already open here stays open: another folder gets a window of its own.
+  const opened = await window.adcode.workspace.open({ newWindowIfOpen: true });
   if (opened === null) return;
 
+  if (opened.inNewWindow === true) {
+    setStatus(`Opened ${opened.name} in a new window - this one keeps ${workspaceRoot?.split(/[\\/]/).filter(Boolean).pop() ?? "its project"}.`, 5000);
+    return;
+  }
   await adoptWorkspace(opened);
   window.adcode.milestones.record("folder_opened");
 }
 
-/** Open a folder the user picked from the recents list or the welcome screen. */
+/**
+ * Change projects the way a person means it: with a project already open here, a different
+ * folder opens in a window of its own and this one keeps what it has. With nothing open (or
+ * the same folder), it opens here.
+ */
+async function openProjectFolder(root: string): Promise<void> {
+  if (workspaceRoot === null || sameWorkspacePath(workspaceRoot, root)) {
+    await openFolderAt(root);
+    return;
+  }
+  // False: no window could open (the web version is one tab per project, or the folder is
+  // gone). Opening here then does the right thing for both, including saying a folder is gone.
+  if (!(await window.adcode.window.openProject(root))) {
+    await openFolderAt(root);
+    return;
+  }
+  setStatus(`Opened ${root.split(/[\\/]/).filter(Boolean).pop() ?? root} in a new window.`, 4000);
+}
+
+/** Open a folder in this window: a launch request for it, a live session joining it, a clone. */
 async function openFolderAt(root: string): Promise<void> {
   const opened = await window.adcode.workspace.openPath(root);
 
@@ -3516,7 +3540,7 @@ function openMoveInDialog(): void {
     selectProvider: (providerId) => connectView.select(providerId),
     runInTerminal: (command) => { void runInTerminal(command); },
     write: (id, value) => window.adcode.settings.write(id, value),
-    openFolder: (folder) => void openFolderAt(folder),
+    openFolder: (folder) => void openProjectFolder(folder),
     showConversations: () => chat.showConversations(),
     openApps: () => openPlugins("apps"),
   });
@@ -4988,7 +5012,7 @@ const pluginsPage = createPluginsPage({
   track: (event) => window.adcode.usageStats.record(`event:${event}`),
 });
 const artifactsPage = createArtifactsPage({
-  openFolder: (root) => openFolderAt(root),
+  openFolder: (root) => openProjectFolder(root),
   pickFolder: () => void openFolder(),
   askAssistant: (prompt) => { showChatSurface(); chat.ask(prompt); },
   signIn: () => accountMenu.open("free-ai"),
@@ -5579,7 +5603,7 @@ const collabPanel = createCollabPanel({
 
 const projectsPanel = createProjectsPanel({
   workspaceRoot: () => workspaceRoot,
-  openProject: async root => { await openFolderAt(root); },
+  openProject: async root => { await openProjectFolder(root); },
 });
 // Shared projects are paused. Keep stored projects and conversations intact.
 el("open-projects").hidden = true;
@@ -6051,7 +6075,7 @@ function registerCommands(): void {
         confirmLabel: "Open",
       });
 
-      if (picked !== null) await openFolderAt(picked);
+      if (picked !== null) await openProjectFolder(picked);
     })();
   });
 
@@ -6065,7 +6089,7 @@ function registerCommands(): void {
    */
   add("workspace.openRecentAt", "Open Recent Folder by Path", async (path) => {
     if (path === undefined) return;
-    await openFolderAt(path);
+    await openProjectFolder(path);
   });
 
   /*
@@ -7173,7 +7197,7 @@ const welcome = createWelcomeView({
     })();
   },
   cloneRepository: () => void cloneRepository(),
-  openRecent: (path) => void openFolderAt(path),
+  openRecent: (path) => void openProjectFolder(path),
   forgetRecent: (path) => {
     void window.adcode.workspace
       .forgetRecent(path)

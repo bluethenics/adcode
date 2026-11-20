@@ -109,15 +109,19 @@ export function currentWorkspace(): OpenedWorkspace | null {
 }
 
 export async function openWorkspace(): Promise<OpenedWorkspace | null> {
+  const picked = await pickFolder();
+  return picked === null ? null : openWorkspaceAt(picked);
+}
+
+/** Ask for a folder, without opening it. */
+export async function pickFolder(): Promise<string | null> {
   const result = await dialog.showOpenDialog({
     properties: ["openDirectory", "createDirectory"],
     title: "Open Folder",
   });
 
   const picked = result.filePaths[0];
-  if (result.canceled || picked === undefined) return null;
-
-  return openWorkspaceAt(picked);
+  return result.canceled || picked === undefined ? null : picked;
 }
 
 /**

@@ -62,6 +62,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "A second window opens with the welcome screen. Open a folder there, pick one of your recent folders, or start a new project - the first window keeps the project it had.",
       "To skip the welcome screen, choose File > Open Recent in New Window instead, pick a recent folder or paste a folder's full path, and press Open in new window.",
       "Work in either window as usual. Each one has its own file tree, terminal, source control, problems list and chats; the window title starts with the project's name. The live preview runs one at a time: starting it in one window stops the other's.",
+      "You do not have to plan for it: with a project open, Open Folder or picking any recent folder opens the other project in a new window by itself, and this window keeps its project. To swap the project in this window instead, choose File > Close Folder first.",
       "Asking for a folder that another window already shows brings that window to the front rather than opening it twice.",
       "Close a window when you are done with its project. The next time ADCode starts, the first window reopens its project.",
     ],

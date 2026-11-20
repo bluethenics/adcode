@@ -91,6 +91,8 @@ export interface DirEntry {
 export interface OpenedWorkspace {
   readonly root: string;
   readonly name: string;
+  /** Opened in a window of its own, because this window already had another project open. */
+  readonly inNewWindow?: true;
 }
 
 /**
@@ -2070,7 +2072,11 @@ export interface LanguageTextEdit {
 
 export interface AdcodeApi {
   readonly workspace: {
-    open(): Promise<OpenedWorkspace | null>;
+    /**
+     * Pick a folder and open it. With `newWindowIfOpen`, a window that already has a different
+     * project open keeps it, and the picked folder opens in a new window (`inNewWindow`).
+     */
+    open(options?: { readonly newWindowIfOpen?: boolean }): Promise<OpenedWorkspace | null>;
     /** Open a known folder without a dialog - the recents list and the welcome screen. */
     openPath(root: string): Promise<OpenedWorkspace | null>;
     /**
