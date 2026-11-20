@@ -22,8 +22,8 @@
  *
  * §9 governs every failure: the worst outcome is that a milestone is not counted.
  */
-import { writeFileSync } from "node:fs";
-import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
+import { renameSync, writeFileSync } from "node:fs";
+import { readFile, writeFile, mkdir, rename, rm, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { app, ipcMain } from "electron";
 import { LaunchBudget, MAX_EVENTS_PER_REQUEST, MAX_PENDING_EVENTS, VERSION, sanitizeEvent, type RetentionEvent, type RetentionEventName } from "@adcode/retention";
@@ -122,14 +122,34 @@ function load(): Promise<MilestoneFile> {
   return loading;
 }
 
-async function save(): Promise<void> {
-  if (state === null) return;
-  try {
-    await mkdir(dirname(filePath()), { recursive: true });
-    await writeFile(filePath(), JSON.stringify(state), "utf8");
-  } catch {
-    // Unsaved is unsent-after-a-crash, nothing worse.
-  }
+let saveQueue: Promise<void> = Promise.resolve();
+let saveCount = 0;
+
+/**
+ * Write the file: queued, and renamed into place.
+ *
+ * A plain write truncates first, so a second save, a reader or a crash between the two
+ * halves could see half a file. The test that reads this file right after a flush caught
+ * exactly that, and a torn file at the next launch reads as a brand-new install - which
+ * costs `firstValueAt` and re-sends `first_launch`. Each save goes to its own temporary
+ * name and is renamed over the file, so a reader sees the old file or the new one, never
+ * half of either.
+ */
+function save(): Promise<void> {
+  if (state === null) return Promise.resolve();
+  const file = filePath();
+  const temporary = `${file}.${Date.now().toString(36)}-${++saveCount}.tmp`;
+  saveQueue = saveQueue.then(async () => {
+    try {
+      await mkdir(dirname(file), { recursive: true });
+      await writeFile(temporary, JSON.stringify(state), "utf8");
+      await rename(temporary, file);
+    } catch {
+      // Unsaved is unsent-after-a-crash, nothing worse.
+      await rm(temporary, { force: true }).catch(() => undefined);
+    }
+  });
+  return saveQueue;
 }
 
 function scheduleFlush(delay: number): void {
@@ -309,8 +329,11 @@ export function registerMilestoneIpc(): void {
       }
       state.session = { ...state.session, beatAt: now, ended: true };
     }
+    const file = filePath();
+    const temporary = `${file}.quit.tmp`;
     try {
-      writeFileSync(filePath(), JSON.stringify(state), "utf8");
+      writeFileSync(temporary, JSON.stringify(state), "utf8");
+      renameSync(temporary, file);
     } catch {
       // §9.
     }
