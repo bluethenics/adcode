@@ -1,0 +1,11 @@
+{
+  "name": "@adcode/retention",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Retention tracking: the fixed event vocabulary the desktop app may send, and the pure rules that turn those events into cohorts, a funnel, churned users with likely reasons, and ranked friction. No Electron, no DOM, no clock.",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

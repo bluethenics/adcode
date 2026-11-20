@@ -126,7 +126,8 @@ import {
   type ProposedEditView,
 } from "../shared/api.ts";
 import { recordAgentEdit } from "./activity.ts";
-import { recordMilestone } from "./milestones.ts";
+import { recordMilestone, recordRetention } from "./milestones.ts";
+import { SLOW_FIRST_ANSWER_MS, cliFailureOf } from "@adcode/retention";
 import { collabRemoteTool, registerCollabToolHandler, collabFileChanged, collabIsJoined, onCollabModeChange } from "./collabIpc.ts";
 import { finishTeamTurn, postTeamMessage, registerProjectAiReply, renewTeamTurn, teamSnapshot } from "./sharedProjects.ts";
 import { aiRequest, mergeTeamMessages, teamChatId } from "../shared/teamChat.ts";
@@ -2362,9 +2363,14 @@ async function runTurn(
       send({ kind: "error", detail: ready });
       recordDebug("error", "ai", ready);
       recordMilestone("turn_failed");
+      // Retention: which dead end, as a fixed word - never the message.
+      const noKey = /^No API key for /.test(ready) ? "key" : /^No address for the custom endpoint/.test(ready) ? "custom" : /^Free AI couldn't load its models/.test(ready) ? "free_unavailable" : null;
+      if (noKey !== null) recordRetention("no_api_key", { code: noKey });
+      recordRetention("turn_failed", { code: "setup" });
       return { kind: "done", ok: false, ended: "failed" };
     }
     recordMilestone("prompt_sent");
+    recordRetention("ai_message");
 
     // Attachments ride this turn only. The session keeps names, not bytes: image
     // base64 in a session file would bloat history on disk and re-send stale
@@ -2411,6 +2417,8 @@ async function runTurn(
     let lastError: string | null = null;
     let modelTraceRecorded = false;
     const turnStarted = Date.now();
+    /** When the model first showed anything - the wait a person actually sits through. */
+    let firstOutputAt: number | null = null;
     let toolCalls = 0;
     let keepGoing = false;
     // Automatic mode writes as it goes; this turn's writes become one undoable checkpoint.
@@ -2437,6 +2445,10 @@ async function runTurn(
         continue;
       }
       send(event);
+      if (firstOutputAt === null && (event.kind === "text" || event.kind === "thinking" || event.kind === "tool-call")) firstOutputAt = Date.now();
+      // A plan or allowance limit, not a provider's passing rate limit, is what makes people leave.
+      if (event.kind === "status" && event.limit !== undefined && event.limit.reason !== "rate" && event.limit.reason !== "upstream") recordRetention("limit_reached", { code: event.limit.reason });
+      if (event.kind === "cancelled") recordRetention("turn_cancelled", { ms: Date.now() - turnStarted });
       if (event.kind === "status" && /Retrying in|Continuing this task from the saved progress/.test(event.text)) recordMilestone("ai_retry_wait");
       if (event.kind === "status" && /connection interrupted the response/.test(event.text)) recordMilestone("ai_stream_interrupted");
       if (event.kind === "status" && event.limit !== undefined) recordMilestone(event.limit.reason === "upstream" || event.limit.reason === "rate" ? "ai_retry_wait" : "ai_limit_wait");
@@ -2496,6 +2508,14 @@ async function runTurn(
       cancelled ? "cancelled" : refused ? "refused" : lastError !== null ? outcomeOfError(lastError) : "ok",
       Date.now() - turnStarted,
     );
+    // Retention: how this turn went, as fixed words and timings (never the prompt or reply).
+    const firstAnswerMs = firstOutputAt === null ? null : firstOutputAt - turnStarted;
+    if (firstAnswerMs !== null && firstAnswerMs > SLOW_FIRST_ANSWER_MS) recordRetention("slow_first_answer", { ms: firstAnswerMs });
+    if (turnSucceeded) recordRetention("ai_turn_ok", firstAnswerMs === null ? {} : { ms: firstAnswerMs });
+    else if (!cancelled && !keepGoing) recordRetention("turn_failed", { code: refused ? "refused" : lastError !== null ? outcomeOfError(lastError) : "other" });
+    const turnCli = cliAgentFor(providerId);
+    const cliFailure = turnCli === undefined || keepGoing ? null : cliFailureOf({ error: lastError, answer, cancelled });
+    if (turnCli !== undefined && cliFailure !== null) recordRetention("cli_failed", { code: `${turnCli.id}.${cliFailure}` });
 
     let agentEditRecorded = false;
     if (turnSucceeded && activeTaskId !== null) {
@@ -2518,6 +2538,7 @@ async function runTurn(
             rejectedEdits: 0,
           });
           agentEditRecorded = true;
+          recordRetention("edit_applied", { code: "automatic" });
         } else if (result.conflicts.length > 0) {
           send({
             kind: "error",
@@ -2566,6 +2587,7 @@ async function runTurn(
           ),
           rejectedEdits: 0,
         });
+        recordRetention("edit_applied", { code: "automatic" });
       }
     }
     recordMilestone(turnSucceeded ? "turn_ok" : cancelled ? "prompt_sent" : "turn_failed");
@@ -2592,6 +2614,10 @@ async function runTurn(
     }
     send({ kind: "error", detail });
     recordMilestone("turn_failed");
+    recordRetention("turn_failed", { code: outcomeOfError(detail) });
+    const failedCli = cliAgentFor(activeProvider());
+    const failedHow = failedCli === undefined ? null : cliFailureOf({ error: detail, answer: "", cancelled: false });
+    if (failedCli !== undefined && failedHow !== null) recordRetention("cli_failed", { code: `${failedCli.id}.${failedHow}` });
     return { kind: "done", ok: false, ended: "failed" };
   } finally {
     currentTaskPrompt = null;
@@ -3235,6 +3261,7 @@ export async function aiWorkspaceApply(
   }
   const result = await (await readyAiWorkspaceService()).apply(taskId, selections);
   announceWorkspaceTask(result.task);
+  if (result.ok) recordRetention("edit_applied", { code: "review" });
   if (result.ok && result.task.state === "applied" && current.parentTeamId !== null) {
     // The human files and their rollback checkpoint are already authoritative. A transient
     // Team-record cleanup failure must not turn that successful apply into a renderer error;

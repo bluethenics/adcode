@@ -380,6 +380,7 @@ export const BRIDGE = [
 
   // milestones
   { path: "milestones.record", kind: "send", channel: CHANNELS.milestoneRecord },
+  { path: "retention.record", kind: "send", channel: CHANNELS.retentionRecord },
 
   // referrals
   { path: "referrals.get", kind: "invoke", channel: CHANNELS.referralsGet },

@@ -3918,6 +3918,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     card.dataset["failure"] = failure.kind;
     card.dataset["failureDetail"] = failure.detail;
     card.setAttribute("role", "alert");
+    // Retention: the screens that explain somebody leaving, as a fixed kind - never the detail.
+    const limitKind = failure.kind === "daily-limit" ? "daily" : failure.kind === "tokens" ? "tokens" : failure.kind === "credits" ? "credits" : null;
+    if (failure.kind === "sign-in") window.adcode.retention.record("sign_in_needed");
+    else if (limitKind !== null) window.adcode.retention.record("limit_reached", limitKind);
 
     const icon = document.createElement("span");
     icon.className = "chat-failure-icon";

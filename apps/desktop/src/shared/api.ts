@@ -1024,6 +1024,7 @@ export const CHANNELS = {
   debugSave: "debug:save",
   activityReport: "activity:report",
   milestoneRecord: "milestone:record",
+  retentionRecord: "retention:record",
   referralsGet: "referrals:get",
   referralsClaim: "referrals:claim",
   referralsCheckClipboard: "referrals:check-clipboard",
@@ -2744,6 +2745,14 @@ export interface AdcodeApi {
      * else. Fire and forget; repeats within one launch are ignored.
      */
     record(name: MilestoneName): void;
+  };
+  readonly retention: {
+    /**
+     * Notes a screen the window showed that explains somebody leaving: the free-AI sign-in
+     * card, or a limit card with its fixed kind. Sent only while Help improve ADCode is on;
+     * the main process drops any other name or code.
+     */
+    record(name: "sign_in_needed" | "limit_reached", code?: string): void;
   };
   readonly referrals: {
     /** Your invite: link, who joined, what it earned. Null when invites are unavailable. */

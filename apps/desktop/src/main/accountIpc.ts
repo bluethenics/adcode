@@ -19,6 +19,7 @@ import {
 import { CHANNELS, type AccountState, type LinkOutcome } from "../shared/api.ts";
 import { DiskFileStore, FetchHttpTransport, SystemClock } from "./adPorts.ts";
 import { apiBaseUrl, backendAccount } from "./backend.ts";
+import { recordRetention } from "./milestones.ts";
 import { linkWithGitHub, cancelSignIn, linkWithGoogle, openGitHubCompletionPage } from "./oauth.ts";
 
 function account() {
@@ -192,6 +193,15 @@ export function registerAccountIpc(): void {
   ipcMain.handle(CHANNELS.accountStatus, async (): Promise<AccountState> => currentAccount());
 
   ipcMain.handle(CHANNELS.accountLink, async (_event, provider: unknown): Promise<LinkOutcome> => {
+    const outcome = await linkAccount(provider);
+    // Retention: signed in, or a sign-in that went nowhere - by provider, never the message.
+    const how = provider === "google" || provider === "github" ? provider : null;
+    if (outcome.ok) recordRetention("signed_in", how === null ? {} : { code: how });
+    else if (!("decide" in outcome)) recordRetention("sign_in_failed", { code: account() === null ? "not_configured" : how ?? "not_configured" });
+    return outcome;
+  });
+
+  async function linkAccount(provider: unknown): Promise<LinkOutcome> {
     const auth = account();
     if (auth === null) {
       return { ok: false, message: "Sign-in isn't configured in this build." };
@@ -245,7 +255,7 @@ export function registerAccountIpc(): void {
     const outcome = await offerSignIn(auth, { kind: "idp", provider: flow.provider, credential });
     if (outcome.ok && flow.provider === "github.com") void openGitHubCompletionPage();
     return outcome;
-  });
+  }
 
   /**
    * "Yes, sign in as that account."
@@ -266,6 +276,8 @@ export function registerAccountIpc(): void {
 
     const outcome = await signInWith(auth, waiting.held);
     if (outcome.ok && waiting.held.kind === "idp" && waiting.held.provider === "github.com") void openGitHubCompletionPage();
+    const how = waiting.held.kind === "password" ? "password" : waiting.held.provider === "google.com" ? "google" : "github";
+    recordRetention(outcome.ok ? "signed_in" : "sign_in_failed", { code: how });
     return outcome;
   });
 

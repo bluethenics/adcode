@@ -397,6 +397,9 @@ const api: AdcodeApi = {
   milestones: {
     record: (name) => ipcRenderer.send(CHANNELS.milestoneRecord, name),
   },
+  retention: {
+    record: (name, code) => ipcRenderer.send(CHANNELS.retentionRecord, name, code),
+  },
   usageStats: {
     record: (name) => ipcRenderer.send(CHANNELS.appUsageRecord, name),
   },
