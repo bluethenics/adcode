@@ -915,6 +915,37 @@ checks.adPartnerNoticeTells = await (async () => {
 })();
 
 /*
+ * The one-time 2.6.3 notice that Help improve ADCode now sends what went wrong, linked to the
+ * account. It follows the sponsored-cards notice into the corner; the disclosure must come
+ * before the buttons, Turn off must be offered, and Keep on must close it - which also keeps
+ * the corner clear for every check below.
+ */
+checks.usageSignalsNoticeTells = await (async () => {
+  let drawn = null;
+  for (let i = 0; i < 40 && drawn === null; i += 1) {
+    drawn = await evaluate(
+      `(() => {
+         const card = document.querySelector('.usage-signals-card');
+         if (card === null) return null;
+         const body = card.querySelector('.pin-card-body');
+         const actions = card.querySelector('.pin-card-actions');
+         return {
+           saysAccountLinked: /linked to your account/.test(body?.textContent ?? ''),
+           saysNeverCode: /never your code, prompts, files, paths or chats/.test(body?.textContent ?? ''),
+           disclosureFirst: body !== null && actions !== null && (body.compareDocumentPosition(actions) & 4) === 4,
+           offersTurnOff: card.querySelector('.pin-card-never')?.textContent === 'Turn off',
+         };
+       })()`,
+    );
+    if (drawn === null) await sleep(500);
+  }
+  if (drawn === null) return "no usage-signals notice after the sponsored-cards notice closed";
+  await evaluate("document.querySelector('.usage-signals-card .pin-card-primary')?.click(); true");
+  await sleep(400);
+  return { ...drawn, dismissed: (await evaluate("document.querySelector('.usage-signals-card') === null")) === true };
+})();
+
+/*
  * The activity rail and sidebar are one navigation system.
  *
  * A selected icon closes its own view; choosing another icon opens the shared sidebar on
@@ -8073,6 +8104,7 @@ const requiredEvidence = {
   chatUsageBoxOpens: ["found", "chipAtTopLeft", "chipSaysSomething", "opened", "topmost", "underTheChip", "insideTheChat", "hasHeading", "offersFullUsage", "escapeCloses", "chatStaysOpen"],
   liveSessionCardFloats: ["found", "opened", "topmost", "aboveTheComposer", "composerKeepsWidth", "onScreen", "clickElsewhereCloses", "escapeCloses", "chatStaysOpen"],
   projectWindows: ["opened", "newWindow", "showsItsOwnFiles", "mainKnowsItsFolder", "titledByProject", "notTheFirstProject", "firstUntouched"],
+  usageSignalsNoticeTells: ["saysAccountLinked", "saysNeverCode", "disclosureFirst", "offersTurnOff", "dismissed"],
   adPartnerNoticeTells: ["namesZeekendOnly", "disclosureFirst", "offersTurnOff", "bothOnByDefault", "dismissed"],
 };
 const failed = Object.entries(checks).filter(
