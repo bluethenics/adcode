@@ -531,7 +531,7 @@ const whatsNew263: Report = {
   slug: "adcode-2-6-3-reliable-agents-and-project-windows",
   title: "What's new in ADCode 2.6.3: agents that finish, a project in every window",
   description:
-    "OpenCode and the other coding CLIs no longer stall or stop without a word, chats stop getting mixed up, each project gets its own window, and agent rules gain Always allow, hooks that decide and agent files.",
+    "OpenCode and the other coding CLIs no longer stall or stop without a word, chats stop getting mixed up, each project gets its own window, ad earnings turn into AI credits in one click, the chat builds agent flows, and agent rules gain Always allow, hooks that decide and agent files.",
   published: "2026-11-20",
   surface: "both",
   section: "How ADCode works",
@@ -582,6 +582,18 @@ Agent rules (\`.adcode/settings.json\`) let a project say what the AI may do on 
 Write a helper agent as a Markdown file in your project - its name, when to use it, which tools it may use, and its instructions - and the chat can hand it work. Run **AI: New Agent File** to start from a commented example in \`.adcode/agents/\`.
 
 If you already use Claude Code, its \`.claude/agents\` files work as they are, so one folder serves both tools. A reviewer that lists only Read, Grep and Glob can never edit a file. And a project's agent always runs on your chat's own model: a repository someone cloned cannot send your work - or your bill - to a model you did not pick. [Guide](/docs/ai-agent-files).
+
+## Your ad earnings, as AI credits
+
+The sponsored cards you see while you code earn you money. In 2.6.3 you can spend it on AI straight away: open **Earnings**, choose **Convert to AI credits**, type an amount from $0.50 up, check both balances before and after, and confirm. One dollar of earnings becomes one dollar of credits, with no fee and no checkout, and paid models can use them at once. Prefer cash? **Withdraw on the website** sits right beside it. [The whole story](/docs/turn-ad-earnings-into-ai-credits).
+
+## The chat builds agent flows for you
+
+Agent flow (new in 2.6.2) splits work across agents - one plans, one codes, one reviews. You no longer have to draw it: ask the chat "make a flow where one agent plans, DeepSeek codes and a read-only reviewer checks, and turn it on for this chat". It shows every agent, its model, the links between them and where the flow runs in a dialog, and saves it only when you confirm. It can edit, rename, share, switch off and delete flows the same way, open your recent projects, and show your earnings. Full access stays yours to switch on.
+
+## Help improve ADCode: what changed
+
+The Help improve ADCode switch (Settings › Privacy) used to send only daily feature counts, never tied to your account. It now also sends what went wrong for you - a failed AI request, a usage limit, a crash, how far a first session got - linked to your account, so we can see why people give up and fix it. Only fixed names, codes, counts and timings are sent: never your code, prompts, files, paths or chats, and raw signals are deleted after 90 days. A one-time notice tells you when you update, with **Turn off** one click away. [What is sent](/privacy#usage-statistics).
 
 ## Updating
 
@@ -639,4 +651,50 @@ Before 2.6.3, a message typed in a team chat while you were switching between ch
 `,
 };
 
-export const REPORTS_2026_11: readonly Report[] = [whatsNew263, teamPost, whatsNew262, realModel, benchmark, comparison, efficiency, ads];
+const conversionPost: Report = {
+  slug: "turn-ad-earnings-into-ai-credits",
+  title: "Turn your ADCode ad earnings into AI credits in one click",
+  description:
+    "The sponsored cards you see while you code earn you money. ADCode 2.6.3 lets you spend it on AI straight away: from $0.50, one dollar of earnings for one dollar of credits, no fee and no checkout.",
+  published: "2026-11-20",
+  surface: "both",
+  section: "How ADCode works",
+  order: 32,
+  related: ["ads-convert-earnings", "ads-withdraw-earnings", "adcode-2-6-3-reliable-agents-and-project-windows"],
+  body: `
+ADCode is free because of sponsored cards, and part of what they earn is yours: every card you are shown adds to your earnings balance. Until now, that money was only useful once it reached the $50 payout minimum. From 2.6.3 you can spend it on the AI you code with, the moment you have 50 cents.
+
+## How it works
+
+1. Open **Earnings** - the Earnings row in the Vibe sidebar, or **Earnings: Convert to AI Credits** in the command palette.
+2. Choose **Convert to AI credits** under your balance. The card shows what you can convert, your AI credits now, and the rate: $1.00 of earnings becomes $1.00 of credits.
+3. Type an amount, or press **All**. The line under the box says exactly what you will get and what comes off your earnings.
+4. Press **Convert**. A pop-up shows both balances before and after. Confirm, or go **Back** - nothing moves until you confirm.
+5. Watch the coins land in AI credits. Pick a paid model and the credits pay for it straight away.
+
+If the connection drops, the pop-up says nothing was converted and offers **Try again**. It repeats the same request, so it can never convert twice.
+
+## Why it is built this way
+
+- **Face value, no fee.** One dollar of earnings is one dollar of credits, and credits never expire.
+- **The server decides.** The rate, your balance and the move itself all happen on our server, in one step. The app can only ask; it can never invent credits.
+- **Once, even on a double click.** Every conversion carries its own request id, so a retry is recognised as the same conversion.
+- **On the record.** Each one appears as Converted to AI credits in your earnings ledger and From ad earnings in your credit activity.
+
+## The limits, honestly
+
+- A conversion cannot be undone. Credits are spent on AI; they do not turn back into cash.
+- From $0.50 up, at most $1,000 at a time and $1,000 a day.
+- It needs a confirmed email address - the same bar as a withdrawal - so a stolen session cannot drain an account.
+
+## Rather have the cash?
+
+**Withdraw on the website** is right next to Convert. It opens your Payouts page, where every requirement is listed at once: at least $50 available, a confirmed email, an account at least 7 days old, payout details on file, and no other request in progress. Bank details are entered on the website and stored encrypted, never in the editor. [How withdrawing works](/docs/ads-withdraw-earnings).
+
+You can also ask the chat: "how much have I earned?" or "convert $5 of my earnings to credits". It shows the same before-and-after and waits for your yes.
+
+Elsewhere, getting value out of ad or referral earnings means waiting for a payout threshold, handing over bank details, losing a cut to transfer fees and then paying again with a card. Here the money you earned while coding pays for the AI you code with, at face value, in one click.
+`,
+};
+
+export const REPORTS_2026_11: readonly Report[] = [whatsNew263, teamPost, conversionPost, whatsNew262, realModel, benchmark, comparison, efficiency, ads];
