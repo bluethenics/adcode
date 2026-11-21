@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { AdNetworkTable, NetworkTestPreview, impreziaStage, type AdNetworkView, ProviderReadiness, newAdNetwork, payoutBasis, payoutMicros, payoutRates, payoutSummary } from "../src/components/AdNetworksAdmin";
+import { AdNetworkTable, NetworkTestPreview, impreziaStage, type AdNetworkView, ProviderReadiness, newAdNetwork, payoutBasis, payoutMicros, payoutRates, payoutSummary, zeekendPayFields, zeekendPaySummary } from "../src/components/AdNetworksAdmin";
 
 describe("ad network administration", () => {
   it("converts dollars exactly and rejects precision or payout-limit mistakes", () => {
@@ -25,6 +25,18 @@ describe("ad network administration", () => {
     expect(payoutBasis({ viewPayoutMicros: "0", clickPayoutMicros: "50000" })).toBe("click");
     expect(payoutSummary({ viewPayoutMicros: "0", clickPayoutMicros: "50000" })).toBe("$0.05 per click");
     expect(payoutSummary({ viewPayoutMicros: "0", clickPayoutMicros: "0" })).toBe("Nothing yet");
+  });
+  it("sets what a person is paid per Zeekend card and how many cards a day pay", () => {
+    expect(zeekendPaySummary({})).toBe("$0.002 per card, up to 300 a day ($0.60)");
+    expect(zeekendPaySummary({ zeekend: { placementId: "chat-main", payPerCardMicros: "5000", paidCardsPerDay: 500 } })).toBe("$0.005 per card, up to 500 a day ($2.50)");
+    expect(zeekendPaySummary({ zeekend: { placementId: "chat-main", payPerCardMicros: "0" } })).toBe("Nothing: paused");
+    expect(zeekendPayFields("0.005", "500")).toEqual({ payPerCardMicros: "5000", paidCardsPerDay: 500 });
+    expect(zeekendPayFields("0", "300")).toEqual({ payPerCardMicros: "0", paidCardsPerDay: 300 });
+    // "2" typed for "0.002" is a thousand times the rate, and refused.
+    for (const [pay, perDay] of [["2", "300"], ["0.100001", "300"], ["0.002", "1001"], ["0.002", "1.5"], ["0.002", ""]]) expect(typeof zeekendPayFields(pay!, perDay!)).toBe("string");
+    const row = renderToStaticMarkup(<AdNetworkTable networks={[{ ...newAdNetwork("zeekend"), zeekend: { placementId: "chat-main", payPerCardMicros: "3000", paidCardsPerDay: 200 }, keyConfigured: true, readiness: "ready" }]} selected={null} busy={null} onEdit={() => undefined} onKey={() => undefined} onToggle={() => undefined} onTest={() => undefined} />);
+    expect(row).toContain("$0.003 per card, up to 200 a day ($0.60)");
+    expect(renderToStaticMarkup(<ProviderReadiness provider="zeekend" />)).not.toContain("do not credit");
   });
   it("offers Imprezia SDK chat cards with explicit privacy and payout rules", () => {
     expect(newAdNetwork("imprezia").imprezia).toEqual({ kind: "chat", id: "" });

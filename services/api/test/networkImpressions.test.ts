@@ -93,4 +93,34 @@ describe("paying for a Zeekend card", () => {
     const outcome = await creditNetworkImpression({ adNetworks: store.adNetworks, bumpDailyCount: async () => ++count, now: NOW }, "dev-c", { network: "zeekend", slotId: "slot_cap00001" });
     expect(outcome).toEqual({ credited: false, reason: "daily-cap" });
   });
+
+  it("pays the rate the admin set on the Zeekend connection, up to its daily cap", async () => {
+    const { creditNetworkImpression } = await import("../src/networkImpressions.ts");
+    const store = createMemoryStore();
+    await store.adNetworks!.put({ ...zeekendConfig, zeekend: { placementId: "chat-main", payPerCardMicros: "5000", paidCardsPerDay: 2 } } as never, "admin", NOW);
+    const deps = { adNetworks: store.adNetworks, bumpDailyCount: (key: string, day: number) => store.bumpRequestCount(key, day), now: NOW };
+    expect(await creditNetworkImpression(deps, "dev-d", { network: "zeekend", slotId: "slot_rate0001" })).toEqual({ credited: true, micros: "5000" });
+    expect(await creditNetworkImpression(deps, "dev-d", { network: "zeekend", slotId: "slot_rate0002" })).toEqual({ credited: true, micros: "5000" });
+    expect(await creditNetworkImpression(deps, "dev-d", { network: "zeekend", slotId: "slot_rate0003" })).toEqual({ credited: false, reason: "daily-cap" });
+    expect((await store.getBalance("dev-d")).lifetimeMicros).toBe(10_000n);
+  });
+
+  it("pays nothing at a rate of $0, without using up the slot", async () => {
+    const { creditNetworkImpression } = await import("../src/networkImpressions.ts");
+    const store = createMemoryStore();
+    await store.adNetworks!.put({ ...zeekendConfig, zeekend: { placementId: "chat-main", payPerCardMicros: "0" } } as never, "admin", NOW);
+    const deps = { adNetworks: store.adNetworks, bumpDailyCount: (key: string, day: number) => store.bumpRequestCount(key, day), now: NOW };
+    expect(await creditNetworkImpression(deps, "dev-e", { network: "zeekend", slotId: "slot_free0001" })).toEqual({ credited: false, reason: "unpaid" });
+    expect(await store.adNetworks!.delivery("dev-e", "slot_free0001")).toBeNull();
+  });
+
+  it("refuses a rate above $0.10 a card or a cap above 1,000 a day, and keeps the defaults when unset", async () => {
+    const { parseAdNetworkConfig, zeekendPay } = await import("../src/adNetworkConfig.ts");
+    expect(parseAdNetworkConfig({ ...zeekendConfig, zeekend: { placementId: "chat-main", payPerCardMicros: "100001" } })).toBeNull();
+    expect(parseAdNetworkConfig({ ...zeekendConfig, zeekend: { placementId: "chat-main", paidCardsPerDay: 1001 } })).toBeNull();
+    expect(parseAdNetworkConfig({ ...zeekendConfig, zeekend: { placementId: "chat-main", payPerCardMicros: "2.5" } })).toBeNull();
+    const saved = parseAdNetworkConfig({ ...zeekendConfig, zeekend: { placementId: "chat-main", payPerCardMicros: "100000", paidCardsPerDay: 1000 } });
+    expect(saved?.zeekend).toEqual({ placementId: "chat-main", payPerCardMicros: "100000", paidCardsPerDay: 1000 });
+    expect(zeekendPay(parseAdNetworkConfig(zeekendConfig) ?? undefined)).toEqual({ payMicros: 2000, perDay: 300 });
+  });
 });

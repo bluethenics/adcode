@@ -2189,7 +2189,7 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       return;
     }
 
-    // A Zeekend card the signed-in app saw counted: $0.002 to this account, once per slot,
+    // A Zeekend card the signed-in app saw counted: the admin-set rate to this account, once per slot,
     // capped per day (networkImpressions.ts).
     if (path === "/v1/sponsored/earn" && req.method === "POST") {
       let raw: unknown = null;

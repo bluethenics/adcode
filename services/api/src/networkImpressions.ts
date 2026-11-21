@@ -79,6 +79,8 @@ export function withNetworkImpressions<T extends AdsShownFigures>(stats: T, netw
   };
 }
 
+import { ZEEKEND_DEFAULT_PAID_PER_DAY, ZEEKEND_DEFAULT_PAY_MICROS, zeekendPay } from "./adNetworkConfig.ts";
+
 const DAY_MS = 86_400_000;
 const utcDay = (at: number): string => new Date(at).toISOString().slice(0, 10);
 
@@ -107,7 +109,7 @@ export function createMemoryNetworkImpressionStore(): NetworkImpressionStore {
 }
 
 /*
- * Paying people for Zeekend cards (2026-11-13): $0.002 for each card they were shown.
+ * Paying people for Zeekend cards (2026-11-13): a set amount for each card they were shown.
  *
  * Only from the signed-in app, never from the sponsored page's own report above: that one has
  * no account behind it and anybody could send it. The app reports the slot Zeekend counted
@@ -116,14 +118,16 @@ export function createMemoryNetworkImpressionStore(): NetworkImpressionStore {
  * delivery's creative id is unique, so one Zeekend slot pays one person, once, ever.
  *
  * A slot id cannot be checked with Zeekend from here, so a day's Zeekend earnings per person
- * are capped: ZEEKEND_PAID_PER_DAY cards, $0.60 a day at the rate below.
+ * are capped. The rate and the cap are the administrator's, on the Zeekend connection
+ * (adNetworkConfig.ts zeekendPay; 2026-11-21): $0.002 and 300 cards a day unless changed. The
+ * rate is copied onto the delivery, so a change applies to cards counted after it.
  */
-export const ZEEKEND_VIEW_PAYOUT_MICROS = 2_000;
-export const ZEEKEND_PAID_PER_DAY = 300;
+export const ZEEKEND_VIEW_PAYOUT_MICROS = ZEEKEND_DEFAULT_PAY_MICROS;
+export const ZEEKEND_PAID_PER_DAY = ZEEKEND_DEFAULT_PAID_PER_DAY;
 
 export type NetworkCredit =
   | { readonly credited: true; readonly micros: string }
-  | { readonly credited: false; readonly reason: "invalid" | "no-network" | "daily-cap" | "already" };
+  | { readonly credited: false; readonly reason: "invalid" | "no-network" | "daily-cap" | "already" | "unpaid" };
 
 export async function creditNetworkImpression(
   deps: {
@@ -138,10 +142,14 @@ export async function creditNetworkImpression(
   if (impression === null) return { credited: false, reason: "invalid" };
   const network = deps.adNetworks === undefined ? undefined : (await deps.adNetworks.list()).find((config) => config.provider === "zeekend" && config.enabled);
   if (deps.adNetworks === undefined || network === undefined) return { credited: false, reason: "no-network" };
+  const { payMicros, perDay } = zeekendPay(network);
+  // Paying nothing: the card still counts on the dashboard, but no delivery is written, so the
+  // slot is not used up and nobody's daily count moves.
+  if (payMicros === 0 || perDay === 0) return { credited: false, reason: "unpaid" };
   const existing = await deps.adNetworks.delivery(uid, impression.slotId);
   if (existing?.settledEvents?.includes("impression") === true) return { credited: false, reason: "already" };
   const dayStart = Math.floor(deps.now / DAY_MS) * DAY_MS;
-  if ((await deps.bumpDailyCount(`zeekend-paid:${uid}`, dayStart)) > ZEEKEND_PAID_PER_DAY) return { credited: false, reason: "daily-cap" };
+  if ((await deps.bumpDailyCount(`zeekend-paid:${uid}`, dayStart)) > perDay) return { credited: false, reason: "daily-cap" };
   const id = `zk_${impression.slotId}`;
   if (existing === null) {
     try {
@@ -153,7 +161,7 @@ export async function creditNetworkImpression(
         providerCreativeId: impression.slotId,
         servedAt: deps.now,
         expiresAt: deps.now + DAY_MS,
-        viewPayoutMicros: String(ZEEKEND_VIEW_PAYOUT_MICROS),
+        viewPayoutMicros: String(payMicros),
         clickPayoutMicros: "0",
         logoLight: "",
         logoDark: "",
@@ -164,5 +172,6 @@ export async function creditNetworkImpression(
     }
   }
   const settled = await deps.adNetworks.settle(existing?.id ?? id, "impression", impression.slotId, deps.now);
-  return settled ? { credited: true, micros: String(ZEEKEND_VIEW_PAYOUT_MICROS) } : { credited: false, reason: "already" };
+  // The delivery's own rate is what settled: a delivery written before a rate change keeps the old one.
+  return settled ? { credited: true, micros: existing?.viewPayoutMicros ?? String(payMicros) } : { credited: false, reason: "already" };
 }

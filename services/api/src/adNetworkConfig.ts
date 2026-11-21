@@ -31,9 +31,32 @@ export interface AdNetworkConfig {
   imprezia?: { kind: "app" | "site" | "chat"; id: string };
   /**
    * Zeekend's chat placements, through its browser SDK on the sponsored page: its publisher key
-   * (public by design) and placement id. Like Imprezia's SDK cards, it does not pay user balances.
+   * (public by design) and placement id. What a person is paid per card is set here too
+   * (2026-11-21), from the admin's Zeekend connection; missing fields mean the defaults below.
    */
-  zeekend?: { placementId: string };
+  zeekend?: { placementId: string; payPerCardMicros?: string; paidCardsPerDay?: number };
+}
+
+/*
+ * What a person earns for each Zeekend card they are shown, and how many cards a day pay.
+ *
+ * Set by an administrator on the Zeekend connection, so the rate changes with no release.
+ * The defaults are what was paid before the setting existed (2026-11-13): $0.002 a card, 300
+ * cards a day. The ceilings stop a typo - "2" for "0.002" - from paying a thousand times the
+ * intended rate: a card cannot pay more than $0.10, nor a person be paid for more than 1,000 a day.
+ */
+export const ZEEKEND_DEFAULT_PAY_MICROS = 2_000;
+export const ZEEKEND_DEFAULT_PAID_PER_DAY = 300;
+export const ZEEKEND_MAX_PAY_MICROS = 100_000;
+export const ZEEKEND_MAX_PAID_PER_DAY = 1_000;
+
+/** The rate and daily cap a Zeekend connection pays at. */
+export function zeekendPay(config: Pick<AdNetworkConfig, "zeekend"> | undefined): { payMicros: number; perDay: number } {
+  const pay = config?.zeekend?.payPerCardMicros;
+  return {
+    payMicros: pay === undefined ? ZEEKEND_DEFAULT_PAY_MICROS : Number(pay),
+    perDay: config?.zeekend?.paidCardsPerDay ?? ZEEKEND_DEFAULT_PAID_PER_DAY,
+  };
 }
 export interface EncryptedAdNetworkKey { version: 1; nonce: string; ciphertext: string; tag: string }
 export interface AdNetworkDelivery {
@@ -89,7 +112,11 @@ export function parseAdNetworkConfig(raw: unknown): AdNetworkConfig | null {
     const placement = record(raw["zeekend"]) ? raw["zeekend"]["placementId"] : undefined;
     const placementId = placement === undefined || placement === "" ? "chat-main" : placement;
     if (typeof placementId !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(placementId)) return null;
-    return { ...base, zeekend: { placementId } };
+    const zeekend = record(raw["zeekend"]) ? raw["zeekend"] : {};
+    const pay = zeekend["payPerCardMicros"], perDay = zeekend["paidCardsPerDay"];
+    if (pay !== undefined && (!micros(pay) || BigInt(pay) > BigInt(ZEEKEND_MAX_PAY_MICROS))) return null;
+    if (perDay !== undefined && (typeof perDay !== "number" || !Number.isSafeInteger(perDay) || perDay < 0 || perDay > ZEEKEND_MAX_PAID_PER_DAY)) return null;
+    return { ...base, zeekend: { placementId, ...(pay === undefined ? {} : { payPerCardMicros: pay as string }), ...(perDay === undefined ? {} : { paidCardsPerDay: perDay as number }) } };
   }
   if (provider === "beehiiv") {
     const bee = raw["beehiiv"];
