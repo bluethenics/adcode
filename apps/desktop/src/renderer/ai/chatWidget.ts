@@ -83,7 +83,10 @@ import type { CodeReference } from "../editor/codeReferences.ts";
 import {
   groupChatForks,
   groupChatSessions,
+  EMPTY_CHAT_MESSAGE_HTML,
+  renderChatBlocksHtml,
   renderChatMessageHtml,
+  stableChatBoundary,
 } from "./chatMarkdown.ts";
 import { createResultImage, summarizeToolInput, toolHeaderLabel } from "./chatActivity.ts";
 import { createPixelSpinner, createTurnTimeline, type TurnTimeline } from "./chatTimeline.ts";
@@ -441,6 +444,11 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   function renderMessage(element: HTMLElement, text: string): void {
     messageSources.set(element, text);
     // The pictures and files sent with a message sit above its text; a re-render keeps them.
+    if (element.classList.contains("is-streaming")) {
+      paintStreaming(element, text);
+      return;
+    }
+    streamingParts.delete(element);
     const attachments = element.querySelector(":scope > .chat-bubble-attachments");
     // Rich Claude-style HTML (escaped, code blocks, lists, inline code, file
     // links). Buttons are wired after insert so copy and open-file work.
@@ -448,7 +456,46 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     if (attachments !== null) element.prepend(attachments);
     if (element.classList.contains("chat-bubble-user")) markSlashCommand(element, text);
     wireMessageButtons(element);
-    if (element.classList.contains("is-streaming")) markFreshBlocks(element);
+  }
+
+  /**
+   * A streaming answer's finished blocks and its unfinished tail (2026-11-21).
+   *
+   * Rebuilding the whole answer every frame made a long one slower as it grew, remade its code
+   * blocks sixty times a second, and threw away any text being selected. Finished blocks -
+   * everything before the last blank line outside an open code fence (stableChatBoundary) - are
+   * drawn once and kept; only the tail is redrawn. The parts add up to exactly the whole answer's
+   * HTML (test/chatStreamingRender.test.ts), which matters: nothing redraws it when it ends.
+   */
+  const streamingParts = new WeakMap<HTMLElement, { end: number; settled: string; tail: ChildNode[] }>();
+
+  /** Parse `html`, wire its buttons, append it to `element`, and return what was added. */
+  function appendBlocks(element: HTMLElement, html: string): ChildNode[] {
+    if (html === "") return [];
+    const holder = document.createElement("div");
+    holder.innerHTML = html;
+    wireMessageButtons(holder);
+    const nodes = [...holder.childNodes];
+    element.append(...nodes);
+    return nodes;
+  }
+
+  function paintStreaming(element: HTMLElement, text: string): void {
+    const end = stableChatBoundary(text);
+    const parts = streamingParts.get(element);
+    let added: ChildNode[];
+    if (parts === undefined || end < parts.end || !text.startsWith(parts.settled)) {
+      // First paint, or the text was replaced rather than added to: lay it out from scratch.
+      const attachments = element.querySelector(":scope > .chat-bubble-attachments");
+      element.replaceChildren(...(attachments === null ? [] : [attachments]));
+      added = appendBlocks(element, renderChatBlocksHtml(text.slice(0, end)));
+    } else {
+      for (const node of parts.tail) node.remove();
+      added = appendBlocks(element, renderChatBlocksHtml(text.slice(parts.end, end)));
+    }
+    const tail = appendBlocks(element, renderChatBlocksHtml(text.slice(end)) || (end === 0 ? EMPTY_CHAT_MESSAGE_HTML : ""));
+    streamingParts.set(element, { end, settled: text.slice(0, end), tail });
+    markFreshBlocks(element, [...added, ...tail]);
   }
 
   /** When each block of a streaming answer first appeared, so it can fade in across re-renders. */
@@ -457,17 +504,22 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   /**
    * Fade in the paragraphs, lists and code blocks an answer is still growing.
    *
-   * A streaming answer is re-rendered on every frame, so each block is a fresh element every
-   * time; a plain entrance would restart each frame and never finish. Each block keeps the
-   * time it first appeared, and its copy resumes the fade from there with a negative delay.
+   * The tail of a streaming answer is redrawn every frame, so its blocks are fresh elements each
+   * time; a plain entrance would restart each frame and never finish. Each block position keeps
+   * the time it first appeared, and a new copy resumes the fade from there with a negative delay.
+   * Only blocks just added are touched: a settled block already running its fade is left alone.
    */
-  function markFreshBlocks(element: HTMLElement): void {
+  function markFreshBlocks(element: HTMLElement, blocks: readonly ChildNode[]): void {
     const births = blockBirths.get(element) ?? [];
     const now = performance.now();
-    [...element.children].forEach((block, index) => {
+    const children = [...element.children];
+    blocks.forEach((block) => {
+      if (!(block instanceof HTMLElement)) return;
+      const index = children.indexOf(block);
+      if (index < 0) return;
       births[index] ??= now;
       const age = now - births[index]!;
-      if (age < 240 && block instanceof HTMLElement) {
+      if (age < 240) {
         block.dataset["fresh"] = "true";
         block.style.animationDelay = `-${String(Math.round(age))}ms`;
       }

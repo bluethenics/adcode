@@ -322,8 +322,16 @@ function renderCodeSegment(segment: ChatCodeSegment): string {
   );
 }
 
+/** What an empty message renders as, so a bubble keeps its height before its first word. */
+export const EMPTY_CHAT_MESSAGE_HTML = `<p class="chat-md-para"></p>`;
+
 /** Full message to safe HTML: code blocks, tables, lists, bold, inline code, file links. */
 export function renderChatMessageHtml(text: string): string {
+  return renderChatBlocksHtml(text) || EMPTY_CHAT_MESSAGE_HTML;
+}
+
+/** The blocks of a message, or nothing for a message with none. */
+export function renderChatBlocksHtml(text: string): string {
   const out: string[] = [];
   for (const segment of splitChatContent(text)) {
     if (segment.kind === "code") {
@@ -335,7 +343,47 @@ export function renderChatMessageHtml(text: string): string {
       if (html.length > 0) out.push(html);
     }
   }
-  return out.join("") || `<p class="chat-md-para"></p>`;
+  return out.join("");
+}
+
+/**
+ * Where the finished part of a streaming answer ends (2026-11-21).
+ *
+ * A streaming answer used to be parsed and rebuilt whole on every frame: a long answer got
+ * slower as it grew, its code blocks were remade sixty times a second, and nothing in it could
+ * be selected until it stopped. A block is finished once a blank line follows it outside any
+ * open code fence - nothing typed later can change how it renders, because blocks render alone
+ * (`renderChatBlocksHtml` splits on blank lines and fences, and keeps no state across them).
+ *
+ * So for any boundary `b` this returns, rendering `text.slice(0, b)` and `text.slice(b)` on
+ * their own gives exactly the whole text's HTML, and `b` never moves back as the text grows.
+ * The boundary sits after the whole blank-line run, once something else follows it, so the
+ * tail never starts with a newline the whole-text split would have swallowed.
+ */
+export function stableChatBoundary(text: string): number {
+  const fence = /```([^\n]*)\n([\s\S]*?)(?:```|$)/g;
+  const closed: [number, number][] = [];
+  let limit = text.length;
+  for (const match of text.matchAll(fence)) {
+    const start = match.index ?? 0;
+    // Still open (it ran to the end of the text): nothing from its first backtick on is settled.
+    if (!match[0].endsWith("```")) { limit = start; break; }
+    closed.push([start, start + match[0].length]);
+  }
+  let before = limit;
+  for (;;) {
+    const at = before < 2 ? -1 : text.lastIndexOf("\n\n", before - 2);
+    if (at < 0) return 0;
+    const inside = closed.find(([start, end]) => at >= start && at < end);
+    if (inside !== undefined) { before = inside[0]; continue; }
+    let runStart = at;
+    while (runStart > 0 && text[runStart - 1] === "\n") runStart -= 1;
+    let end = at + 2;
+    while (end < text.length && text[end] === "\n") end += 1;
+    // The run is still at the end of the text: the next chunk may add to it.
+    if (end >= text.length || end > limit) { before = runStart; continue; }
+    return end;
+  }
 }
 
 export interface ChatSessionGroup {
