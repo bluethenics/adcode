@@ -3,32 +3,39 @@
 > **Status: paused in production.** We are not ready for a web release. Production builds
 > (`npm run cloud:build` / `npm run cloud:deploy`) ship a static "The web version is paused"
 > notice with a link to the desktop app; they no longer ship the app entry. Development
-> (`npm run web:vibe`, the browser smoke) still runs the real app. To resume, change
+> (`npm run web:vibe`, `npm run smoke:web`) runs the real app. To resume, change
 > `webEntry(mode === "production")` to `webEntry(false)` in `apps/desktop/vite.web.config.ts`.
 
-ADCode opens a browser workspace for chat, saved conversations and GitHub projects. This entry
-uses normal authenticated HTTP requests and never reserves or starts a sandbox. A separate,
-optional cloud workspace runs the **same main-process code as the desktop app**, with the Vibe
-renderer talking to it over one WebSocket instead of Electron IPC.
+## How it works now (2026-11-21): the main process in the tab
 
-Browser chat streams through the existing included-AI API, with its existing account checks,
-credits and provider limits. Chat history and encrypted GitHub credentials live in a lightweight
-`BrowserSession` Durable Object with no container, alarms or capacity reservation. Repository
-files are read through GitHub's API at an immutable commit. The assistant can read files and
-stage text edits; only the person's Create pull request action writes them, on a fresh branch.
-It cannot run commands or claim checks passed in this mode. GitHub is storage and collaboration,
-not a replacement for the compute needed to execute a project.
+No computer per person. The web version runs the **desktop's own main-process code in a Web
+Worker** in the person's tab (`apps/desktop/src/browserHost`), and the Vibe renderer talks to it
+with exactly the frames it used to send a cloud sandbox over a WebSocket
+(`src/web/workerSocket.ts`). So the web has the desktop's chat, models, helpers, plans, usage
+and slash commands, and every future desktop feature arrives on the web with it.
 
-Choose Open cloud workspace to enter the separate execution UI (`?workspace=run`). That workspace
-retains its existing projects and credentials. Browser proposals are not automatically copied
-into it. The normal chat entry stays available when execution capacity or its monthly budget is
-exhausted. No always-running machine is charged simply for opening chat or browsing GitHub.
+```
+tab ── page (renderer, src/web/boot.ts) ──postMessage── Worker: browser-host.js (src/main + shims)
+                                                          │ fs  → shims/vfs.ts: memory, written to IndexedDB
+                                                          │ git → browserHost/githubGit.ts (base copy + pull requests)
+                                                          └ fetch /v1, /api/github → cloud Worker → API / GitHub
+```
 
-History is bounded to 50 active chats with up to 200 messages and 512 KiB each. Delete frees a
-slot and offers Undo; the ten most recently deleted chats remain recoverable. GitHub context
-excludes credential files, binary files and symlinks. Proposed edits require review, and changes
-to GitHub workflow files must be made on GitHub separately. GitHub tokens remain encrypted on
-the server and never reach the browser or the model.
+| Piece | Where | What it does |
+|---|---|---|
+| Worker build | `apps/desktop/vite.browserHost.config.ts` | `src/browserHost/worker.ts` as one script; `node:*` → `src/browserHost/shims`, `electron` → the cloud host's shim, `@adcode/git` → GitHub-backed git, anything else Node-only loads but throws when used |
+| Files | `shims/vfs.ts` | Node's fs in memory, written behind to IndexedDB (`adcode-files`); settings, chats, own API keys and projects survive reloads, per browser |
+| Programs | `shims/childProcess.ts` | Every spawn fails like a missing program (`ENOENT`), so callers' own "not installed" paths run |
+| Projects | `browserHost/githubProjects.ts`, `web/githubRepoPicker.ts` | Open from GitHub copies a repository's text files (≤256 KB each) plus a hidden base copy |
+| Git | `browserHost/githubGit.ts` | Status/diff/discard against the base; commit/push open a pull request on a new `adcode/` branch (≤50 files, ≤1 MB) |
+| Cloud Worker | `apps/cloud` | Serves the page and `browser-host.js`, forwards all of `/v1` except `/v1/admin`, keeps the GitHub token (`/api/github/*`). `/socket` refuses: no sandbox starts |
+
+Not on the web: a terminal, running commands, a live dev-server preview, local models and CLI
+agents. A closed tab stops a running turn. Checks: `npm run smoke:web` (this path, with a fake
+model and fake GitHub routes) and `test/browserHost*.test.ts`.
+
+The sections below describe the retired per-person sandbox (`?host=local` in development still
+reaches a local adcode-host, and `npm run smoke:web-vibe` still covers it).
 
 ```
 browser ── web.bluethenics.com (Worker: apps/cloud) ──► UserSession DO (one per Firebase uid) ──► Container

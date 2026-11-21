@@ -8,7 +8,7 @@
  * upgrade).
  */
 import { describe, expect, it, vi } from "vitest";
-import { route, type RouterDeps } from "../src/router.ts";
+import { route, SANDBOX_RETIRED_CODE, type RouterDeps } from "../src/router.ts";
 import type { Env } from "../src/env.ts";
 import { INDEXABLE_LAUNCH_ROBOTS, LAUNCH_ROBOTS, LEGACY_WEB_APP_SCHEMA_CSP, WEB_APP_SCHEMA_CSP } from "../src/seo.ts";
 
@@ -41,30 +41,19 @@ function socketRequest(headers: Record<string, string>): Request {
 }
 
 describe("socket", () => {
-  it("refuses a page from somewhere else", async () => {
-    const { env, names } = fakeEnv();
-    const response = await route(socketRequest({ origin: "https://evil.example", "sec-websocket-protocol": "adcode.v1, auth.good-token" }), env, deps);
-    expect(response.status).toBe(403);
-    expect(names).toEqual([]);
-  });
-
-  it("tells a tab without a valid sign-in to sign in again, without waking anything", async () => {
-    const { env, names } = fakeEnv();
-    for (const protocols of ["adcode.v1", "adcode.v1, auth.bad-token"]) {
-      const response = await route(socketRequest({ origin: "https://web.bluethenics.com", "sec-websocket-protocol": protocols }), env, deps);
-      expect(await response.text()).toBe("refused 4401 Signed out");
+  // The web version runs in the person's tab now (2026-11-21): no request starts a sandbox.
+  it("never starts a person's sandbox, whoever asks and however they are signed in", async () => {
+    const { env, names, userFetch } = fakeEnv();
+    for (const headers of [
+      { origin: "https://web.bluethenics.com", "sec-websocket-protocol": "adcode.v1, auth.good-token" },
+      { origin: "https://web.bluethenics.com", "sec-websocket-protocol": "adcode.v1" },
+      { origin: "https://evil.example", "sec-websocket-protocol": "adcode.v1, auth.good-token" },
+    ]) {
+      const response = await route(socketRequest(headers), env, deps);
+      expect(await response.text()).toBe(`refused ${SANDBOX_RETIRED_CODE} ADCode on the web runs in your browser now. Reload the page.`);
     }
     expect(names).toEqual([]);
-  });
-
-  it("sends a signed-in tab to that person's own sandbox", async () => {
-    const { env, names, userFetch } = fakeEnv();
-    const response = await route(socketRequest({ origin: "https://web.bluethenics.com", "sec-websocket-protocol": "adcode.v1, auth.good-token" }), env, deps);
-    expect(names).toEqual(["user-123"]);
-    expect(await response.text()).toBe("user:user-123");
-    const forwarded = userFetch.mock.calls[0]![0] as Request;
-    expect(new URL(forwarded.url).pathname).toBe("/socket");
-    expect(forwarded.headers.get("x-adcode-email")).toBe("sinan@example.com");
+    expect(userFetch).not.toHaveBeenCalled();
   });
 
   it("needs an upgrade", async () => {
@@ -133,13 +122,11 @@ describe("api", () => {
 });
 
 describe("the page", () => {
-  it("keeps the existing execution entry available only when explicitly requested", async () => {
+  it("serves the one web app for the old sandbox address too, and starts nothing", async () => {
     const { env, assetsFetch, names } = fakeEnv();
     const response = await route(new Request("https://web.bluethenics.com/?workspace=run"), env, deps);
     expect(response.status).toBe(200);
-    expect(new URL((assetsFetch.mock.calls[0]![0] as unknown as Request).url).pathname).toBe("/legacy-workspace.html");
-    expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
-    expect(response.headers.get("content-security-policy")).toContain(LEGACY_WEB_APP_SCHEMA_CSP);
+    expect(new URL((assetsFetch.mock.calls[0]![0] as unknown as Request).url).pathname).toBe("/");
     expect(names).toEqual([]);
   });
   it("serves Phone link's page at /phone/ as a real page, able to reach the relay", async () => {

@@ -126,12 +126,50 @@ function webEntry(paused: boolean): Plugin {
   };
 }
 
+/**
+ * The browser host (vite.browserHost.config.ts) beside the page, at `/browser-host.js`: served
+ * from its build folder in development and copied into the page's output when building. It is
+ * built separately - `scripts/web-vibe.mjs` and `scripts/cloud-build.mjs` build it first.
+ */
+const BROWSER_HOST_DIR = resolve(DESKTOP, "out/browser-host");
+function browserHost(): Plugin {
+  const files = ["browser-host.js", "browser-host.js.map"];
+  return {
+    name: "adcode-browser-host",
+    configureServer(server) {
+      server.middlewares.use((request, response, next) => {
+        const name = (request.url ?? "").split("?")[0]!.slice(1);
+        if (!files.includes(name)) return next();
+        const file = resolve(BROWSER_HOST_DIR, name);
+        if (!existsSync(file)) {
+          response.statusCode = 503;
+          response.end("The browser host is not built. Run: npx vite build -c apps/desktop/vite.browserHost.config.ts");
+          return;
+        }
+        response.setHeader("content-type", name.endsWith(".map") ? "application/json" : "text/javascript");
+        response.setHeader("cache-control", "no-store");
+        response.end(readFileSync(file));
+      });
+    },
+    generateBundle() {
+      for (const name of files) {
+        const file = resolve(BROWSER_HOST_DIR, name);
+        if (!existsSync(file)) {
+          if (name.endsWith(".map")) continue;
+          this.error("The browser host is not built: run npx vite build -c apps/desktop/vite.browserHost.config.ts first");
+        }
+        this.emitFile({ type: "asset", fileName: name, source: readFileSync(file) });
+      }
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => ({
   root: resolve(DESKTOP, "src/renderer"),
   publicDir: resolve(DESKTOP, "src/renderer/public"),
   // Its own cache, so this dev server never fights the desktop's electron-vite over one folder.
   cacheDir: resolve(DESKTOP, "out/.vite-web"),
-  plugins: [webEntry(mode === "production")],
+  plugins: [webEntry(mode === "production"), browserHost()],
   esbuild: { jsx: "automatic" },
   optimizeDeps: {
     // The scanner reads the page's raw HTML, which still names the desktop's `./main.ts`; the web
@@ -180,6 +218,8 @@ export default defineConfig(({ mode }) => ({
     watch: { ignored: [resolve(DESKTOP, "src/renderer/public/grammars/**")] },
     proxy: {
       "/v1": { target: process.env["ADCODE_ACCOUNT_API_ORIGIN"] ?? "https://adcode.bluethenics.com", changeOrigin: true },
+      // The cloud Worker's /api (GitHub, saved chats) has no local server; a smoke can stand one in.
+      ...(process.env["ADCODE_WEB_API_ORIGIN"] === undefined ? {} : { "/api": { target: process.env["ADCODE_WEB_API_ORIGIN"], changeOrigin: true } }),
       "/socket": { target: `ws://127.0.0.1:${process.env["ADCODE_HOST_PORT"] ?? "7300"}`, ws: true },
       "/__adcode": { target: `http://127.0.0.1:${process.env["ADCODE_HOST_PORT"] ?? "7300"}` },
     },

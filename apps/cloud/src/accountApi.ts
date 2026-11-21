@@ -1,13 +1,22 @@
 import type { Env } from "./env.ts";
 
-const READ = new Set(["/v1/config", "/v1/balance", "/v1/ledger", "/v1/activity", "/v1/referrals", "/v1/payouts", "/v1/payout-corridors", "/v1/email-preferences", "/v1/ai/tagflow/config", "/v1/ai/tagflow/usage", "/v1/ai/tagflow/audience"]);
+/*
+ * The web version runs the desktop's own main process in the person's tab (2026-11-21), and it
+ * calls the API the desktop calls - models, releases, notices, sponsored cards, usage, the
+ * wallet - not only the account pages the old browser app needed. So every `/v1` path is
+ * forwarded except the administrator's, which the web never needs. The API authenticates each
+ * request itself, exactly as when the desktop calls it directly; this proxy adds nothing a
+ * caller could not already reach at adcode.bluethenics.com, and keeps `/v1/admin` out of reach.
+ */
+const METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
+const API_PATH = /^\/v1\/[a-zA-Z0-9][a-zA-Z0-9/_.-]{0,300}$/;
 export function accountApiAllowed(path: string, method: string): boolean {
-  if (path === "/v1/ai/account/verification") return method === "GET" || method === "POST";
-  if (method === "GET") return READ.has(path);
-  if (method === "PATCH") return path === "/v1/referrals" || path === "/v1/email-preferences";
-  if (method === "POST") return ["/v1/serve", "/v1/receipts", "/v1/referrals/claim", "/v1/payouts/profile", "/v1/withdrawals", "/v1/ai/tagflow/chat/completions", "/v1/ai/tagflow/feedback", "/v1/ai/tagflow/audience"].includes(path) || /^\/v1\/withdrawals\/[a-zA-Z0-9_-]+\/cancel$/.test(path);
-  return false;
+  if (!METHODS.has(method) || !API_PATH.test(path) || path.includes("..") || path.includes("//")) return false;
+  return !(path === "/v1/admin" || path.startsWith("/v1/admin/"));
 }
+
+/** The client headers the desktop's main process sends; caller-chosen identity headers are not among them. */
+const CLIENT_HEADERS = ["authorization", "content-type", "accept", "x-adcode-ai-source", "x-adcode-ai-persona", "x-adcode-paid-credits", "x-adcode-priority", "x-adcode-fallback-model", "x-adcode-account-token", "x-adcode-request-id"];
 
 /** Only the API's generated artwork keys; never a caller-supplied network destination. */
 export async function forwardAdAsset(request: Request, env: Env, key: string): Promise<Response> {
@@ -28,9 +37,9 @@ export async function forwardAccountApi(request: Request, env: Env): Promise<Res
   const url = new URL(request.url);
   if (!accountApiAllowed(url.pathname, request.method)) return Response.json({ error: "not-found" }, { status: 404 });
   const headers = new Headers();
-  for (const name of ["authorization", "content-type", "accept", "x-adcode-ai-source", "x-adcode-ai-persona", "x-adcode-paid-credits"]) {
+  for (const name of CLIENT_HEADERS) {
     const value = request.headers.get(name);
-    if (value !== null) headers.set(name, value);
+    if (value !== null && value !== "") headers.set(name, value);
   }
   headers.set("x-adcode-platform", "web");
   try {

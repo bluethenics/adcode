@@ -4,6 +4,9 @@
  *   npm run smoke:web-vibe            (builds adcode-host first)
  *   npm run smoke:web-vibe -- --no-build
  *
+ * The local adcode-host route (`?host=local`, development only since 2026-11-21: the web
+ * version itself now runs its main process in the tab, checked by smoke-web.mjs).
+ *
  * Starts adcode-host and the web page (`scripts/web-vibe.mjs`), a fake OpenAI-compatible model,
  * and a headless Edge, then does what a first visitor does: signs in (dev mode), describes a
  * page, watches the agent write it, previews it, sees it under Changes, commits it, loses the
@@ -160,7 +163,8 @@ const shot = async (name) => {
 
 try {
   await browser.viewport(1280, 820);
-  await browser.goto(`http://localhost:${WEB_PORT}/`);
+  // The local adcode-host route (`?host=local`): the web itself now runs in the tab (smoke-web.mjs checks that).
+  await browser.goto(`http://localhost:${WEB_PORT}/?host=local`);
   checks.gateShown = await browser.waitFor("document.querySelector('.web-gate-card')", { timeoutMs: 60_000 });
   await shot("gate");
   checks.gateDevMode = await browser.evaluate(`(() => { const button = [...document.querySelectorAll('button')].find((b) => b.textContent.includes('dev mode')); button?.click(); return Boolean(button); })()`);
@@ -589,7 +593,7 @@ if (checks.threw === undefined) {
       }
       await sleep(500);
     }
-    await second.goto(`http://localhost:${refusedPort}/`);
+    await second.goto(`http://localhost:${refusedPort}/?host=local`);
     await second.waitFor("document.querySelector('.web-gate-card')", { timeoutMs: 60_000 });
     await second.evaluate(`(() => { [...document.querySelectorAll('button')].find((b) => b.textContent.includes('dev mode'))?.click(); return true; })()`);
     checks.refusalExplained = await second.waitFor("document.querySelector('#web-gate')?.textContent.includes(\"That's this session's cloud time\")", { timeoutMs: 30_000 });
@@ -616,7 +620,7 @@ const passed = checks.accountOpens && checks.accountLocalHonest && checks.accoun
   checks.slowChatAnswered && checks.fastAnswerNotInSlowChat && checks.failedChatMarked && checks.leftChatSpinsThenDots && checks.dotClearsWhenOpened && checks.keptGoingWhilePageFrozen && checks.longJobFinished && checks.noChatLeftWorking &&
   checks.helpersWhileWorking && checks.helperRowsWhileWorking?.titles?.join("|") === "Map the auth flow|Write the tests" && checks.helperRowsWhileWorking?.modes?.join("|") === "explore|build" &&
   checks.helperRowsWhileWorking?.spinning >= 1 && checks.helperRowsWhileWorking?.details?.some((text) => text.length > 0) &&
-  checks.helpersAnswered && checks.helpersSettle?.states?.join("|") === "done|done" && checks.helpersSettle?.spinners === 0 && checks.helpersSettle?.calls?.join("|") === "0 calls|1 call" &&
+  checks.helpersAnswered && checks.helpersSettle?.states?.join("|") === "done|done" && checks.helpersSettle?.spinners === 0 && checks.helpersSettle?.calls?.map((text) => text.split(" · ")[0]).join("|") === "0 calls|1 call" &&
   checks.helpersSettle?.summary === "all 2 finished" && checks.helpersSettle?.unfolded === true && checks.helpersSettle?.stepOpen === true && checks.helpersSettle?.reportOpen === true && checks.helpersSettle?.reportVisible === true && checks.noChatLeftWorkingAfterHelpers &&
   checks.reconnectRestores && checks.uploadWorks && checks.downloadWorks && checks.viewPageSawPage && checks.refusalExplained === true && checks.phoneOverflow === 0 && checks.phoneReadable === true && checks.consoleErrors.length === 0;
 if (!passed) {

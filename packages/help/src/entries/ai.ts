@@ -464,7 +464,7 @@ export const AI_ENTRIES: readonly HelpEntry[] = [
     how: "Sign in with a verified account. Tagflow AI's models are free and need no credits. With a Builder, Pro or Max plan, every hosted model, premium ones included, draws on your plan's daily credits, which refill every day. Without a plan, each model shows its price in the model picker and charges your USD credits: input, cached input and output at the price listed for it. A request holds its maximum possible charge while it runs and releases what it did not use. When credits run out, paid models pause with a message and Tagflow AI keeps working. Your own provider keys, coding CLIs and local models are billed by their own provider.",
     group: "ai",
     settingIds: [],
-    related: ["ai.tagflow", "ai.usage", "ai.buyTokens", "workbench.cloudWorkspace"],
+    related: ["ai.tagflow", "ai.usage", "ai.buyTokens", "workbench.webVersion"],
   },
   {
     id: "ai.buyTokens",

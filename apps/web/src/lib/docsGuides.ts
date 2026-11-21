@@ -2198,40 +2198,41 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "workbench-web-version": {
     steps: [
-      "Go to web.bluethenics.com in any modern browser - Chrome, Edge, Safari or Firefox, on a laptop, a Chromebook or a phone.",
-      "Sign in with Google, GitHub or email. If you already use the desktop app, sign in with the account you linked there and your earnings stay in one balance.",
-      "Start a conversation immediately. Browser chat and saved conversations do not need a running cloud workspace.",
-      "To work with your code, choose Connect GitHub in Project, enter the displayed code on GitHub, and select a repository and branch.",
-      "Ask about the repository or request a change. Select specific files if useful; the assistant can also find and read relevant files itself.",
-      "Review Proposed changes, then choose Create pull request. ADCode creates a new branch and a pull request; your main branch stays unchanged until you merge it on GitHub.",
-      "For commands and live previews, choose Open cloud workspace. This separate optional workspace uses shared execution capacity and budget. GitHub proposals are not automatically copied into it, and chat does not claim to have run or tested the code.",
+      "Go to web.bluethenics.com in a modern browser - Chrome, Edge, Safari or Firefox, on a laptop or a Chromebook.",
+      "Sign in with Google, GitHub or email. Use the account you linked in the desktop app and your earnings and included AI stay in one place.",
+      "Choose Open from GitHub, connect GitHub once by entering the code it shows, and pick a repository. Its text files are copied into your browser tab.",
+      "Ask the assistant about the code or for a change. It reads and edits the files itself, plans, and sends helpers to work alongside it, exactly as in the desktop app.",
+      "Open Changes to read every edited file as a diff, and Discard anything you don't want.",
+      "Write a message and commit. On the web, that opens a pull request on a new adcode/ branch; your branch stays untouched until you merge it on GitHub.",
+      "Close the tab whenever you like: chats, settings, your own API keys and opened projects are kept in this browser for next time.",
     ],
     benefits: [
-      "Nothing to install: chat, repository context and reviewed edits work in a modern browser.",
-      "Opening chat does not reserve a cloud computer or wait for a free coding slot.",
-      "GitHub stores your project, while conversation history is saved independently of the execution workspace.",
-      "Previews are private: only you can open the app you are building until you choose to publish it elsewhere.",
+      "Nothing to install and no cloud computer to wait for: the app runs inside your tab, so it opens as fast as a web page.",
+      "The same assistant as the desktop app - models, helpers, plans, usage and slash commands - not a cut-down chat.",
+      "Your code stays on GitHub, and every change arrives as a pull request you review with your normal checks.",
       "Ads and earnings work the same as on the desktop, in the same balance.",
     ],
     betterThan:
-      "ADCode keeps ordinary chat and GitHub code work available without allocating a private execution computer. You review edits as a pull request in your own repository, and open the optional cloud workspace only for work that needs commands or previews. The desktop app can run projects on your own computer.",
+      "Browser coding tools either give you a chat that cannot touch your files, or rent you a machine that costs time to start and can run out. ADCode's web version runs the desktop app's own assistant in your tab against your GitHub repository, so it edits real files and answers at once, and hands every change back as a pull request. What it cannot do is run your project - for commands, a terminal or a live dev-server preview, use the desktop app.",
   },
 
-  "workbench-cloud-workspace": {
+  "workbench-github-projects": {
     steps: [
-      "On the web version, click the time-left chip in the sidebar beside Free AI credits and Earnings (the menu at the top on a phone), or open the command palette and run Cloud Workspace.",
-      "Read the meter: minutes left in this session, and the time they refill.",
-      "Under Projects, choose Download next to a project to save it as a .tar.gz (node_modules is left out; reinstall with npm install).",
-      "Under GitHub, choose Connect GitHub and type the code it shows at github.com/login/device, so Commit & Push and private imports work.",
-      "To remove everything, choose Delete my cloud workspace and confirm. Your account and earnings stay.",
+      "On the web version, choose Open from GitHub in the Open a project window, or open the command palette and run Open a Project from GitHub.",
+      "The first time, choose Connect GitHub. Enter the code ADCode shows at github.com/login/device and approve.",
+      "Pick a repository from your list (type to filter), or paste any repository address your account can read.",
+      "Wait while its text files are copied into your tab - files up to 256 KB each. Images and other binary files are left out and listed.",
+      "Work as usual: you and the assistant edit the files. Changes shows each changed file with a diff; Discard puts a file back.",
+      "To save, write a message - its first line becomes the pull request's title - and commit. ADCode opens the pull request and shows its link.",
     ],
     benefits: [
-      "You can always see what the free allowance has left before a long task, not after.",
-      "Your work is never stuck in the cloud: one click downloads it, and GitHub is one connection away.",
-      "Deleting your data is a button, not a support ticket.",
+      "Your project lives where it already lives: on GitHub, with its history, reviews and checks.",
+      "Nothing lands on your branch by accident - every change is a pull request on a new branch.",
+      "Diffs and discards work like git, so reviewing the assistant's work feels the same as on the desktop.",
+      "Your GitHub token is kept encrypted on ADCode's server and never reaches the page or the model.",
     ],
     betterThan:
-      "Hosted coding tools tend to hide their limits until you hit them and make leaving with your code a chore. The Cloud workspace panel puts the meter, the export and the delete button in one place, so the deal is visible and you stay in control of your work.",
+      "Tools that clone into a hosted machine need the machine running before you can read a line, and tools that only chat about a repository cannot change it. Opening a repository into the tab is instant to work in, and sending changes as a pull request keeps you in charge of what merges. One pull request from the web carries up to 50 files and 1 MB; split larger changes, or use the desktop app.",
   },
 
   "workbench-ai-context": {

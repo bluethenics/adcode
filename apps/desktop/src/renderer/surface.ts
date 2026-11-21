@@ -27,6 +27,8 @@ export function usesWebFrame(): boolean {
 }
 
 export const OPEN_WEB_ACCOUNT_EVENT = "adcode:open-account";
+/** The web's Open from GitHub dialog (web/githubRepoPicker.ts); `detail.open` receives the opened folder. */
+export const OPEN_FROM_GITHUB_EVENT = "adcode:open-from-github";
 export function openWebAccount(section = "overview"): void {
   document.dispatchEvent(new CustomEvent(OPEN_WEB_ACCOUNT_EVENT, { detail: section }));
 }

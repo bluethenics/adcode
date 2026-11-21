@@ -233,7 +233,7 @@ import {
 } from "../shared/keybindings.ts";
 import type { BindingOverrides } from "../shared/keybindings.ts";
 import { webShortcutOverrides } from "../shared/webShortcuts.ts";
-import { isWebSurface, usesWebFrame } from "./surface.ts";
+import { isWebSurface, OPEN_FROM_GITHUB_EVENT, usesWebFrame } from "./surface.ts";
 import { scaffoldFor, todoMarksIn } from "@adcode/structure";
 import { createAccountMenu } from "./workbench/accountMenu.ts";
 import { createOnboardingSheet } from "./onboarding/onboardingSheet.ts";
@@ -6535,13 +6535,15 @@ function registerCommands(): void {
   add("workspace.vibe", "Open Vibe Window", () => void window.adcode.window.openVibe());
   add("workspace.code", "Open Code Window", () => void window.adcode.window.openIde());
   add("workspace.openIde", "Open IDE in a Separate Window", () => void window.adcode.window.openIde());
-  // The web version: from the desktop, open it; on the web, its Cloud workspace panel (src/web/cloudPanel.ts).
+  // The web version, from the desktop.
   add("help.openWebVersion", "Open ADCode on the Web", () => void window.open("https://web.bluethenics.com", "_blank", "noopener"));
   // Email alerts when an included model degrades or recovers: the status page's own form, no account needed.
   add("help.statusAlerts", "Get Status Alerts by Email", () => void window.open("https://adcode.bluethenics.com/status#subscribe", "_blank", "noopener"));
-  add("cloud.workspace", "Cloud Workspace", () => {
-    if (isWebSurface()) document.dispatchEvent(new CustomEvent("adcode:open-cloud-workspace"));
-    else void window.open("https://web.bluethenics.com", "_blank", "noopener");
+  // A GitHub repository as the project: on the web, copied into the tab (web/githubRepoPicker.ts);
+  // on the desktop, cloned to this computer.
+  add("github.openRepository", "Open a Project from GitHub", () => {
+    if (isWebSurface()) document.dispatchEvent(new CustomEvent(OPEN_FROM_GITHUB_EVENT, { detail: { open: (root: string) => void openProjectFolder(root) } }));
+    else void cloneRepository();
   });
   add("workspace.vibeSidebar", "Show or Hide the Vibe Sidebar", () => {
     if (assistantDock?.mode() === "vibe") assistantDock.toggleVibeSidebar();

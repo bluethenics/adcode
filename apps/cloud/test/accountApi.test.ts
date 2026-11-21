@@ -75,20 +75,33 @@ describe("account inside Vibe", () => {
     expect(forwarded.headers.has("x-adcode-uid")).toBe(false);
     expect(forwarded.redirect).toBe("manual");
   });
-  it("rejects missing, expired and development tokens before reaching the API", async () => {
+  it("rejects expired and development tokens, and writes with no token, before reaching the API", async () => {
     const { env, api } = setup();
-    for (const token of ["", "expired", "dev"]) {
-      const response = await route(request("/balance", { headers: { authorization: token ? `Bearer ${token}` : "" } }), env, deps);
+    for (const token of ["expired", "dev"]) {
+      const response = await route(request("/balance", { headers: { authorization: `Bearer ${token}` } }), env, deps);
       expect(response.status).toBe(401);
     }
+    expect((await route(request("/receipts", { method: "POST", body: "{}", headers: { authorization: "" } }), env, deps)).status).toBe(401);
     expect(api).not.toHaveBeenCalled();
   });
-  it("cannot proxy admin operations or arbitrary endpoints", async () => {
+  it("forwards a public read with no token, for the browser host's catalogue and release checks", async () => {
     const { env, api } = setup();
-    for (const path of ["/admin/people", "/unknown", "/withdrawals"]) expect((await route(request(path, { method: "DELETE" }), env, deps)).status).toBe(404);
+    expect((await route(request("/releases", { headers: { authorization: "" } }), env, deps)).status).toBe(200);
+    expect(api.mock.calls[0]?.[0].url).toBe("https://adcode.bluethenics.com/v1/releases");
+    expect(api.mock.calls[0]?.[0].headers.has("authorization")).toBe(false);
+  });
+  it("forwards the desktop's API calls and client headers, but never the administrator's routes", async () => {
+    const { env, api } = setup();
+    for (const path of ["/admin/people", "/admin", "/a/../admin/people"]) expect((await route(request(path, { method: "DELETE" }), env, deps)).status).toBe(404);
     expect(api).not.toHaveBeenCalled();
     expect(accountApiAllowed("/v1/withdrawals/w_123/cancel", "POST")).toBe(true);
-    expect(accountApiAllowed("/v1/withdrawals/w_123/cancel/extra", "POST")).toBe(false);
+    expect(accountApiAllowed("/v1/models/overrides", "GET")).toBe(true);
+    expect(accountApiAllowed("/v1/sponsored/earn", "POST")).toBe(true);
+    expect(accountApiAllowed("/v1/balance", "OPTIONS")).toBe(false);
+    await route(request("/sponsored/earn", { method: "POST", body: "{}", headers: { "x-adcode-priority": "low", "x-adcode-platform": "desktop" } }), env, deps);
+    const forwarded = api.mock.calls[0]![0];
+    expect(forwarded.headers.get("x-adcode-priority")).toBe("low");
+    expect(forwarded.headers.get("x-adcode-platform")).toBe("web");
   });
   it("does not follow redirects and handles an unavailable account service", async () => {
     const { env, api } = setup();

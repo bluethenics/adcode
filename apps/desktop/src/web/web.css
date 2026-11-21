@@ -767,3 +767,9 @@ body[data-web-mode="browser"] > [data-web-desktop-root] { display: none !importa
 .web-account-dialog { width:min(1120px,calc(100vw - 48px)); max-width:none; max-height:calc(100dvh - 48px); padding:0; border:1px solid var(--border-hairline); border-radius:18px; background:var(--bg-app); color:var(--text-primary); box-shadow:0 24px 100px rgb(0 0 0 / .35); overflow:hidden; }
 .web-account-dialog::backdrop { background:rgb(0 0 0 / .5); }
 @media (max-width:700px) { .web-account-dialog { width:100vw; height:100dvh; max-height:100dvh; margin:0; border:0; border-radius:0; } }
+
+/* Open from GitHub (githubRepoPicker.ts): the repository list scrolls; the address row sits under it. */
+.web-github-repos .web-github-repo-list { max-height: min(46vh, 360px); overflow-y: auto; margin: 0; }
+.web-github-repos .web-action-body { display: grid; gap: 10px; }
+.web-github-address { display: flex; gap: 8px; }
+.web-github-address .web-gate-input { flex: 1; min-width: 0; }

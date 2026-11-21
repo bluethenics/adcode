@@ -36,6 +36,9 @@ const sealKey = process.env["ADCODE_SEAL_KEY"] ?? readFileSync(sealFile, "utf8")
 if (!process.argv.includes("--no-build")) {
   const built = spawnSync(process.execPath, [vite, "build", "-c", "apps/desktop/vite.host.config.ts", "--logLevel", "warn"], { stdio: "inherit" });
   if (built.status !== 0) process.exit(built.status ?? 1);
+  // The web version runs its main process in the tab (src/browserHost); the page loads this build.
+  const browserHost = spawnSync(process.execPath, [vite, "build", "-c", "apps/desktop/vite.browserHost.config.ts", "--logLevel", "warn"], { stdio: "inherit" });
+  if (browserHost.status !== 0) process.exit(browserHost.status ?? 1);
 }
 
 const children = [

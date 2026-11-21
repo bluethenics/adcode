@@ -30,6 +30,8 @@ const grammars = spawnSync(process.execPath, [join(REPO, "scripts/grammars.mjs")
 if (grammars.status !== 0) process.exit(grammars.status ?? 1);
 
 run(["build", "-c", "apps/desktop/vite.host.config.ts", "--logLevel", "warn"]);
+// The browser host (the main process in a Web Worker): the page build copies it in, so it goes first.
+run(["build", "-c", "apps/desktop/vite.browserHost.config.ts", "--logLevel", "warn"]);
 run(["build", "-c", "apps/desktop/vite.web.config.ts", "--logLevel", "warn", "--mode", dev ? "development" : "production"]);
 // After the web build, which empties apps/cloud/public: ADCode Remote, the Phone link page, at /phone.
 run(["build", "-c", "apps/desktop/vite.phone.config.ts", "--logLevel", "warn", "--mode", dev ? "development" : "production"]);

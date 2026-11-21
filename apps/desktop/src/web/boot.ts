@@ -11,15 +11,17 @@ import "../renderer/styles/webTheme.css";
 import "./web.css";
 import { CHANNELS, type PreviewStatus } from "../shared/api.ts";
 import { createPreviewResolver, primePreviewCookie, rewriteStatus } from "./previewUrl.ts";
-import { OPEN_WEB_ACCOUNT_EVENT, DESKTOP_DOWNLOAD_URL } from "../renderer/surface.ts";
+import { OPEN_FROM_GITHUB_EVENT, OPEN_WEB_ACCOUNT_EVENT, DESKTOP_DOWNLOAD_URL } from "../renderer/surface.ts";
 import { createAskHandler } from "./asks.ts";
-import { gate, hideGate, showWaking } from "./gate.ts";
+import { gate, showWaking } from "./gate.ts";
 import { connectGitHub, needsGitHub } from "./githubConnect.ts";
 import { importFromGitHub, uploadDialog } from "./projectActions.ts";
 import { pickProjectFolder, type ProjectSummary } from "./projectPicker.ts";
 import { createHostSocket, type HostSocket, type WebSocketLike } from "./socket.ts";
 import { mountStatusBar, OPEN_CLOUD_WORKSPACE_EVENT } from "./statusBar.ts";
 import { openCloudPanel } from "./cloudPanel.ts";
+import { startBrowserHost } from "./workerSocket.ts";
+import { openFromGitHub } from "./githubRepoPicker.ts";
 import { setFeatureSurface } from "@adcode/help";
 import { createWebApi, type LocalOverrides } from "./webApi.ts";
 
@@ -44,6 +46,9 @@ function download(name: string, contents: BlobPart, type = "text/plain"): void {
   setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
 
+/** The browser host's script (vite.browserHost.config.ts), served beside the page. */
+const BROWSER_HOST_URL = "/browser-host.js";
+
 function socketUrl(): string {
   return `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/socket`;
 }
@@ -59,6 +64,11 @@ function localOverrides(socket: HostSocket, signOut: () => Promise<void>): Local
     return socket.invoke(channel, []);
   }) as never;
   return {
+    // The web page's own sign-in is the account gate. The desktop's gate links a device through
+    // a browser hand-off, which a cloud container cannot finish, so on the web it asked people who
+    // had just signed in to sign in again and never let go (found 2026-11-21 by smoke:web-vibe).
+    // Included AI still checks verification on the server, as it does for the desktop's "later".
+    "platform.info": (() => socket.invoke(CHANNELS.platformInfo, []).then((info) => ({ ...(info as object), accountGate: false }))) as never,
     "git.push": withGitHub(CHANNELS.gitPush),
     "git.pull": withGitHub(CHANNELS.gitPull),
     "git.fetch": withGitHub(CHANNELS.gitFetch),
@@ -147,39 +157,24 @@ async function boot(): Promise<void> {
   if (requestedAccount !== null) showAccount(requestedAccount);
 
   const params = new URL(location.href).searchParams;
-  // Local host smoke tests keep their existing development workbench. Production opens
-  // chat without even constructing a socket, regardless of available runtime capacity.
-  const runtimeRequested = params.get("workspace") === "run" || (__ADCODE_WEB_DEV__ && params.get("browser") !== "1");
-  if (!runtimeRequested) {
-    for (const child of document.body.children) {
-      if (child instanceof HTMLElement && child.id !== "web-gate" && !["SCRIPT", "STYLE"].includes(child.tagName) && !child.classList.contains("web-account-dialog")) child.dataset["webDesktopRoot"] = "true";
-    }
-    document.body.dataset["webMode"] = "browser";
-    const { mountBrowserWorkspace } = await import("./browserWorkspace.ts");
-    const workspace = mountBrowserWorkspace({
-      session,
-      onAccount: showAccount,
-      onRunPreview: async () => {
-        const target = new URL(location.href);
-        target.searchParams.delete("account");
-        target.searchParams.set("workspace", "run");
-        location.assign(target.href);
-      },
-    });
-    let stopAds: (() => void) | undefined;
-    let leaving = false;
-    window.addEventListener("pagehide", () => { leaving = true; workspace.dispose(); stopAds?.(); }, { once: true });
-    void import("./browserAds.ts").then(({ mountBrowserAds }) => {
-      if (!leaving) stopAds = mountBrowserAds(session).dispose;
-    }).catch(() => undefined);
-    hideGate();
-    return;
-  }
-  document.body.dataset["webMode"] = "runtime";
+  /*
+   * The web version's main process runs in this tab (2026-11-21): the desktop's own main-process
+   * code in a Web Worker (src/browserHost), with projects from GitHub and nothing running on a
+   * computer of the person's own. Development keeps the old route to a local adcode-host
+   * (`?host=local`), which `npm run web:vibe`'s smoke still exercises.
+   */
+  const localHost = __ADCODE_WEB_DEV__ && params.get("host") === "local";
+  document.body.dataset["webMode"] = localHost ? "runtime" : "browser-host";
   showWaking();
 
   let token = session.token;
+  const browserHost = localHost ? null : startBrowserHost(BROWSER_HOST_URL);
+  if (browserHost !== null) {
+    window.addEventListener("pagehide", () => browserHost.flush());
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") browserHost.flush(); });
+  }
   const socket = createHostSocket(() => {
+    if (browserHost !== null) return browserHost.open();
     const protocols = token === null ? ["adcode.v1"] : ["adcode.v1", `auth.${token}`];
     return new WebSocket(socketUrl(), protocols) as unknown as WebSocketLike;
   });
@@ -209,8 +204,11 @@ async function boot(): Promise<void> {
     rewriteUrl: (url) => socket.previewUrl(url),
     pickFolder: () => pickProjectFolder({
       listProjects: () => socket.op("projects", []) as Promise<ProjectSummary[]>,
+      // On the web, projects come from GitHub (browserHost/githubProjects.ts); the local host can clone any address.
       extras: [
-        { label: "Import from GitHub", run: () => importFromGitHub(socket) },
+        localHost
+          ? { label: "Import from GitHub", run: () => importFromGitHub(socket) }
+          : { label: "Open from GitHub", run: () => openFromGitHub(socket) },
         { label: "Upload a project", run: () => uploadDialog(socket) },
       ],
     }),
@@ -227,7 +225,12 @@ async function boot(): Promise<void> {
   Object.defineProperty(window, "adcode", { value: createWebApi(socket, localOverrides(socket, session.signOut)), configurable: false, writable: false });
   reportFocus(socket);
   reportInput(socket);
-  document.addEventListener(OPEN_CLOUD_WORKSPACE_EVENT, () => openCloudPanel({
+  // Open from GitHub, from the command palette and the Feature library (`github.openRepository`).
+  document.addEventListener(OPEN_FROM_GITHUB_EVENT, (event) => {
+    const open = (event as CustomEvent<{ open?: (root: string) => void }>).detail?.open;
+    void openFromGitHub(socket).then((root) => { if (root !== null) open?.(root); });
+  });
+  if (localHost) document.addEventListener(OPEN_CLOUD_WORKSPACE_EVENT, () => openCloudPanel({
     socket,
     status: bar.status,
     token: () => session.refresh(false),
@@ -239,6 +242,8 @@ async function boot(): Promise<void> {
   if (__ADCODE_WEB_DEV__) {
     (window as unknown as { __adcodeTestDrop?: () => void }).__adcodeTestDrop = () => socket.dropForTest();
     (window as unknown as { __adcodeTestOp?: HostSocket["op"] }).__adcodeTestOp = (name, args) => socket.op(name, args);
+    // A sign-in for smokes: dev mode has none, and the browser host needs one to reach /api (smoke-web.mjs).
+    (window as unknown as { __adcodeTestAuth?: (token: string) => void }).__adcodeTestAuth = (fake) => socket.raw({ t: "auth", token: fake });
   }
 
   await import("../renderer/main.ts");

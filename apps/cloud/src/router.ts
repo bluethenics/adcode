@@ -13,7 +13,7 @@
  * - Preview hostnames go to `previewRoute` in `preview.ts`.
  * - Everything else is the web app's static files, with strict security headers.
  */
-import { tokenFromProtocols, verifyIdToken, type Verified } from "./auth.ts";
+import { verifyIdToken, type Verified } from "./auth.ts";
 import { forwardAccountApi, forwardAdAsset } from "./accountApi.ts";
 import type { Env } from "./env.ts";
 import { parsePreviewHost } from "./previewAuth.ts";
@@ -28,6 +28,8 @@ export interface RouterDeps {
 }
 
 export const DEV_UID = "web-dev-user";
+/** The close code an old tab hears from /socket: there is no sandbox to connect to any more. */
+export const SANDBOX_RETIRED_CODE = 4410;
 
 export function defaultDeps(env: Env): RouterDeps {
   return {
@@ -169,19 +171,22 @@ export async function route(request: Request, env: Env, deps: RouterDeps = defau
   }
 
   if (url.pathname.startsWith("/v1/")) {
+    // A token is checked here before it reaches the API; with none, only a read goes through
+    // (the public catalogue, releases and notices), and the API refuses anything private.
     const token = bearer(request);
-    if (token === null || token === "dev" || await deps.verify(token) === null) return json({ error: "unauthenticated" }, 401);
+    if (token === null ? request.method !== "GET" : token === "dev" || await deps.verify(token) === null) return json({ error: "unauthenticated" }, 401);
     return forwardAccountApi(request, env);
   }
 
+  /*
+   * No computer per person (2026-11-21): the web version runs its main process in the person's
+   * own tab (apps/desktop/src/browserHost) and keeps projects on GitHub. This socket was the door
+   * to a person's cloud sandbox, so it is shut: nothing on this Worker starts one any more. Work
+   * already saved from a sandbox stays downloadable at /api/download.
+   */
   if (url.pathname === "/socket") {
     if ((request.headers.get("upgrade") ?? "").toLowerCase() !== "websocket") return new Response("Expected a WebSocket", { status: 426 });
-    const allowed = env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim()).filter((origin) => origin.length > 0);
-    if (!allowed.includes(request.headers.get("origin") ?? "")) return new Response("Forbidden", { status: 403 });
-    const token = tokenFromProtocols(request.headers.get("sec-websocket-protocol"));
-    const who = token === null ? null : await deps.verify(token);
-    if (who === null) return deps.refuseSocket(4401, "Signed out");
-    return toUser(env, request, who, "/socket");
+    return deps.refuseSocket(SANDBOX_RETIRED_CODE, "ADCode on the web runs in your browser now. Reload the page.");
   }
 
   if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/admin/")) {
@@ -216,10 +221,5 @@ export async function route(request: Request, env: Env, deps: RouterDeps = defau
   if (url.pathname === "/phone") return Response.redirect(new URL("/phone/", url).toString(), 308);
   if (isPhonePage(url.pathname)) return servePage(request, env, "/phone/index.html");
 
-  // Releases can retain the prior execution UI while the browser-first entry changes.
-  // Fresh builds without this optional asset fall back to the normal SPA index.
-  if (url.pathname === "/" && url.searchParams.get("workspace") === "run") {
-    return servePage(request, env, "/legacy-workspace.html");
-  }
   return servePage(request, env);
 }

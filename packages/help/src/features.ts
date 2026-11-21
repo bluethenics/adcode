@@ -109,11 +109,11 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   },
   "workbench.webVersion": {
     actions: [command("help.openWebVersion", "Open ADCode on the web")],
-    keywords: ["web version", "browser", "online", "no install", "chromebook", "web.bluethenics.com", "use in browser", "cloud", "github", "pull request", "instant chat", "chat history", "no sandbox wait"],
+    keywords: ["web version", "browser", "online", "no install", "chromebook", "web.bluethenics.com", "use in browser", "in your browser", "no sandbox", "no computer", "pull request", "instant chat", "chat history"],
   },
-  "workbench.cloudWorkspace": {
-    actions: [command("cloud.workspace", "Open Cloud workspace")],
-    keywords: ["time left", "cloud time", "session time", "minutes left", "download project", "delete my data", "connect github", "sign out", "cloud storage", "sleep"],
+  "workbench.githubProjects": {
+    actions: [command("github.openRepository", "Open from GitHub")],
+    keywords: ["github", "repository", "repo", "open repository", "import from github", "connect github", "pull request", "open a pr", "send changes", "save to github", "web project", "clone"],
   },
   "workbench.changes": {
     actions: [command("workspace.changes", "Open Changes")],
@@ -770,8 +770,9 @@ const groupTitle = (entry: HelpEntry): string =>
 /*
  * Where each feature can be reached.
  *
- * The web version (web.bluethenics.com) is Vibe only: no code editor, no terminal panel, no
- * second window, no local machine. Every help surface reads this catalogue, so this is the one
+ * The web version (web.bluethenics.com) is Vibe only, running its main process in the tab:
+ * no code editor, no terminal panel, no second window, no machine to run a program on. Every
+ * help surface reads this catalogue, so this is the one
  * place "not on the web" is decided. Whole groups that live in the code editor are desktop-only;
  * the rest are named one by one.
  */
@@ -793,7 +794,7 @@ const DESKTOP_ONLY: ReadonlySet<string> = new Set([
   "workbench.imagePreview", "workbench.webVersion", "gestures.multiSelect", "structure.popup", "structure.cssLinks",
 ]);
 
-const WEB_ONLY: ReadonlySet<string> = new Set(["workbench.cloudWorkspace"]);
+const WEB_ONLY: ReadonlySet<string> = new Set(["workbench.githubProjects"]);
 
 export type FeatureSurface = "desktop" | "web";
 
