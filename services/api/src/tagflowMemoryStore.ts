@@ -9,9 +9,9 @@ import type { ModelFeedbackRecord, ModelRequestRecord } from "./tagflowReportTyp
 import { summarizeModelReports } from "./tagflowReports.ts";
 import type { ModelAudienceProfile } from "./modelAudience.ts";
 import { admitCredits, settleWindow, type CreditWindows } from "./credits.ts";
-import { createModelWalletMemoryStore } from "./modelWalletMemoryStore.ts";
+import { createModelWalletMemoryStore, type MemoryWalletExtras } from "./modelWalletMemoryStore.ts";
 
-export function createTagflowMemoryStore(): TagflowStore & { resetTagflow(): void } {
+export function createTagflowMemoryStore(): TagflowStore & MemoryWalletExtras & { resetTagflow(): void } {
   let config: TagflowConfigRecord | null = null;
   const policies = new Map<string, TagflowUserPolicy>();
   const days = new Map<string, TagflowUsage>();

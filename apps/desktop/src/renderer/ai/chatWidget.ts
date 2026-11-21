@@ -90,6 +90,7 @@ import {
 } from "./chatMarkdown.ts";
 import { createResultImage, summarizeToolInput, toolHeaderLabel } from "./chatActivity.ts";
 import { createPixelSpinner, createTurnTimeline, type TurnTimeline } from "./chatTimeline.ts";
+import { workingWord, workingWordSeed, type WorkingPhase } from "./workingWords.ts";
 import { createFrameTask } from "../frameTask.ts";
 import { attachChatLayout } from "./chatLayout.ts";
 import {
@@ -443,12 +444,12 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   function renderMessage(element: HTMLElement, text: string): void {
     messageSources.set(element, text);
-    // The pictures and files sent with a message sit above its text; a re-render keeps them.
     if (element.classList.contains("is-streaming")) {
       paintStreaming(element, text);
       return;
     }
     streamingParts.delete(element);
+    // The pictures and files sent with a message sit above its text; a re-render keeps them.
     const attachments = element.querySelector(":scope > .chat-bubble-attachments");
     // Rich Claude-style HTML (escaped, code blocks, lists, inline code, file
     // links). Buttons are wired after insert so copy and open-file work.
@@ -3232,6 +3233,27 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   function paintElapsed(): void {
     const seconds = Math.max(0, Math.floor((Date.now() - workingSince) / 1_000));
     workingElapsed.textContent = seconds < 60 ? `${String(seconds)}s` : `${String(Math.floor(seconds / 60))}m ${String(seconds % 60).padStart(2, "0")}s`;
+    paintWorkingWord();
+  }
+  /*
+   * Thinking and writing wear a changing word ("Pondering", "Making"); a tool run, a limit
+   * pause or a stop keeps its own plain label (`setWorkingLabel`).
+   */
+  let workingPhase: WorkingPhase | null = null;
+  let workingPhaseSince = 0;
+  const workingSeed = workingWordSeed();
+  function paintWorkingWord(): void {
+    if (workingPhase === null) return;
+    const word = workingWord(workingPhase, (Date.now() - workingPhaseSince) / 1_000, workingSeed);
+    if (workingText.textContent !== word) workingText.textContent = word;
+  }
+  function setWorkingPhase(phase: WorkingPhase): void {
+    if (workingPhase !== phase) { workingPhase = phase; workingPhaseSince = Date.now(); }
+    paintWorkingWord();
+  }
+  function setWorkingLabel(text: string): void {
+    workingPhase = null;
+    workingText.textContent = text;
   }
 
   /* Faces and names on replies, and the reply layout, from Settings > Appearance. */
@@ -5057,7 +5079,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     card.dataset["working"] = String(mode === "stop");
     if (wasWorking !== (mode === "stop")) for (const listener of busyListeners) listener(mode === "stop");
     if (mode === "stop") {
-      workingText.textContent = "Thinking";
+      setWorkingPhase("thinking");
       workingStop.disabled = false;
       if (!wasWorking) workingSince = Date.now();
       paintElapsed();
@@ -5170,14 +5192,14 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     if (event.kind === "tool-draft") {
       const path = typeof event["path"] === "string" ? event["path"] : null;
       const label = path === null ? "Writing a file" : `Writing ${path}`;
-      workingText.textContent = label;
+      setWorkingLabel(label);
       ensureTimeline().setStatus(label);
       return;
     }
 
     switch (event.kind) {
       case "text": {
-        workingText.textContent = "Writing response";
+        setWorkingPhase("writing");
         // Append to the live bubble rather than creating one per delta. The
         // bubble streams with a blinking orange caret (CSS) until turn-end.
         if (streamingBubble === null) {
@@ -5201,7 +5223,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           limitCard.show(pause);
           if (working.isConnected) transcript.insertBefore(limitCard.element, working);
           else transcript.append(limitCard.element);
-          workingText.textContent = "Paused until the limit resets";
+          setWorkingLabel("Paused until the limit resets");
           ensureTimeline().setStatus("Paused until the limit resets");
           scrollToEnd();
           break;
@@ -5213,7 +5235,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         // A helper's own line ("Helper 2 of 3 · Tests: editing src/a.ts") belongs to its
         // row in the helpers step, not beside the heading.
         if (timeline?.helperStatus(text) === true) break;
-        workingText.textContent = text;
+        setWorkingLabel(text);
         ensureTimeline().setStatus(text);
         break;
       }
@@ -5221,19 +5243,19 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       case "continuing": {
         // Out of steps, and Keep going until done is on: the main process carries on by itself.
         const label = `Reached the step limit - keeping going (${String(event["count"] ?? "")} of ${String(event["limit"] ?? "")})`;
-        workingText.textContent = label;
+        setWorkingLabel(label);
         ensureTimeline().setStatus(label);
         break;
       }
 
       case "compacting": {
-        workingText.textContent = "Compacting the conversation";
+        setWorkingLabel("Compacting the conversation");
         ensureTimeline().setStatus("Compacting the conversation");
         break;
       }
 
       case "thinking": {
-        workingText.textContent = "Thinking";
+        setWorkingPhase("thinking");
         // Thinking after text: that text is finished.
         streamingBubble?.classList.remove("is-streaming");
         streamingBubble = null;
@@ -5256,7 +5278,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
             bringCardsDown();
           }
         }
-        workingText.textContent = toolHeaderLabel(call.name);
+        setWorkingLabel(toolHeaderLabel(call.name));
         const rowId = typeof call.id === "string" && call.id.length > 0 ? call.id : `${call.name}-${String(Date.now())}`;
         ensureTimeline().toolCall({ id: rowId, name: call.name, detail: summarizeToolInput(call.input), input: call.input });
         // That bubble is finished: without this its streaming caret blinked forever.
@@ -5267,7 +5289,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       }
 
       case "tool-result": {
-        workingText.textContent = "Reviewing results";
+        setWorkingLabel("Reviewing results");
         const isError = event["isError"] === true;
         const toolCallId = typeof event["toolCallId"] === "string" ? event["toolCallId"] : null;
         if (toolCallId !== null && previewCalls.delete(toolCallId)) {
@@ -5678,7 +5700,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     includedWaitGeneration += 1;
     closeOpenMenu();
     if(onlyWaiting){setSendMode("send");return;}
-    workingText.textContent = "Stopping";
+    setWorkingLabel("Stopping");
     workingStop.disabled = true;
     window.adcode.ai.cancel(activeSessionId ?? undefined);
   }

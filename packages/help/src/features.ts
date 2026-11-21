@@ -292,6 +292,16 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("view.earnings", "Open")],
     keywords: ["ads", "money", "balance", "ledger"],
   },
+  "ads.convertEarnings": {
+    added: "2026-11-19",
+    actions: [command("ads.convertEarnings", "Convert earnings to AI credits")],
+    keywords: ["convert earnings", "earnings to credits", "spend earnings", "use earnings", "ai credits", "buy credits with earnings", "pay for ai with ads", "credits from ads", "top up", "wallet", "paid models"],
+  },
+  "ads.withdrawEarnings": {
+    added: "2026-11-19",
+    actions: [command("ads.withdrawEarnings", "Withdraw on the website")],
+    keywords: ["withdraw", "cash out", "payout", "get paid", "bank transfer", "withdraw earnings", "payouts page", "money out"],
+  },
   "account.invite": {
     actions: [command("invite.open", "Open")],
     keywords: ["invite", "referral", "refer a friend", "invite link", "share adcode", "earn more", "invite code", "bring an advertiser", "affiliate"],
@@ -328,7 +338,7 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   },
   "ai.codingCli": {
     actions: [command("ai.useCodingCli", "Use a coding CLI")],
-    keywords: ["claude code", "claude cli", "codex", "codex cli", "opencode", "open code", "gemini cli", "freebuff", "cli", "coding cli", "terminal agent", "subscription", "use my claude subscription", "chatgpt plan", "agent cli", "wrapper"],
+    keywords: ["claude code", "claude cli", "codex", "codex cli", "opencode", "open code", "gemini cli", "freebuff", "github copilot cli", "copilot cli", "cursor agent", "cursor cli", "qwen code", "kiro", "goose", "kimi", "droid", "auggie", "cline", "kilo", "grok", "qoder", "codebuddy", "devin", "mistral vibe", "acp", "agent client protocol", "update cli", "cli", "coding cli", "terminal agent", "subscription", "use my claude subscription", "chatgpt plan", "agent cli", "wrapper"],
   },
   "ai.freeKey": {
     actions: [command("ai.getFreeKey", "Get a free key")],

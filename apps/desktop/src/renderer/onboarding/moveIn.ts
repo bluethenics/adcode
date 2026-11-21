@@ -90,7 +90,7 @@ export function openMoveIn(deps: MoveInDeps): void {
     const row = el("li", "move-in-cli");
     row.dataset["installed"] = String(cli.installed);
     const text = el("div", "move-in-cli-text");
-    text.append(el("strong", "", cli.name), el("span", "", !cli.installed ? "Not installed" : cli.headless ? `Installed${cli.version ? ` · ${cli.version.slice(0, 40)}` : ""}` : "Installed · runs in a terminal tab"));
+    text.append(el("strong", "", cli.name), el("span", "", !cli.installed ? "Not installed" : cli.headless ? `Installed${cli.version ? ` · ${cli.version.slice(0, 40)}` : ""}${cli.update ? ` · ${cli.latest ?? "a newer version"} is out` : ""}` : "Installed · runs in a terminal tab"));
     const actions = el("div", "move-in-cli-actions");
     // One button, doing whatever is next for this tool (cliConnect.ts).
     const plan = cliConnectPlan(provider, active);

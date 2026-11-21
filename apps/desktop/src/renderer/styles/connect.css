@@ -320,6 +320,7 @@
 .connect-cli-card > p { margin: 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.55; }
 .connect-cli-card > .connect-cli-meta { color: var(--text-tertiary); font: var(--text-xs) var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .connect-cli-use { justify-self: start; }
+.connect-cli-update { justify-self: start; }
 @media (hover: hover) and (pointer: fine) {
   .connect-cli-card { transition: border-color 160ms ease, translate 200ms var(--motion-curve); }
   .connect-cli-card:hover { border-color: var(--border-strong); translate: 0 -2px; }

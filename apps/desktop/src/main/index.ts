@@ -48,7 +48,7 @@ import { shutdownAllServers } from "./lsp.ts";
 import { stopPreview } from "./preview.ts";
 import { closeAgentBrowserWithLastWindow, hardenAgentBrowser, isAgentBrowserContents } from "./agentBrowser.ts";
 import { allowLiveBrowserWebview, hardenLiveBrowser, isLiveBrowserContents } from "./liveBrowser.ts";
-import { aiStopToolProcesses, bridgeToolDefinitions, bridgeToolRunner, refreshModelLists } from "./ai.ts";
+import { aiStopToolProcesses, bridgeToolDefinitions, bridgeToolRunner, refreshModelLists, stopLiveClis } from "./ai.ts";
 import { flushModelOutcomes } from "./modelOutcomes.ts";
 import { flushAiUsage } from "./aiUsage.ts";
 import { getAdRuntime } from "./adRuntime.ts";
@@ -470,6 +470,7 @@ app.on("before-quit", () => {
   void flushAiUsage();
   void closeAssistantControls();
   void stopToolBridge();
+  stopLiveClis();
   disposeAllTerminals();
 
   // Language servers and a project's dev server are both children that outlive us if

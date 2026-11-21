@@ -154,6 +154,7 @@ import { createStructurePanel } from "./panels/structurePanel.ts";
 import { createProjectMap } from "./panels/projectMap.ts";
 import { createStructurePopup } from "./panels/structurePopup.ts";
 import { createEarningsPopover } from "./panels/earningsPopover.ts";
+import { WITHDRAW_URL } from "../shared/creditConversion.ts";
 import { createInvitePanel } from "./invite/invitePanel.ts";
 import { createCollabPanel } from "./collab/collabPanel.ts";
 import { createProjectsPanel } from "./collab/projectsPanel.ts";
@@ -2096,11 +2097,11 @@ async function openFolder(): Promise<void> {
   // A project already open here stays open: another folder gets a window of its own.
   const opened = await window.adcode.workspace.open({ newWindowIfOpen: true });
   if (opened === null) return;
-
   if (opened.inNewWindow === true) {
     setStatus(`Opened ${opened.name} in a new window - this one keeps ${workspaceRoot?.split(/[\\/]/).filter(Boolean).pop() ?? "its project"}.`, 5000);
     return;
   }
+
   await adoptWorkspace(opened);
   window.adcode.milestones.record("folder_opened");
 }
@@ -6388,6 +6389,12 @@ function registerCommands(): void {
   add("view.earnings", "Earnings", () =>
     openPrimaryPopup("earnings", earningsShell, earningsActivity, "keyboard"),
   );
+  // Ad earnings into AI credits, in the earnings card; withdrawing happens on the website.
+  add("ads.convertEarnings", "Earnings: Convert to AI Credits", () => {
+    openPrimaryPopup("earnings", earningsShell, earningsActivity, "keyboard");
+    earningsPopover.openConversion();
+  });
+  add("ads.withdrawEarnings", "Earnings: Withdraw on the Website", () => void window.open(WITHDRAW_URL, "_blank", "noopener,noreferrer"));
   add("invite.open", "Invite & Earn", () => openInvite("keyboard"));
   add(
     "collab.leave",

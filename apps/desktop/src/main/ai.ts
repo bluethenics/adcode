@@ -192,9 +192,9 @@ import { toAiTeamActivityView, toAiTeamTraceView, toAiTeamView } from "./aiTeamV
 import { createAiAutomationService, type AiAutomationService } from "./aiAutomationService.ts";
 import { toAiAutomationView } from "./aiAutomationViews.ts";
 import { askOllama, localModels, startOllama } from "./localModels.ts";
-import { cliModels, cliModelsNow, cliModelsQuick, detectCliAgents, detectCliAgentsQuick, forgetCliModels, spawnCli } from "./cliAgents.ts";
+import { cliModels, cliModelsNow, cliModelsQuick, detectCliAgents, detectCliAgentsQuick, forgetCliModels, spawnCli, spawnCliLive, stopLiveClis } from "./cliAgents.ts";
 import { claudeToolBridge } from "./toolBridge.ts";
-import { AUDIT_PAGE, CLI_AGENTS, DEFERRED_TOOL_NAMES, OPEN_PREVIEW, VIEW_PAGE, cliAgentFor, cliProviderId, createCliProvider } from "@adcode/ai";
+import { AUDIT_PAGE, CLI_AGENTS, DEFERRED_TOOL_NAMES, OPEN_PREVIEW, VIEW_PAGE, cliAgentFor, cliProviderId, createAcpProvider, createCliProvider, type CliLiveEntry } from "@adcode/ai";
 import { apiBaseUrl } from "./backend.ts";
 import { buildTagflowProvider, refreshTagflowModels, tagflowCatalogue, tagflowDefaultModel } from "./tagflowAi.ts";
 import { recordModelOutcome } from "./modelOutcomes.ts";
@@ -1167,7 +1167,9 @@ export async function buildProvider(
     let sessions = cliSessions.get(cli.id);
     if (sessions === undefined) cliSessions.set(cli.id, sessions = new Map());
     const listedModels = await cliModelsQuick(cli, homedir());
-    return createCliProvider({ spec: cli, models: listedModels.map((model) => model.id), modelEfforts: Object.fromEntries(listedModels.filter((model) => model.efforts !== undefined).map((model) => [model.id, model.efforts!])), spawn: spawnCli, cwd: () => chat?.root() ?? currentWorkspace()?.root ?? homedir(), sessions, mcp: claudeToolBridge, bypassPermissions: () => fullAccessActive(), ...(chat === undefined ? {} : { conversation: chat.id }) });
+    // ACP agents (OpenCode, Gemini CLI, Copilot, Cursor...) through one protocol client; Claude
+    // Code and Codex through their own stream-JSON.
+    return (cli.protocol === "acp" ? createAcpProvider : createCliProvider)({ spec: cli, models: listedModels.map((model) => model.id), modelEfforts: Object.fromEntries(listedModels.filter((model) => model.efforts !== undefined).map((model) => [model.id, model.efforts!])), spawn: spawnCli, live: spawnCliLive, liveProcesses: cliLive, cwd: () => chat?.root() ?? currentWorkspace()?.root ?? homedir(), sessions, mcp: claudeToolBridge, bypassPermissions: () => fullAccessActive(), ...(chat === undefined ? {} : { conversation: chat.id }) });
   }
   const key = offeredKey ?? (KEYLESS.has(id) ? "" : ((await keys.get(id)) ?? ""));
   const paced = (provider: Provider) => requestScheduler.wrap(provider, id, () => connections().find(item => item.id === id)?.rpm ?? 6000);
@@ -1391,13 +1393,16 @@ export async function aiStatus(): Promise<AiStatus> {
   });
 
   /*
-   * Coding CLIs on this computer: Claude Code, Codex, OpenCode, Gemini CLI answer in the chat
-   * through their own accounts; one with no headless mode (Freebuff) runs in a terminal tab.
+   * Coding CLIs on this computer: Claude Code, Codex, and every ACP agent in CLI_AGENTS
+   * (OpenCode, Gemini CLI, GitHub Copilot, Cursor, Qwen Code...) answer in the chat through
+   * their own accounts; one with no headless mode (Freebuff) runs in a terminal tab.
    * Listed whether or not installed, so the way to install one is one click away.
    */
   for (const view of await detectCliAgents(homedir())) {
     const spec = CLI_AGENTS.find((agent) => agent.id === view.id);
     if (spec === undefined) continue;
+    // The well-known ones are offered to install; the rest of the ACP registry once they are here.
+    if (!view.installed && spec.featured !== true) continue;
     const usable = view.installed && spec.headless;
     // Never awaited here: a cold ask takes up to 30 s per CLI, and the picker waits on this list.
     const models = usable ? cliModelsNow(spec, homedir(), () => broadcast(CHANNELS.aiProvidersChanged, null)) : [];
@@ -1579,6 +1584,10 @@ export function aiDetectOllama(): Promise<{ running: boolean; models: string[] }
 
 /** Each CLI's conversations, kept across rebuilt providers so a chat resumes the CLI's session. */
 const cliSessions = new Map<string, Map<string, { id: string; messages: number }>>();
+/** Claude Code processes kept running per chat between turns (`createCliProvider`'s `live`). */
+const cliLive = new Map<string, CliLiveEntry>();
+/** Stops the kept Claude Code processes: on quit, so none outlives ADCode. */
+export { stopLiveClis };
 
 /** Look for coding CLIs again - after the person installs one - and say how things are now. */
 export async function aiRefreshCliAgents(): Promise<AiStatus> {

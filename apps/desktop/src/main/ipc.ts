@@ -1428,4 +1428,6 @@ export function registerIpc(
   });
 
   ipcMain.handle(CHANNELS.adRefreshEarnings, () => ads.refreshEarnings());
+  ipcMain.handle(CHANNELS.adConversionQuote, () => ads.conversionQuote());
+  ipcMain.handle(CHANNELS.adConvertToCredits, (_event, request: unknown) => ads.convertToCredits(request));
 }

@@ -25,6 +25,7 @@ import { handleServe } from "./serve.ts";
 import { requestRegionTag } from "./regions.ts";
 import { handleReceipts } from "./receipts.ts";
 import { handleBalance, handleLedger } from "./balance.ts";
+import { handleConversionQuote, handleConvertEarnings } from "./earningsConversionRoutes.ts";
 import { handleConfig } from "./config.ts";
 import {
   handleAdminLedger,
@@ -2201,6 +2202,20 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
 
     if (path === "/v1/balance" && req.method === "GET") {
       send(res, 200, await handleBalance(store, auth.uid), cors);
+      return;
+    }
+
+    // Ad earnings into AI credits (earningsConversionRoutes.ts). Money moves: never cached.
+    if (path === "/v1/earnings/convert" && req.method === "GET") {
+      const result = await handleConversionQuote(store, auth.uid, clock.now());
+      send(res, result.status, result.body, { ...cors, "cache-control": "no-store" });
+      return;
+    }
+    if (path === "/v1/earnings/convert" && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const result = await handleConvertEarnings(store, auth.uid, raw, clock.now());
+      send(res, result.status, result.body, { ...cors, "cache-control": "no-store" });
       return;
     }
 

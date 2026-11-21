@@ -8,10 +8,10 @@
  * the prompt itself only ever travels on stdin.
  */
 import { spawn, type ChildProcess } from "node:child_process";
-import { access, constants } from "node:fs/promises";
-import { delimiter, extname, join } from "node:path";
+import { access, constants, readFile } from "node:fs/promises";
+import { delimiter, dirname, extname, join } from "node:path";
 import { createInterface } from "node:readline";
-import { CLI_AGENTS, codexPageRequest, isSafeCliToken, mergeCliModels, modelRequest, parseClaudeModels, parseCodexModels, parseModelList, type CliAgentId, type CliAgentSpec, type CliModelInfo, type CliProcess, type CliSpawn } from "@adcode/ai";
+import { AcpConnection, CLI_AGENTS, acpInitializeParams, cliUpdateCommand, cliVersionNumber, isNewerCliVersion, parseAcpModels, type CliLiveProcess, type CliLiveSpawn, codexPageRequest, isSafeCliToken, mergeCliModels, modelRequest, parseClaudeModels, parseCodexModels, parseModelList, type CliAgentId, type CliAgentSpec, type CliModelInfo, type CliProcess, type CliSpawn } from "@adcode/ai";
 import type { CliAgentView } from "../shared/api.ts";
 
 const VERSION_TIMEOUT_MS = 8_000;
@@ -39,6 +39,32 @@ export async function resolveCommand(name: string, env: NodeJS.ProcessEnv = proc
   return null;
 }
 
+/**
+ * The program an npm `.cmd` shim runs, when it is a plain executable: Claude Code's shim only
+ * forwards to `claude.exe`. Started directly, it needs no cmd.exe in between - one process
+ * fewer per turn, and no shell to read its arguments. Anything else keeps the shim.
+ */
+async function unwrapShim(path: string): Promise<string> {
+  if (!needsShell(path)) return path;
+  try {
+    const text = await readFile(path, "utf8");
+    const match = /^"%dp0%\\([^"%]+\.exe)"\s+%\*\s*$/im.exec(text);
+    if (match === null || match[1]!.includes("..")) return path;
+    const target = join(dirname(path), match[1]!);
+    await access(target, constants.F_OK);
+    return target;
+  } catch {
+    return path;
+  }
+}
+
+/**
+ * Variables that tell Claude Code it is running inside another Claude Code session. Inherited
+ * (ADCode started from a Claude Code terminal), they make the child wait on its parent's
+ * session and never answer; checked here: a `claude -p` given them said nothing for 3 minutes.
+ */
+const PARENT_SESSION = /^(CLAUDECODE|CLAUDE_CODE_(ENTRYPOINT|SESSION_ID|CHILD_SESSION|HOST_SESSION_ID|MESSAGING_SOCKET|MESSAGING_TOKEN|SDK_HAS_HOST_AUTH_REFRESH|SESSION_ATTENDED|EXECPATH)|CLAUDE_PID|CLAUDE_AGENT_SDK_VERSION)$/;
+
 /** `.cmd` and `.bat` shims cannot be started without a shell on Windows. */
 const needsShell = (path: string): boolean => isWindows && /^\.(cmd|bat)$/i.test(extname(path));
 
@@ -59,7 +85,8 @@ function killTree(child: ChildProcess): void {
 function start(path: string, args: readonly string[], cwd: string, extra: Readonly<Record<string, string>> = {}): ChildProcess {
   if (args.some((arg) => arg !== "-" && !isSafeCliToken(arg) && !/^-{1,2}[a-z][a-z-]*$/i.test(arg))) throw new Error("Refusing an unsafe argument for a CLI agent.");
   // Only names ADCode itself sets (`cliEnv`): how a CLI finds ADCode's tools for this run.
-  const env = { ...process.env, NO_COLOR: "1", ...Object.fromEntries(Object.entries(extra).filter(([name]) => /^[A-Z][A-Z0-9_]{1,63}$/.test(name))) };
+  const inherited = Object.fromEntries(Object.entries(process.env).filter(([name]) => !PARENT_SESSION.test(name)));
+  const env = { ...inherited, NO_COLOR: "1", ...Object.fromEntries(Object.entries(extra).filter(([name]) => /^[A-Z][A-Z0-9_]{1,63}$/.test(name))) };
   return needsShell(path)
     ? spawn(`${quoteForCmd(path)} ${args.map(quoteForCmd).join(" ")}`, { cwd, shell: true, windowsHide: true, env })
     : spawn(path, [...args], { cwd, windowsHide: true, env });
@@ -101,6 +128,7 @@ export function forgetCliModels(): void {
 function askForModels(spec: CliAgentSpec, path: string, cwd: string): Promise<CliModelInfo[] | null> {
   const protocol = spec.modelProtocol;
   if (protocol === undefined) return Promise.resolve(null);
+  if (protocol === "acp") return askAcpForModels(spec, path, cwd);
   const args = protocol === "claude-initialize" ? ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"] : ["app-server"];
   return new Promise((resolve) => {
     let child: ChildProcess;
@@ -139,13 +167,64 @@ function askForModels(spec: CliAgentSpec, path: string, cwd: string): Promise<Cl
   });
 }
 
+/**
+ * An ACP agent's models: `initialize`, then `session/new` in the home folder, whose answer
+ * lists them for the signed-in account - then the process is stopped. OpenCode answers in
+ * about 4.5 s; its old `opencode models` list command took up to 30 s.
+ */
+async function askAcpForModels(spec: CliAgentSpec, path: string, cwd: string): Promise<CliModelInfo[] | null> {
+  void path;
+  const process = spawnCliLive(spec.command, spec.acpArgs ?? [], { cwd });
+  const connection = new AcpConnection(process);
+  const timer = setTimeout(() => process.kill(), ASK_TIMEOUT_MS);
+  try {
+    await connection.request("initialize", acpInitializeParams());
+    const models = parseAcpModels(await connection.request("session/new", { cwd, mcpServers: [] }));
+    return models.length > 0 ? models : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+    process.kill();
+  }
+}
+
+const LATEST_TTL_MS = 6 * 60 * 60_000;
+const LATEST_TIMEOUT_MS = 4_000;
+const latestKnown = new Map<string, { at: number; version: string | null }>();
+
+/**
+ * The newest version of an installed agent on npm, from the public registry (the package name
+ * only - nothing about the person or this computer is sent). Cached for six hours, a failure
+ * for half an hour, and never waited on for more than four seconds.
+ */
+async function latestVersion(spec: CliAgentSpec): Promise<string | null> {
+  const name = spec.npmPackage;
+  if (name === undefined || cliUpdateCommand(spec) === null) return null;
+  const known = latestKnown.get(name);
+  if (known !== undefined && Date.now() - known.at < (known.version === null ? 30 * 60_000 : LATEST_TTL_MS)) return known.version;
+  let version: string | null = null;
+  try {
+    const response = await fetch(`https://registry.npmjs.org/${name.replace("/", "%2F")}/latest`, { signal: AbortSignal.timeout(LATEST_TIMEOUT_MS), headers: { accept: "application/json" } });
+    if (response.ok) version = cliVersionNumber(String(((await response.json()) as { version?: unknown }).version ?? ""));
+  } catch { /* Offline or slow: no update is offered, which is the safe answer. */ }
+  latestKnown.set(name, { at: Date.now(), version });
+  return version;
+}
+
 async function view(spec: CliAgentSpec, home: string): Promise<CliAgentView> {
-  const path = await resolveCommand(spec.command);
+  const found = await resolveCommand(spec.command);
+  const path = found === null ? null : await unwrapShim(found);
   paths.set(spec.id, path);
-  const version = path === null ? null : (await capture(path, ["--version"], home, VERSION_TIMEOUT_MS))?.trim().split(/\r?\n/)[0]?.slice(0, 80) ?? null;
+  // Its own version and npm's newest, side by side: neither waits for the other.
+  const [version, latest] = path === null ? [null, null] : await Promise.all([
+    capture(path, ["--version"], home, VERSION_TIMEOUT_MS).then((out) => out?.trim().split(/\r?\n/)[0]?.slice(0, 80) ?? null),
+    latestVersion(spec),
+  ]);
+  const update = isNewerCliVersion(version, latest) ? cliUpdateCommand(spec) : null;
   return {
     id: spec.id, name: spec.name, command: spec.command, installed: path !== null, version, headless: spec.headless,
-    signIn: spec.signIn, install: spec.install, docs: spec.docs,
+    signIn: spec.signIn, install: spec.install, docs: spec.docs, latest, update,
   };
 }
 
@@ -203,9 +282,11 @@ export function detectCliAgentsQuick(home: string): Promise<CliAgentView[]> {
  */
 export async function cliModelsQuick(spec: CliAgentSpec, home: string): Promise<CliModelInfo[]> {
   const cached = listed.get(spec.id);
-  if (cached === undefined) return cliModels(spec, home);
-  if (Date.now() - cached.at >= MODELS_TTL_MS) void cliModels(spec, home).catch(() => undefined);
-  return mergeCliModels(spec, cached.models);
+  // Never asked yet: the turn starts on the built-in names while the CLI is asked alongside.
+  // Waiting here started Claude Code twice for a first message - once to list its models,
+  // once to answer - and the model the person picked is passed through either way.
+  if (cached === undefined || Date.now() - cached.at >= MODELS_TTL_MS) void cliModels(spec, home).catch(() => undefined);
+  return mergeCliModels(spec, cached?.models ?? []);
 }
 
 /**
@@ -225,6 +306,63 @@ export function cliModelsNow(spec: CliAgentSpec, home: string, onChange: () => v
   }
   return now;
 }
+
+/** Every CLI kept running between turns, so quitting ADCode stops them all. */
+const liveChildren = new Set<ChildProcess>();
+
+/** Stops every kept CLI. For quitting: a kept process would otherwise outlive ADCode. */
+export function stopLiveClis(): void {
+  for (const child of liveChildren) killTree(child);
+  liveChildren.clear();
+}
+
+/**
+ * The spawn for a CLI kept between turns: stdin stays open for the next message, and stdout
+ * lines queue until a turn takes them. Same command line rules as `spawnCli`.
+ */
+export const spawnCliLive: CliLiveSpawn = (command, args, options) => {
+  const spec = CLI_AGENTS.find((agent) => agent.command === command);
+  const path = spec === undefined ? null : paths.get(spec.id) ?? null;
+  let stderr = "";
+  const queue: string[] = [];
+  const waiting: ((line: string | null) => void)[] = [];
+  let closed = false;
+  const close = (): void => { closed = true; for (const resolve of waiting.splice(0)) resolve(null); };
+  const dead = (message: string): CliLiveProcess => ({ next: async () => null, send: () => undefined, alive: () => false, exit: Promise.resolve(path === null ? 127 : 1), stderr: () => message, kill: () => undefined });
+  if (path === null) return dead(`${command} was not found on this computer. Install it, then choose it again.`);
+  let child: ChildProcess;
+  try {
+    child = start(path, args, options.cwd, options.env);
+  } catch (error) {
+    return dead(error instanceof Error ? error.message : "It could not be started.");
+  }
+  liveChildren.add(child);
+  child.stderr?.on("data", (chunk: Buffer) => { stderr = (stderr + chunk.toString("utf8")).slice(-STDERR_KEEP); });
+  child.stdin?.on("error", () => undefined);
+  const exit = new Promise<number | null>((resolve) => {
+    child.on("error", (error) => { stderr += `\n${error.message}`; liveChildren.delete(child); close(); resolve(1); });
+    child.on("close", (code) => { liveChildren.delete(child); close(); resolve(code); });
+  });
+  if (child.stdout === null) close();
+  else createInterface({ input: child.stdout, crlfDelay: Infinity }).on("line", (line) => {
+    const resolve = waiting.shift();
+    if (resolve !== undefined) resolve(line);
+    else queue.push(line);
+  }).on("close", close);
+  return {
+    next: () => {
+      const line = queue.shift();
+      if (line !== undefined) return Promise.resolve(line);
+      if (closed) return Promise.resolve(null);
+      return new Promise((resolve) => waiting.push(resolve));
+    },
+    send: (line) => { if (!closed && child.stdin?.writable === true) child.stdin.write(`${line}\n`, "utf8"); },
+    alive: () => !closed && child.exitCode === null && child.signalCode === null,
+    exit,
+    stderr: () => stderr,
+    kill: () => { killTree(child); liveChildren.delete(child); },
+  };
+};
 
 /** The spawn the provider uses: stdout as lines, stdin the prompt, killed as a tree. */
 export const spawnCli: CliSpawn = (command, args, options) => {

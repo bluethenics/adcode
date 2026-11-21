@@ -442,6 +442,8 @@ const api: AdcodeApi = {
     dismissed: (creativeId) => ipcRenderer.send(CHANNELS.adDismissed, creativeId),
     clicked: (creativeId) => ipcRenderer.send(CHANNELS.adClicked, creativeId),
     refreshEarnings: () => ipcRenderer.invoke(CHANNELS.adRefreshEarnings),
+    conversionQuote: () => ipcRenderer.invoke(CHANNELS.adConversionQuote),
+    convertToCredits: (request) => ipcRenderer.invoke(CHANNELS.adConvertToCredits, request),
     setSuppressed: (suppressed) => ipcRenderer.send(CHANNELS.adSuppressionChanged, suppressed),
     reportSignals: (signals) => ipcRenderer.send(CHANNELS.adSignals, signals),
   },

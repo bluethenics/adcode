@@ -16,7 +16,11 @@
 import type { Message, Provider, ProviderEvent, ProviderRequest } from "./types.ts";
 import { effortFor } from "./effort.ts";
 
-export type CliAgentId = "claude" | "codex" | "opencode" | "gemini" | "freebuff";
+export type CliAgentId =
+  | "claude" | "codex" | "opencode" | "gemini" | "freebuff"
+  // Agents that speak the Agent Client Protocol (acp.ts), taken from the public ACP registry.
+  | "copilot" | "cursor" | "qwen" | "kiro" | "goose" | "kimi" | "droid" | "auggie" | "cline"
+  | "kilo" | "grok" | "qoder" | "codebuddy" | "devin" | "vibe";
 
 export interface CliAgentSpec {
   readonly id: CliAgentId;
@@ -35,20 +39,82 @@ export interface CliAgentSpec {
    * `model/list` call on its app-server. Both report names and descriptions, and only what
    * the signed-in account is offered - so the list is live, not a copy kept in ADCode.
    */
-  readonly modelProtocol?: "claude-initialize" | "codex-app-server";
+  readonly modelProtocol?: "claude-initialize" | "codex-app-server" | "acp";
+  /**
+   * "acp": the agent speaks the Agent Client Protocol (JSON-RPC on stdio) when started with
+   * `acpArgs`. One process then serves a chat's every turn (acp.ts), so only the first waits
+   * for it to start: OpenCode measured 10-14 s a message through `opencode run`, 5.6 s for a
+   * message to a running `opencode acp` (both with its free big-pickle model).
+   */
+  readonly protocol?: "acp";
+  readonly acpArgs?: readonly string[];
+  /**
+   * Listed even when it is not installed, with a way to install it. The rest are listed only
+   * once they are on this computer, so the model picker is not a wall of Install buttons.
+   */
+  readonly featured?: boolean;
+  /** The npm package it installs from, for telling the person a newer version is out. */
+  readonly npmPackage?: string;
   /** What to run in a terminal to sign in, when the CLI reports it is signed out. */
   readonly signIn: string;
   readonly install: string;
   readonly docs: string;
 }
 
+/**
+ * ACP agents, as the public registry (cdn.agentclientprotocol.com/registry/v1) launches them,
+ * checked 21 Nov 2026. Each is found on PATH by `command`, never downloaded by ADCode. An agent
+ * with no one-line npm install has `install: ""`: it is listed only once installed, and the
+ * docs link says how. An agent whose ACP switch needs a character `isSafeCliToken` refuses (Junie's `--acp=true`) is left out.
+ */
+const acp = (id: CliAgentId, name: string, command: string, acpArgs: readonly string[], extra: { signIn?: string; install: string; docs: string; npmPackage?: string; featured?: boolean }): CliAgentSpec => ({
+  id, name, command, headless: true, models: ["default"], modelProtocol: "acp", protocol: "acp", acpArgs, signIn: extra.signIn ?? command, install: extra.install, docs: extra.docs,
+  ...(extra.npmPackage === undefined ? {} : { npmPackage: extra.npmPackage }), ...(extra.featured === true ? { featured: true } : {}),
+});
+
 export const CLI_AGENTS: readonly CliAgentSpec[] = [
-  { id: "claude", name: "Claude Code", command: "claude", headless: true, models: ["default", "opus", "sonnet", "haiku"], modelProtocol: "claude-initialize", signIn: "claude", install: "npm install -g @anthropic-ai/claude-code", docs: "https://docs.claude.com/en/docs/claude-code/overview" },
-  { id: "codex", name: "Codex CLI", command: "codex", headless: true, models: ["default"], modelProtocol: "codex-app-server", signIn: "codex login", install: "npm install -g @openai/codex", docs: "https://developers.openai.com/codex/cli" },
-  { id: "opencode", name: "OpenCode", command: "opencode", headless: true, models: ["default"], listModels: ["models"], signIn: "opencode auth login", install: "npm install -g opencode-ai", docs: "https://opencode.ai/docs/cli/" },
-  { id: "gemini", name: "Gemini CLI", command: "gemini", headless: true, models: ["default"], signIn: "gemini", install: "npm install -g @google/gemini-cli", docs: "https://github.com/google-gemini/gemini-cli" },
-  { id: "freebuff", name: "Freebuff", command: "freebuff", headless: false, models: [], signIn: "freebuff login", install: "npm install -g freebuff", docs: "https://www.npmjs.com/package/freebuff" },
+  { id: "claude", name: "Claude Code", command: "claude", headless: true, featured: true, npmPackage: "@anthropic-ai/claude-code", models: ["default", "opus", "sonnet", "haiku"], modelProtocol: "claude-initialize", signIn: "claude", install: "npm install -g @anthropic-ai/claude-code", docs: "https://docs.claude.com/en/docs/claude-code/overview" },
+  { id: "codex", name: "Codex CLI", command: "codex", headless: true, featured: true, npmPackage: "@openai/codex", models: ["default"], modelProtocol: "codex-app-server", signIn: "codex login", install: "npm install -g @openai/codex", docs: "https://developers.openai.com/codex/cli" },
+  acp("opencode", "OpenCode", "opencode", ["acp"], { featured: true, npmPackage: "opencode-ai", signIn: "opencode auth login", install: "npm install -g opencode-ai", docs: "https://opencode.ai/docs/acp/" }),
+  acp("gemini", "Gemini CLI", "gemini", ["--acp"], { featured: true, npmPackage: "@google/gemini-cli", install: "npm install -g @google/gemini-cli", docs: "https://geminicli.com" }),
+  acp("copilot", "GitHub Copilot CLI", "copilot", ["--acp"], { featured: true, npmPackage: "@github/copilot", install: "npm install -g @github/copilot", docs: "https://github.com/features/copilot/cli/" }),
+  acp("cursor", "Cursor Agent", "cursor-agent", ["acp"], { signIn: "cursor-agent login", install: "", docs: "https://cursor.com/docs/cli/acp" }),
+  acp("qwen", "Qwen Code", "qwen", ["--acp"], { npmPackage: "@qwen-code/qwen-code", install: "npm install -g @qwen-code/qwen-code", docs: "https://qwenlm.github.io/qwen-code-docs/en/users/overview" }),
+  acp("kiro", "Kiro CLI", "kiro-cli", ["acp"], { signIn: "kiro-cli login", install: "", docs: "https://kiro.dev/docs/cli/acp/" }),
+  acp("goose", "goose", "goose", ["acp"], { signIn: "goose configure", install: "", docs: "https://block.github.io/goose/" }),
+  acp("kimi", "Kimi Code", "kimi", ["acp"], { npmPackage: "@moonshot-ai/kimi-code", install: "npm install -g @moonshot-ai/kimi-code", docs: "https://moonshotai.github.io/kimi-code/" }),
+  acp("droid", "Factory Droid", "droid", ["exec", "--output-format", "acp-daemon"], { npmPackage: "droid", install: "npm install -g droid", docs: "https://factory.ai/product/cli" }),
+  acp("auggie", "Auggie CLI", "auggie", ["--acp"], { signIn: "auggie login", npmPackage: "@augmentcode/auggie", install: "npm install -g @augmentcode/auggie", docs: "https://www.augmentcode.com/" }),
+  acp("cline", "Cline", "cline", ["--acp"], { signIn: "cline auth", npmPackage: "cline", install: "npm install -g cline", docs: "https://cline.bot/cli" }),
+  acp("kilo", "Kilo", "kilo", ["acp"], { signIn: "kilo auth login", install: "", docs: "https://kilo.ai/" }),
+  acp("grok", "Grok Build", "grok", ["agent", "stdio"], { npmPackage: "@xai-official/grok", install: "npm install -g @xai-official/grok", docs: "https://x.ai/cli" }),
+  acp("qoder", "Qoder CLI", "qodercli", ["--acp"], { npmPackage: "@qoder-ai/qodercli", install: "npm install -g @qoder-ai/qodercli", docs: "https://qoder.com" }),
+  acp("codebuddy", "CodeBuddy Code", "codebuddy", ["--acp"], { npmPackage: "@tencent-ai/codebuddy-code", install: "npm install -g @tencent-ai/codebuddy-code", docs: "https://www.codebuddy.cn/cli/" }),
+  acp("devin", "Devin", "devin", ["acp"], { signIn: "devin login", install: "", docs: "https://docs.devin.ai/cli" }),
+  acp("vibe", "Mistral Vibe", "vibe-acp", [], { signIn: "vibe", install: "", docs: "https://mistral.ai/products/vibe" }),
+  { id: "freebuff", name: "Freebuff", command: "freebuff", headless: false, featured: true, npmPackage: "freebuff", models: [], signIn: "freebuff login", install: "npm install -g freebuff", docs: "https://www.npmjs.com/package/freebuff" },
 ];
+
+/** The first x.y.z in a `--version` line ("2.1.284 (Claude Code)", "opencode 1.19.5"). */
+export function cliVersionNumber(line: string | null): string | null {
+  return line === null ? null : /\b(\d+)\.(\d+)\.(\d+)\b/.exec(line)?.[0] ?? null;
+}
+
+/** True when `latest` is a later x.y.z than what `installed` says. Anything unreadable is not newer. */
+export function isNewerCliVersion(installed: string | null, latest: string | null): boolean {
+  const have = cliVersionNumber(installed);
+  const out = cliVersionNumber(latest);
+  if (have === null || out === null) return false;
+  const a = have.split(".").map(Number);
+  const b = out.split(".").map(Number);
+  for (let index = 0; index < 3; index++) if (b[index]! !== a[index]!) return b[index]! > a[index]!;
+  return false;
+}
+
+/** The terminal command that updates an npm-installed agent; null for one installed another way. */
+export function cliUpdateCommand(spec: CliAgentSpec): string | null {
+  return spec.npmPackage === undefined || !/^(@[a-z0-9-]+\/)?[a-z0-9][a-z0-9.-]*$/.test(spec.npmPackage) ? null : `npm install -g ${spec.npmPackage}@latest`;
+}
 
 /** Provider ids are `cli-<agent>`, so they can never collide with a catalogue provider. */
 export const CLI_PROVIDER_PREFIX = "cli-";
@@ -143,8 +209,40 @@ export function cliArgs(id: CliAgentId, options: { readonly model: string; reado
       return ["run", "--format", "json", "--thinking", ...(bypass ? ["--auto"] : []), ...(model ? ["-m", model] : []), ...(effort ? ["--variant", effort] : []), ...(session ? ["--session", session] : [])];
     case "gemini":
       return ["--output-format", "stream-json", ...(model ? ["-m", model] : []), ...(session ? ["--resume", session] : [])];
-    case "freebuff":
+    default:
+      // Freebuff has no headless mode; ACP agents take `acpArgs` and their turns over stdin.
       return [];
+  }
+}
+
+/**
+ * The arguments for a CLI kept running across turns, or null when it has no such mode.
+ *
+ * Only Claude Code has one: with `--input-format stream-json` it reads one user message per
+ * stdin line and keeps the conversation in the same process, so a turn after the first skips
+ * the 3-5 s it takes to start (measured with Claude Code 2.1.284: first words 1.2 s after a
+ * message to a running process, 5 s for a fresh `claude -p`). `--include-partial-messages`
+ * streams the reply word by word instead of a whole message at a time.
+ */
+export function cliLiveArgs(id: CliAgentId, options: Parameters<typeof cliArgs>[1]): string[] | null {
+  if (id !== "claude") return null;
+  const [print, ...rest] = cliArgs(id, options);
+  return [print!, "--input-format", "stream-json", "--include-partial-messages", ...rest];
+}
+
+/** One user message on Claude Code's stream-json input. */
+export function claudeUserLine(prompt: string): string {
+  return JSON.stringify({ type: "user", message: { role: "user", content: [{ type: "text", text: prompt }] } });
+}
+
+/** The line that ends a turn on Claude Code's stream-json output. */
+export function isClaudeResultLine(line: string): boolean {
+  if (!line.includes("\"result\"")) return false;
+  try {
+    const event: unknown = JSON.parse(line.trim());
+    return record(event) && event["type"] === "result";
+  } catch {
+    return false;
   }
 }
 
@@ -307,7 +405,8 @@ export function conversationKey(id: CliAgentId, model: string, request: Provider
 /* ── Reading each CLI's events ──────────────────────────────────────────── */
 
 export type CliEvent =
-  | { readonly kind: "text"; readonly text: string }
+  /** `joined`: more of the text just sent (a streamed word), not a new message. */
+  | { readonly kind: "text"; readonly text: string; readonly joined?: boolean }
   | { readonly kind: "thinking"; readonly text: string }
   | { readonly kind: "session"; readonly id: string }
   | { readonly kind: "usage"; readonly input: number; readonly output: number; readonly cached: number }
@@ -322,7 +421,7 @@ const str = (value: unknown): string => (typeof value === "string" ? value : "")
 const num = (value: unknown): number => (typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0);
 
 /** One line of a tool's activity, as a person would say it. */
-function activity(verb: string, detail: string): CliEvent {
+export function activity(verb: string, detail: string): CliEvent {
   const line = detail.replace(/\s+/g, " ").trim();
   return { kind: "thinking", text: `› ${verb}${line ? `: ${line.length > 160 ? `${line.slice(0, 157)}…` : line}` : ""}\n` };
 }
@@ -343,21 +442,56 @@ function errorText(raw: unknown): string {
   return text;
 }
 
-function claudeLine(event: Record<string, unknown>): CliEvent[] {
-  const out: CliEvent[] = [];
-  if (typeof event["session_id"] === "string" && (event["type"] === "system" || event["type"] === "result")) out.push({ kind: "session", id: event["session_id"] });
-  if (event["type"] === "assistant" && record(event["message"])) {
-    // "<synthetic>" messages are the CLI talking about itself ("Not logged in"); the result
-    // line repeats them as an error, which is where they belong.
-    if (event["message"]["model"] === "<synthetic>") return out;
-    const content = Array.isArray(event["message"]["content"]) ? event["message"]["content"] : [];
-    for (const block of content) {
-      if (!record(block)) continue;
-      if (block["type"] === "text" && str(block["text"])) out.push({ kind: "text", text: str(block["text"]) });
-      else if (block["type"] === "thinking" && str(block["thinking"])) out.push({ kind: "thinking", text: str(block["thinking"]) });
-      else if (block["type"] === "tool_use") out.push(activity(str(block["name"]) || "Tool", toolDetail(block["input"])));
+/**
+ * Claude Code's lines. With `--include-partial-messages` the words arrive as `stream_event`
+ * deltas and the whole message follows; the deltas are shown and the whole message only
+ * supplies what was not streamed (its tool calls, or text from a CLI that sent no deltas).
+ */
+function createClaudeReader(): (event: Record<string, unknown>) => CliEvent[] {
+  /** Words were streamed for the message in progress, so its whole text is not shown again. */
+  let streamedText = false;
+  let streamedThinking = false;
+  /** The next text delta starts a new block: it is a new message, not more of the last one. */
+  let newBlock = true;
+  return (event) => {
+    const out: CliEvent[] = [];
+    if (typeof event["session_id"] === "string" && (event["type"] === "system" || event["type"] === "result")) out.push({ kind: "session", id: event["session_id"] });
+    if (event["type"] === "stream_event" && record(event["event"])) {
+      const inner = event["event"];
+      if (inner["type"] === "message_start") { streamedText = false; streamedThinking = false; }
+      else if (inner["type"] === "content_block_start") newBlock = true;
+      else if (inner["type"] === "content_block_delta" && record(inner["delta"])) {
+        const delta = inner["delta"];
+        if (delta["type"] === "text_delta" && str(delta["text"])) {
+          out.push({ kind: "text", text: str(delta["text"]), ...(newBlock ? {} : { joined: true }) });
+          newBlock = false;
+          streamedText = true;
+        } else if (delta["type"] === "thinking_delta" && str(delta["thinking"])) {
+          out.push({ kind: "thinking", text: str(delta["thinking"]) });
+          streamedThinking = true;
+        }
+      }
+      return out;
     }
-  }
+    if (event["type"] === "assistant" && record(event["message"])) {
+      // "<synthetic>" messages are the CLI talking about itself ("Not logged in"); the result
+      // line repeats them as an error, which is where they belong.
+      if (event["message"]["model"] === "<synthetic>") return out;
+      const content = Array.isArray(event["message"]["content"]) ? event["message"]["content"] : [];
+      for (const block of content) {
+        if (!record(block)) continue;
+        if (block["type"] === "text" && str(block["text"])) { if (!streamedText) out.push({ kind: "text", text: str(block["text"]) }); }
+        else if (block["type"] === "thinking" && str(block["thinking"])) { if (!streamedThinking) out.push({ kind: "thinking", text: str(block["thinking"]) }); }
+        else if (block["type"] === "tool_use") out.push(activity(str(block["name"]) || "Tool", toolDetail(block["input"])));
+      }
+    }
+    if (event["type"] === "result") out.push(...claudeResult(event));
+    return out;
+  };
+}
+
+function claudeResult(event: Record<string, unknown>): CliEvent[] {
+  const out: CliEvent[] = [];
   if (event["type"] === "result") {
     const usage = record(event["usage"]) ? event["usage"] : {};
     out.push({ kind: "usage", input: num(usage["input_tokens"]) + num(usage["cache_read_input_tokens"]) + num(usage["cache_creation_input_tokens"]), output: num(usage["output_tokens"]), cached: num(usage["cache_read_input_tokens"]) });
@@ -439,7 +573,7 @@ function geminiLine(event: Record<string, unknown>): CliEvent[] {
  * warning some versions print - are dropped rather than shown as the model's words.
  */
 export function createCliLineParser(id: CliAgentId): (line: string) => CliEvent[] {
-  const read = id === "claude" ? claudeLine : id === "codex" ? codexLine : id === "opencode" ? openCodeLine : id === "gemini" ? geminiLine : () => [];
+  const read = id === "claude" ? createClaudeReader() : id === "codex" ? codexLine : id === "opencode" ? openCodeLine : id === "gemini" ? geminiLine : () => [];
   return (line) => {
     const trimmed = line.trim();
     if (!trimmed.startsWith("{")) return [];
@@ -466,6 +600,51 @@ export interface CliProcess {
 
 /** Starts `command args` in `cwd`, writes `input` to its stdin and closes it. */
 export type CliSpawn = (command: string, args: readonly string[], options: { readonly cwd: string; readonly input: string; readonly env?: Readonly<Record<string, string>> }) => CliProcess;
+
+/** A CLI left running between turns, its stdin open. */
+export interface CliLiveProcess {
+  /** The next stdout line, or null once stdout has closed. Turns take lines from here in turn. */
+  next(): Promise<string | null>;
+  /** Writes one line to stdin. */
+  send(line: string): void;
+  alive(): boolean;
+  readonly exit: Promise<number | null>;
+  stderr(): string;
+  kill(): void;
+}
+
+/** Starts `command args` in `cwd` and leaves stdin open. */
+export type CliLiveSpawn = (command: string, args: readonly string[], options: { readonly cwd: string; readonly env?: Readonly<Record<string, string>> }) => CliLiveProcess;
+
+/** A running CLI kept for one chat: reused while nothing that shapes its command line changes. */
+export interface CliLiveEntry {
+  readonly process: CliLiveProcess;
+  /** The command line and folder it was started with, minus the session to resume. */
+  readonly signature: string;
+  /** The CLI's own session in that process. */
+  session: string | null;
+  busy: boolean;
+  idle?: ReturnType<typeof setTimeout>;
+  usedAt: number;
+  /** For an ACP agent: the protocol connection over `process` (acp.ts). */
+  acp?: unknown;
+}
+
+/** A kept process quiet this long is stopped; the next turn resumes its session in a new one. */
+export const LIVE_IDLE_MS = 10 * 60_000;
+/** At most this many kept at once (each is a running CLI); the longest unused goes first. */
+export const LIVE_MAX = 3;
+
+/** One turn's lines from a kept process: up to and including the line that ends it. */
+async function* liveTurn(process: CliLiveProcess): AsyncIterable<string> {
+  for (;;) {
+    const line = await process.next();
+    if (line === null) return;
+    yield line;
+    // Returning here, not on the next pull, leaves the next turn's first line where it is.
+    if (isClaudeResultLine(line)) return;
+  }
+}
 
 export interface CliProviderOptions {
   readonly spec: CliAgentSpec;
@@ -504,10 +683,26 @@ export interface CliProviderOptions {
   readonly conversation?: () => string | undefined;
   /** How long the CLI may say nothing before the chat is told it is still working. */
   readonly heartbeatMs?: number;
+  /**
+   * Keeps a CLI that can take several turns (Claude Code) running between them, so only a
+   * chat's first turn waits for it to start. Without it, every turn starts the CLI afresh.
+   */
+  readonly live?: CliLiveSpawn;
+  /** Shared across providers like `sessions`, so a rebuilt provider finds the running process. */
+  readonly liveProcesses?: Map<string, CliLiveEntry>;
+  readonly liveIdleMs?: number;
+}
+
+export function dropLive(processes: Map<string, CliLiveEntry>, key: string): void {
+  const entry = processes.get(key);
+  if (entry === undefined) return;
+  if (entry.idle !== undefined) clearTimeout(entry.idle);
+  entry.process.kill();
+  processes.delete(key);
 }
 
 /** Quiet for this long and the chat says so: a thinking model or a slow tool, not a hang. */
-const HEARTBEAT_MS = 15_000;
+export const HEARTBEAT_MS = 15_000;
 
 type Beat<T> = { readonly line: T } | { readonly quietMs: number };
 
@@ -545,16 +740,17 @@ export function unfinishedRunNote(name: string, lastStep: string | null, denied:
 }
 
 /** The person's effort (low ... max) as the nearest level this model has, or nothing for Auto or a model with no levels. */
-function cliEffort(request: ProviderRequest, levels: Readonly<Record<string, readonly string[]>> | undefined): { effort?: string } {
+export function cliEffort(request: ProviderRequest, levels: Readonly<Record<string, readonly string[]>> | undefined): { effort?: string } {
   const level = effortFor(request.effort, levels?.[request.model]);
   return level === undefined ? {} : { effort: level };
 }
 
-const SIGNED_OUT = /not logged in|please run \/login|not authenticated|unauthori[sz]ed|login required|sign in|api key/i;
+export const SIGNED_OUT = /not logged in|please run \/login|not authenticated|unauthori[sz]ed|login required|sign in|api key/i;
 
 export function createCliProvider(options: CliProviderOptions): Provider {
   const { spec } = options;
   const sessions = options.sessions ?? new Map<string, { id: string; messages: number }>();
+  const liveProcesses = options.liveProcesses ?? new Map<string, CliLiveEntry>();
   return {
     id: cliProviderId(spec.id),
     displayName: spec.name,
@@ -566,7 +762,43 @@ export function createCliProvider(options: CliProviderOptions): Provider {
       const resume = prior !== undefined && request.messages.length > prior.messages;
       const bypass = options.bypassPermissions?.() === true;
       const mcp = spec.id === "claude" || spec.id === "codex" || spec.id === "opencode" ? options.mcp?.() ?? null : null;
-      const process = options.spawn(spec.command, cliArgs(spec.id, { model: request.model, ...(resume ? { session: prior.id } : {}), mcp: spec.id === "claude" || spec.id === "codex" ? mcp : null, ...cliEffort(request, options.modelEfforts), bypassPermissions: bypass }), { cwd: options.cwd(), env: cliEnv(spec.id, mcp), input: cliPrompt(request, resume) });
+      const argOptions = { model: request.model, mcp: spec.id === "claude" || spec.id === "codex" ? mcp : null, ...cliEffort(request, options.modelEfforts), bypassPermissions: bypass };
+      const cwd = options.cwd();
+      const env = cliEnv(spec.id, mcp);
+      const liveArgs = options.live === undefined ? null : cliLiveArgs(spec.id, argOptions);
+      const liveEntry = liveArgs === null ? undefined : liveProcesses.get(key);
+      // A kept process for this chat is used when it is idle, alive, already holds this
+      // conversation, and would be started the same way today (model, effort, access, tools).
+      let entry: CliLiveEntry | null = null;
+      let lines: AsyncIterable<string>;
+      let process: Pick<CliProcess, "exit" | "stderr" | "kill">;
+      if (liveArgs !== null && options.live !== undefined && liveEntry?.busy !== true) {
+        const signature = JSON.stringify([cwd, env, liveArgs]);
+        if (liveEntry !== undefined && resume && liveEntry.signature === signature && liveEntry.session === prior.id && liveEntry.process.alive()) {
+          entry = liveEntry;
+          if (entry.idle !== undefined) clearTimeout(entry.idle);
+        } else {
+          dropLive(liveProcesses, key);
+          for (const [other, kept] of [...liveProcesses].sort((a, b) => a[1].usedAt - b[1].usedAt)) {
+            if (liveProcesses.size < LIVE_MAX) break;
+            if (!kept.busy) dropLive(liveProcesses, other);
+          }
+          const started = options.live(spec.command, cliLiveArgs(spec.id, { ...argOptions, ...(resume ? { session: prior.id } : {}) }) ?? liveArgs, { cwd, env });
+          entry = { process: started, signature, session: resume ? prior.id : null, busy: false, usedAt: Date.now() };
+          liveProcesses.set(key, entry);
+        }
+        entry.busy = true;
+        entry.usedAt = Date.now();
+        entry.process.send(claudeUserLine(cliPrompt(request, resume)));
+        lines = liveTurn(entry.process);
+        process = entry.process;
+      } else {
+        const once = options.spawn(spec.command, cliArgs(spec.id, { ...argOptions, ...(resume ? { session: prior.id } : {}) }), { cwd, env, input: cliPrompt(request, resume) });
+        lines = once.lines;
+        process = once;
+      }
+      /** The kept process answered to the end of the turn and can take the next one. */
+      let turnEnded = false;
       const stop = (): void => process.kill();
       signal.addEventListener("abort", stop, { once: true });
       const parse = createCliLineParser(spec.id);
@@ -583,12 +815,13 @@ export function createCliProvider(options: CliProviderOptions): Provider {
       // so "continue" resumes its conversation, tool results and all, instead of a transcript.
       const remember = (): void => { if (session !== null) sessions.set(key, { id: session, messages: request.messages.length }); };
       try {
-        for await (const beat of withHeartbeat(process.lines, options.heartbeatMs ?? HEARTBEAT_MS)) {
+        for await (const beat of withHeartbeat(lines, options.heartbeatMs ?? HEARTBEAT_MS)) {
           if (signal.aborted) break;
           if ("quietMs" in beat) {
-            yield { kind: "status", text: `${spec.name} is still working - nothing new for ${Math.round(beat.quietMs / 1000)} s. It may be thinking, or waiting on a slow tool.` };
+            yield { kind: "status", text: `${spec.name} is still pondering - ${Math.round(beat.quietMs / 1000)} s with nothing new. It may be thinking hard, or waiting on a slow tool.` };
             continue;
           }
+          if (entry !== null && isClaudeResultLine(beat.line)) turnEnded = true;
           for (const event of parse(beat.line)) {
             if (event.kind === "session") session = event.id;
             else if (event.kind === "usage") { usage.input += event.input; usage.output += event.output; usage.cached += event.cached; }
@@ -596,14 +829,18 @@ export function createCliProvider(options: CliProviderOptions): Provider {
             else if (event.kind === "denied") denied.push({ tool: event.tool, detail: event.detail });
             else if (event.kind === "step") { lastStep = event.reason; if (event.reason === "tool-calls") answeredSinceTools = false; }
             else if (event.kind === "text") {
-              // Separate answers the CLI sent as separate messages, as it would show them.
-              const text = wrote && !lastText.endsWith("\n") && !event.text.startsWith("\n") ? `\n\n${event.text}` : event.text;
-              wrote = true; lastText = event.text; answeredSinceTools = true;
+              // Separate answers the CLI sent as separate messages, as it would show them;
+              // a streamed word joins the text before it.
+              const text = event.joined !== true && wrote && !lastText.endsWith("\n") && !event.text.startsWith("\n") ? `\n\n${event.text}` : event.text;
+              wrote = true; lastText = event.joined === true ? lastText + event.text : event.text; answeredSinceTools = true;
               yield { kind: "text", text };
             } else yield { kind: "thinking", text: event.text };
           }
         }
-        const code = await process.exit;
+        // A kept process stays running after its turn: it exits only when it failed.
+        // A stopped kept process is not waited for: the stop is shown at once.
+        const code = turnEnded || (entry !== null && signal.aborted) ? 0 : await process.exit;
+        if (entry !== null) entry.session = session ?? entry.session;
         remember();
         if (signal.aborted) { yield { kind: "stop", reason: "cancelled" }; return; }
         if (failure === null && code !== 0 && !wrote) failure = process.stderr().trim().split(/\r?\n/).slice(-3).join(" ") || `it exited with code ${String(code)}`;
@@ -618,7 +855,18 @@ export function createCliProvider(options: CliProviderOptions): Provider {
         yield { kind: "stop", reason: "end-turn" };
       } finally {
         signal.removeEventListener("abort", stop);
-        if (!signal.aborted) process.kill();
+        if (entry !== null) {
+          entry.busy = false;
+          // Stopped, cut short, or the CLI died: never hand that process another turn.
+          if (signal.aborted || !turnEnded || !entry.process.alive()) {
+            if (liveProcesses.get(key) === entry) dropLive(liveProcesses, key);
+            else entry.process.kill();
+          } else {
+            const kept = entry;
+            kept.idle = setTimeout(() => { if (liveProcesses.get(key) === kept && !kept.busy) dropLive(liveProcesses, key); }, options.liveIdleMs ?? LIVE_IDLE_MS);
+            (kept.idle as { unref?: () => void }).unref?.();
+          }
+        } else if (!signal.aborted) process.kill();
       }
     },
   };

@@ -117,7 +117,19 @@ const fake = createServer(async (req, res) => {
     return say(res, "Stopped too late.");
   }
   if (prompt.includes("live-chat-smoke")) {
-    if (step === 0) return streamCall(res, "c-edit", "propose_edit", { path: "app.js", contents: APP }, 60, 55);
+    // A real model is quiet for a moment first: long enough to see the opening working word.
+    // A real model often says a sentence, slowly, before its first tool call: long enough to
+    // see the working line's word while it writes.
+    if (step === 0) {
+      for (const word of ["I'll ", "write ", "app.js ", "first, ", "then ", "check ", "it."]) {
+        if (res.destroyed) return;
+        res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: word } }] })}
+
+`);
+        await sleep(250);
+      }
+      return streamCall(res, "c-edit", "propose_edit", { path: "app.js", contents: APP }, 60, 55);
+    }
     if (step === 1) return streamCall(res, "c-test", "run_command", { command: CHECK });
     return say(res, "Wrote app.js and its check passes.");
   }
@@ -251,6 +263,16 @@ try {
   /* 1. The chat assistant, typing a file. (Not filmed: when recording it only settles the layout.) */
   {
   await evaluate("void window.adcode.ai.send('live-chat-smoke: write app.js and check it'); true");
+  // The opening moments, before the first tool label: sampled in the page, every 30 ms.
+  const opening = await evaluate(`(async () => {
+    const seen = new Set();
+    for (const end = Date.now() + 3000; Date.now() < end;) {
+      const text = document.querySelector('.chat-transcript .chat-working:not([hidden]) .chat-working-text')?.textContent;
+      if (text) seen.add(text);
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    }
+    return [...seen];
+  })()`);
   results.chatWindowAppeared = await waitFor("Boolean(document.querySelector('.chat-transcript .live-window'))", 20_000);
   const lengths = new Set();
   let shotTaken = false;
@@ -259,6 +281,8 @@ try {
   results.chatWorkingRow = false;
   results.chatInlineMenu = false;
   let mostFaces = 0;
+  // The working line's words while the turn runs ("Pondering", "Making"...), not a bare "Thinking".
+  const workingWords = new Set();
   const until = Date.now() + 30_000;
   while (Date.now() < until) {
     const state = await evaluate(`(() => {
@@ -296,6 +320,7 @@ try {
     if (state.workingRow) results.chatWorkingRow = true;
     if (state.status === "working") mostFaces = Math.max(mostFaces, state.faces);
     if (state.status === "working") results.chatWorkingEvidence = state.workingEvidence;
+    if (typeof state.workingEvidence === "object" && state.workingEvidence.text) workingWords.add(state.workingEvidence.text);
     if (state.inlineMenu) results.chatInlineMenu = true;
     if (state.activity === "code" && state.length > 0) lengths.add(state.length);
     if (!shotTaken && state.length > 200) { await screenshot("chat-typing"); shotTaken = true; }
@@ -321,6 +346,11 @@ try {
     };
   })()`));
   await sleep(400);
+  for (const word of opening ?? []) workingWords.add(word);
+  results.chatWorkingWordsSeen = [...workingWords];
+  // Every playful word from workingWords.ts; a tool label ("Running tests") may appear as well.
+  const PLAYFUL = /^(Pondering|Mulling it over|Vibing|Connecting the dots|Tinkering|Brewing ideas|Noodling|Scheming|Puzzling it out|Sketching a plan|Cooking|Daydreaming in code|Untangling|Reading the room|Chewing on it|Making|Creating|Crafting|Writing|Shaping it|Putting it together|Polishing|Spinning it up|Building|Wordsmithing)$/;
+  results.chatWorkingWordsPlayful = [...workingWords].some((word) => PLAYFUL.test(word)) && ![...workingWords].includes("Thinking");
   results.chatWorkingRowGoneAfter = await evaluate("!document.querySelector('.chat-transcript .chat-working:not([hidden])')");
   await screenshot("chat-settled");
   }

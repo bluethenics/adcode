@@ -34,6 +34,9 @@ const NOOP_RUNTIME: AdRuntime = {
     suppressedReason: null,
     presets: [],
   }),
+  // No runtime, no account token: the card says it could not reach the server.
+  conversionQuote: async () => ({ ok: false, reason: "offline" }),
+  convertToCredits: async () => ({ ok: false, error: "offline", retryable: true }),
 };
 
 let runtime: AdRuntime | null = null;

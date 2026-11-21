@@ -415,6 +415,8 @@ export const BRIDGE = [
   { path: "ads.dismissed", kind: "send", channel: CHANNELS.adDismissed },
   { path: "ads.clicked", kind: "send", channel: CHANNELS.adClicked },
   { path: "ads.refreshEarnings", kind: "invoke", channel: CHANNELS.adRefreshEarnings },
+  { path: "ads.conversionQuote", kind: "invoke", channel: CHANNELS.adConversionQuote },
+  { path: "ads.convertToCredits", kind: "invoke", channel: CHANNELS.adConvertToCredits },
   { path: "ads.setSuppressed", kind: "send", channel: CHANNELS.adSuppressionChanged },
   { path: "ads.reportSignals", kind: "send", channel: CHANNELS.adSignals },
 

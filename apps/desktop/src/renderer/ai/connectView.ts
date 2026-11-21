@@ -586,7 +586,25 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
       const moreSummary = document.createElement("summary");
       moreSummary.textContent = "More options";
       more.append(moreSummary, cliActions(provider, cli));
-      card.append(head, text, detail, connect, said);
+      card.append(head, text, detail, connect);
+      // A newer version is out: one click updates it in a terminal, from ADCode's own command.
+      if (cli.installed && typeof cli.update === "string" && cli.update !== "") {
+        const updateCommand = cli.update;
+        detail.textContent = `${cli.version?.slice(0, 40) ?? "Installed"} · ${cli.latest ?? "a newer version"} is out`;
+        const update = document.createElement("button");
+        update.type = "button";
+        update.className = "ad-btn connect-cli-update";
+        update.textContent = `Update to ${cli.latest ?? "latest"}`;
+        update.disabled = deps.runInTerminal === undefined || isWebSurface();
+        update.setAttribute("aria-label", `Update ${cli.name} to ${cli.latest ?? "the latest version"}`);
+        update.addEventListener("click", () => {
+          update.disabled = true;
+          deps.runInTerminal?.(updateCommand);
+          said.textContent = `Updating ${cli.name} in a terminal tab. Press Look again when it is done.`;
+        });
+        card.append(update);
+      }
+      card.append(said);
       // Every model the CLI offers this account, live from the CLI itself; a click uses it.
       if (cli.installed && cli.headless && provider.models.length > 0) card.append(cliModelList(provider, said));
       card.append(more);

@@ -28,6 +28,8 @@ export function cliConnectPlan(provider: AiProviderInfo, activeProvider: string 
     return { kind: "use", provider: provider.id, model, label: activeProvider === provider.id ? "Connected" : "Connect" };
   }
   if (cli.installed) return { kind: "terminal", command: cli.command, label: "Open", then: "open" };
+  // No one-line install (a download from its own site): its docs say how, ADCode never guesses.
+  if (cli.install === "") return { kind: "unavailable", label: "Install from its website" };
   // `&&`, so a failed install never runs a sign-in for a program that is not there. Both
   // commands come from ADCode's own list (packages/ai cliAgents.ts), never from the page.
   return { kind: "terminal", command: `${cli.install} && ${cli.signIn}`, label: "Connect", then: "install" };

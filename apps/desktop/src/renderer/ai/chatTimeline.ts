@@ -31,6 +31,7 @@ import { createIcon, ICON } from "../workbench/icons.ts";
 import { renderChatMessageHtml } from "./chatMarkdown.ts";
 import type { MascotHandle, MascotMood } from "./mascot.ts";
 import { createAdcodeMascot, moodForAssistant } from "../mascot/adcodeMascot.ts";
+import { workingWord, workingWordSeed } from "./workingWords.ts";
 
 /** Buck behind the turn mascot's own small interface, so the timeline needs no other change. */
 function buckForTurn(): MascotHandle {
@@ -681,7 +682,7 @@ export function createTurnTimeline(options?: { readonly startedAt?: number }): T
         if (last.text.length < SUMMARY_LIMIT * 2) last.summary.textContent = thinkingSummary(last.text);
         return;
       }
-      const shell = stepShell("thinking", "sparkle", "Thinking…");
+      const shell = stepShell("thinking", "sparkle", `${workingWord("thinking", 0, workingWordSeed())}…`);
       const summary = document.createElement("span");
       summary.className = "chat-step-summary";
       summary.textContent = thinkingSummary(text);

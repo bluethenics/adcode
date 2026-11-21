@@ -196,7 +196,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
   "ai-coding-cli": {
     steps: [
       "Open Connect a model from the model name under the chat box, and choose the Coding CLIs tab.",
-      "Find the tool you already use - Claude Code, Codex, OpenCode or Gemini CLI. Its card says whether ADCode found it on this computer.",
+      "Find the tool you already use - Claude Code, Codex, OpenCode, Gemini CLI or GitHub Copilot CLI, plus Cursor Agent, Qwen Code, Kiro, goose, Kimi, Droid, Cline and the other ACP agents once they are installed. Its card says whether ADCode found it on this computer, and offers Update when a newer version is out.",
       "Press Connect. If it is installed, it becomes ADCode's model straight away. If not, a terminal opens that installs it and signs you in; come back to ADCode and it looks again by itself.",
       "Under the card, pick a model from the list. These are the models that CLI offers your account right now, with its own names and descriptions. Show all lists every one.",
       "Pick a reasoning level in the model picker if you want one (Auto, Low, Medium, High, Max). ADCode passes the nearest level that model has; Auto leaves it to the CLI.",
@@ -205,8 +205,10 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     benefits: [
       "You use the subscription you already pay for. ADCode bills nothing and never sees a password or key.",
       "The model list is live: new models appear the day the CLI offers them, without waiting for an ADCode update.",
+      "Fast after the first message: each chat keeps its agent running, so a follow-up starts answering in a second or two instead of waiting for the CLI to start again (Claude Code went from 5-9 s to about 1.6 s), and the words appear as they are written.",
+      "One open standard, many agents: everything except Claude Code and Codex is connected through the Agent Client Protocol, so a new agent that speaks it works the same way - models, streaming, stopping and tools.",
       "The model picker opens at once even with several CLIs installed: it shows each CLI's last known models straight away and swaps in the live list a few seconds later.",
-      "Claude Code, Codex and OpenCode get ADCode's own tools on every message - the live preview, page viewer, page audit, skills, connectors and the Browser - so they can check what they built.",
+      "Claude Code, Codex, OpenCode and every ACP agent that accepts tool servers get ADCode's own tools on every message - the live preview, page viewer, page audit, skills, connectors and the Browser - so they can check what they built.",
       "No silent stalls: a quiet CLI shows that it is still working, OpenCode streams its thinking, and a run that stops part way says why - a permission it turned down, with the switch that lets it through - instead of just ending.",
       "Each chat keeps its own CLI session, in its own project, and continue after a failure resumes the CLI's session with everything it had done.",
     ],
@@ -2643,6 +2645,42 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     ],
     betterThan:
       "A balance figure on any platform is only as trustworthy as the promise not to change it. An append-only ledger removes the need for trust entirely - the balance is the rows.",
+  },
+
+  "ads-convert-earnings": {
+    steps: [
+      "Open Earnings: the Earnings row in the Vibe sidebar, or run Earnings: Convert to AI Credits from the command palette (Ctrl+Shift+P).",
+      "Choose Convert to AI credits under your balance. The card shows the earnings you can convert, your AI credits now, and the rate - $1.00 of earnings becomes $1.00 of credits.",
+      "Type an amount in dollars, or press All to fill in everything you can convert right now.",
+      "Read the line under the box: it says exactly how many credits you will get and how much comes off your withdrawable earnings.",
+      "Press the Convert button. A pop-up shows your earnings and your AI credits before and after the conversion. Press Convert in the pop-up to confirm, or Back to change the amount - nothing moves until you confirm.",
+      "Watch the coins land in AI credits, and both figures count to their new values. Press Done. The earnings card, the status bar, and the paid-credit meter in the chat and AI usage all show the new balances. Pick a paid model and the credits pay for it straight away.",
+      "If the connection drops, the pop-up says nothing was converted and offers Try again. It repeats the same request, so it can never convert twice.",
+    ],
+    benefits: [
+      "Works from $0.50 - you do not have to reach the $50 payout minimum before your earnings are useful.",
+      "No fee, no card, no checkout: one dollar of earnings is one dollar of credits, and the credits never expire.",
+      "The server sets the rate, checks your balance and moves the money in one step, so it is never counted twice; a double click or a retry after a dropped connection converts once.",
+      "Every conversion is on the record: Converted to AI credits in your earnings ledger, From ad earnings in your credit activity.",
+    ],
+    betterThan:
+      "Elsewhere, getting value out of ad or referral earnings means waiting for a payout threshold, handing over bank details, losing a cut to transfer fees, and then paying again with a card to buy credits. Here the money you earned while coding pays for the AI you code with, in one click, at face value. It is honest about the trade-off: a conversion cannot be undone, it is limited to $1,000 at a time and $1,000 a day, and it needs a confirmed email - the same bar as a withdrawal. If you would rather have the cash, Withdraw on the website is right next to it.",
+  },
+
+  "ads-withdraw-earnings": {
+    steps: [
+      "Open Earnings and press Withdraw on the website, or run Earnings: Withdraw on the Website from the command palette.",
+      "Your browser opens adcode.bluethenics.com/dashboard at Payouts. Sign in with the same account you use in the editor.",
+      "Check the list of requirements: at least $50 available, a confirmed email, an account at least 7 days old, confirming you are 18 or older, payout details on file, and no other request in progress. Each one says what is missing.",
+      "Add your payout details once, enter the amount, and send the request. It stays on the page with its status until it is paid.",
+    ],
+    benefits: [
+      "One click from the balance in the editor to the page that pays it out.",
+      "Bank details are entered on the website and stored encrypted, never in the editor.",
+      "Every requirement is shown at once with what is missing, so you never find them one at a time.",
+    ],
+    betterThan:
+      "Many apps that pay you hide the payout behind support tickets or a settings maze. The editor shows your balance and puts the door to the payout next to it; the website lists every rule up front. Below the $50 minimum, converting to AI credits is the way to use what you earned.",
   },
 
   "account-invite": {
