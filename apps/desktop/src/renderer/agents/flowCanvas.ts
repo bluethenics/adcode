@@ -274,7 +274,10 @@ export function createFlowCanvas(deps: FlowCanvasDeps): FlowCanvas {
     const xs = flow.agents.flatMap((agent) => [agent.x, agent.x + nodeSize(agent.shape).width]);
     const ys = flow.agents.flatMap((agent) => [agent.y - 28, agent.y + nodeSize(agent.shape).height]);
     const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
-    const zoom = Math.min(1.1, Math.max(0.7, Math.min((stage.clientWidth - 120) / Math.max(1, maxX - minX), (stage.clientHeight - 120) / Math.max(1, maxY - minY))));
+    // A phone is a few hundred pixels wide: the margin shrinks with the stage, and the zoom may go
+    // as far out as the wheel does, so the whole flow shows instead of its middle (22 Nov 2026).
+    const margin = Math.min(120, Math.round(stage.clientWidth * 0.12));
+    const zoom = Math.min(1.1, Math.max(0.35, Math.min((stage.clientWidth - margin) / Math.max(1, maxX - minX), (stage.clientHeight - margin) / Math.max(1, maxY - minY))));
     view = { zoom, x: (stage.clientWidth - (maxX - minX) * zoom) / 2 - minX * zoom, y: (stage.clientHeight - (maxY - minY) * zoom) / 2 - minY * zoom };
     paintView();
   }

@@ -440,3 +440,57 @@
 .agents-race-compare { max-width: min(960px, calc(100vw - 48px)); }
 /* Set apart from Run, Edit and Duplicate, so it is not the button a hurried click lands on. */
 .agent-card-actions .agent-box-action-danger { margin-left: 0; }
+
+/* ── Narrow (a phone, or a slim window): 22 November 2026 ─────────────────────────────────
+   "Make the agents tab look good on mobile, premium and professional." The board's three
+   columns become one panel of three rows - a count says "nothing here" without a paragraph each
+   - and an agent is a row: its face beside its name and one line of what it uses, two lines of
+   what it does, then Run and the rest in one row. Everything a finger touches is 40px or more. */
+@container agents (max-width: 600px) {
+  .agents-page { gap: var(--space-4); padding: var(--space-4) 16px calc(var(--space-6) + env(safe-area-inset-bottom)); }
+  .agents-header { align-items: center; flex-wrap: nowrap; }
+  .agents-summary { margin: 0; font-size: 14px; }
+  .agents-primary, .agents-secondary { min-height: 40px; padding: 0 16px; border-radius: 999px; white-space: nowrap; }
+  .agents-banner { flex-wrap: wrap; padding: 12px 14px; border-radius: 14px; }
+  .agents-banner p { flex: 1 1 180px; }
+  .agents-banner :is(button, a) { min-height: 40px; white-space: nowrap; border-radius: 999px; }
+  .agents-notice { padding: 12px 14px; border-radius: 14px; line-height: 1.5; }
+
+  /* One panel, three rows. An empty column is a title and a 0; one with work lists it. */
+  .agents-board { gap: 0; border: 1px solid var(--border-subtle); border-radius: 16px; background: var(--bg-app); overflow: hidden; }
+  .agents-column { gap: 10px; padding: 14px 16px; border: 0; border-radius: 0; background: transparent; }
+  .agents-column + .agents-column { border-top: 1px solid var(--border-subtle); }
+  .agents-column-title { justify-content: space-between; margin: 0; font-size: 12px; }
+  .agents-column .agents-empty { display: none; }
+
+  /* The library: rows, not posters. */
+  .agents-library { gap: var(--space-3); padding-top: var(--space-4); }
+  .agents-library-title { font-size: 17px; letter-spacing: -.01em; }
+  .agents-grid { gap: 10px; }
+  .agent-card {
+    grid-template-columns: 44px minmax(0, 1fr);
+    grid-template-rows: auto;
+    column-gap: 12px;
+    row-gap: 12px;
+    padding: 14px;
+    border-radius: 16px;
+  }
+  .agent-card .agent-mascot { --mascot-size: 44px; align-self: start; }
+  .agent-card-text { grid-template-columns: auto minmax(0, 1fr); column-gap: 0; row-gap: 2px; align-items: baseline; }
+  .agent-card-name { grid-column: 1 / -1; font-size: 15px; }
+  .agent-card-model { max-width: 22ch; }
+  .agent-card-access { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+  .agent-card-access::before { content: "\00b7"; margin: 0 6px; color: var(--text-tertiary); }
+  .agent-card-instructions { grid-column: 1 / -1; margin-top: 6px; min-height: 0; -webkit-line-clamp: 2; font-size: 13px; }
+  .agent-card-actions { grid-column: 1 / -1; display: flex; flex-wrap: nowrap; gap: 8px; }
+  .agent-card-actions .agent-box-action { min-height: 40px; padding-inline: 14px; border-radius: 12px; font-size: 13px; }
+  .agent-card-actions .agent-box-action-primary { flex: 1 1 auto; }
+  .agent-card-actions .agent-card-delete { margin: 0 0 0 auto; padding-inline: 10px; border-color: transparent; background: transparent; }
+  .agent-card-actions .agent-card-pick { flex: 1 1 100%; }
+  .agent-card-new { grid-template-columns: minmax(0, 1fr); padding: 0; }
+  .agent-card-add { min-height: 56px; border-radius: 16px; }
+  .agents-finished-list { grid-template-columns: minmax(0, 1fr); }
+  /* Pressed things give way a little, so a tap is felt (transform only: it never shifts layout). */
+  :is(.agents-primary, .agents-secondary, .agent-box-action, .agent-card-add) { transition: transform 160ms var(--ease-out, ease-out), background-color 160ms ease, filter 160ms ease; }
+  :is(.agents-primary, .agents-secondary, .agent-box-action, .agent-card-add):active { transform: scale(0.97); }
+}

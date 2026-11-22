@@ -1233,3 +1233,113 @@
   :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-conversation[data-empty="true"] .chat-quick-actions > * { flex: none; }
   :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-conversation[data-empty="true"] .chat-composer { order: 2; }
 }
+
+/* ── Phones, calmer (2026-11-22: "it looks crowded", next to a Kimi screenshot) ─────────────────
+ *
+ * Three things on top - the menu and New chat as round buttons, the project as a pill between
+ * them - and a new chat that is only Buck, the greeting and one line, with the starters and a
+ * rounded message box at the bottom. Changes, Preview and Workspace join the bar once a project
+ * is open (vibeSidebar.ts marks the project button `data-empty`), when there is something to see.
+ */
+@media (max-width: 760px) {
+  :root[data-frame="web"] body[data-agent-workbench="true"][data-workspace-mode="vibe"][data-vibe-rail="compact"] {
+    grid-template-rows: var(--ui-chrome-height) calc(60px + env(safe-area-inset-top)) 0 minmax(0, 1fr) var(--ui-status-height);
+  }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"][data-vibe-rail="compact"] .vibe-topbar {
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 0;
+    background: transparent;
+  }
+  /* Round buttons and a pill, each on a faint raised surface with a hairline. */
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .vibe-topbar .vibe-sidebar-toggle,
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .web-compact-actions > button,
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .web-compact-actions .workspace-control-trigger {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    border: 1px solid var(--web-line);
+    border-radius: 50%;
+    background: var(--web-panel);
+    box-shadow: var(--web-sheen);
+    color: var(--text-primary);
+  }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .web-compact-actions { gap: 8px; }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .vibe-topbar .vibe-topbar-project {
+    flex: 0 1 auto;
+    max-width: calc(100% - 112px);
+    height: 44px;
+    margin-right: auto;
+    padding: 0 16px;
+    border: 1px solid var(--web-line);
+    border-radius: 999px;
+    background: var(--web-panel);
+    box-shadow: var(--web-sheen);
+    font-size: 15px;
+    font-weight: 550;
+  }
+  :root[data-frame="web"] .vibe-topbar-project span { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .vibe-topbar:has(.vibe-topbar-project[data-empty="true"]) :is(.vibe-topbar-changes, .vibe-topbar-preview, .workspace-control-trigger) { display: none; }
+
+  /* A new chat has nothing for the ⋯ menu to act on. */
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card:has(.chat-conversation[data-empty="true"]) .chat-header { display: none; }
+
+  /* The welcome: Buck, the greeting and one line, in the middle of the space - no setup cards
+     (a project is the pill on top, and the message box is right there). */
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-conversation[data-empty="true"] .chat-welcome {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0 28px;
+    text-align: center;
+  }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-conversation[data-empty="true"] .chat-welcome :is(.chat-setup-steps, .chat-welcome-import, .chat-welcome-streak) { display: none; }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-conversation[data-empty="true"] .chat-welcome .chat-welcome-buck { width: 72px; height: 72px; margin-bottom: 20px; }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-conversation[data-empty="true"] .chat-welcome h2 {
+    margin: 0 0 8px;
+    font-size: 24px;
+    font-weight: 500;
+    letter-spacing: -.02em;
+  }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-conversation[data-empty="true"] .chat-welcome > p:not(.chat-welcome-streak) {
+    max-width: 30ch;
+    color: var(--text-secondary);
+    font-size: 15px;
+    line-height: 1.5;
+    text-wrap: balance;
+  }
+
+  /* Starters: pills in one row you swipe, edge to edge. */
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-conversation[data-empty="true"] .chat-quick-actions { gap: 8px; padding: 2px 12px; margin-bottom: 10px; }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-conversation[data-empty="true"] .chat-quick-action {
+    min-height: 44px;
+    padding: 0 16px;
+    border: 1px solid var(--web-line);
+    border-radius: 999px;
+    background: var(--web-panel);
+    color: var(--text-primary);
+    font-size: 15px;
+  }
+
+  /* The message box: one rounded surface - text, then attach, model and send. */
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-composer {
+    margin: 0 12px max(10px, env(safe-area-inset-bottom));
+    padding: 6px 6px 6px 8px;
+    border: 1px solid var(--web-line);
+    border-radius: 26px;
+    background: var(--web-panel);
+    box-shadow: var(--web-sheen);
+  }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-input { min-height: 44px; padding: 10px 10px 4px; }
+  /* Permissions are set once, in Settings; the row keeps attach, the model and send. */
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-toolbar .chat-mode-pill { display: none; }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-toolbar .chat-team-button { border-radius: 50%; background: var(--web-selected); }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-model.chat-model-pill { max-width: 52vw; border-radius: 999px; }
+  /* A tap is felt: round buttons, the pill and the starters give way a little when pressed. */
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] :is(.vibe-topbar .vibe-sidebar-toggle, .vibe-topbar .vibe-topbar-project, .web-compact-actions > button, .chat-quick-action, .chat-card .chat-send, .chat-card .chat-team-button) { transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 160ms ease; }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] :is(.vibe-topbar .vibe-sidebar-toggle, .vibe-topbar .vibe-topbar-project, .web-compact-actions > button, .chat-quick-action, .chat-card .chat-send, .chat-card .chat-team-button):active { transform: scale(0.97); }
+}

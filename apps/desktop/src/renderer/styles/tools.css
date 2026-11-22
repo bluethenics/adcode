@@ -309,3 +309,34 @@
 .tool-card[data-rank="pinned"] { border-color: var(--border-strong); background: var(--surface-sheen), var(--bg-elevated); }
 .tool-card[data-rank="low"] > :not(.tool-card-actions) { opacity: .62; }
 .tool-card-actions [aria-pressed="true"] { background: var(--surface-selected); color: var(--text-primary); }
+
+/* ── Narrow (a phone, or a slim window): 22 November 2026 ─────────────────────────────────
+   The four kinds as one pill switcher instead of two rows of underlined tabs, the search the
+   width of the page, and each group of tools as one grouped list - rows divided by hairlines,
+   as a phone's own settings are - instead of a stack of separate cards. */
+@container tools (max-width: 600px) {
+  .tools-page { gap: var(--space-4); padding: var(--space-4) 16px calc(var(--space-6) + env(safe-area-inset-bottom)); }
+  .tools-header { gap: 12px; }
+  .tools-summary { font-size: 13px; }
+  .tools-search { width: 100%; min-height: 44px; padding-inline: 14px; border-radius: 12px; font-size: 15px; }
+  .tools-tabs {
+    flex-wrap: nowrap; gap: 2px; padding: 4px; overflow-x: auto; scrollbar-width: none;
+    border: 1px solid var(--border-subtle); border-radius: 999px; background: var(--bg-app);
+  }
+  .tools-tab {
+    flex: 1 0 auto; justify-content: center; gap: 6px; min-height: 36px; padding: 0 12px; margin: 0;
+    border: 0; border-radius: 999px; font-size: 13px;
+    transition: background-color 160ms ease, color 160ms ease, transform 160ms var(--ease-out, ease-out);
+  }
+  .tools-tab[aria-selected="true"] { border-bottom-color: transparent; background: var(--bg-elevated); box-shadow: var(--shadow-control, 0 1px 2px rgba(0,0,0,.18)); }
+  .tools-tab:active { transform: scale(0.97); }
+  /* The summary above says every count; the four names fit on one row without them. */
+  .tools-tab-count { display: none; }
+  .tools-tab { flex: 1 1 auto; padding: 0 10px; }
+  .tools-panel-intro { font-size: 14px; line-height: 1.55; }
+  .tools-grid { gap: 0; border: 1px solid var(--border-subtle); border-radius: 16px; background: var(--bg-app); overflow: hidden; }
+  .tools-grid > .tool-card { gap: 4px; padding: 14px 16px; border: 0; border-radius: 0; background: transparent; }
+  .tools-grid > .tool-card + .tool-card { border-top: 1px solid var(--border-subtle); }
+  .tool-card-name { font-size: 15px; }
+  .tool-card-text { font-size: 13px; }
+}

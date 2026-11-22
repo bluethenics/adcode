@@ -171,3 +171,42 @@
   .flow-try { width: 100%; }
   .flow-inspector { border-left: 0; border-top: 1px solid var(--border-hairline); }
 }
+
+/* Phones (22 Nov 2026, "premium and professional on mobile"): the toolbar in two calm rows - the
+   flow and its actions, then on/off and sharing - the palette as an even grid that never scrolls
+   inside itself, a canvas tall enough to work in, and 40px targets throughout. */
+@media (max-width: 640px) {
+  .flow-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 12px; padding: 12px 16px; border-bottom: 0; background: transparent; }
+  .flow-toolbar-group { flex-wrap: nowrap; gap: 8px; }
+  .flow-toolbar-group:first-child { grid-column: 1 / -1; }
+  .flow-toolbar-group:first-child .flow-select { flex: 1 1 auto; max-width: none; }
+  .flow-toolbar-group:last-child { justify-content: flex-end; }
+  .flow-counter { display: none; }
+  .flow-toolbar :is(.flow-button, .flow-select) { min-height: 40px; border-radius: 12px; font-size: 13px; }
+  .flow-toolbar .flow-button { min-width: 40px; }
+  /* One filled button on a phone is the page's main action, and sharing is not it. */
+  .flow-toolbar .flow-button-primary { border-color: var(--border-hairline); background: var(--bg-elevated); color: var(--text-primary); }
+
+  /* The page scrolls; nothing in it is squeezed to fit its height. */
+  .flow-body { grid-template-rows: auto 380px auto; align-content: start; }
+  .flow-body > :is(.flow-palette, .flow-inspector) { min-height: auto; overflow: visible; }
+  .flow-palette {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;
+    overflow: visible; padding: 16px; border-bottom: 0; background: transparent;
+  }
+  .flow-palette :is(.flow-heading, .flow-muted, .flow-try) { grid-column: 1 / -1; }
+  .flow-palette .flow-heading { margin: 0; font-size: 15px; }
+  .flow-palette-item { min-width: 0; min-height: 40px; gap: 8px; padding: 0 10px; border-radius: 12px; font-size: 13px; }
+  .flow-palette-item > span, .flow-palette-item { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .flow-try .flow-input, .flow-try .flow-button { min-height: 40px; border-radius: 12px; font-size: 14px; }
+  .flow-stage { margin: 0 16px; border: 1px solid var(--border-hairline); border-radius: 16px; }
+  .flow-zoom { right: 10px; bottom: 10px; border-radius: 14px; }
+  .flow-zoom .flow-button { min-width: 36px; min-height: 36px; border-radius: 10px; }
+  .flow-inspector { padding: 20px 16px calc(24px + env(safe-area-inset-bottom)); border-top: 0; background: transparent; }
+  .flow-inspector .flow-heading { font-size: 15px; }
+  .flow-steps { font-size: 13px; }
+}
+/* A finger has no hover: the palette's nudge is for a mouse. */
+@media not ((hover: hover) and (pointer: fine)) {
+  .flow-palette-item:hover { transform: none; }
+}

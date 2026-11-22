@@ -2020,6 +2020,13 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   input.rows = 2;
   // The two typed menus are the fastest way to everything; an empty composer says so.
   input.placeholder = "Ask anything or describe what to build · / for commands · @ for files";
+  // A phone has the width for the first half only, and no keyboard shortcuts to hint at.
+  const narrow = window.matchMedia("(max-width: 760px)");
+  const fitPlaceholder = (): void => {
+    input.placeholder = narrow.matches ? "Ask anything or describe what to build" : "Ask anything or describe what to build · / for commands · @ for files";
+  };
+  fitPlaceholder();
+  narrow.addEventListener("change", fitPlaceholder);
   input.setAttribute("aria-label", "Message the assistant");
 
   // Auto-growing composer, capped at ~140px per the Agent Chat reference.

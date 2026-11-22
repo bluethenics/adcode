@@ -642,6 +642,8 @@ export function createVibeSidebar(deps: VibeSidebarDeps): VibeSidebar {
     projectCard.setAttribute("aria-label", root === null ? "No project open. Open or switch project" : `Project ${name}, ${cardMeta.textContent}. Switch project`);
     projectCard.dataset["empty"] = String(root === null);
     topProjectName.textContent = root === null ? "Open a project" : name;
+    // The phone bar shows Changes, Preview and Workspace only once there is a project (webFrame.css).
+    topProject.dataset["empty"] = String(root === null);
     topProject.title = projectCard.title;
     topProject.setAttribute("aria-label", projectCard.getAttribute("aria-label") ?? name);
   }
