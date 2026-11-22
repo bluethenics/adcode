@@ -246,6 +246,13 @@ export default defineConfig(({ mode }) => ({
     ],
   },
   resolve: {
+    /*
+     * One React. The account panel (src/web/accountPanel.tsx) renders the website's dashboard,
+     * whose files sit beside apps/web's own React (a newer patch than the root's). Two copies
+     * meant the dashboard's hooks ran against a React that was never rendering, and Earnings
+     * opened an empty box (found 22 Nov, signed in: "reading 'useContext'" of null).
+     */
+    dedupe: ["react", "react-dom"],
     alias: [
       { find: /^@\//, replacement: `${resolve(REPO, "apps/web/src")}/` },
       { find: /^\/@web\//, replacement: `${resolve(DESKTOP, "src/web")}/` },

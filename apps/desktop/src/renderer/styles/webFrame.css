@@ -1214,6 +1214,9 @@
     min-height: 0;
     margin-bottom: 8px;
     overflow-y: auto;
+    /* The dot field behind the greeting is wider than the column on purpose; without this,
+       overflow-y's auto turned the x axis to auto too and drew a sideways scrollbar under it. */
+    overflow-x: hidden;
     overscroll-behavior: contain;
   }
   :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-conversation[data-empty="true"] .chat-quick-actions {
