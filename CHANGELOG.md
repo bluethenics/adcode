@@ -3,6 +3,14 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
+## 2.6.4 — 2026-11-22
+
+- **More coding CLIs, and faster follow-ups.** Besides Claude Code, Codex, OpenCode and Gemini CLI, the Coding CLIs tab now connects GitHub Copilot CLI and the agents that speak the Agent Client Protocol - Cursor Agent, Qwen Code, Kiro, goose, Kimi, Droid, Cline and others once they are installed. Each chat keeps its agent running, so a follow-up starts answering in a second or two instead of waiting for the CLI to start again (Claude Code went from 5-9 s to about 1.6 s), and the words appear as they are written.
+- **Smoother answers.** A long answer used to be redrawn whole many times a second while it streamed, so it slowed down as it grew and you could not select text until it finished. Finished paragraphs and code blocks are now drawn once and kept; only the line being written changes.
+- **A word for what it is doing.** While the assistant thinks or writes, the working line shows a changing word instead of a fixed label; a running tool, a pause for a limit or a stop keeps its own plain label.
+- **Open a project from GitHub.** Run Open a Project from GitHub to clone one of your repositories and open it.
+- **ADCode on the web is back,** at web.bluethenics.com - and it is the same assistant as this app: models, helpers, plans, usage and slash commands, running inside your browser tab with nothing installed and no cloud computer to wait for. Open a repository from GitHub, let the assistant read and change it, see every change in Changes, and send them back as a pull request; your branch is never written to directly. Static sites preview right in the tab. Chats, settings and your own API keys stay in that browser. It has a phone layout with the message box at the bottom, and sponsored cards earn there as on the desktop. Running commands, a terminal and dev servers still need this app.
+
 ## 2.6.3 — 2026-11-20
 
 - **OpenCode no longer stops half way without a word.** In a chat, OpenCode cannot ask you anything, so when it needed permission - a file outside the project, a loop it suspected - it turned itself down and ended the turn silently. ADCode now says what it wanted and how to go on: turn on Full access for the chat (which passes OpenCode its own `--auto` switch) or allow it in OpenCode's settings, then say continue. Tool calls that failed now show as failed instead of looking finished.
