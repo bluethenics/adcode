@@ -100,6 +100,19 @@ With a claim, the editor also sends the identifiers of other ADCode accounts thi
 
 If you use the feedback button, we receive what you typed, the app version, and your operating system name. Nothing else about your machine or your work is attached.
 
+### Help improve ADCode (usage statistics and retention) {#usage-statistics}
+
+**Settings → Privacy → Help improve ADCode** is on by default. Turning it off stops everything in this section at once and deletes anything counted on your computer and not yet sent. While it is on, the desktop app sends two things.
+
+**Feature counts.** Which commands run, which pages open, product moments such as installing a plugin, and which directory add-ons are used: fixed names with a count per day, sent once a day. The service stores daily totals without your account.
+
+**Retention signals,** linked to your anonymous ADCode account identifier, so we can see who stops using ADCode and what went wrong just before, and fix it. Each signal is a fixed event name from a list built into the app, with the time it happened, sometimes a fixed code from a second list, and sometimes a duration in milliseconds:
+
+- moments of use: first launch, signing in (and with Google, GitHub or a password), opening a project, the first AI message, the first AI answer that worked, the first AI edit applied, opening a preview, each day you use ADCode, the app version, and how each session ended (quit, restart to update, or never quit);
+- what went wrong: an AI request that failed, with a fixed error word such as \`auth\`, \`network\` or \`rate_limit\`; a CLI agent (Claude Code, Codex, OpenCode, Gemini CLI or Freebuff) that failed, was signed out, was missing or stopped part way; a limit screen and its kind (daily, tokens, credits, plan); "No API key"; a sign-in that failed or was needed; a first answer slower than 20 seconds; a cancelled request; a crash or a window crash and its kind; and a failed update and its stage.
+
+These signals **never include** code, file contents, prompts, AI replies, chat text, file or folder names, paths, project names, provider error messages, or anything you typed. The server refuses any name or code not on its list. Raw signals are kept for 90 days; per-account totals (first and last time of each event, counts, the last error word and how the last session ended) and per-day counts remain, for at most 400 days for the daily counts. Administrators see them in an internal retention report.
+
 ### AI features
 
 Heabsy-hosted routes include both models served on Heabsy hardware and partner-hosted models, labelled “Heabsy partner” in the model picker. Partner-hosted models do not carry Heabsy’s own-hardware zero-retention guarantee and may process data outside the EEA. Choose a model whose provider terms fit your data.
@@ -194,12 +207,13 @@ Zeekend is our only ad partner. It receives the exchange described above only wh
 ## Your choices
 
 - **Turn ads off.** Settings has a cadence control with an off position. The editor is otherwise identical, with no reduced features and no prompts to turn it back on.
+- **Turn off usage statistics and retention signals.** Switch off Help improve ADCode in Settings → Privacy. Nothing more is counted or sent, and what was waiting to be sent is deleted.
 - **Keep your AI conversations out of ads.** Turn off Sponsored cards under AI replies in Settings → Ads, or press Turn off on the notice ADCode shows once. It stops at once.
 - **Ask for your data or its deletion.** Write to adcode.support@gmail.com. Deleting your account removes your identifier and your ledger. Records we must keep for accounting are retained where the law requires.
 
 ## Retention
 
-Ledger rows are kept as long as the account exists, because they are the record of what you were paid. Serve records expire automatically within hours. General support feedback is kept until it is resolved. Included AI reporting metadata is retained for usage and reliability reporting; it has no automatic expiry at present. Model feedback remains until its rating is removed or you request its deletion. You can request deletion of included AI reporting metadata through the contact below. A web version workspace that nobody opens for 90 days is deleted, archives and all.
+Ledger rows are kept as long as the account exists, because they are the record of what you were paid. Serve records expire automatically within hours. General support feedback is kept until it is resolved. Included AI reporting metadata is retained for usage and reliability reporting; it has no automatic expiry at present. Model feedback remains until its rating is removed or you request its deletion. You can request deletion of included AI reporting metadata through the contact below. A web version workspace that nobody opens for 90 days is deleted, archives and all. Raw retention signals from Help improve ADCode are deleted after 90 days; per-account totals remain while the account exists and are removed with it on request, and per-day counts are deleted after 400 days.
 
 Email preference and delivery records are linked to the account and removed when the account is deleted. Suppression addresses are retained to honour opt-outs and avoid sending to addresses that bounce or complain. These email records currently have no automatic expiry.
 

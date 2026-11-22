@@ -19,6 +19,7 @@ import { gunzipSync } from "node:zlib";
 import { app, ipcMain, shell } from "electron";
 import { CHANNELS, type UpdateStatus } from "../shared/api.ts";
 import { recordDebug } from "./debugLog.ts";
+import { noteQuittingForUpdate, recordRetention } from "./milestones.ts";
 import { draftWritesSettled } from "./draftWrites.ts";
 import { blockMapFitsInstaller, canSelfUpdate, runningFromWindowsStore } from "./updatePolicy.ts";
 import { apiBaseUrl } from "./backend.ts";
@@ -241,6 +242,8 @@ async function initializeAutoUpdate(enabled: () => boolean): Promise<void> {
   updater.on("error", (error) => {
     // No dialog: a failed check is not the user's problem to solve. The log keeps why.
     updaterLog.error(error);
+    // Retention: which stage failed, as a fixed word.
+    recordRetention("update_failed", { code: status.state === "downloading" ? "download" : status.state === "ready" ? "install" : "check" });
     preparation?.cancel(); restartRequested = false; restartPromise = null;
     setStatus({ state: "failed" });
   });
@@ -265,7 +268,7 @@ async function initializeAutoUpdate(enabled: () => boolean): Promise<void> {
   // Show installation progress for an explicit update. The NSIS update-only hook
   // finishes without another wizard page and reopens the app after replacement.
   // Automatic install-on-quit stays on electron-updater's separate silent path.
-  installNow = () => updater.quitAndInstall(false, true);
+  installNow = () => { noteQuittingForUpdate(); updater.quitAndInstall(false, true); };
 
   await dropStaleBlockMap();
 
@@ -310,6 +313,7 @@ async function restartToUpdate(): Promise<UpdateStatus> {
     } catch (error) {
       preparation?.cancel();
       restartRequested = false; restartPromise = null;
+      recordRetention("update_failed", { code: "prepare" });
       throw error;
     }
   })();

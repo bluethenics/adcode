@@ -46,6 +46,7 @@ export const DEFERRED_TOOL_NAMES: ReadonlySet<string> = new Set([
   "move_file",
   "create_agent",
   "customize_adcode",
+  "manage_agent_flow",
   // Measured 18 November 2026 on real tasks (docs/model-benchmark-2026-11-17): over 20 runs
   // these were never used, yet went with every step - about 470 tokens a request. External
   // capabilities matter only to people with MCP servers or skills; the outline and delete

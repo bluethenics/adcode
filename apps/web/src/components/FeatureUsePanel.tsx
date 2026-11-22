@@ -1,8 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
+import { useCachedResource } from "@/lib/adminCache";
+import { RefreshStamp } from "@/components/RefreshStamp";
+import { ExportButtons, InsightProblem, Loading, TableSkeleton } from "@/components/AdminInsightsUI";
+import { rangeLabel, utcDate } from "@/lib/adminInsights";
 
 interface Row { name: string; kind: "cmd" | "page" | "event" | "addon"; label: string; uses: number; clientDays: number; trend: number | null }
 interface Summary { days: number; reportingDays: number; totalUses: number; top: Row[]; rare: Row[]; byKind: Record<Row["kind"], number> }
@@ -44,29 +48,40 @@ function Table({ rows, empty }: { rows: Row[]; empty: string }) {
 export function FeatureUsePanel() {
   const { token } = useAuth();
   const [days, setDays] = useState(30);
-  const [summary, setSummary] = useState<Summary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setError(null);
-    const found = await apiFetch<Summary>({ path: `/admin/app-usage?days=${days}`, token: await token() });
-    if (found.ok) setSummary(found.value); else setError(MESSAGES[found.error]);
+  // A changed range cancels the request for the old one (adminCache.ts).
+  const load = useCallback(async (signal: AbortSignal): Promise<Summary | null> => {
+    const found = await apiFetch<Summary>({ path: `/admin/app-usage?days=${days}`, token: await token(), signal });
+    if (found.ok) { setError(null); return found.value; }
+    if (!signal.aborted) setError(MESSAGES[found.error]);
+    return null;
   }, [days, token]);
-
-  useEffect(() => { void load(); }, [load]);
+  const cached = useCachedResource(`app-usage:${days}`, load);
+  const summary = cached.value;
+  const now = Date.now();
+  const range = { from: utcDate(now - (days - 1) * 86_400_000), to: utcDate(now) };
 
   return (
     <section aria-label="Desktop feature use">
-      <div className="field" style={{ maxWidth: 220 }}>
-        <label htmlFor="feature-days">Range</label>
-        <select id="feature-days" className="select" value={days} onChange={(event) => setDays(Number(event.target.value))}>
-          <option value={7}>Last 7 days</option>
-          <option value={30}>Last 30 days</option>
-          <option value={90}>Last 90 days</option>
-        </select>
+      <div className="insight-toolbar">
+        <div className="insight-toolbar-group">
+          <label className="insight-field" htmlFor="feature-days"><span>Range</span>
+            <select id="feature-days" className="select" value={days} onChange={(event) => setDays(Number(event.target.value))}>
+              <option value={7}>Last 7 days</option>
+              <option value={30}>Last 30 days</option>
+              <option value={90}>Last 90 days</option>
+            </select>
+          </label>
+        </div>
+        <div className="insight-toolbar-group">
+          <RefreshStamp asOf={cached.asOf} refreshing={cached.refreshing} fromCache={cached.fromCache} onRefresh={() => void cached.refresh()} />
+          <ExportButtons label="Export every feature" query={`dataset=features&days=${days}`} disabled={summary === null} />
+        </div>
       </div>
-      {error !== null && <div className="notice" data-tone="error" role="alert">{error}</div>}
-      {summary === null && error === null && <p className="lede">Loading…</p>}
+      <p className="insight-range">Period: <strong>{rangeLabel(range, now)}</strong>. Editors report each finished day once, so today fills in tomorrow.</p>
+      {cached.failed && error !== null && <InsightProblem kind="server" message={error} onRetry={() => void cached.refresh()} />}
+      {summary === null && !cached.failed && <Loading label="Loading feature use"><TableSkeleton rows={8} columns={5} /></Loading>}
       {summary !== null && <>
         <p className="lede">
           {summary.totalUses.toLocaleString("en-US")} uses over {summary.reportingDays} reporting {summary.reportingDays === 1 ? "day" : "days"}:

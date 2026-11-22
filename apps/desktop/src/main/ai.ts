@@ -24,6 +24,7 @@ import {
   withSubagents,
   CREATE_AGENT,
   CREATE_AGENT_NAME,
+  MANAGE_AGENT_FLOW,
   describeCreateAgent,
   planCreateAgent,
   readTaskAgents,
@@ -126,7 +127,8 @@ import {
   type ProposedEditView,
 } from "../shared/api.ts";
 import { recordAgentEdit } from "./activity.ts";
-import { recordMilestone } from "./milestones.ts";
+import { recordMilestone, recordRetention } from "./milestones.ts";
+import { SLOW_FIRST_ANSWER_MS, cliFailureOf } from "@adcode/retention";
 import { collabRemoteTool, registerCollabToolHandler, collabFileChanged, collabIsJoined, onCollabModeChange } from "./collabIpc.ts";
 import { finishTeamTurn, postTeamMessage, registerProjectAiReply, renewTeamTurn, teamSnapshot } from "./sharedProjects.ts";
 import { aiRequest, mergeTeamMessages, teamChatId } from "../shared/teamChat.ts";
@@ -148,6 +150,7 @@ import { ASSISTANT_EXTENSION_TOOLS, bridgeAppTools, offeredAppTools, withAssista
 import { memoryForWorkspace } from "./memory.ts";
 import { currentSettings, writeSetting } from "./settings.ts";
 import { confirmInWindow } from "./themedConfirm.ts";
+import { withFlowTool } from "./flowTool.ts";
 import { fullAccessApplies, isFullAccessOn, runAgentTurn } from "./fullAccess.ts";
 import { describeDebugContext, recordDebug } from "./debugLog.ts";
 import { fileAgentsFor, refreshFileAgents } from "./agentFilesLoader.ts";
@@ -1838,7 +1841,7 @@ function withModTool(base: ToolRunner): ToolRunner {
             confirmLabel: existing === undefined ? "Apply mod" : "Update mod",
             cancelLabel: "Cancel",
           }, signal);
-          if (!allowed) return { content: "The user declined, so nothing changed. Ask what they would like instead.", isError: true };
+          if (!allowed) { recordDebug("info", "ai", `Declined mod ${draft.manifest.id}`); return { content: "The user declined, so nothing changed. Ask what they would like instead.", isError: true }; }
           await installLocalPlugin(draft.text);
           recordDebug("info", "ai", `Applied mod ${draft.manifest.id} v${draft.manifest.version}`);
           return { content: `Applied ${draft.manifest.id} v${draft.manifest.version}: ${changes.join("; ")}. It is on now.`, isError: false };
@@ -1851,6 +1854,7 @@ function withModTool(base: ToolRunner): ToolRunner {
             return { content: "The user kept the mod.", isError: true };
           }
           if (action === "remove") await uninstallPlugin(id); else await setPluginEnabled(id, action === "on");
+          recordDebug("info", "ai", `Mod ${id} ${action === "remove" ? "removed" : `switched ${action}`} from the chat`);
           return { content: `${found.manifest.name} is ${action === "remove" ? "removed" : action}.`, isError: false };
         }
         return { content: 'action is one of "apply", "list", "on", "off", "remove".', isError: true };
@@ -1913,7 +1917,7 @@ async function ensureChatAgent(thread: ChatThread, providerId: string, model: st
   const tools = [
     ...chatTools(),
     ...(isFork ? CHAT_FORK_PARTICIPANT_TOOLS : CHAT_FORK_TOOLS),
-    ...(lean || isFork ? [] : [DELEGATE_TASK, CREATE_AGENT, modToolDefinition(builtInSlashCommands())]),
+    ...(lean || isFork ? [] : [DELEGATE_TASK, CREATE_AGENT, MANAGE_AGENT_FLOW, modToolDefinition(builtInSlashCommands())]),
   ];
   const context = async (): Promise<string> => {
       const root = thread.root;
@@ -2003,7 +2007,15 @@ async function ensureChatAgent(thread: ChatThread, providerId: string, model: st
     compaction: compactionFor(providerId, model),
     initialMessages: carried ?? restoreHistory(thread.session),
     context: leadContext,
-    runner: withAgentRules(withSubagents(withCreateAgent(withModTool(forkRunner)), {
+    runner: withAgentRules(withSubagents(withCreateAgent(withModTool(withFlowTool(forkRunner, {
+      settings: currentSettings,
+      writeSetting: (id, value) => writeSetting(id, value),
+      candidates: taskAgentCandidates,
+      chatId: () => thread.session.id,
+      chats: async () => (await readSessions(thread.root)).map((session) => ({ id: session.id, title: session.title })),
+      confirm: (ask, signal) => confirmInWindow(BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows().find((item) => !item.isDestroyed()) ?? null, { title: ask.title, body: ask.body, confirmLabel: ask.confirmLabel, cancelLabel: "Cancel" }, signal),
+      record: (message) => recordDebug("info", "ai", message),
+    }))), {
       start: (task, helperTools) => helper(task, helperTools),
       // Helpers are hidden and cannot reach the fork service; a fork must stay a visible chat
       // started by the main conversation.
@@ -2371,9 +2383,14 @@ async function runTurn(
       send({ kind: "error", detail: ready });
       recordDebug("error", "ai", ready);
       recordMilestone("turn_failed");
+      // Retention: which dead end, as a fixed word - never the message.
+      const noKey = /^No API key for /.test(ready) ? "key" : /^No address for the custom endpoint/.test(ready) ? "custom" : /^Free AI couldn't load its models/.test(ready) ? "free_unavailable" : null;
+      if (noKey !== null) recordRetention("no_api_key", { code: noKey });
+      recordRetention("turn_failed", { code: "setup" });
       return { kind: "done", ok: false, ended: "failed" };
     }
     recordMilestone("prompt_sent");
+    recordRetention("ai_message");
 
     // Attachments ride this turn only. The session keeps names, not bytes: image
     // base64 in a session file would bloat history on disk and re-send stale
@@ -2420,6 +2437,8 @@ async function runTurn(
     let lastError: string | null = null;
     let modelTraceRecorded = false;
     const turnStarted = Date.now();
+    /** When the model first showed anything - the wait a person actually sits through. */
+    let firstOutputAt: number | null = null;
     let toolCalls = 0;
     let keepGoing = false;
     // Automatic mode writes as it goes; this turn's writes become one undoable checkpoint.
@@ -2446,6 +2465,10 @@ async function runTurn(
         continue;
       }
       send(event);
+      if (firstOutputAt === null && (event.kind === "text" || event.kind === "thinking" || event.kind === "tool-call")) firstOutputAt = Date.now();
+      // A plan or allowance limit, not a provider's passing rate limit, is what makes people leave.
+      if (event.kind === "status" && event.limit !== undefined && event.limit.reason !== "rate" && event.limit.reason !== "upstream") recordRetention("limit_reached", { code: event.limit.reason });
+      if (event.kind === "cancelled") recordRetention("turn_cancelled", { ms: Date.now() - turnStarted });
       if (event.kind === "status" && /Retrying in|Continuing this task from the saved progress/.test(event.text)) recordMilestone("ai_retry_wait");
       if (event.kind === "status" && /connection interrupted the response/.test(event.text)) recordMilestone("ai_stream_interrupted");
       if (event.kind === "status" && event.limit !== undefined) recordMilestone(event.limit.reason === "upstream" || event.limit.reason === "rate" ? "ai_retry_wait" : "ai_limit_wait");
@@ -2505,6 +2528,14 @@ async function runTurn(
       cancelled ? "cancelled" : refused ? "refused" : lastError !== null ? outcomeOfError(lastError) : "ok",
       Date.now() - turnStarted,
     );
+    // Retention: how this turn went, as fixed words and timings (never the prompt or reply).
+    const firstAnswerMs = firstOutputAt === null ? null : firstOutputAt - turnStarted;
+    if (firstAnswerMs !== null && firstAnswerMs > SLOW_FIRST_ANSWER_MS) recordRetention("slow_first_answer", { ms: firstAnswerMs });
+    if (turnSucceeded) recordRetention("ai_turn_ok", firstAnswerMs === null ? {} : { ms: firstAnswerMs });
+    else if (!cancelled && !keepGoing) recordRetention("turn_failed", { code: refused ? "refused" : lastError !== null ? outcomeOfError(lastError) : "other" });
+    const turnCli = cliAgentFor(providerId);
+    const cliFailure = turnCli === undefined || keepGoing ? null : cliFailureOf({ error: lastError, answer, cancelled });
+    if (turnCli !== undefined && cliFailure !== null) recordRetention("cli_failed", { code: `${turnCli.id}.${cliFailure}` });
 
     let agentEditRecorded = false;
     if (turnSucceeded && activeTaskId !== null) {
@@ -2527,6 +2558,7 @@ async function runTurn(
             rejectedEdits: 0,
           });
           agentEditRecorded = true;
+          recordRetention("edit_applied", { code: "automatic" });
         } else if (result.conflicts.length > 0) {
           send({
             kind: "error",
@@ -2575,6 +2607,7 @@ async function runTurn(
           ),
           rejectedEdits: 0,
         });
+        recordRetention("edit_applied", { code: "automatic" });
       }
     }
     recordMilestone(turnSucceeded ? "turn_ok" : cancelled ? "prompt_sent" : "turn_failed");
@@ -2601,6 +2634,10 @@ async function runTurn(
     }
     send({ kind: "error", detail });
     recordMilestone("turn_failed");
+    recordRetention("turn_failed", { code: outcomeOfError(detail) });
+    const failedCli = cliAgentFor(activeProvider());
+    const failedHow = failedCli === undefined ? null : cliFailureOf({ error: detail, answer: "", cancelled: false });
+    if (failedCli !== undefined && failedHow !== null) recordRetention("cli_failed", { code: `${failedCli.id}.${failedHow}` });
     return { kind: "done", ok: false, ended: "failed" };
   } finally {
     currentTaskPrompt = null;
@@ -3244,6 +3281,7 @@ export async function aiWorkspaceApply(
   }
   const result = await (await readyAiWorkspaceService()).apply(taskId, selections);
   announceWorkspaceTask(result.task);
+  if (result.ok) recordRetention("edit_applied", { code: "review" });
   if (result.ok && result.task.state === "applied" && current.parentTeamId !== null) {
     // The human files and their rollback checkpoint are already authoritative. A transient
     // Team-record cleanup failure must not turn that successful apply into a renderer error;

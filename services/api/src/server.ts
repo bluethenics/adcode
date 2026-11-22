@@ -123,6 +123,7 @@ import { isSafeAssetKey } from "./assets.ts";
 import type { Clock, IdGen, Store } from "./store.ts";
 import { isAutomatedAgent, parseWebsiteEvents, summarizeWebsiteEvents, type WebsiteAnalyticsStore } from "./websiteAnalytics.ts";
 import { parseAppUsage, summarizeAppUsage, utcDay, type AppUsageStore } from "./appUsage.ts";
+import { RETENTION_LIMITS, SUMMARY_STALE_MS, UID, clampEvents, parseRetentionEvents, reasonFrom, silentDaysFrom, type RetentionEvent, type RetentionStore } from "./retention.ts";
 import { isApplicationStatus, parseProviderApplication, type ProviderApplicationStore } from "./providerApplications.ts";
 import { keyHint, parseProviderModels, submissionKeyId, type ProviderModelStore } from "./providerModels.ts";
 import { adNetworkEncryptionKeys, encryptAdNetworkKey } from "./adNetworkCrypto.ts";
@@ -285,10 +286,14 @@ export interface ApiOptions {
   adNetworks?: AdNetworkRuntime;
   /** Admin user search and actions, and email campaigns (`adminConsole.ts`). Answered before the main router. */
   adminConsole?: Pick<import("./adminConsole.ts").AdminConsoleOptions, "console" | "sendTest">;
+  /** Admin analytics and per-model figures from summary tables (`adminInsights.ts`). Answered before the main router. */
+  adminInsights?: import("./adminInsights.ts").AdminInsightsStore;
   tagflow?: { modelMetadata?: boolean; priority?: import("./requestPriority.ts").RequestPriority; apiKey?: string; fetchImpl?: typeof fetch; country?: (request: Request) => string | undefined; workerSecrets?: WorkerSecrets; rateLimitWaitsMs?: readonly number[]; fallback?: boolean; identity?: AccountIdentity; emailProof?: import("./accountEmailProof.ts").AccountEmailProof; timeouts?: Partial<{ firstMs: number; idleMs: number; maxMs: number }>; encryptionKeys?: () => readonly string[]; salesOpen?: boolean };
   websiteAnalytics?: WebsiteAnalyticsStore;
   /** Desktop feature-use totals (appUsage.ts). Absent: the editor's reports are accepted and dropped. */
   appUsage?: AppUsageStore;
+  /** Retention events and the admin Retention page (retention.ts). Absent: events are accepted and dropped. */
+  retention?: RetentionStore;
   /** Model providers applying to be offered in ADCode (providerApplications.ts). */
   providerApplications?: ProviderApplicationStore;
   /** Models providers submit on /providers/models; approved in the included-AI admin (providerModels.ts). */
@@ -1082,6 +1087,44 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       const days = Math.min(90, daysFrom(url, 30));
       const endDay = utcDay(clock.now() + 86_400_000), startDay = utcDay(clock.now() - (days - 1) * 86_400_000);
       send(res, 200, summarizeAppUsage(await options.appUsage.read(startDay, endDay), startDay, endDay), { ...cors, "cache-control": "no-store" });
+      return;
+    }
+
+    /* ── Retention: cohorts, the drop-off funnel, churned users, friction ── */
+    if (path.startsWith("/v1/admin/retention")) {
+      const retention = options.retention;
+      if (!retention) { send(res, 503, { error: "retention-unavailable" }, cors); return; }
+      const noStore = { ...cors, "cache-control": "no-store" };
+      if (path === "/v1/admin/retention" && req.method === "GET") {
+        const silentDays = silentDaysFrom(url);
+        let summary = await retention.summary(silentDays);
+        // Never built, or the hourly job has stopped: build it now rather than show nothing.
+        if (summary === null || clock.now() - summary.builtAt > SUMMARY_STALE_MS) {
+          await retention.refresh(clock.now());
+          summary = await retention.summary(silentDays);
+        }
+        send(res, 200, summary ?? { error: "retention-empty" }, noStore);
+        return;
+      }
+      if (path === "/v1/admin/retention/refresh" && req.method === "POST") {
+        await retention.refresh(clock.now());
+        send(res, 200, await retention.summary(silentDaysFrom(url)), noStore);
+        return;
+      }
+      if (path === "/v1/admin/retention/churned" && req.method === "GET") {
+        const offset = Math.max(0, Math.min(100_000, Math.floor(Number(url.searchParams.get("offset")) || 0)));
+        const limit = Math.max(1, Math.min(200, Math.floor(Number(url.searchParams.get("limit")) || 50)));
+        send(res, 200, await retention.churned({ now: clock.now(), silentDays: silentDaysFrom(url), reason: reasonFrom(url), offset, limit }), noStore);
+        return;
+      }
+      if (path === "/v1/admin/retention/user" && req.method === "GET") {
+        const uid = url.searchParams.get("uid") ?? "";
+        if (!UID.test(uid)) { send(res, 400, { error: "malformed uid" }, cors); return; }
+        const timeline = await retention.timeline(uid);
+        send(res, timeline.user === null ? 404 : 200, timeline, noStore);
+        return;
+      }
+      send(res, 404, { error: "not found" }, cors);
       return;
     }
 
@@ -1987,15 +2030,29 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       return;
     }
 
+    /*
+     * Milestones and, since 2.6.3, retention events ride the same flush. Either list may be
+     * absent but not both; a malformed one refuses the request, which the editor treats as
+     * "drop this batch" rather than "retry".
+     */
     if (path === "/v1/milestones" && req.method === "POST") {
       const raw = await jsonBodyOr400();
       if (raw === undefined) return;
-      const items = parseMilestones(raw);
-      if (items === null) {
+      const body = typeof raw === "object" && raw !== null ? raw as Record<string, unknown> : {};
+      const hasMilestones = Array.isArray(body["milestones"]) && body["milestones"].length > 0;
+      const items = hasMilestones ? parseMilestones(raw) : [];
+      const events: RetentionEvent[] | null = body["events"] === undefined ? [] : parseRetentionEvents(body["events"]);
+      if (items === null || events === null || (items.length === 0 && events.length === 0)) {
         send(res, 400, { error: "malformed milestones" }, cors);
         return;
       }
-      await recordMilestones({ store, clock }, auth.uid, items);
+      if (items.length > 0) await recordMilestones({ store, clock }, auth.uid, items);
+      // Over the daily request budget the events are dropped, not refused: a refusal would
+      // only make the editor send them again.
+      if (events.length > 0 && options.retention
+        && await store.bumpRequestCount(`retention:${auth.uid}`, Math.floor(clock.now() / 86_400_000) * 86_400_000) <= RETENTION_LIMITS.requestsPerDay) {
+        await options.retention.record(auth.uid, clock.now(), clampEvents(events, clock.now()));
+      }
       send(res, 200, { ok: true }, cors);
       return;
     }

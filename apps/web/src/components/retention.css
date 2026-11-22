@@ -1,0 +1,50 @@
+/* Admin > Retention. Built on the admin's cards, tiles and tables; only what is new is here. */
+
+.retention-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-bottom: 16px; }
+.retention-controls label { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.retention-controls .select { width: auto; }
+
+.retention-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 16px; margin: 16px 0; }
+.retention-grid > section { margin: 0; }
+
+.retention-funnel ol,
+.retention-reasons ul { display: grid; gap: 10px; margin: 8px 0 0; padding: 0; list-style: none; }
+.retention-bar-label { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 13px; }
+.retention-bar-label b { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.retention-bar-label small { margin-left: 4px; color: var(--muted); font-weight: 500; }
+.retention-bar { display: block; height: 8px; margin-top: 4px; border-radius: 999px; background: color-mix(in srgb, var(--text) 8%, transparent); overflow: hidden; }
+.retention-bar > span { display: block; height: 100%; border-radius: inherit; background: color-mix(in srgb, var(--text) 72%, transparent); transition: width 240ms cubic-bezier(0.2, 0, 0, 1); }
+.retention-lost { margin: 2px 0 0; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+.retention-reasons button { display: grid; gap: 2px; width: 100%; padding: 8px 10px; border: 1px solid transparent; border-radius: 10px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.retention-reasons button:hover { border-color: var(--hairline); }
+.retention-reasons button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.retention-reasons button[aria-pressed="true"] { border-color: var(--border-strong); background: color-mix(in srgb, var(--text) 5%, transparent); }
+.retention-reasons .retention-bar > span { background: color-mix(in srgb, var(--warn) 60%, transparent); }
+.retention-hint { color: var(--muted); font-size: 12px; line-height: 1.45; }
+
+.retention-cohorts td, .retention-cohorts th { font-variant-numeric: tabular-nums; }
+/* Heat in the text colour: money is the only colour on this site, and it marks currency. */
+.retention-cell { background: color-mix(in srgb, var(--text) calc(var(--share, 0) * 28%), transparent); }
+.retention-na, .retention-muted { color: var(--faint); }
+
+.retention-code { display: inline-block; margin: 0 4px 2px 6px; padding: 1px 6px; border: 1px solid var(--hairline); border-radius: 6px; font-size: 12px; white-space: nowrap; }
+
+.retention-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.retention-head h2 { margin: 0; overflow-wrap: anywhere; }
+.retention-head-actions { display: flex; gap: 8px; }
+.retention-uid { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono, ui-monospace, monospace); font-size: 12.5px; vertical-align: bottom; }
+.retention-people td { vertical-align: top; }
+.retention-friction th[scope="row"] { min-width: 15ch; }
+.retention-friction td { vertical-align: top; }
+.retention-pager { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 12px; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+.retention-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 10px 16px; margin: 12px 0; }
+.retention-facts dt { color: var(--faint); font-size: 12px; }
+.retention-facts dd { margin: 2px 0 0; font-size: 14px; overflow-wrap: anywhere; }
+.retention-events { display: grid; gap: 0; max-height: 480px; margin: 8px 0 0; padding: 0; overflow: auto; list-style: none; }
+.retention-events li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 7px 0; border-top: 1px solid var(--hairline); font-size: 13px; }
+.retention-events time { min-width: 13ch; color: var(--muted); font-variant-numeric: tabular-nums; }
+.retention-events li:is([data-kind="turn_failed"], [data-kind="cli_failed"], [data-kind="crash"], [data-kind="renderer_gone"], [data-kind="update_failed"], [data-kind="sign_in_failed"], [data-kind="no_api_key"], [data-kind="limit_reached"]) span { font-weight: 600; }
+
+@media (prefers-reduced-motion: reduce) { .retention-bar > span { transition: none; } }

@@ -51,41 +51,61 @@ export interface CachedResource<T> {
   readonly refreshing: boolean;
   /** True while what is shown came from storage and the fresh copy has not arrived yet. */
   readonly fromCache: boolean;
+  /** The last load failed (and was not cancelled). What is shown, if anything, is older. */
+  readonly failed: boolean;
   readonly refresh: () => Promise<void>;
 }
 
-/** `load` returns null when the fetch failed; what is on screen then stays as it was. */
-export function useCachedResource<T>(key: string, load: () => Promise<T | null>): CachedResource<T> {
+/**
+ * `load` returns null when the fetch failed; what is on screen then stays as it was.
+ *
+ * Each key (a page and its filters) has its own request. Changing the key cancels the one in
+ * flight through `signal` - it used to keep running, and its answer for the old filters landed
+ * under the new ones while the new request waited behind it - and shows the new key's cached
+ * copy, or nothing, never the old key's figures.
+ */
+export function useCachedResource<T>(key: string, load: (signal: AbortSignal) => Promise<T | null>): CachedResource<T> {
   const [value, setValue] = useState<T | null>(null);
   const [asOf, setAsOf] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [fromCache, setFromCache] = useState(false);
-  const inFlight = useRef<Promise<void> | null>(null);
+  const [failed, setFailed] = useState(false);
+  const inFlight = useRef<{ key: string; controller: AbortController; promise: Promise<void> } | null>(null);
   const loadRef = useRef(load);
   loadRef.current = load;
   const asOfRef = useRef<number | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
-    if (inFlight.current !== null) return inFlight.current;
+    if (inFlight.current !== null && inFlight.current.key === key) return inFlight.current.promise;
+    inFlight.current?.controller.abort();
+    const controller = new AbortController();
     setRefreshing(true);
-    inFlight.current = (async () => {
+    const promise = (async () => {
       try {
-        const fresh = await loadRef.current();
-        if (fresh === null) return;
+        const fresh = await loadRef.current(controller.signal);
+        if (controller.signal.aborted) return;
+        if (fresh === null) { setFailed(true); return; }
         const at = Date.now();
-        setValue(fresh); setAsOf(at); setFromCache(false); asOfRef.current = at;
+        setValue(fresh); setAsOf(at); setFromCache(false); setFailed(false); asOfRef.current = at;
         writeCached(key, fresh, at);
+      } catch {
+        if (!controller.signal.aborted) setFailed(true);
       } finally {
-        setRefreshing(false);
-        inFlight.current = null;
+        if (inFlight.current?.controller === controller) {
+          inFlight.current = null;
+          setRefreshing(false);
+        }
       }
     })();
-    return inFlight.current;
+    inFlight.current = { key, controller, promise };
+    return promise;
   }, [key]);
 
   useEffect(() => {
     const cached = readCached<T>(key);
+    setFailed(false);
     if (cached !== null) { setValue(cached.value); setAsOf(cached.at); setFromCache(true); asOfRef.current = cached.at; }
+    else { setValue(null); setAsOf(null); setFromCache(false); asOfRef.current = null; }
     void refresh();
     const onFocus = (): void => {
       if (document.visibilityState === "visible" && (asOfRef.current === null || Date.now() - asOfRef.current > STALE_AFTER_MS)) void refresh();
@@ -95,5 +115,8 @@ export function useCachedResource<T>(key: string, load: () => Promise<T | null>)
     return () => { document.removeEventListener("visibilitychange", onFocus); window.removeEventListener("focus", onFocus); };
   }, [key, refresh]);
 
-  return { value, asOf, refreshing, fromCache, refresh };
+  // Leaving the page cancels whatever is still loading.
+  useEffect(() => () => { inFlight.current?.controller.abort(); }, []);
+
+  return { value, asOf, refreshing, fromCache, failed, refresh };
 }

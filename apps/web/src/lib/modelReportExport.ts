@@ -1,5 +1,6 @@
 import type { ModelReport, ModelReportMetrics, ModelReportResponse } from "@adcode/api/src/tagflowReportTypes.ts";
 import { AUDIENCE_DIMENSIONS, audienceTitles, audienceLabel } from "@adcode/api/src/modelAudience.ts";
+import { toCsv } from "@adcode/api/src/csv.ts";
 
 export const metricLabels: Record<keyof ModelReportMetrics,string> = {
   attempts: "Request demand", providerCalls: "Provider calls", successes: "Successful responses", providerErrors: "Provider errors", relayErrors: "ADCode relay errors", rejected: "ADCode rejections", cancelled: "Cancelled requests", unfinished: "Unfinished telemetry",
@@ -48,12 +49,8 @@ export function providerReportHtml(report: ModelReportResponse, models: ModelRep
   <p>This report does not measure GPU utilization, provider infrastructure cost, scheduled uptime, code correctness, successful tool execution or completed user tasks. It does not invent historical demand or private conversation examples.</p></section></body></html>`;
 }
 
-const csvCell = (value: unknown): string => {
-  let text = String(value ?? "");
-  // Spreadsheet formula injection is possible in model names and user-authored comments.
-  if (/^[\s]*[=+\-@]/.test(text)) text = `'${text}`;
-  return `"${text.replace(/"/g,'""')}"`;
-};
+// Spreadsheet formula injection is possible in model names and user-authored comments; csv.ts
+// guards every admin export the same way.
 export function providerReportCsv(report: ModelReportResponse,models: ModelReport[] = report.models): string {
   const rows: unknown[][] = [["section","provider","model_id","provider_model","period","date","metric","value","unit","category","code","comment"]];
   for (const model of models) {
@@ -74,7 +71,7 @@ export function providerReportCsv(report: ModelReportResponse,models: ModelRepor
   rows.push(["coverage","","","","",report.collectionStartedAt === null ? "Not started" : date(report.collectionStartedAt),"selected_range",`${report.range.from} to ${report.range.to}`,"UTC","","",""]);
   rows.push(["coverage","","","","","","audience_started_at",report.audienceStartedAt == null ? "Not started" : date(report.audienceStartedAt),"UTC","","",""]);
   for (const [name,text] of Object.entries(report.definitions)) rows.push(["definition","","","","","",name,"","","","",text]);
-  return '\uFEFF' + rows.map(row => row.map(csvCell).join(",")).join("\r\n");
+  return toCsv(rows);
 }
 
 export function downloadProviderFile(filename: string,body: string,type: string): void {

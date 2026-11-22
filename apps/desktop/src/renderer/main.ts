@@ -242,6 +242,7 @@ import { firstBuildPrompt } from "../shared/firstBuild.ts";
 import { inviteLink } from "../shared/invite.ts";
 import { createPinPromptCard } from "./onboarding/pinPromptCard.ts";
 import { createAdPartnerNotice } from "./ads/adPartnerNotice.ts";
+import { createUsageSignalsNotice } from "./privacy/usageSignalsNotice.ts";
 import {
   createContextMenu,
   attachContextMenuDismissal,
@@ -3479,6 +3480,12 @@ const adPartnerNotice = createAdPartnerNotice(document.body, {
   openSetting: (id) => openSetting(id),
 });
 
+/** 2.6.3: Help improve ADCode now sends what went wrong, linked to the account - said once (privacy/usageSignalsNotice.ts). */
+const usageSignalsNotice = createUsageSignalsNotice(document.body, {
+  read: () => window.adcode.settings.read() as Promise<Record<string, unknown>>,
+  write: (id, value) => window.adcode.settings.write(id, value),
+});
+
 const onboarding = createOnboardingSheet({
   invite: () =>
     window.adcode.referrals.checkClipboard().then(
@@ -3500,6 +3507,8 @@ const onboarding = createOnboardingSheet({
      */
     window.setTimeout(() => pinPromptCard.offer(), PIN_PROMPT_DELAY_MS);
     window.setTimeout(() => adPartnerNotice.offer(), AD_PARTNER_NOTICE_DELAY_MS);
+    // After the sponsored-cards notice: it waits while any card holds the corner.
+    window.setTimeout(() => usageSignalsNotice.offer(), AD_PARTNER_NOTICE_DELAY_MS + 1_000);
   },
 });
 
@@ -3573,6 +3582,8 @@ void showFirstOnboarding(accountGate, {
     // second ask arrives on; main decides whether this launch is one of the two.
     window.setTimeout(() => pinPromptCard.offer(), PIN_PROMPT_DELAY_MS);
     window.setTimeout(() => adPartnerNotice.offer(), AD_PARTNER_NOTICE_DELAY_MS);
+    // After the sponsored-cards notice: it waits while any card holds the corner.
+    window.setTimeout(() => usageSignalsNotice.offer(), AD_PARTNER_NOTICE_DELAY_MS + 1_000);
     return;
   }
 
@@ -6572,6 +6583,8 @@ function registerCommands(): void {
   add("agents.race", "Agents: Race Several Agents on One Task", () => { openAgents(); agentsPage.newRace(); });
   add("tools.open", "Open Tools", () => openTools());
   add("agents.flow", "Agents: Agent Flow (Connect a Team of Agents)", () => openFlow());
+  // The chat builds the flow (manage_agent_flow) and ADCode's dialog confirms it; this only starts the message.
+  add("ai.askForFlow", "Agents: Ask the Chat to Build a Flow", () => { showChatSurface(); chat.draft("Make an agent flow where "); });
   add("mods.open", "Mods: Customise ADCode by Asking the Chat", () => openMods());
   add("tools.servers", "Tools: Connectors", () => openTools("servers"));
   add("tools.skills", "Tools: Skills", () => openTools("skills"));

@@ -182,9 +182,9 @@ describe("public documentation navigation", () => {
     // Pages published the same day are ordered by title.
     expect(recent.map((page) => page.slug)).toEqual([
       "build-with-your-team-in-adcode",
+      "turn-ad-earnings-into-ai-credits",
       "adcode-2-6-3-reliable-agents-and-project-windows",
       "real-model-coding-agent-benchmark",
-      "adcode-2-6-2-teams-and-agents",
     ]);
   });
 
