@@ -26,7 +26,7 @@ import {
   type HostConnection,
   type ShimWebContents,
 } from "./dispatcher.ts";
-import { sealString, unsealString } from "./seal.ts";
+import { sealString, unsealString } from "../browserHost/seal.ts";
 
 declare const __ADCODE_VERSION__: string | undefined;
 

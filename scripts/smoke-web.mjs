@@ -4,7 +4,7 @@
  *   npm run smoke:web                (builds the browser host first)
  *   npm run smoke:web -- --no-build
  *
- * Starts the web page (`scripts/web-vibe.mjs`, whose adcode-host this never connects to), a fake
+ * Starts the web page (`scripts/web-vibe.mjs`), a fake
  * OpenAI-compatible model and a fake of the cloud Worker's GitHub routes, then in headless Edge:
  * signs in (dev mode), opens a repository from GitHub through Open a project, asks the assistant
  * to change it, sees the change under git status, commits it as a pull request, reloads and finds
@@ -16,9 +16,7 @@
  */
 import { spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:http";
-import { mkdtemp } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { launchBrowser } from "./lib/headlessEdge.mjs";
 
@@ -26,7 +24,6 @@ const REPO = process.cwd();
 const require = createRequire(join(REPO, "package.json"));
 const vite = join(dirname(require.resolve("vite/package.json")), "bin", "vite.js");
 const WEB_PORT = process.env["ADCODE_WEB_PORT"] ?? "5193";
-const HOST_PORT = "7350";
 const SHOTS = process.env["ADCODE_SHOTS"] ?? null;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -93,12 +90,11 @@ await new Promise((resolve) => github.listen(0, "127.0.0.1", resolve));
 
 /* ── The page ──────────────────────────────────────────────────────────── */
 
-const home = await mkdtemp(join(tmpdir(), "adcode-web-smoke-"));
 let stackLog = "";
 const stack = spawn(process.execPath, ["scripts/web-vibe.mjs", "--no-build"], {
   // /v1 goes to the fake too: the real API would refuse the smoke's unsigned token, and a refused
   // token is one the worker stops using.
-  env: { ...process.env, ADCODE_HOME: home, ADCODE_HOST_PORT: HOST_PORT, ADCODE_WEB_PORT: WEB_PORT, ADCODE_WEB_API_ORIGIN: `http://127.0.0.1:${github.address().port}`, ADCODE_ACCOUNT_API_ORIGIN: `http://127.0.0.1:${github.address().port}` },
+  env: { ...process.env, ADCODE_WEB_PORT: WEB_PORT, ADCODE_WEB_API_ORIGIN: `http://127.0.0.1:${github.address().port}`, ADCODE_ACCOUNT_API_ORIGIN: `http://127.0.0.1:${github.address().port}` },
   stdio: ["ignore", "pipe", "pipe"],
 });
 stack.stdout.on("data", (chunk) => { stackLog += chunk; });

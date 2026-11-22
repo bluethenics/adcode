@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { CHANNELS } from "../src/shared/api.ts";
 import { Dispatcher, type HostConnection } from "../src/host/dispatcher.ts";
 import { BrowserWindow, app, attachConnection, detachConnection, dialog, dispatcher, ipcMain, safeStorage } from "../src/host/electronShim.ts";
-import { sealString, unsealString } from "../src/host/seal.ts";
+import { sealString, unsealString } from "../src/browserHost/seal.ts";
 import type { AskKind, ServerFrame } from "../src/web/wire.ts";
 
 let nextId = 100;
@@ -173,12 +173,10 @@ describe("paths and storage", () => {
     }
   });
 
-  it("sealing round-trips and a wrong key refuses", () => {
-    const key = Buffer.alloc(32, 7).toString("base64");
-    const sealed = sealString("sk-test-123", key);
-    expect(sealed.includes(Buffer.from("sk-test-123"))).toBe(false);
-    expect(unsealString(sealed, key)).toBe("sk-test-123");
-    expect(() => unsealString(sealed, Buffer.alloc(32, 8).toString("base64"))).toThrow();
+  // The browser host keeps a person's own keys in this browser's storage (browserHost/seal.ts).
+  it("sealing round-trips and refuses a value it did not write", () => {
+    expect(unsealString(sealString("sk-test-123", "browser"), "browser")).toBe("sk-test-123");
+    expect(() => unsealString(Buffer.from("sk-test-123"), "browser")).toThrow();
   });
 
   it("safeStorage is available only with a seal key, and uses it", () => {

@@ -1,5 +1,9 @@
 # ADCode web launch
 
+> **Superseded (2026-11-21).** The web version no longer gives each person a cloud sandbox: it runs
+> the desktop's main process in the tab with projects from GitHub. See `WEB-VERSION.md`. The
+> container checks below no longer exist.
+
 The consolidated source is on `codex/web-launch-2026-10-18`. This is a local integration branch, not a production deployment. The marketing site/API (`apps/web`) and browser workspace (`apps/cloud`) deploy separately.
 
 ## Source and verification

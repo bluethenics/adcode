@@ -1,9 +1,11 @@
 /*
  * Builds everything web.bluethenics.com deploys:
  *
- *   apps/cloud/public          - the page (the desktop renderer, booted by src/web/boot.ts)
- *   apps/cloud/public/phone    - ADCode Remote, the Phone link page (src/phone)
- *   apps/cloud/container/host  - adcode-host, copied into the sandbox image by its Dockerfile
+ *   apps/cloud/public                  - the page (the desktop renderer, booted by src/web/boot.ts)
+ *   apps/cloud/public/browser-host.js  - the desktop's main process for a Web Worker (src/browserHost)
+ *   apps/cloud/public/phone            - ADCode Remote, the Phone link page (src/phone)
+ *
+ * No sandbox image any more (2026-11-21): the web version runs in the person's tab.
  *
  *   npm run cloud:build            production page
  *   npm run cloud:build -- --dev   page with the development sign-in, for `wrangler dev` only
@@ -11,7 +13,6 @@
  * Firebase's public web settings come from ADCODE_FIREBASE_* or apps/web/.env.production.
  */
 import { spawnSync } from "node:child_process";
-import { cpSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 
@@ -29,15 +30,10 @@ function run(args) {
 const grammars = spawnSync(process.execPath, [join(REPO, "scripts/grammars.mjs"), "--strict"], { stdio: "inherit" });
 if (grammars.status !== 0) process.exit(grammars.status ?? 1);
 
-run(["build", "-c", "apps/desktop/vite.host.config.ts", "--logLevel", "warn"]);
 // The browser host (the main process in a Web Worker): the page build copies it in, so it goes first.
 run(["build", "-c", "apps/desktop/vite.browserHost.config.ts", "--logLevel", "warn"]);
 run(["build", "-c", "apps/desktop/vite.web.config.ts", "--logLevel", "warn", "--mode", dev ? "development" : "production"]);
 // After the web build, which empties apps/cloud/public: ADCode Remote, the Phone link page, at /phone.
 run(["build", "-c", "apps/desktop/vite.phone.config.ts", "--logLevel", "warn", "--mode", dev ? "development" : "production"]);
 
-const target = join(REPO, "apps/cloud/container/host");
-rmSync(target, { recursive: true, force: true });
-cpSync(join(REPO, "apps/desktop/out/host"), target, { recursive: true });
-
-console.log(`[cloud:build] page -> apps/cloud/public (${dev ? "development" : "production"}), adcode-host -> apps/cloud/container/host`);
+console.log(`[cloud:build] page and browser host -> apps/cloud/public (${dev ? "development" : "production"})`);

@@ -1,25 +1,22 @@
 /**
- * The web version's entry point: open browser chat first; compute is an explicit action.
+ * The web version's entry point.
  *
  * The renderer is the desktop's, unchanged. What it needs from its surroundings is a
  * `window.adcode` that answers like the preload does, and that has to exist before the
- * renderer's first line runs - hence the dynamic import at the end, after the socket is up
- * and the sandbox has said hello.
+ * renderer's first line runs - hence the dynamic import at the end, after the browser host
+ * (the desktop's main process in a Web Worker, src/browserHost) has said hello.
  */
 import "../renderer/styles/tokens.css";
 import "../renderer/styles/webTheme.css";
 import "./web.css";
-import { CHANNELS, type PreviewStatus } from "../shared/api.ts";
-import { createPreviewResolver, primePreviewCookie, rewriteStatus } from "./previewUrl.ts";
+import { CHANNELS } from "../shared/api.ts";
 import { OPEN_FROM_GITHUB_EVENT, OPEN_WEB_ACCOUNT_EVENT, DESKTOP_DOWNLOAD_URL } from "../renderer/surface.ts";
 import { createAskHandler } from "./asks.ts";
 import { gate, showWaking } from "./gate.ts";
-import { connectGitHub, needsGitHub } from "./githubConnect.ts";
-import { importFromGitHub, uploadDialog } from "./projectActions.ts";
+import { uploadDialog } from "./projectActions.ts";
 import { pickProjectFolder, type ProjectSummary } from "./projectPicker.ts";
-import { createHostSocket, type HostSocket, type WebSocketLike } from "./socket.ts";
-import { mountStatusBar, OPEN_CLOUD_WORKSPACE_EVENT } from "./statusBar.ts";
-import { openCloudPanel } from "./cloudPanel.ts";
+import { createHostSocket, type HostSocket } from "./socket.ts";
+import { mountStatusBar } from "./statusBar.ts";
 import { startBrowserHost } from "./workerSocket.ts";
 import { openFromGitHub } from "./githubRepoPicker.ts";
 import { setFeatureSurface } from "@adcode/help";
@@ -49,34 +46,13 @@ function download(name: string, contents: BlobPart, type = "text/plain"): void {
 /** The browser host's script (vite.browserHost.config.ts), served beside the page. */
 const BROWSER_HOST_URL = "/browser-host.js";
 
-function socketUrl(): string {
-  return `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/socket`;
-}
-
 function localOverrides(socket: HostSocket, signOut: () => Promise<void>): LocalOverrides {
-  // The sandbox's dev server says `localhost:5173`; the Preview pane is given the public address.
-  const resolvePreview = createPreviewResolver(socket, primePreviewCookie);
-  const rewrite = (status: unknown) => rewriteStatus(status as PreviewStatus, resolvePreview);
-  // A push, pull or fetch that fails for want of GitHub credentials offers to connect, then tries once more.
-  const withGitHub = (channel: string) => (async () => {
-    const first = (await socket.invoke(channel, [])) as { ok: boolean; message?: string };
-    if (!needsGitHub(first) || !(await connectGitHub(socket))) return first;
-    return socket.invoke(channel, []);
-  }) as never;
   return {
     // The web page's own sign-in is the account gate. The desktop's gate links a device through
     // a browser hand-off, which a cloud container cannot finish, so on the web it asked people who
     // had just signed in to sign in again and never let go (found 2026-11-21 by smoke:web-vibe).
     // Included AI still checks verification on the server, as it does for the desktop's "later".
     "platform.info": (() => socket.invoke(CHANNELS.platformInfo, []).then((info) => ({ ...(info as object), accountGate: false }))) as never,
-    "git.push": withGitHub(CHANNELS.gitPush),
-    "git.pull": withGitHub(CHANNELS.gitPull),
-    "git.fetch": withGitHub(CHANNELS.gitFetch),
-    "preview.status": (() => socket.invoke(CHANNELS.previewStatus, []).then(rewrite)) as never,
-    "preview.start": ((mode?: unknown) => socket.invoke(CHANNELS.previewStart, [mode]).then(rewrite)) as never,
-    "preview.stop": (() => socket.invoke(CHANNELS.previewStop, []).then(rewrite)) as never,
-    "preview.onChange": ((listener: (status: PreviewStatus) => void) =>
-      socket.subscribe(CHANNELS.previewChanged, (status) => void rewrite(status).then(listener))) as never,
     "clipboard.writeText": ((text: string) => navigator.clipboard.writeText(text).then(() => undefined)) as never,
     "clipboard.readText": (() => navigator.clipboard.readText().catch(() => "")) as never,
     "files.pathForDropped": (() => "") as never,
@@ -156,28 +132,20 @@ async function boot(): Promise<void> {
   const requestedAccount = new URL(location.href).searchParams.get("account");
   if (requestedAccount !== null) showAccount(requestedAccount);
 
-  const params = new URL(location.href).searchParams;
   /*
    * The web version's main process runs in this tab (2026-11-21): the desktop's own main-process
    * code in a Web Worker (src/browserHost), with projects from GitHub and nothing running on a
-   * computer of the person's own. Development keeps the old route to a local adcode-host
-   * (`?host=local`), which `npm run web:vibe`'s smoke still exercises.
+   * computer of the person's own.
    */
-  const localHost = __ADCODE_WEB_DEV__ && params.get("host") === "local";
-  document.body.dataset["webMode"] = localHost ? "runtime" : "browser-host";
+  document.body.dataset["webMode"] = "browser-host";
   showWaking();
 
   let token = session.token;
-  const browserHost = localHost ? null : startBrowserHost(BROWSER_HOST_URL);
-  if (browserHost !== null) {
-    window.addEventListener("pagehide", () => browserHost.flush());
-    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") browserHost.flush(); });
-  }
-  const socket = createHostSocket(() => {
-    if (browserHost !== null) return browserHost.open();
-    const protocols = token === null ? ["adcode.v1"] : ["adcode.v1", `auth.${token}`];
-    return new WebSocket(socketUrl(), protocols) as unknown as WebSocketLike;
-  });
+  const browserHost = startBrowserHost(BROWSER_HOST_URL);
+  // The worker writes its files to IndexedDB a moment after each change; going away, at once.
+  window.addEventListener("pagehide", () => browserHost.flush());
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") browserHost.flush(); });
+  const socket = createHostSocket(() => browserHost.open());
 
   const sendToken = async (force: boolean): Promise<void> => {
     const fresh = await session.refresh(force).catch(() => null);
@@ -191,8 +159,7 @@ async function boot(): Promise<void> {
   }
   socket.subscribe(TOKEN_NEEDED_CHANNEL, () => void sendToken(true));
 
-  // Before waiting for the sandbox: if the cloud refuses (no time left, the month is full, signed
-  // out), the sandbox never says hello, and only the status bar can tell the person why.
+  // Connection state (and, if the worker stops, why), before waiting for it to say hello.
   const bar = mountStatusBar(socket, session);
 
   await socket.ready();
@@ -204,11 +171,9 @@ async function boot(): Promise<void> {
     rewriteUrl: (url) => socket.previewUrl(url),
     pickFolder: () => pickProjectFolder({
       listProjects: () => socket.op("projects", []) as Promise<ProjectSummary[]>,
-      // On the web, projects come from GitHub (browserHost/githubProjects.ts); the local host can clone any address.
+      // On the web, projects come from GitHub (browserHost/githubProjects.ts), or an upload.
       extras: [
-        localHost
-          ? { label: "Import from GitHub", run: () => importFromGitHub(socket) }
-          : { label: "Open from GitHub", run: () => openFromGitHub(socket) },
+        { label: "Open from GitHub", run: () => openFromGitHub(socket) },
         { label: "Upload a project", run: () => uploadDialog(socket) },
       ],
     }),
@@ -230,12 +195,6 @@ async function boot(): Promise<void> {
     const open = (event as CustomEvent<{ open?: (root: string) => void }>).detail?.open;
     void openFromGitHub(socket).then((root) => { if (root !== null) open?.(root); });
   });
-  if (localHost) document.addEventListener(OPEN_CLOUD_WORKSPACE_EVENT, () => openCloudPanel({
-    socket,
-    status: bar.status,
-    token: () => session.refresh(false),
-    signOut: session.signOut,
-  }));
   // Every help surface (Feature library, search, guide, settings) offers only what the web can reach.
   setFeatureSurface("web");
 

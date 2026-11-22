@@ -1,7 +1,7 @@
 /**
  * Builds the web version's browser host: the desktop's main process as one Web Worker script.
  *
- * Like vite.host.config.ts (the cloud sandbox's build) with two differences: Node's built-in
+ * Like the retired cloud sandbox's build (vite.host.config.ts) with two differences: Node's built-in
  * modules resolve to browser stand-ins in src/browserHost/shims, and the output runs in a
  * worker in the person's tab rather than on a server. It is a build of its own, not part of
  * the page's, because the page's build replaces `process.env` with `{}` at compile time and
@@ -72,8 +72,6 @@ function browserHostResolve(): Plugin {
       // stand-in itself imports the real file, which must stay the real file.
       const gitPackage = source === "@adcode/git" || normalizePath(source).endsWith("packages/git/src/index.ts");
       if (gitPackage && !normalizePath(importer ?? "").endsWith("/src/browserHost/git.ts")) return at(DESKTOP, "src/browserHost/git.ts");
-      // The cloud host's sealing uses Node ciphers and a key held outside the sandbox.
-      if (source === "./seal.ts" && importer?.replace(/\\/g, "/").endsWith("/src/host/electronShim.ts")) return at(DESKTOP, "src/browserHost/seal.ts");
       return null;
     },
     load(id) {

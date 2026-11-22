@@ -3,7 +3,7 @@
  *
  * The in-app browser pane stops painting while it is hidden, so screenshots time out and
  * observers never fire; a headless browser launched from Node shows what a visitor sees. Used by
- * `scripts/smoke-web-vibe.mjs`.
+ * `scripts/smoke-web.mjs`.
  */
 import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";

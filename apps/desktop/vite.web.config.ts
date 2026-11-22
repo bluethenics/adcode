@@ -2,12 +2,13 @@
  * Builds the web version's page: the desktop renderer, booted by `src/web/boot.ts`.
  *
  * Same sources and the same `index.html` as the Electron renderer. A small plugin swaps the
- * page's module script for the web entry, which signs in, connects to the sandbox, installs a
- * socket-backed `window.adcode`, and only then loads the renderer. The local-package aliases
+ * page's module script for the web entry, which signs in, starts the browser host (the main
+ * process in a Web Worker), installs a `window.adcode` that talks to it, and only then loads the
+ * renderer. The local-package aliases
  * are imported from `electron.vite.config.ts`, not copied.
  *
  *   npx vite build -c apps/desktop/vite.web.config.ts     -> apps/cloud/public
- *   npx vite -c apps/desktop/vite.web.config.ts           -> dev server, /socket proxied to adcode-host
+ *   npx vite -c apps/desktop/vite.web.config.ts           -> dev server (npm run web:vibe builds the browser host first)
  */
 import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -220,8 +221,6 @@ export default defineConfig(({ mode }) => ({
       "/v1": { target: process.env["ADCODE_ACCOUNT_API_ORIGIN"] ?? "https://adcode.bluethenics.com", changeOrigin: true },
       // The cloud Worker's /api (GitHub, saved chats) has no local server; a smoke can stand one in.
       ...(process.env["ADCODE_WEB_API_ORIGIN"] === undefined ? {} : { "/api": { target: process.env["ADCODE_WEB_API_ORIGIN"], changeOrigin: true } }),
-      "/socket": { target: `ws://127.0.0.1:${process.env["ADCODE_HOST_PORT"] ?? "7300"}`, ws: true },
-      "/__adcode": { target: `http://127.0.0.1:${process.env["ADCODE_HOST_PORT"] ?? "7300"}` },
     },
   },
   build: {

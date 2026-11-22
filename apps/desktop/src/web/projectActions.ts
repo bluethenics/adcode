@@ -1,8 +1,8 @@
 /**
  * Getting projects into and out of the web version's sandbox.
  *
- * Import from GitHub (an https address, cloned in the sandbox), upload a folder or a .zip from
- * this computer, and download a project as a .tar.gz. The rules - what is left behind, which
+ * Upload a folder or a .zip from this computer (GitHub repositories open through
+ * githubRepoPicker.ts). The rules - what is left behind, which
  * paths are allowed - live in `upload.ts`, `unzip.ts` and the host's `hostOps.ts`; this is the
  * part with buttons.
  */
@@ -48,50 +48,6 @@ function modal(title: string): { dialog: HTMLDialogElement; body: HTMLElement; f
   });
   dialog.showModal();
   return { dialog, body, footer, close, closed };
-}
-
-/** Asks for a repository address and clones it. Resolves with the new project's path, or null. */
-export function importFromGitHub(socket: HostSocket): Promise<string | null> {
-  return new Promise((resolve) => {
-    const { body, footer, close, closed } = modal("Import from GitHub");
-    let result: string | null = null;
-    void closed.then(() => resolve(result));
-    const form = el("form", "web-gate-email");
-    const lead = el("p", "web-gate-lead", "Paste the repository's address. Public repositories work straight away.");
-    const input = el("input", "web-gate-input");
-    input.type = "url";
-    input.placeholder = "https://github.com/you/project";
-    input.setAttribute("aria-label", "Repository address");
-    input.required = true;
-    const error = el("p", "web-gate-error");
-    error.setAttribute("role", "alert");
-    error.hidden = true;
-    const submit = el("button", "web-gate-button web-gate-primary", "Import");
-    submit.type = "submit";
-    form.append(lead, input, error);
-    body.append(form);
-    footer.append(submit);
-    submit.setAttribute("form", "web-import-form");
-    form.id = "web-import-form";
-    form.addEventListener("submit", (event) => {
-      event.preventDefault();
-      error.hidden = true;
-      submit.disabled = true;
-      submit.textContent = "Importing…";
-      socket.op("cloneProject", [input.value.trim()])
-        .then((path) => {
-          result = typeof path === "string" ? path : null;
-          close();
-        })
-        .catch((failure: unknown) => {
-          error.textContent = failure instanceof Error ? failure.message : "That didn't work. Check the address and try again.";
-          error.hidden = false;
-          submit.disabled = false;
-          submit.textContent = "Import";
-        });
-    });
-    input.focus();
-  });
 }
 
 /** Opens the browser's file picker: a folder, or one .zip. */
@@ -193,20 +149,4 @@ export function uploadDialog(socket: HostSocket): Promise<string | null> {
     zip.addEventListener("click", () => start(false));
     footer.append(folder, zip);
   });
-}
-
-/** Downloads a project from the sandbox as a .tar.gz, through the cloud when there is one. */
-export async function downloadProject(project: string, viaCloud: boolean, token: () => Promise<string | null>): Promise<void> {
-  const url = viaCloud ? `/api/download?project=${encodeURIComponent(project)}` : `/__adcode/download?project=${encodeURIComponent(project)}`;
-  const bearer = viaCloud ? await token() : null;
-  const response = await fetch(url, { headers: bearer === null ? {} : { authorization: `Bearer ${bearer}` } });
-  if (!response.ok) throw new Error(response.status === 409 ? "Open ADCode first to wake your workspace." : "The download didn't start. Try again.");
-  const blob = await response.blob();
-  const link = el("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = `${project}.tar.gz`;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(link.href), 30_000);
 }
