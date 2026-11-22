@@ -63,8 +63,8 @@ const RUN: readonly { readonly kind: "ask" | "step" | "done"; readonly text: str
   { kind: "step", text: "Read", detail: "package.json · src/App.tsx" },
   { kind: "step", text: "Helpers", detail: "3 working at once" },
   { kind: "step", text: "Wrote", detail: "src/Booking.tsx +184" },
-  { kind: "step", text: "Ran", detail: "npm run build · passed" },
-  { kind: "done", text: "Preview ready", detail: "localhost:5173" },
+  { kind: "step", text: "Changes", detail: "2 files · ready to review" },
+  { kind: "done", text: "Pull request opened", detail: "barber-shop #12" },
 ];
 let stageTimer: number | undefined;
 /** The current card's mark animation; a screen change takes the old one down with its card. */
@@ -82,7 +82,7 @@ function stage(): HTMLElement {
   const brand = element("div", "web-gate-brand");
   brand.append(brandMark({ size: 34, plate: true, accent: true }), element("span", "web-gate-wordmark", "ADCode"));
   const pitch = element("div", "web-gate-pitch");
-  pitch.append(element("h2", undefined, "Describe it. Watch it get built."), element("p", undefined, "Agents write the code, run it and show it to you - in a private workspace that lives in your browser."));
+  pitch.append(element("h2", undefined, "Describe it. Watch it get built."), element("p", undefined, "Agents read your GitHub project, write the code and show you every change - in a workspace that lives in your browser."));
   const terminal = element("div", "web-gate-terminal");
   const bar = element("div", "web-gate-terminal-bar");
   bar.append(element("i"), element("i"), element("i"), element("span", undefined, "agent · live"));
