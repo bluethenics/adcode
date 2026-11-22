@@ -10,7 +10,8 @@
  *   a close code is the only thing a browser can read from a refused upgrade.
  * - `/api/*` (Bearer token): session status, project download, deleting the cloud workspace.
  * - `/admin/stats`: spend and use, for admins.
- * - Preview hostnames go to `previewRoute` in `preview.ts`.
+ * - Preview hostnames go to `previewRoute` in `preview.ts`; `preview.<app host>` is the live
+ *   preview origin (`servePreviewOrigin`), which serves the browser-side preview's own files.
  * - Everything else is the web app's static files, with strict security headers.
  */
 import { verifyIdToken, type Verified } from "./auth.ts";
@@ -104,6 +105,7 @@ export function contentSecurityPolicy(env: Env, includeLegacySchema = false): st
     "worker-src 'self' blob:",
     // The relay is Phone link's: the /phone page talks to the person's own computer through it.
     `connect-src 'self' wss://${env.APP_HOST} ${relayOrigin(env)} ${relayOrigin(env).replace(/^https:/, "wss:")} https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com`,
+    // previews: `preview.web.bluethenics.com`, the live preview served from the tab's own files, is one of them.
     // adcode.bluethenics.com: the sponsored card under a reply on the /phone page, a sandboxed
     // page of ADCode's own site where Zeekend's code runs instead of here.
     `frame-src ${previews} https://${env.FIREBASE_AUTH_DOMAIN} https://accounts.google.com ${SPONSORED_CARD_ORIGIN}`,
@@ -149,8 +151,61 @@ async function servePage(request: Request, env: Env, assetPath?: string): Promis
   return new Response(request.method === "HEAD" ? null : body, { status, headers });
 }
 
+/*
+ * The live preview's own origin, `preview.web.bluethenics.com` (2026-11-22). The web version has no
+ * server per person: a Service Worker on this hostname answers a project's pages from the files in
+ * the person's ADCode tab (apps/desktop/src/web/previewOrigin.ts). It is a hostname of its own so
+ * that a project's script never runs as the app. All this Worker serves here is that Service
+ * Worker and the bridge page with its script; any other address gets the bridge page, which is
+ * also the "starting the preview" page: it installs the Service Worker and loads the address again.
+ */
+export const PREVIEW_ORIGIN_LABEL = "preview";
+const PREVIEW_BRIDGE_SCRIPT = "/__preview/bridge.js";
+const PREVIEW_ORIGIN_FILES: Readonly<Record<string, string>> = {
+  "/preview-sw.js": "text/javascript; charset=utf-8",
+  "/__preview/bridge.js": "text/javascript; charset=utf-8",
+  "/__preview/bridge.html": "text/html; charset=utf-8",
+};
+
+export function previewOriginPolicy(env: Env): string {
+  return [
+    "default-src 'none'",
+    "script-src 'self'",
+    "worker-src 'self'",
+    "style-src 'unsafe-inline'",
+    "base-uri 'none'",
+    "form-action 'none'",
+    `frame-ancestors https://${env.APP_HOST}`,
+  ].join("; ");
+}
+
+async function servePreviewOrigin(request: Request, env: Env): Promise<Response> {
+  if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed", { status: 405, headers: { allow: "GET, HEAD" } });
+  const url = new URL(request.url);
+  const path = Object.hasOwn(PREVIEW_ORIGIN_FILES, url.pathname) ? url.pathname : "/__preview/bridge.html";
+  const asset = new URL(path, url);
+  const response = await env.ASSETS.fetch(new Request(asset, { method: "GET" }));
+  // The assets binding answers a missing file with the app's index.html: never serve that here.
+  // The bridge page is known by the one script it loads; the app's page never loads that.
+  const isHtml = (response.headers.get("content-type") ?? "").includes("text/html");
+  if (!response.ok || isHtml !== path.endsWith(".html")) return new Response("Not found", { status: 404 });
+  const body = await response.text();
+  if (isHtml && !body.includes(`src="${PREVIEW_BRIDGE_SCRIPT}"`)) return new Response("Not found", { status: 404 });
+  const headers = new Headers({
+    "content-type": PREVIEW_ORIGIN_FILES[path]!,
+    "cache-control": "no-cache",
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "no-referrer",
+    "x-robots-tag": "noindex, nofollow",
+  });
+  if (path.endsWith(".html")) headers.set("content-security-policy", previewOriginPolicy(env));
+  return new Response(request.method === "HEAD" ? null : body, { status: 200, headers });
+}
+
 export async function route(request: Request, env: Env, deps: RouterDeps = defaultDeps(env)): Promise<Response> {
   const url = new URL(request.url);
+
+  if (url.hostname.toLowerCase() === `${PREVIEW_ORIGIN_LABEL}${env.PREVIEW_SUFFIX}`) return servePreviewOrigin(request, env);
 
   const preview = parsePreviewHost(url.hostname, env.PREVIEW_SUFFIX);
   if (preview !== null) {
@@ -158,6 +213,8 @@ export async function route(request: Request, env: Env, deps: RouterDeps = defau
   }
   // A hostname under the preview suffix that is not a well-formed preview is nothing at all.
   if (url.hostname.endsWith(env.PREVIEW_SUFFIX)) return new Response("Not found", { status: 404 });
+  // The preview origin's files mean nothing on the app's own hostname.
+  if (url.pathname === "/preview-sw.js" || url.pathname.startsWith("/__preview/")) return new Response("Not found", { status: 404 });
 
   if (url.pathname === "/robots.txt" || url.pathname === "/sitemap.xml") {
     const headers = new Headers({ "content-type": url.pathname === "/robots.txt" ? "text/plain; charset=utf-8" : "application/xml; charset=utf-8", "cache-control": "public, max-age=3600", "x-robots-tag": "noindex" });

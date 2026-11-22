@@ -72,6 +72,10 @@ function browserHostResolve(): Plugin {
       // stand-in itself imports the real file, which must stay the real file.
       const gitPackage = source === "@adcode/git" || normalizePath(source).endsWith("packages/git/src/index.ts");
       if (gitPackage && !normalizePath(importer ?? "").endsWith("/src/browserHost/git.ts")) return at(DESKTOP, "src/browserHost/git.ts");
+      // Preview serves the folder from memory through a Service Worker: there is no port to bind
+      // (browserHost/liveServer.ts). Only preview.ts's import is swapped; the stand-in reuses the real
+      // file's helpers, which must stay the real file.
+      if (source === "./liveServer.ts" && normalizePath(importer ?? "").endsWith("/src/main/preview.ts")) return at(DESKTOP, "src/browserHost/liveServer.ts");
       return null;
     },
     load(id) {

@@ -26,9 +26,10 @@ tab ── page (renderer, src/web/boot.ts) ──postMessage── Worker: brow
 | Programs | `shims/childProcess.ts` | Every spawn fails like a missing program (`ENOENT`), so callers' own "not installed" paths run |
 | Projects | `browserHost/githubProjects.ts`, `web/githubRepoPicker.ts` | Open from GitHub copies a repository's text files (≤256 KB each) plus a hidden base copy |
 | Git | `browserHost/githubGit.ts` | Status/diff/discard against the base; commit/push open a pull request on a new `adcode/` branch (≤50 files, ≤1 MB) |
+| Preview | `browserHost/liveServer.ts`, `web/previewOrigin.ts`, `web/previewBridge.ts`, `web/preview/*` | Preview of a static site with no server: a Service Worker on `preview.web.bluethenics.com` (its own origin, so project scripts cannot reach the app) asks a hidden bridge frame in the tab, which asks the browser host for the file from memory; edits reload the page over a BroadcastChannel. Dev-server projects still say they need the desktop app |
 | Cloud Worker | `apps/cloud` | Serves the page and `browser-host.js`, forwards all of `/v1` except `/v1/admin`, keeps the GitHub token (`/api/github/*`). `/socket` refuses: no sandbox starts |
 
-Not on the web: a terminal, running commands, a live dev-server preview, local models and CLI
+Not on the web: a terminal, running commands, a preview that needs a dev server or build step, local models and CLI
 agents. A closed tab stops a running turn. Checks: `npm run smoke:web` (this path, with a fake
 model and fake GitHub routes) and `test/browserHost*.test.ts`.
 
@@ -42,6 +43,12 @@ npm run smoke:web         # end to end in headless Edge with a fake model and fa
 In development, Vite forwards `/v1` to the live API (`ADCODE_ACCOUNT_API_ORIGIN` overrides it) and
 `/api` only when `ADCODE_WEB_API_ORIGIN` is set: GitHub needs the cloud Worker's routes, so locally
 "Open from GitHub" works against a stand-in only.
+
+Live preview (2026-11-22) serves static sites from the tab's own files on a separate origin,
+`preview.web.bluethenics.com` (dev: `preview.localhost:<port>`), so a project's scripts can never
+read the app's sign-in or keys. It rides the existing `*.web` record, route and certificate; the
+Worker serves only `/preview-sw.js` and `/__preview/*` there (`browserHost/liveServer.ts`,
+`web/previewBridge.ts`, `web/preview/`).
 
 ## Deploying
 

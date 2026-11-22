@@ -7,8 +7,10 @@
  * Starts the web page (`scripts/web-vibe.mjs`), a fake
  * OpenAI-compatible model and a fake of the cloud Worker's GitHub routes, then in headless Edge:
  * signs in (dev mode), opens a repository from GitHub through Open a project, asks the assistant
- * to change it, sees the change under git status, commits it as a pull request, reloads and finds
- * the project and the chat still there.
+ * to change it, sees the change under git status, commits it as a pull request, has it build a page
+ * and sees that page in Preview - served from the tab's own files by the preview origin's Service
+ * Worker, styled, and reloading by itself on the next edit - then reloads and finds the project and
+ * the chat still there.
  *
  * Read the printed values, not just the exit code.
  *
@@ -32,10 +34,27 @@ if (!process.argv.includes("--no-build")) {
   if (built.status !== 0) process.exit(built.status ?? 1);
 }
 
-/* ── A fake model: edits the README when asked, then says so ───────────── */
+/* ── A fake model: edits the README, then builds a page, when asked ───── */
 
 const PROMPT = "web-smoke: say the bakery opens daily";
 const README = "# Bakery\n\nFresh bread daily, from 7am.\n";
+// A root-relative stylesheet, as people write them: the preview must resolve it against the project.
+const PAGE = (extra) => `<!doctype html>\n<html><head><title>Bakery</title><link rel="stylesheet" href="/style.css"></head>\n<body><h1>Bakery</h1><p id="bread">Sourdough every morning.</p>${extra}</body></html>\n`;
+const STYLE = "#bread { color: rgb(170, 51, 0); }\n";
+/** Each prompt the smoke sends, and the tool calls the fake model answers it with, one per request. */
+const SCRIPTS = [
+  { prompt: PROMPT, done: "The README now says the bakery opens daily.", steps: [
+    { name: "read_file", args: { path: "README.md" } },
+    { name: "propose_edit", args: { path: "README.md", contents: README, summary: "Say it opens daily" } },
+  ] },
+  { prompt: "web-smoke: build the bakery a page", done: "The page lists the sourdough.", steps: [
+    { name: "propose_edit", args: { path: "index.html", contents: PAGE(""), summary: "A page for the bakery" } },
+    { name: "propose_edit", args: { path: "style.css", contents: STYLE, summary: "Colour the bread" } },
+  ] },
+  { prompt: "web-smoke: add rye to the page", done: "Rye is on the page now.", steps: [
+    { name: "propose_edit", args: { path: "index.html", contents: PAGE('<p id="rye">Rye on Saturdays.</p>'), summary: "Add rye" } },
+  ] },
+];
 const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "GET, POST, OPTIONS" };
 const modelRequests = [];
 const model = createServer(async (req, res) => {
@@ -50,11 +69,15 @@ const model = createServer(async (req, res) => {
     res.writeHead(200, { "content-type": "text/event-stream", ...cors });
     res.end(`${deltas.map((delta) => `data: ${JSON.stringify({ choices: [{ delta, finish_reason: delta === last ? (last.tool_calls ? "tool_calls" : "stop") : null }] })}\n\n`).join("")}data: [DONE]\n\n`);
   };
-  if (!messages.some((m) => m.role === "user" && String(m.content).includes(PROMPT))) return send([{ content: "ok" }]);
-  const tools = messages.filter((m) => m.role === "tool").length;
-  if (tools === 0) return send([{ tool_calls: [{ index: 0, id: "r1", function: { name: "read_file", arguments: JSON.stringify({ path: "README.md" }) } }] }]);
-  if (tools === 1) return send([{ tool_calls: [{ index: 0, id: "w1", function: { name: "propose_edit", arguments: JSON.stringify({ path: "README.md", contents: README, summary: "Say it opens daily" }) } }] }]);
-  return send([{ content: "The README now says the bakery opens daily." }]);
+  // The latest prompt picks the script; the tool results since it say which step is next.
+  const lastUser = messages.map((m) => m.role).lastIndexOf("user");
+  const asked = String(messages[lastUser]?.content ?? "");
+  const script = SCRIPTS.find((candidate) => asked.includes(candidate.prompt));
+  if (script === undefined) return send([{ content: "ok" }]);
+  const tools = messages.slice(lastUser + 1).filter((m) => m.role === "tool").length;
+  const step = script.steps[tools];
+  if (step === undefined) return send([{ content: script.done }]);
+  return send([{ tool_calls: [{ index: 0, id: `${SCRIPTS.indexOf(script)}-${tools}`, function: { name: step.name, arguments: JSON.stringify(step.args) } }] }]);
 });
 await new Promise((resolve) => model.listen(0, "127.0.0.1", resolve));
 const endpoint = `http://127.0.0.1:${model.address().port}/v1`;
@@ -119,6 +142,76 @@ const signIn = async () => {
   await browser.evaluate(`window.__adcodeTestAuth(${JSON.stringify(TOKEN)}), true`);
   return ready;
 };
+/** Sends a chat message and waits for the assistant's closing line. */
+const askAssistant = async (prompt, reply) => {
+  await browser.evaluate(`(() => {
+    const input = document.querySelector('.chat-card .chat-input');
+    input.value = ${JSON.stringify(prompt)};
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    document.querySelector('.chat-toolbar .chat-send').click();
+    return true;
+  })()`);
+  return browser.waitFor(`[...document.querySelectorAll('.chat-bubble-assistant')].some((b) => b.textContent.includes(${JSON.stringify(reply)}))`, { timeoutMs: 90_000 });
+};
+
+/*
+ * Runs an expression inside the Preview frame. The frame is on the preview origin, so the page's
+ * own script cannot read it - which is the point - and DevTools is asked instead: in the page's
+ * process when the frame shares it, or through the frame's own target when it runs out of process.
+ */
+const DEVTOOLS_PORT = Number(process.env["ADCODE_SMOKE_PORT"] ?? 9503);
+const PREVIEW_ORIGIN = `http://preview.localhost:${WEB_PORT}`;
+async function inPreview(expression) {
+  try {
+    const { frameTree } = await browser.cdp("Page.getFrameTree");
+    const find = (node) => node.frame.url.startsWith(PREVIEW_ORIGIN + "/preview/") ? node.frame : (node.childFrames ?? []).map(find).find(Boolean);
+    const frame = find(frameTree);
+    if (frame !== undefined) {
+      const { executionContextId } = await browser.cdp("Page.createIsolatedWorld", { frameId: frame.id, worldName: "web-smoke" });
+      const result = await browser.cdp("Runtime.evaluate", { expression, contextId: executionContextId, returnByValue: true });
+      return result.result?.value ?? null;
+    }
+  } catch { /* out of process: its own target, below */ }
+  const targets = await (await fetch(`http://127.0.0.1:${DEVTOOLS_PORT}/json/list`)).json();
+  const target = targets.find((t) => t.type === "iframe" && t.url.startsWith(PREVIEW_ORIGIN + "/preview/"));
+  if (target === undefined) return null;
+  const socket = new WebSocket(target.webSocketDebuggerUrl);
+  try {
+    await new Promise((resolve, reject) => { socket.addEventListener("open", resolve, { once: true }); socket.addEventListener("error", reject, { once: true }); });
+    const reply = new Promise((resolve) => socket.addEventListener("message", (event) => { const message = JSON.parse(String(event.data)); if (message.id === 1) resolve(message.result?.result?.value ?? null); }));
+    socket.send(JSON.stringify({ id: 1, method: "Runtime.evaluate", params: { expression, returnByValue: true } }));
+    return await Promise.race([reply, sleep(5_000).then(() => null)]);
+  } finally {
+    socket.close();
+  }
+}
+const waitInPreview = async (expression, timeoutMs = 30_000) => {
+  const until = Date.now() + timeoutMs;
+  while (Date.now() < until) {
+    if ((await inPreview(expression).catch(() => null)) === true) return true;
+    await sleep(400);
+  }
+  return false;
+};
+
+/** Runs a command from the palette, as a person does: Ctrl+Shift+P, type, pick the first row. */
+const runCommand = async (query) => {
+  await browser.evaluate("(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'P', ctrlKey: true, shiftKey: true, bubbles: true })); return true; })()");
+  await sleep(400);
+  return browser.evaluate(`(async () => {
+    const input = document.querySelector('.quickopen-input[aria-label="Command palette"]');
+    if (!input) return false;
+    input.value = ${JSON.stringify(query)};
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 300));
+    const row = document.querySelector('.palette-row');
+    if (!row) { input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return false; }
+    const label = row.textContent;
+    row.click();
+    return label;
+  })()`);
+};
+
 const clickText = (selector, text) => browser.evaluate(`(() => { const node = [...document.querySelectorAll(${JSON.stringify(selector)})].find((n) => n.textContent.includes(${JSON.stringify(text)})); node?.click(); return node !== undefined; })()`);
 
 try {
@@ -138,24 +231,19 @@ try {
   checks.modelReady = await browser.waitFor("window.adcode.ai.status().then((s) => s.ready)", { timeoutMs: 20_000 });
 
   // Open a project -> Open from GitHub -> the repository: the real picker, as a person does it.
-  void browser.evaluate("window.adcode.workspace.open({ newWindowIfOpen: true }).then((opened) => { window.__opened = opened; })", { awaitPromise: false }).catch(() => undefined);
+  // Through the command palette's Open Folder, so the renderer adopts the project as it does for a
+  // person (calling window.adcode.workspace.open directly leaves the Preview pane without one).
+  checks.openCommand = await runCommand("Open Folder");
   checks.pickerShown = await browser.waitFor("[...document.querySelectorAll('dialog.web-picker button')].some((b) => b.textContent.includes('Open from GitHub'))", { timeoutMs: 20_000 });
   await clickText("dialog.web-picker button", "Open from GitHub");
   checks.reposListed = await browser.waitFor("[...document.querySelectorAll('.web-github-repo-list button')].some((b) => b.textContent.includes('baker/bakery'))", { timeoutMs: 20_000 });
   await shot("github-repos");
   await clickText(".web-github-repo-list button", "baker/bakery");
-  checks.opened = await browser.waitFor("window.__opened?.root?.endsWith('/bakery') === true", { timeoutMs: 30_000 });
+  checks.opened = await browser.waitFor("window.adcode.workspace.current().then((w) => w?.root?.endsWith('/bakery') === true)", { timeoutMs: 30_000 });
   checks.gitStatus = await browser.evaluate("window.adcode.git.status().then((s) => ({ isRepo: s.isRepo, branch: s.branch, entries: s.entries.length }))");
 
   // The assistant reads and edits a file from the repository.
-  await browser.evaluate(`(() => {
-    const input = document.querySelector('.chat-card .chat-input');
-    input.value = ${JSON.stringify(PROMPT)};
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    document.querySelector('.chat-toolbar .chat-send').click();
-    return true;
-  })()`);
-  checks.chatReply = await browser.waitFor("[...document.querySelectorAll('.chat-bubble-assistant')].some((b) => b.textContent.includes('opens daily'))", { timeoutMs: 90_000 });
+  checks.chatReply = await askAssistant(PROMPT, "opens daily");
   checks.readTheRepoFile = modelRequests.some((r) => (r.messages ?? []).some((m) => m.role === "tool" && String(m.content).includes("Fresh bread.")));
   checks.changes = await browser.evaluate("window.adcode.git.status().then((s) => s.entries.map((e) => e.path + ':' + e.worktree + ':+' + e.added + '-' + e.removed))");
   checks.diffShowsLine = await browser.evaluate("window.adcode.git.diff('README.md').then((d) => d.includes('+Fresh bread daily, from 7am.'))");
@@ -164,6 +252,24 @@ try {
   // Commit = a pull request with the change, from the commit that was opened.
   checks.commit = await browser.evaluate("window.adcode.git.commit('Say the bakery opens daily').then((r) => r.message)");
   checks.pullRequest = pulls.length === 1 && pulls[0].repo === "baker/bakery" && pulls[0].baseBranch === "main" && pulls[0].baseCommit === "a".repeat(40) && pulls[0].files.length === 1 && pulls[0].files[0].path === "README.md" && pulls[0].files[0].content === README;
+
+  // The assistant builds a page, and Preview shows it - with no server anywhere: the preview
+  // origin's Service Worker answers from the files in this tab (src/browserHost/liveServer.ts).
+  checks.pageReply = await askAssistant("web-smoke: build the bakery a page", "lists the sourdough");
+  // The Preview button is an icon (its name is its aria-label): the one on screen, as a person presses it.
+  checks.previewButton = await browser.evaluate("(() => { const button = [...document.querySelectorAll('button.web-tabs-preview, button.vibe-topbar-preview, button.vibe-preview-nav')].find((b) => b.offsetParent !== null); button?.click(); return button?.getAttribute('aria-label') ?? null; })()");
+  checks.previewUrl = await browser.waitFor(`document.querySelector('.preview-frame')?.getAttribute('src') === ${JSON.stringify(`${PREVIEW_ORIGIN}/preview/bakery/`)}`, { timeoutMs: 20_000 })
+    ? await browser.evaluate("document.querySelector('.preview-frame').getAttribute('src')")
+    : await browser.evaluate("window.adcode.preview.status().then((s) => String(s.url) + ' ' + String(s.error))");
+  checks.previewShowsPage = await waitInPreview("document.querySelector('#bread')?.textContent === 'Sourdough every morning.'");
+  // The root-relative /style.css came from the project too.
+  checks.previewStyled = await inPreview("getComputedStyle(document.querySelector('#bread')).color").catch(() => null);
+  // On its own origin: the project's script cannot reach into ADCode's page.
+  checks.previewIsolated = await inPreview("(() => { try { return window.parent.document ? 'same origin' : 'none'; } catch { return location.origin; } })()").catch(() => null);
+  await shot("preview");
+  // The next edit reloads the frame by itself.
+  checks.ryeReply = await askAssistant("web-smoke: add rye to the page", "Rye is on the page");
+  checks.previewReloaded = await waitInPreview("document.querySelector('#rye')?.textContent === 'Rye on Saturdays.'");
 
   // Everything lives in this tab's storage: a reload brings the project and the chat back.
   await sleep(1_500);
@@ -186,6 +292,8 @@ const passed = checks.threw === undefined && checks.ready && checks.mode === "br
   checks.gitStatus?.isRepo === true && checks.gitStatus?.branch === "main" && checks.gitStatus?.entries === 0 &&
   checks.chatReply && checks.readTheRepoFile && checks.changes?.join("|") === "README.md:modified:+1-1" && checks.diffShowsLine &&
   typeof checks.commit === "string" && checks.commit.includes("pull/1") && checks.pullRequest &&
+  checks.pageReply && checks.previewUrl === `${PREVIEW_ORIGIN}/preview/bakery/` && checks.previewShowsPage && checks.previewStyled === "rgb(170, 51, 0)" &&
+  checks.previewIsolated === PREVIEW_ORIGIN && checks.ryeReply && checks.previewReloaded &&
   checks.reloaded && checks.projectsAfterReload?.includes("bakery") && checks.chatsAfterReload >= 1;
 if (!passed) console.log(`--- stack log (tail) ---\n${stackLog.slice(-3000)}`);
 process.exit(passed ? 0 : 1);

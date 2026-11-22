@@ -2538,8 +2538,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   };
   toolsMenu.setAttribute("role", "menu");
   toolsMenu.append(
-    // Running the project needs a computer; the web version has none (yet).
-    ...(isWebSurface() ? [] : [toolRow(livePreviewButton, AppWindow, "Live preview", "Run the project and watch it update")]),
+    // On the web, a static site previews from the tab's own files (browserHost/liveServer.ts).
+    toolRow(livePreviewButton, AppWindow, "Live preview", isWebSurface() ? "See the page as you build it" : "Run the project and watch it update"),
     ...(aiTeamAvailable ? [toolRow(manualTeam, Users, "Team", "Split this task across AI roles")] : []),
     toolRow(scheduleMessage, CalendarClock, "Schedule", "Send this message later"),
     toolRow(voiceButton, Mic, "Dictate", "Speak instead of typing"),

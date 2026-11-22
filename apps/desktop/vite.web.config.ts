@@ -13,8 +13,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, transformWithEsbuild, type Plugin } from "vite";
 import { alias } from "./electron.vite.config.ts";
+import { PREVIEW_BRIDGE_HTML, PREVIEW_BRIDGE_PATH, PREVIEW_BRIDGE_SCRIPT_PATH, PREVIEW_WORKER_PATH } from "./src/web/previewOrigin.ts";
 import { webAppHead, webPausedHead, WEB_APP_PAUSED_SPLASH, WEB_APP_SPLASH } from "./src/web/seo.ts";
 
 const DESKTOP = import.meta.dirname;
@@ -167,6 +168,55 @@ function browserHost(): Plugin {
   };
 }
 
+/**
+ * The live preview's origin, `preview.<host>` (src/web/previewOrigin.ts): its Service Worker and
+ * its bridge page + script. In development the same dev server answers that hostname
+ * (`preview.localhost:<port>`), with these files and the starting page and nothing else - never
+ * the app. When building they are written beside the page, and the cloud Worker serves them on
+ * the preview hostname only (apps/cloud/src/router.ts).
+ */
+const PREVIEW_SOURCES: Record<string, string> = {
+  [PREVIEW_WORKER_PATH]: resolve(DESKTOP, "src/web/preview/serviceWorker.ts"),
+  [PREVIEW_BRIDGE_SCRIPT_PATH]: resolve(DESKTOP, "src/web/preview/bridge.ts"),
+};
+/** A classic script from one self-contained TypeScript file: types off, and the line that made it a module. */
+async function previewScript(path: string): Promise<string> {
+  const source = readFileSync(path, "utf8").replace(/\/\*[^*]*the build strips this line\. \*\/\s*export \{\};\s*$/, "");
+  if (/^\s*(import|export)\b/m.test(source)) throw new Error(`${path} must stay a classic script: no imports or exports`);
+  return (await transformWithEsbuild(source, path, { loader: "ts", target: "es2022", format: "esm" })).code;
+}
+function previewOrigin(): Plugin {
+  return {
+    name: "adcode-preview-origin",
+    configureServer(server) {
+      server.middlewares.use((request, response, next) => {
+        const host = (request.headers.host ?? "").toLowerCase();
+        if (!host.startsWith("preview.")) return next();
+        const path = (request.url ?? "/").split("?")[0]!;
+        const send = (type: string, body: string): void => {
+          response.setHeader("content-type", type);
+          response.setHeader("cache-control", "no-cache");
+          response.end(body);
+        };
+        const source = PREVIEW_SOURCES[path];
+        if (source !== undefined) {
+          void previewScript(source).then((code) => send("text/javascript; charset=utf-8", code), (error: unknown) => {
+            response.statusCode = 500;
+            response.end(String(error));
+          });
+          return;
+        }
+        // The bridge page, and the starting page for every address the worker has not taken yet.
+        send("text/html; charset=utf-8", PREVIEW_BRIDGE_HTML);
+      });
+    },
+    async generateBundle() {
+      for (const [path, source] of Object.entries(PREVIEW_SOURCES)) this.emitFile({ type: "asset", fileName: path.slice(1), source: await previewScript(source) });
+      this.emitFile({ type: "asset", fileName: PREVIEW_BRIDGE_PATH.slice(1), source: PREVIEW_BRIDGE_HTML });
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => ({
   root: resolve(DESKTOP, "src/renderer"),
   publicDir: resolve(DESKTOP, "src/renderer/public"),
@@ -174,7 +224,7 @@ export default defineConfig(({ mode }) => ({
   cacheDir: resolve(DESKTOP, "out/.vite-web"),
   // Live again from 2026-11-22: the web version runs in the person's tab (src/browserHost). Pass
   // true to ship the static "paused" notice instead.
-  plugins: [webEntry(false), browserHost()],
+  plugins: [webEntry(false), browserHost(), previewOrigin()],
   esbuild: { jsx: "automatic" },
   optimizeDeps: {
     // The scanner reads the page's raw HTML, which still names the desktop's `./main.ts`; the web

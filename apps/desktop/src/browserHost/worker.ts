@@ -14,12 +14,32 @@ import "./shims/globals.ts";
 import { flushFileSystem, loadFileSystem, mkdirSync } from "./shims/vfs.ts";
 import { decodeFrame, encodeFrame, type AskKind, type ServerFrame } from "../web/wire.ts";
 
-declare const self: { postMessage(message: unknown): void; onmessage: ((event: { data: unknown }) => void) | null };
+import { PREVIEW_RELOAD, PREVIEW_REQUEST } from "../web/previewOrigin.ts";
+
+declare const self: { postMessage(message: unknown, transfer?: Transferable[]): void; onmessage: ((event: { data: unknown; ports?: readonly MessagePort[] }) => void) | null };
 
 const ASK_TIMEOUT_MS = 10 * 60_000;
 const queued: string[] = [];
 let deliver: ((text: string) => void) | null = null;
+let filesLoaded: () => void = () => undefined;
+const loaded = new Promise<void>((resolve) => { filesLoaded = resolve; });
 self.onmessage = (event) => {
+  // A file for the live preview, asked by the preview origin's Service Worker through the page
+  // (web/previewBridge.ts). The answer goes back on the port it came with, never as a frame.
+  const data = event.data as { t?: unknown; path?: unknown } | null;
+  const port = event.ports?.[0];
+  if (data !== null && typeof data === "object" && data.t === PREVIEW_REQUEST && typeof data.path === "string" && port !== undefined) {
+    const path = data.path;
+    void loaded
+      .then(() => import("./liveServer.ts"))
+      .then(({ answerPreviewRequest }) => {
+        const reply = answerPreviewRequest(path);
+        port.postMessage(reply, [reply.body.buffer as ArrayBuffer]);
+      })
+      .catch((error: unknown) => port.postMessage({ status: 500, contentType: "text/plain; charset=utf-8", body: new TextEncoder().encode(String(error)), active: true }))
+      .finally(() => port.close());
+    return;
+  }
   if (typeof event.data !== "string") return;
   if (event.data === "__flush") {
     void flushFileSystem();
@@ -31,6 +51,10 @@ self.onmessage = (event) => {
 
 await loadFileSystem();
 for (const folder of ["/home/adcode/.adcode", "/home/adcode/projects", "/tmp"]) mkdirSync(folder, { recursive: true });
+
+filesLoaded();
+// The preview's "files changed": to the page, which tells the preview origin's bridge.
+(await import("./liveServer.ts")).setPreviewReloadSink((root) => self.postMessage({ t: PREVIEW_RELOAD, root }));
 
 const host = await import("./hostMain.ts");
 const { attachConnection, dispatcher } = await import("../host/electronShim.ts");

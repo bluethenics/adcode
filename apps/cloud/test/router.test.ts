@@ -242,3 +242,64 @@ describe("crawler discovery", () => {
     expect(post.headers.get("allow")).toBe("GET, HEAD");
   });
 });
+
+describe("the live preview's origin", () => {
+  // The web version's preview: a Service Worker on preview.<app host> answers from the person's
+  // tab (apps/desktop/src/web/previewOrigin.ts). This Worker only serves that worker and its bridge.
+  const preview = (path: string, init?: RequestInit) => new Request(`https://preview.web.bluethenics.com${path}`, init);
+  const assets = (env: Env, files: Record<string, { type: string; body: string }>) => Object.assign(env, {
+    ASSETS: {
+      fetch: vi.fn(async (request: Request) => {
+        const file = files[new URL(request.url).pathname];
+        // The real binding answers a missing file with the app's index.html.
+        return file === undefined
+          ? new Response("<!doctype html><title>ADCode</title>", { headers: { "content-type": "text/html; charset=utf-8" } })
+          : new Response(file.body, { headers: { "content-type": file.type } });
+      }),
+    },
+  });
+  const files = {
+    "/preview-sw.js": { type: "text/javascript", body: "/* worker */" },
+    "/__preview/bridge.js": { type: "text/javascript", body: "/* bridge */" },
+    "/__preview/bridge.html": { type: "text/html; charset=utf-8", body: "<p id=status>Starting the preview…</p><script src=\"/__preview/bridge.js\"></script>" },
+  };
+
+  it("serves the Service Worker and the bridge, and the bridge as the starting page for every other address", async () => {
+    const { env } = fakeEnv();
+    assets(env, files);
+    const worker = await route(preview("/preview-sw.js"), env, deps);
+    expect(worker.status).toBe(200);
+    expect(worker.headers.get("content-type")).toContain("text/javascript");
+    expect(await worker.text()).toBe("/* worker */");
+
+    for (const path of ["/__preview/bridge.html", "/preview/bakery/", "/style.css"]) {
+      const page = await route(preview(path), env, deps);
+      expect(page.status).toBe(200);
+      expect(await page.text()).toContain("Starting the preview");
+      const csp = page.headers.get("content-security-policy") ?? "";
+      expect(csp).toContain("script-src 'self'");
+      expect(csp).toContain("frame-ancestors https://web.bluethenics.com");
+      expect(page.headers.get("x-robots-tag")).toContain("noindex");
+    }
+    expect((await route(preview("/preview/bakery/", { method: "POST" }), env, deps)).status).toBe(405);
+  });
+
+  it("never serves the app there, even when the build lacks its files", async () => {
+    const { env } = fakeEnv();
+    assets(env, {});
+    for (const path of ["/preview-sw.js", "/__preview/bridge.js", "/"]) {
+      const response = await route(preview(path), env, deps);
+      expect(response.status).toBe(404);
+      expect(await response.text()).not.toContain("<title>ADCode</title>");
+    }
+  });
+
+  it("is a frame the app may show, and its files are nothing on the app's own hostname", async () => {
+    const { env } = fakeEnv();
+    const csp = (await route(new Request("https://web.bluethenics.com/"), env, deps)).headers.get("content-security-policy") ?? "";
+    // `https://*.web.bluethenics.com` covers preview.web.bluethenics.com.
+    expect(csp).toMatch(/frame-src [^;]*https:\/\/\*\.web\.bluethenics\.com/);
+    assets(env, files);
+    for (const path of ["/preview-sw.js", "/__preview/bridge.html"]) expect((await route(new Request(`https://web.bluethenics.com${path}`), env, deps)).status).toBe(404);
+  });
+});

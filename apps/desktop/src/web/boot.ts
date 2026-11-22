@@ -9,7 +9,9 @@
 import "../renderer/styles/tokens.css";
 import "../renderer/styles/webTheme.css";
 import "./web.css";
-import { CHANNELS } from "../shared/api.ts";
+import { CHANNELS, type PreviewStatus } from "../shared/api.ts";
+import { mountPreviewBridge } from "./previewBridge.ts";
+import { previewOriginFor } from "./previewOrigin.ts";
 import { OPEN_FROM_GITHUB_EVENT, OPEN_WEB_ACCOUNT_EVENT, DESKTOP_DOWNLOAD_URL } from "../renderer/surface.ts";
 import { createAskHandler } from "./asks.ts";
 import { gate, showWaking } from "./gate.ts";
@@ -53,6 +55,11 @@ function localOverrides(socket: HostSocket, signOut: () => Promise<void>): Local
     // had just signed in to sign in again and never let go (found 2026-11-21 by smoke:web-vibe).
     // Included AI still checks verification on the server, as it does for the desktop's "later".
     "platform.info": (() => socket.invoke(CHANNELS.platformInfo, []).then((info) => ({ ...(info as object), accountGate: false }))) as never,
+    // The desktop opens only a loopback address in the system browser; here the preview origin opens in a tab.
+    "preview.openExternal": (async () => {
+      const status = (await socket.invoke(CHANNELS.previewStatus, [])) as PreviewStatus;
+      if (status.url !== null && new URL(status.url).origin === previewOriginFor(location.origin)) window.open(status.url, "_blank", "noopener");
+    }) as never,
     "clipboard.writeText": ((text: string) => navigator.clipboard.writeText(text).then(() => undefined)) as never,
     "clipboard.readText": (() => navigator.clipboard.readText().catch(() => "")) as never,
     "files.pathForDropped": (() => "") as never,
@@ -149,6 +156,8 @@ async function boot(): Promise<void> {
    * no account to start; the sign-in token goes to it as soon as there is one.
    */
   const browserHost = startBrowserHost(BROWSER_HOST_URL);
+  // Preview answers from this tab's files, on an origin of its own (previewOrigin.ts).
+  mountPreviewBridge(browserHost);
   // The worker writes its files to IndexedDB a moment after each change; going away, at once.
   window.addEventListener("pagehide", () => browserHost.flush());
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") browserHost.flush(); });

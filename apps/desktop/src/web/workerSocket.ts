@@ -8,11 +8,13 @@
  * opens a new adapter onto that same worker rather than restarting the main process.
  */
 import type { WebSocketLike } from "./socket.ts";
+import type { PreviewFileSource } from "./previewBridge.ts";
+import { PREVIEW_RELOAD, PREVIEW_REQUEST } from "./previewOrigin.ts";
 
 const OPEN = 1;
 const CLOSED = 3;
 
-export interface BrowserHostWorker {
+export interface BrowserHostWorker extends PreviewFileSource {
   /** A WebSocket-shaped connection to the worker. */
   open(): WebSocketLike;
   /** Ask the worker to write its files to IndexedDB now (the tab is going away). */
@@ -24,7 +26,14 @@ export function startBrowserHost(url: string): BrowserHostWorker {
   let current: (WebSocketLike & { readyState: number }) | null = null;
   // Frames that arrive before the page has opened a connection (the host's "ready") are kept.
   const early: unknown[] = [];
+  const reloadListeners: ((root: string) => void)[] = [];
   worker.addEventListener("message", (event: MessageEvent) => {
+    // Frames are strings; the preview's "files changed" is the one object the worker posts.
+    const data = event.data as { t?: unknown; root?: unknown } | null;
+    if (data !== null && typeof data === "object" && data.t === PREVIEW_RELOAD) {
+      for (const listener of reloadListeners) listener(typeof data.root === "string" ? data.root : "");
+      return;
+    }
     if (current === null || current.readyState !== OPEN) {
       early.push(event.data);
       return;
@@ -71,6 +80,12 @@ export function startBrowserHost(url: string): BrowserHostWorker {
     },
     flush(): void {
       worker.postMessage("__flush");
+    },
+    preview(path: string, port: MessagePort): void {
+      worker.postMessage({ t: PREVIEW_REQUEST, path }, [port]);
+    },
+    onPreviewReload(listener: (root: string) => void): void {
+      reloadListeners.push(listener);
     },
   };
 }

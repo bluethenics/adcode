@@ -99,7 +99,17 @@ export async function loadFileSystem(): Promise<void> {
   for (const [path, entry] of saved) entries.set(path, entry);
 }
 
+/** Who hears about every change as it happens: the web preview reloads on them (browserHost/liveServer.ts). */
+const changeListeners = new Set<(path: string) => void>();
+export function onFileChange(listener: (path: string) => void): () => void {
+  changeListeners.add(listener);
+  return () => { changeListeners.delete(listener); };
+}
+
 function touch(path: string): void {
+  for (const listener of changeListeners) {
+    try { listener(path); } catch { /* a listener's failure is not a failed write */ }
+  }
   dirty.add(path);
   if (flushTimer === null) flushTimer = setTimeout(() => void flushFileSystem(), 400);
 }

@@ -242,8 +242,9 @@ export function injectReloadScript(html: string): string {
  * state of a file someone is learning on. This must never be the reason a page fails to
  * render.
  */
-export function injectAdcodeScripts(html: string): string {
-  const bundle = `${RELOAD_SCRIPT}\n${INSPECT_SCRIPT}`;
+export function injectAdcodeScripts(html: string, reloadScript: string = RELOAD_SCRIPT): string {
+  // The web version's preview has no server to hold an EventSource open; it passes its own (browserHost/liveServer.ts).
+  const bundle = `${reloadScript}\n${INSPECT_SCRIPT}`;
   const index = html.toLowerCase().lastIndexOf("</body>");
   if (index === -1) return `${html}\n${bundle}`;
 
@@ -288,7 +289,7 @@ export function resolveRequestPath(root: string, urlPath: string): string | null
   return candidate;
 }
 
-export function directoryListing(urlPath: string, names: readonly string[]): string {
+export function directoryListing(urlPath: string, names: readonly string[], reloadScript: string = RELOAD_SCRIPT): string {
   const rows = [...names]
     .sort((a, b) => a.localeCompare(b))
     .map((name) => {
@@ -305,7 +306,7 @@ export function directoryListing(urlPath: string, names: readonly string[]): str
 a:hover{text-decoration:underline}li{margin:.25rem 0}h1{font-size:1rem;color:#6c6c70;font-weight:600}</style>
 </head><body><h1>${escapeHtml(urlPath)}</h1><ul>${rows}</ul>
 <p style="color:#a1a1a6;margin-top:2rem">No <code>index.html</code> in this folder, so ADCode listed it instead.</p>
-${RELOAD_SCRIPT}\n${INSPECT_SCRIPT}</body></html>`;
+${reloadScript}\n${INSPECT_SCRIPT}</body></html>`;
 }
 
 /**

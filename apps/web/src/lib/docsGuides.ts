@@ -2222,6 +2222,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Choose Open from GitHub, connect GitHub once by entering the code it shows, and pick a repository. Its text files are copied into your browser tab.",
       "Ask the assistant about the code or for a change. It reads and edits the files itself, plans, and sends helpers to work alongside it, exactly as in the desktop app.",
       "Open Changes to read every edited file as a diff, and Discard anything you don't want.",
+      "If the project is a website made of plain files - an index.html with CSS, JavaScript and images - press Preview. The page opens in a floating window and reloads by itself each time you or the assistant change a file.",
       "Write a message and commit. On the web, that opens a pull request on a new adcode/ branch; your branch stays untouched until you merge it on GitHub.",
       "Close the tab whenever you like: chats, settings, your own API keys and opened projects are kept in this browser for next time.",
     ],
@@ -2229,10 +2230,11 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Nothing to install and no cloud computer to wait for: the app runs inside your tab, so it opens as fast as a web page.",
       "The same assistant as the desktop app - models, helpers, plans, usage and slash commands - not a cut-down chat.",
       "Your code stays on GitHub, and every change arrives as a pull request you review with your normal checks.",
+      "See a static site as you build it: Preview serves it from the files already in your tab, on an address of its own, so the page's own scripts cannot reach your ADCode session - and it needs no server, no port and no waiting.",
       "Ads and earnings work the same as on the desktop, in the same balance.",
     ],
     betterThan:
-      "Browser coding tools either give you a chat that cannot touch your files, or rent you a machine that costs time to start and can run out. ADCode's web version runs the desktop app's own assistant in your tab against your GitHub repository, so it edits real files and answers at once, and hands every change back as a pull request. What it cannot do is run your project - for commands, a terminal or a live dev-server preview, use the desktop app.",
+      "Browser coding tools either give you a chat that cannot touch your files, or rent you a machine that costs time to start and can run out. ADCode's web version runs the desktop app's own assistant in your tab against your GitHub repository, so it edits real files and answers at once, shows a plain HTML, CSS and JavaScript site in a live preview served from your own tab, and hands every change back as a pull request. What it cannot do is run your project: for commands, a terminal, or a preview of a project that needs its dev server or a build step, use the desktop app.",
   },
 
   "workbench-github-projects": {
@@ -2377,6 +2379,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Turn on Inspect, then right-click anything in the preview to see its width, height, padding, margin, and highlighted markup for restyling. If it grabs an inner piece instead of the card you meant, walk up the breadcrumb to the parent. The page flashes each level as you pick it. Choose List all to see every element's spacing with a filter.",
       "The preview floats over your work instead of taking a column: drag it by its bar, resize it from any edge, and double-click the bar (or press Maximise) to fill the window.",
       "To change something you can see, pick it with Inspect and press Change this with AI. New task opens with that element attached - page, selector, size and markup - so you only type what should change, like Make this button bigger and green.",
+      "On the web version, press Preview the same way. A site made of plain files (HTML, CSS, JavaScript, images) is served from the files in your browser tab at preview.web.bluethenics.com and reloads on every edit. A project that needs its dev server or a build step - Vite, Next.js, a bundled React app - says it needs the desktop app instead of showing a blank page.",
     ],
     benefits: [
       "Save-and-switch-to-browser becomes a thing you used to do.",
