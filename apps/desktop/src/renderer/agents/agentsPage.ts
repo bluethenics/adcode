@@ -30,7 +30,7 @@ import { openAgentEditorDialog, openNewTaskDialog, openRaceCompareDialog, openRu
 import { checksFromTraces, riskFlags, type RiskFlag, type RunCheck } from "../../shared/runEvidence.ts";
 import { createAgentMascot, mascotMoodForStatus, type AgentMascot } from "./agentMascot.ts";
 import { defaultMascotFor, type MascotLook } from "./mascotStyle.ts";
-import { STARTERS_MARKER, starterAgents } from "./starterAgents.ts";
+import { EMPTIED_MARKER, STARTERS_MARKER, shouldSeedStarters, starterAgents } from "./starterAgents.ts";
 import { indexForStagger, markFor, measure, motionAllowed, playFlip } from "../motionFlip.ts";
 
 /** A run that was under way... */
@@ -630,23 +630,36 @@ export function createAgentsPage(deps: AgentsPageDeps): AgentsPage {
     }
   }
 
-  /** Five ready-made agents, once, so the page is useful before anyone configures anything. */
+  const readNote = (key: string): string | null => {
+    try { return localStorage.getItem(key); } catch { return null; }
+  };
+  /** Remembers that the person emptied the list, so the starters stay away (shouldSeedStarters). */
+  const noteEmptied = (emptied: boolean): void => {
+    try {
+      if (emptied) localStorage.setItem(EMPTIED_MARKER, "true");
+      else localStorage.removeItem(EMPTIED_MARKER);
+    } catch { /* Optional storage: at worst the starters come back to an empty list. */ }
+  };
+
+  /** Five ready-made agents for an empty list the person did not empty themselves. */
   async function seedStarters(): Promise<void> {
-    if (profiles.length > 0) return;
-    let seeded = false;
-    try { seeded = localStorage.getItem(STARTERS_MARKER) === "done"; } catch { seeded = false; }
-    if (seeded) return;
+    const seed = shouldSeedStarters({
+      agents: profiles.length,
+      emptied: readNote(EMPTIED_MARKER) === "true",
+      offeredBefore: readNote(STARTERS_MARKER) === "done",
+      web: document.documentElement.dataset["surface"] === "web",
+    });
+    if (!seed) return;
     const starters = starterAgents({ provider: "", model: "", useCurrentModel: true });
     const values = await window.adcode.settings.write(AGENT_PROFILES_SETTING, JSON.stringify(starters));
     profiles = parseAgentProfiles(values[AGENT_PROFILES_SETTING]);
-    if (profiles.length > 0) {
-      try { localStorage.setItem(STARTERS_MARKER, "done"); } catch { /* Optional storage: saved agents still prevent duplicates. */ }
-    }
   }
 
   async function persistProfiles(next: AgentProfile[]): Promise<void> {
     const values = await window.adcode.settings.write(AGENT_PROFILES_SETTING, JSON.stringify(next));
     profiles = parseAgentProfiles(values[AGENT_PROFILES_SETTING]);
+    // Written after the list it describes, so a lost save can only bring agents back.
+    noteEmptied(profiles.length === 0);
     renderLibrary();
   }
 
@@ -670,6 +683,9 @@ export function createAgentsPage(deps: AgentsPageDeps): AgentsPage {
   window.adcode.settings.onChanged((values) => {
     const next = parseAgentProfiles(values[AGENT_PROFILES_SETTING]);
     if (JSON.stringify(next) === JSON.stringify(profiles)) return;
+    // Emptied somewhere else (Settings, the assistant's own tools): the person's choice too.
+    if (profiles.length > 0 && next.length === 0) noteEmptied(true);
+    else if (next.length > 0) noteEmptied(false);
     profiles = next;
     renderLibrary();
   });
