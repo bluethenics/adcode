@@ -5,9 +5,9 @@ import { DESKTOP_DOWNLOAD_URL } from "../renderer/surface.ts";
 const SITE = "https://adcode.bluethenics.com";
 const APP = "https://web.bluethenics.com/";
 const TITLE = "ADCode Web — AI Code Editor in Your Browser";
-const DESCRIPTION = "Chat with included AI, connect GitHub, and review code changes in your browser. Open a private cloud workspace when you need to run commands or preview an app.";
+const DESCRIPTION = "The ADCode assistant in your browser: open a GitHub repository, let AI read and change it, and send the changes back as a pull request. Nothing to install.";
 export const WEB_APP_HEADING = "Build apps with AI in your browser";
-export const WEB_APP_INTRO = "Chat with AI and connect GitHub to explore your code and prepare changes. Open a cloud workspace whenever you need commands or a live preview.";
+export const WEB_APP_INTRO = "Open a GitHub repository and the same assistant as the desktop app works on it right in this tab. Your changes go back to GitHub as a pull request.";
 export const WEB_APP_GUIDE_URL = `${SITE}/online-ai-code-editor`;
 export const WEB_APP_SCHEMA = JSON.stringify({
   "@context": "https://schema.org",

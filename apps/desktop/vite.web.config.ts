@@ -97,9 +97,8 @@ const FONT_PRELOADS = ["manrope", "space-grotesk", "geist-mono"]
 /**
  * Swap the Electron renderer's entry for the web one; everything else in the page stays.
  *
- * Production is paused until the release is ready: it ships a static notice instead of the
- * app and its workbench markup. Development (`npm run web:vibe`, the browser smoke) keeps the
- * real entry so the app can still be worked on locally.
+ * `paused` ships a static notice instead of the app and its workbench markup, for when the web
+ * version has to be taken down; development always gets the real entry.
  */
 function webEntry(paused: boolean): Plugin {
   return {
@@ -170,7 +169,9 @@ export default defineConfig(({ mode }) => ({
   publicDir: resolve(DESKTOP, "src/renderer/public"),
   // Its own cache, so this dev server never fights the desktop's electron-vite over one folder.
   cacheDir: resolve(DESKTOP, "out/.vite-web"),
-  plugins: [webEntry(mode === "production"), browserHost()],
+  // Live again from 2026-11-22: the web version runs in the person's tab (src/browserHost). Pass
+  // true to ship the static "paused" notice instead.
+  plugins: [webEntry(false), browserHost()],
   esbuild: { jsx: "automatic" },
   optimizeDeps: {
     // The scanner reads the page's raw HTML, which still names the desktop's `./main.ts`; the web

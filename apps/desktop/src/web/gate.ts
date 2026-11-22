@@ -272,7 +272,7 @@ function signInCard(): Promise<"signed-in" | "dev"> {
     fine.append(
       Object.assign(element("a", undefined, "How ADCode Web works"), { href: WEB_APP_GUIDE_URL }),
       document.createTextNode(". "),
-      document.createTextNode("A cloud workspace with no personal time limit. Ads keep it free, and you earn a share of them. "),
+      document.createTextNode("It runs in this tab: nothing to install and no computer to wait for. Ads keep it free, and you earn a share of them. "),
       Object.assign(element("a", undefined, "Terms"), { href: `${SITE}/terms`, target: "_blank", rel: "noopener" }),
       document.createTextNode(" · "),
       Object.assign(element("a", undefined, "Privacy"), { href: `${SITE}/privacy`, target: "_blank", rel: "noopener" }),
@@ -316,7 +316,7 @@ export async function gate(): Promise<WebSession> {
  * The waking screen, shown until the sandbox's first greeting - the mark keeps sweeping while
  * the status line and the bar say what is happening, the same rhythm as the splash it replaced.
  */
-export function showWaking(message = "Waking your workspace…", detail = "A few seconds the first time each day."): void {
+export function showWaking(message = "Starting ADCode…", detail = "It runs in this tab, so it opens in a few seconds."): void {
   const { body } = shell();
   const status = element("p", "web-gate-title web-gate-title-small", message);
   status.setAttribute("role", "status");

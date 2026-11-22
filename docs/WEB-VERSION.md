@@ -1,10 +1,8 @@
 # ADCode on the web (web.bluethenics.com)
 
-> **Status: paused in production.** We are not ready for a web release. Production builds
-> (`npm run cloud:build` / `npm run cloud:deploy`) ship a static "The web version is paused"
-> notice with a link to the desktop app; they no longer ship the app entry. Development
-> (`npm run web:vibe`, `npm run smoke:web`) runs the real app. To resume, change
-> `webEntry(mode === "production")` to `webEntry(false)` in `apps/desktop/vite.web.config.ts`.
+> **Status: live from 2026-11-22**, running in the person's tab. To pause it again, pass `true`
+> to `webEntry` in `apps/desktop/vite.web.config.ts`: production builds then ship a static "The
+> web version is paused" notice with a link to the desktop app.
 
 ## How it works now (2026-11-21): the main process in the tab
 

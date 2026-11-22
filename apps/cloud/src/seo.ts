@@ -3,7 +3,7 @@ export const PUBLIC_APP_HOST = "web.bluethenics.com";
 export const LAUNCH_ROBOTS = '<meta name="robots" content="noindex, nofollow" data-adcode-public-launch />';
 export const INDEXABLE_LAUNCH_ROBOTS = '<meta name="robots" content="index, follow, max-image-preview:large" data-adcode-public-launch />';
 /** SHA-256 of the fixed JSON-LD in desktop/src/web/seo.ts; a regression test keeps them aligned. */
-export const WEB_APP_SCHEMA_CSP = "'sha256-RMR8vWQMMLi6dFvbcBYb4YBNBGE1GmtgOxAHyyqKO8o='";
+export const WEB_APP_SCHEMA_CSP = "'sha256-GN7/NGhrsZcHvJ6N0gaRjMMuBnGh0CGDAPIu9IJPZbs='";
 /** The preserved execution page has the previous fixed description. */
 export const LEGACY_WEB_APP_SCHEMA_CSP = "'sha256-Cit+u4tN6c/QTNvKcbIR9X6SQXeY50pEAEWPIJOJjbs='";
 
