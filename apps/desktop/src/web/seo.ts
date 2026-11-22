@@ -59,7 +59,6 @@ export const WEB_APP_SPLASH = `<div class="web-splash">
         <p>${WEB_APP_INTRO}</p>
       </div>
       <nav aria-label="About ADCode Web"><a href="${WEB_APP_GUIDE_URL}">How it works</a><a href="${SITE}/docs">Documentation</a><a href="${SITE}/privacy">Privacy</a></nav>
-      <div class="web-splash-loading"><span role="status">Loading workspace sign-in…</span><span class="web-splash-bar" aria-hidden="true"></span></div>
       <noscript><p>JavaScript is required to sign in and use the editor. The guide and documentation above work without signing in.</p></noscript>
     </div>`;
 

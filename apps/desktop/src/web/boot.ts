@@ -14,7 +14,7 @@ import { mountPreviewBridge } from "./previewBridge.ts";
 import { previewOriginFor } from "./previewOrigin.ts";
 import { OPEN_FROM_GITHUB_EVENT, OPEN_WEB_ACCOUNT_EVENT, DESKTOP_DOWNLOAD_URL } from "../renderer/surface.ts";
 import { createAskHandler } from "./asks.ts";
-import { gate, showWaking } from "./gate.ts";
+import { gate, hideGate, showBlocked } from "./gate.ts";
 import { uploadDialog } from "./projectActions.ts";
 import { pickProjectFolder, type ProjectSummary } from "./projectPicker.ts";
 import { createHostSocket, type HostSocket } from "./socket.ts";
@@ -32,6 +32,8 @@ const TOKEN_NEEDED_CHANNEL = "cloud:token-needed";
 const TOKEN_REFRESH_MS = 50 * 60_000;
 /** Activity is reported at most this often: enough to know the tab is in use, not a keystroke log. */
 const INPUT_REPORT_MS = 30_000;
+/** Opening takes a second or two; past this, something is wrong and the person is told so. */
+const OPEN_TIMEOUT_MS = 25_000;
 
 function download(name: string, contents: BlobPart, type = "text/plain"): void {
   const url = URL.createObjectURL(new Blob([contents], { type }));
@@ -173,7 +175,20 @@ async function boot(): Promise<void> {
   if (requestedAccount !== null) showAccount(requestedAccount);
 
   document.body.dataset["webMode"] = "browser-host";
-  showWaking();
+  // No loading screen: the sign-in card (or the page's plain background) goes, and the app
+  // appears the moment its code has loaded. Calls it makes before the worker is up wait for it.
+  hideGate();
+  // A start that never finishes says so, and says which half, instead of leaving a blank page.
+  window.setTimeout(() => {
+    const appUp = document.body.dataset["shell"] === "ready";
+    const state = socket.state();
+    if (appUp && state !== "connecting") return;
+    const stuck = !appUp ? "loading the app" : "starting its workspace in this tab";
+    console.error(`[adcode] still ${stuck} after ${OPEN_TIMEOUT_MS / 1000} s (connection: ${state})`);
+    showBlocked("ADCode is taking too long to open", `It stopped while ${stuck}. Reload to try again - your projects are saved in this browser.`, [
+      { label: "Reload", primary: true, run: () => location.reload() },
+    ]);
+  }, OPEN_TIMEOUT_MS);
 
   let token = session.token;
 
@@ -235,7 +250,7 @@ async function boot(): Promise<void> {
 
   // The renderer loads while the worker finishes starting: calls it makes before the worker says
   // hello wait in the socket and go out the moment it does (socket.ts), so neither waits on the other.
-  await Promise.all([socket.ready(), import("../renderer/main.ts")]);
+  await import("../renderer/main.ts");
   // After the renderer's own sheets, so the frame's layout wins without fighting specificity.
   // It is the same file the desktop's Vibe window loads - see `styles/webFrame.css`.
   await import("../renderer/styles/webFrame.css");
@@ -245,5 +260,8 @@ async function boot(): Promise<void> {
 
 void boot().catch((error: unknown) => {
   console.error("[adcode] the web version failed to start", error);
-  showWaking("ADCode couldn't start.", "Reload the page to try again. If it keeps happening, the desktop app works offline.");
+  const reason = error instanceof Error ? error.message : String(error);
+  showBlocked("ADCode couldn't start", `${reason.length > 0 ? `${reason}. ` : ""}Reload the page to try again. If it keeps happening, the desktop app works offline.`, [
+    { label: "Reload", primary: true, run: () => location.reload() },
+  ]);
 });

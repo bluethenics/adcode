@@ -51,16 +51,21 @@ export function firebaseConfig(): FirebaseWebConfig {
  * markup - explorer, status bar, Share. On a slow connection that markup showed unstyled for
  * seconds ("Explorer No folder opened Open ... Ln 1, Col 1 Share") while the module script
  * loaded. These few rules, inline in the head, keep everything but the gate invisible until
- * the shell says it is ready (`body[data-shell="ready"]`), and paint the launch screen in the
- * gate from the HTML alone: the login page's ASCII mark sweeping, the public introduction,
- * and the same progress row the gate keeps once it takes over. `visibility`, not `display`:
+ * the shell says it is ready (`body[data-shell="ready"]`). There is no launch screen (22 Nov:
+ * "go straight to it, like ChatGPT and Claude"): the introduction is in the HTML for crawlers
+ * and readers without JavaScript, and only fades in if the script has not taken over within
+ * a few seconds. `visibility`, not `display`:
  * the renderer measures its layout while it boots, and a hidden-but-laid-out workbench
  * measures right.
  */
 const CRITICAL_CSS = [
   "html,body{margin:0;height:100%;background:#111110;color:#ebe8e1}",
   "body[data-surface=web]:not([data-shell=ready])>:not(#web-gate):not(.web-account-dialog){visibility:hidden!important}",
-  "#web-gate.web-gate-splash{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;background:radial-gradient(ellipse 60% 50% at 50% 42%,#1c1b19 0%,#111110 70%)}",
+  "#web-gate.web-gate-splash{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;background:#111110}",
+  // No loading screen: the introduction stays in the page for readers without JavaScript and for
+  // crawlers, but a normal visit goes from a plain background straight to sign-in or the app.
+  ".web-gate-splash .web-splash{animation:web-splash-in .4s ease 3s both}",
+  "@keyframes web-splash-in{from{opacity:0}}",
   // The three faces, declared here so the splash's first paint is already in them (the files are preloaded with the page).
   "@font-face{font-family:'Manrope';src:url('/fonts/manrope.woff2') format('woff2');font-weight:200 800;font-style:normal;font-display:swap}",
   "@font-face{font-family:'Space Grotesk';src:url('/fonts/space-grotesk.woff2') format('woff2');font-weight:300 700;font-style:normal;font-display:swap}",
@@ -80,12 +85,7 @@ const CRITICAL_CSS = [
   ".web-paused-actions{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:14px;margin-top:6px}",
   ".web-splash .web-paused-primary{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:0 20px;border-radius:11px;background:#6fb98f;color:#10140f;font-size:14px;font-weight:700;text-decoration:none;box-shadow:0 8px 24px rgb(111 185 143 / .22)}",
   ".web-splash .web-paused-link{color:#b2d8bd;font-size:13.5px;text-underline-offset:4px}",
-  ".web-splash-loading{display:grid;justify-items:center;gap:10px;margin-top:4px}",
-  ".web-splash-loading [role=status]{font-size:13px;font-weight:500;color:#8f8c85}",
-  ".web-splash-bar{width:160px;height:2px;border-radius:2px;overflow:hidden;background:#2d2b28}",
-  ".web-splash-bar::after{content:'';display:block;width:40%;height:100%;border-radius:inherit;background:linear-gradient(90deg,transparent,#6fb98f,transparent);animation:web-splash-scan 1.1s cubic-bezier(.77,0,.175,1) infinite}",
-  "@keyframes web-splash-scan{from{transform:translateX(-100%)}to{transform:translateX(250%)}}",
-  "@media (prefers-reduced-motion:reduce){.web-splash-mark pre+pre,.web-splash-bar::after{animation:none}}",
+  "@media (prefers-reduced-motion:reduce){.web-splash-mark pre+pre{animation:none}}",
 ].join("");
 
 const SPLASH = WEB_APP_SPLASH;

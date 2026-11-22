@@ -172,7 +172,9 @@ export function mountStatusBar(socket: HostSocket, session: WebSession): { statu
     status: () => last,
     rendererLoaded: () => {
       loaded = true;
-      if (socket.state() === "open" && (last === null || last.state === "ready" || last.state === "restarted")) hideGate();
+      // The app shows as soon as it has loaded; a refusal on screen (signed out, paused) stays.
+      const state = socket.state();
+      if (state !== "auth-failed" && state !== "paused") hideGate();
     },
   };
 }

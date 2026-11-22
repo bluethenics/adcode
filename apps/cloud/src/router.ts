@@ -93,18 +93,23 @@ export function isPhonePage(pathname: string): boolean {
   return pathname === "/phone/" || pathname === "/phone/index.html";
 }
 
+/** Cloudflare Web Analytics: the script the zone injects into HTML, and where it reports. */
+const CLOUDFLARE_ANALYTICS_SCRIPT = "https://static.cloudflareinsights.com";
+const CLOUDFLARE_ANALYTICS_BEACON = "https://cloudflareinsights.com";
+
 export function contentSecurityPolicy(env: Env, includeLegacySchema = false): string {
   const previews = `https://*${env.PREVIEW_SUFFIX}`;
   return [
     "default-src 'none'",
     // 'wasm-unsafe-eval' compiles the bundled syntax grammars; apis.google.com is Firebase's sign-in popup helper.
-    `script-src 'self' 'wasm-unsafe-eval' https://apis.google.com ${WEB_APP_SCHEMA_CSP}${includeLegacySchema ? ` ${LEGACY_WEB_APP_SCHEMA_CSP}` : ""}`,
+    // static.cloudflareinsights.com: Cloudflare Web Analytics, which the zone adds to every page it serves.
+    `script-src 'self' 'wasm-unsafe-eval' https://apis.google.com ${CLOUDFLARE_ANALYTICS_SCRIPT} ${WEB_APP_SCHEMA_CSP}${includeLegacySchema ? ` ${LEGACY_WEB_APP_SCHEMA_CSP}` : ""}`,
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self' data:",
     "img-src 'self' data: blob: https:",
     "worker-src 'self' blob:",
     // The relay is Phone link's: the /phone page talks to the person's own computer through it.
-    `connect-src 'self' wss://${env.APP_HOST} ${relayOrigin(env)} ${relayOrigin(env).replace(/^https:/, "wss:")} https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com`,
+    `connect-src 'self' wss://${env.APP_HOST} ${relayOrigin(env)} ${relayOrigin(env).replace(/^https:/, "wss:")} https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com ${CLOUDFLARE_ANALYTICS_BEACON}`,
     // previews: `preview.web.bluethenics.com`, the live preview served from the tab's own files, is one of them.
     // adcode.bluethenics.com: the sponsored card under a reply on the /phone page, a sandboxed
     // page of ADCode's own site where Zeekend's code runs instead of here.
@@ -193,7 +198,8 @@ async function servePreviewOrigin(request: Request, env: Env): Promise<Response>
   if (isHtml && !body.includes(`src="${PREVIEW_BRIDGE_SCRIPT}"`)) return new Response("Not found", { status: 404 });
   const headers = new Headers({
     "content-type": PREVIEW_ORIGIN_FILES[path]!,
-    "cache-control": "no-cache",
+    // no-transform: Cloudflare adds nothing (its analytics script) to the bridge, whose CSP allows only its own script.
+    "cache-control": "no-cache, no-transform",
     "x-content-type-options": "nosniff",
     "referrer-policy": "no-referrer",
     "x-robots-tag": "noindex, nofollow",

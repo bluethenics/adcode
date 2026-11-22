@@ -218,6 +218,10 @@ try {
   await browser.viewport(1280, 820);
   checks.ready = await signIn();
   checks.mode = await browser.evaluate("document.body.dataset.webMode");
+  // No loading screen: once the app is up, nothing of the gate is left over it.
+  checks.noGateOverApp = await browser.evaluate("document.getElementById('web-gate')?.hidden !== false && document.body.dataset.shell === 'ready'");
+  // Ads on the web: the sponsored box above the message box asks the partner page for a card.
+  checks.sponsoredFrame = await browser.waitFor("document.querySelector('.chat-sponsor-strip .chat-sponsored-frame')?.src.endsWith('/sponsored/chat') === true", { timeoutMs: 20_000 });
   // Out of the first-run sheet; the project comes from GitHub instead.
   if (await browser.waitFor("document.querySelector('dialog.onboarding')?.open", { timeoutMs: 15_000 })) await clickText("dialog.onboarding button", "Skip");
   await browser.evaluate(`(async () => {
@@ -288,7 +292,7 @@ try {
   github.close();
 }
 
-const passed = checks.threw === undefined && checks.ready && checks.mode === "browser-host" && checks.modelReady && checks.pickerShown && checks.reposListed && checks.opened &&
+const passed = checks.threw === undefined && checks.ready && checks.mode === "browser-host" && checks.noGateOverApp && checks.sponsoredFrame && checks.modelReady && checks.pickerShown && checks.reposListed && checks.opened &&
   checks.gitStatus?.isRepo === true && checks.gitStatus?.branch === "main" && checks.gitStatus?.entries === 0 &&
   checks.chatReply && checks.readTheRepoFile && checks.changes?.join("|") === "README.md:modified:+1-1" && checks.diffShowsLine &&
   typeof checks.commit === "string" && checks.commit.includes("pull/1") && checks.pullRequest &&

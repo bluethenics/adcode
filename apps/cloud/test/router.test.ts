@@ -149,6 +149,9 @@ describe("the page", () => {
     expect(csp).toMatch(/frame-src [^;]*https:\/\/adcode\.bluethenics\.com/);
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain(WEB_APP_SCHEMA_CSP);
+    // Cloudflare Web Analytics, which the zone injects: its script and its beacon, nothing broader.
+    expect(csp).toMatch(/script-src [^;]*https:\/\/static\.cloudflareinsights\.com/);
+    expect(csp).toMatch(/connect-src [^;]*https:\/\/cloudflareinsights\.com/);
     expect(csp).not.toContain(LEGACY_WEB_APP_SCHEMA_CSP);
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
   });
@@ -279,6 +282,7 @@ describe("the live preview's origin", () => {
       const csp = page.headers.get("content-security-policy") ?? "";
       expect(csp).toContain("script-src 'self'");
       expect(csp).toContain("frame-ancestors https://web.bluethenics.com");
+      expect(page.headers.get("cache-control")).toContain("no-transform");
       expect(page.headers.get("x-robots-tag")).toContain("noindex");
     }
     expect((await route(preview("/preview/bakery/", { method: "POST" }), env, deps)).status).toBe(405);
