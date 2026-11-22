@@ -1111,3 +1111,122 @@
   .web-tabs-update, .web-tabs-update svg { animation: none !important; }
 }
 :root[data-reduced-motion="true"] .web-tabs-update, :root[data-reduced-motion="true"] .web-tabs-update svg { animation: none !important; }
+
+/* ── Phones, like the chat apps people already use (2026-11-22) ──────────────────────────────
+ *
+ * One slim bar on top, the conversation full width, and a compact message box pinned to the
+ * bottom - above the on-screen keyboard (web/boot.ts keeps the page the size of what is visible)
+ * and clear of the iPhone's home bar. Last in the file so these win over the rules above.
+ */
+@media (max-width: 760px) {
+  /* One 52px bar: menu, project, then New chat / Changes / Preview / Workspace as icons. */
+  :root[data-frame="web"] body[data-agent-workbench="true"][data-workspace-mode="vibe"][data-vibe-rail="compact"] {
+    grid-template-rows: var(--ui-chrome-height) calc(52px + env(safe-area-inset-top)) 0 minmax(0, 1fr) var(--ui-status-height);
+  }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"][data-vibe-rail="compact"] .vibe-topbar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding-block: 4px;
+  }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .vibe-topbar .vibe-topbar-project { flex: 1 1 auto; min-width: 0; width: auto; }
+  /* Search lives in the menu drawer on a phone; the bar keeps its room for the project. */
+  :root[data-frame="web"] body[data-workspace-mode="vibe"][data-vibe-rail="compact"] .vibe-topbar-search { display: none; }
+  :root[data-frame="web"] .web-compact-actions {
+    display: flex;
+    flex: none;
+    gap: 0;
+    border-top: 0;
+    padding-top: 0;
+  }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .web-compact-actions > button,
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .web-compact-actions .workspace-control-trigger {
+    flex-direction: row;
+    width: 40px;
+    min-width: 40px;
+    height: 44px;
+    padding: 0;
+    font-size: 0;
+    background: transparent;
+  }
+  :root[data-frame="web"] .web-compact-actions > .web-new-chat { background: transparent; }
+  :root[data-frame="web"] .web-compact-actions .web-workspace-label { display: none; }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .web-compact-actions svg { width: 20px; height: 20px; }
+
+  /* The conversation edge to edge; its own header only keeps the ⋯ menu, overlaid. */
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .vibe-workspace { border-radius: 0; border-inline: 0; }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-header {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    z-index: 3;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-header .chat-usage { display: none; }
+  /* The header floats over the conversation now, so the body takes the card's whole height. */
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card { position: relative; --chat-header-height: 0px; }
+
+  /* The message box: text on top, then one row - attach, tools, mode, model, send. */
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-composer {
+    margin: 0 8px max(8px, env(safe-area-inset-bottom));
+    padding: 8px 8px 6px;
+    border-radius: 22px;
+  }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-input {
+    min-height: 40px;
+    max-height: 32vh;
+    padding: 6px 8px;
+    font-size: 16px;
+    line-height: 1.4;
+  }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-toolbar {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 2px;
+    margin-top: 2px;
+  }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-composer-utilities { flex: none; gap: 0; }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-composer-routing {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
+    justify-content: flex-end;
+    gap: 2px;
+  }
+  /* A project file is one "@" away in the text; the row keeps its room for the model. */
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-composer-utilities > button:nth-of-type(2) { display: none; }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-model.chat-model-pill { min-width: 0; max-width: 46vw; }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-model-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-composer .chat-send { width: 40px; height: 40px; min-height: 40px; border-radius: 50%; flex: none; }
+  /* Shortcut help and conversation controls are keyboard-and-desktop furniture: the ⋯ menu has them. */
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-composer-footer { display: none; }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-conversation { padding-bottom: 8px; }
+
+  /* A new chat: the message box stays at the bottom, as in a conversation, and the starters sit
+     just above it in one row you swipe; the welcome takes the space above and scrolls if short. */
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-conversation[data-empty="true"] { padding: 8px 0 8px; }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-conversation[data-empty="true"] .chat-welcome {
+    flex: 1 1 auto;
+    min-height: 0;
+    margin-bottom: 8px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-conversation[data-empty="true"] .chat-quick-actions {
+    order: 1;
+    flex: none;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: 8px;
+    margin: 0 0 8px;
+    padding: 2px 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-conversation[data-empty="true"] .chat-quick-actions > * { flex: none; }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .chat-card .chat-conversation[data-empty="true"] .chat-composer { order: 2; }
+}

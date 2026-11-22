@@ -118,6 +118,9 @@ function webEntry(paused: boolean): Plugin {
             .replace(/<body>[\s\S]*<\/body>/, `<body data-surface="web">\n    <div id="web-gate" class="web-gate web-gate-splash">${WEB_APP_PAUSED_SPLASH}</div>\n  </body>`);
         }
         return html
+          // Phones: the layout shrinks with the on-screen keyboard (Chrome), and the page may use the
+          // whole screen so safe-area insets keep the message box clear of the home bar (iOS).
+          .replace('<meta name="viewport" content="width=device-width, initial-scale=1" />', '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />')
           .replace(script, '<script type="module" src="/@web/boot.ts"></script>')
           .replace("<title>ADCode</title>", head)
           .replace("<body>", `<body data-surface="web">\n    <div id="web-gate" class="web-gate web-gate-splash">${SPLASH}</div>`);

@@ -118,8 +118,26 @@ function reportInput(socket: HostSocket): void {
   for (const name of ["pointerdown", "keydown", "wheel", "touchstart"] as const) window.addEventListener(name, note, { passive: true, capture: true });
 }
 
+/**
+ * On a phone, the page is the height of what is visible, so the message box rides above the
+ * on-screen keyboard as it does in other chat apps. Chrome does this from the viewport meta
+ * (interactive-widget=resizes-content); iOS Safari does not, and shrinks only the visual
+ * viewport. Pinch-zoom also shrinks it, so the zoom is multiplied back out.
+ */
+function fitVisibleViewport(): void {
+  const viewport = window.visualViewport;
+  if (viewport === null || viewport === undefined || !window.matchMedia("(pointer: coarse)").matches) return;
+  const fit = (): void => {
+    document.documentElement.style.height = `${Math.round(viewport.height * viewport.scale)}px`;
+    if (window.scrollY !== 0) window.scrollTo(0, 0);
+  };
+  viewport.addEventListener("resize", fit);
+  fit();
+}
+
 async function boot(): Promise<void> {
   document.documentElement.dataset["surface"] = "web";
+  fitVisibleViewport();
   // `#/ide` is how the desktop opens its Code window; the web is only ever Vibe.
   if (location.hash.length > 0) history.replaceState(null, "", location.pathname + location.search);
 
