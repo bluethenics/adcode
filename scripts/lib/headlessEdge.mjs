@@ -5,7 +5,7 @@
  * observers never fire; a headless browser launched from Node shows what a visitor sees. Used by
  * `scripts/smoke-web.mjs`.
  */
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -38,6 +38,21 @@ export async function launchBrowser({ port = 9473, width = 1280, height = 820, a
     ...args,
     "about:blank",
   ], { stdio: "ignore" });
+
+  /*
+   * Edge on Windows runs as a tree of processes, and killing the one we spawned leaves the rest
+   * running: 99 of them piled up across a day of smoke runs (2026-11-22) and starved the machine
+   * until tests timed out. So the browser is asked to close itself, and the whole tree is ended
+   * too - also when the script exits without calling close().
+   */
+  let ended = false;
+  const endTree = () => {
+    if (ended) return;
+    ended = true;
+    if (process.platform === "win32" && child.pid !== undefined) spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+    else child.kill();
+  };
+  process.once("exit", endTree);
 
   let targets = [];
   for (let attempt = 0; attempt < 60; attempt += 1) {
@@ -139,11 +154,24 @@ export async function launchBrowser({ port = 9473, width = 1280, height = 820, a
     },
     async close() {
       try {
+        // The browser-level endpoint, not this tab's: Browser.close ends every Edge process.
+        const { webSocketDebuggerUrl } = await (await fetch(`http://127.0.0.1:${port}/json/version`)).json();
+        const browserSocket = new WebSocket(webSocketDebuggerUrl);
+        await new Promise((resolve) => {
+          browserSocket.addEventListener("open", () => { browserSocket.send(JSON.stringify({ id: 1, method: "Browser.close" })); resolve(); }, { once: true });
+          browserSocket.addEventListener("error", resolve, { once: true });
+          setTimeout(resolve, 2000);
+        });
+      } catch {
+        // already gone
+      }
+      try {
         socket.close();
       } catch {
         // already closed
       }
-      child.kill();
+      await sleep(300);
+      endTree();
       await sleep(300);
       try {
         rmSync(profile, { recursive: true, force: true });
