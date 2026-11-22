@@ -366,9 +366,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const readSponsored = (): void => {
     void window.adcode.settings.read().then((values) => {
       const record = values as Record<string, unknown>;
-      // Desktop only: the web workspace's own policy does not admit the sponsored frame yet.
-      // Frequency Off is the "no sponsored cards anywhere" choice, so it stops this box too.
-      sponsoredReplies = !isWebSurface() && record[SPONSORED_SETTING] === true
+      // On the web too (2026-11-22): web.bluethenics.com may frame the sponsored page (its CSP
+      // frame-src and the page's frame-ancestors both name it). Frequency Off stops this box too.
+      sponsoredReplies = record[SPONSORED_SETTING] === true
         && record["adcode.ads.enabled"] !== false && record["adcode.ads.frequency"] !== "off";
       doneSound = record[DONE_SOUND_SETTING] === true;
       if (sponsoredReplies && stopSponsorLoop === null) stopSponsorLoop = sponsorStrip.keepFilled(nextSponsorExchange, SPONSOR_ROTATE_MS, sponsorOnScreen);
@@ -1550,7 +1550,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       empty.className = "chat-history-empty";
       empty.textContent =
         saved.length === 0
-          ? "No chats yet. Start one below - it stays on this machine, per project."
+          ? `No chats yet. Start one below - it stays ${isWebSurface() ? "in this browser" : "on this machine"}, per project.`
           : "Nothing matches that.";
       historyList.append(empty);
       // Somebody who used another AI tool yesterday has conversations there. Offer the
@@ -2041,6 +2041,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   sendButton.setAttribute("aria-label", "Send message");
   sendButton.dataset["mode"] = "send";
 
+  /** AI Team runs each role in its own git worktree, so it needs a computer: not on the web. */
+  const aiTeamAvailable = !isWebSurface();
   const manualTeam = document.createElement("button");
   manualTeam.className = "chat-team-button";
   manualTeam.type = "button";
@@ -2401,7 +2403,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         },
       },
       { label: "Schedule a message…", run: () => api.openScheduleComposer() },
-      { label: "Split the job across an AI team…", run: () => api.openTeamSetup() },
+      ...(aiTeamAvailable ? [{ label: "Split the job across an AI team…", run: () => api.openTeamSetup() }] : []),
     ], () => modePill.setAttribute("aria-expanded", "false"), { prefer: "above" });
   });
   /** A one-line note in the conversation: what just changed about how the assistant works. */
@@ -2536,8 +2538,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   };
   toolsMenu.setAttribute("role", "menu");
   toolsMenu.append(
-    toolRow(livePreviewButton, AppWindow, "Live preview", "Run the project and watch it update"),
-    toolRow(manualTeam, Users, "Team", "Split this task across AI roles"),
+    // Running the project needs a computer; the web version has none (yet).
+    ...(isWebSurface() ? [] : [toolRow(livePreviewButton, AppWindow, "Live preview", "Run the project and watch it update")]),
+    ...(aiTeamAvailable ? [toolRow(manualTeam, Users, "Team", "Split this task across AI roles")] : []),
     toolRow(scheduleMessage, CalendarClock, "Schedule", "Send this message later"),
     toolRow(voiceButton, Mic, "Dictate", "Speak instead of typing"),
   );
@@ -2552,7 +2555,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   powerButton.title = "Sleep, lock or shut down the computer when the assistant finishes";
   powerButton.addEventListener("click", () => { void openPowerDialog(); });
   const paintPower = (state: PowerStateView): void => {
-    powerButton.hidden = !state.supported;
+    // The browser host reports Linux, so the main process may think sleep is possible: not on the web.
+    powerButton.hidden = !state.supported || isWebSurface();
     toolRow(powerButton, Moon, "When done", powerChipText(state) ?? "Sleep or shut down after the task");
     powerButton.classList.toggle("composer-tools-item-armed", state.action !== "nothing");
   };
@@ -2612,7 +2616,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       ? `Live project · ${String(state.online)} online · ${String(state.working)} working${unread ? ` · ${String(state.unread)} unread` : ""}`
       : "Start or join a live project session";
   });
-  utilities.append(attachButton, attachContext, liveButton, composerTools);
+  // A live session is shared with other people over this computer's connection: a desktop
+  // feature, like Team, so the web composer has no Live button.
+  utilities.append(attachButton, attachContext, ...(isWebSurface() ? [] : [liveButton]), composerTools);
   routing.append(modePill, modelLabel, sendButton);
   toolbar.append(utilities, routing);
   const composerFooter = document.createElement("div");
@@ -2968,11 +2974,13 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const setupFolder = document.createElement("button");
   setupFolder.type = "button";
   setupFolder.className = "ghost-button chat-setup-action";
-  setupFolder.textContent = "Open an existing folder";
+  setupFolder.textContent = isWebSurface() ? "Open from GitHub" : "Open an existing folder";
   setupFolder.addEventListener("click", () => deps.switchFolder?.());
   const setupFolderHint = document.createElement("span");
   setupFolderHint.className = "chat-setup-status";
-  setupFolderHint.textContent = "Optional - with none open, ADCode makes a project for what you describe.";
+  setupFolderHint.textContent = isWebSurface()
+    ? "Optional - work on one of your repositories, or let ADCode make a new project."
+    : "Optional - with none open, ADCode makes a project for what you describe.";
   setupFolderItem.append(setupFolder, setupFolderHint);
 
   setupSteps.append(setupConnectItem, setupAskItem, setupFolderItem);
@@ -3011,7 +3019,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     setupAsk.className = `${modelReady === true ? "chat-send" : "ghost-button"} chat-setup-action`;
     welcomeText.textContent = hasFolder
       ? "What can I help you build or change in this project?"
-      : "What do you want to build? Describe it below - ADCode makes the project, writes the code and shows it running.";
+      : isWebSurface()
+        ? "What do you want to build? Describe it below - ADCode makes the project and writes the code, right here in your browser."
+        : "What do you want to build? Describe it below - ADCode makes the project, writes the code and shows it running.";
     paintStarters(hasFolder);
   }
   const quickActions = document.createElement("div");
@@ -3024,7 +3034,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     { label: "Build something", hint: "Describe it - ADCode builds it", icon: WEB_ICON.build, prompt: "Build this in my project, then run it and check that it works: " },
     { label: "Fix an error", hint: "Paste it or name the file", icon: WEB_ICON.bug, prompt: "Find the root cause of this error and fix it, then verify the fix: " },
     { label: "Plan new idea", hint: "Scope it before building", icon: WEB_ICON.idea, prompt: "Plan this idea for my project. Identify the files, risks, and a way to verify the result: " },
-    { label: "Multitask", hint: "Set up an AI team", icon: WEB_ICON.share, run: () => api.openTeamSetup() },
+    ...(aiTeamAvailable ? [{ label: "Multitask", hint: "Set up an AI team", icon: WEB_ICON.share, run: () => api.openTeamSetup() }] : []),
   ];
   // With no folder open, the starters are things to build: each one makes its own project.
   const ideaStarters: readonly Starter[] = [
@@ -5769,6 +5779,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   }
 
   async function suggestForComposer(manual: boolean): Promise<void> {
+    // An AI Team merges its agents' work through git worktrees: a desktop feature, never offered on the web.
+    if (!aiTeamAvailable) return;
     const prompt = input.value.trim();
     if (prompt.length === 0 || parseSlashCommand(prompt)?.command.id === "team") {
       // The automatic offer fires after a debounce, by when a fast Enter has already emptied
@@ -5972,6 +5984,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     },
 
     openTeamSetup(): void {
+      if (!aiTeamAvailable) return;
       runChatWidgetIntent("team", {
         open: () => api.open(),
         showTeam: () => {

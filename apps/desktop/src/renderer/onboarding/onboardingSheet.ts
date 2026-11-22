@@ -24,6 +24,7 @@
  * stays on the first screen, because how ADCode is paid for is worth knowing on day one.
  */
 import { createQuickConnect, type QuickConnect } from "../ai/quickConnect.ts";
+import { isWebSurface } from "../surface.ts";
 
 export interface OnboardingSheet {
   open(): void;
@@ -220,7 +221,8 @@ export function createOnboardingSheet(deps: OnboardingDeps): OnboardingSheet {
     const openFolder = document.createElement("button");
     openFolder.type = "button";
     openFolder.className = "onboarding-link";
-    openFolder.textContent = "Open a folder";
+    // On the web a project is a GitHub repository (web/githubRepoPicker.ts), not a folder.
+    openFolder.textContent = isWebSurface() ? "Open one from GitHub" : "Open a folder";
     openFolder.addEventListener("click", () => {
       finish("welcome_done");
       deps.openFolder();
@@ -254,7 +256,9 @@ export function createOnboardingSheet(deps: OnboardingDeps): OnboardingSheet {
     );
 
     body.append(
-      heading("What do you want to build?", "Describe it in a sentence. ADCode makes the project, writes the code and shows it running."),
+      heading("What do you want to build?", isWebSurface()
+        ? "Describe it in a sentence. ADCode makes the project and writes the code, right here in your browser."
+        : "Describe it in a sentence. ADCode makes the project, writes the code and shows it running."),
       box,
       chips,
       existing,

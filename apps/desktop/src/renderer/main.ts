@@ -3497,7 +3497,7 @@ const onboarding = createOnboardingSheet({
   openFolder: () => void openFolder(),
   openAllProviders: () => openIndependentConnect("pointer"),
   openAdSettings: () => openSetting("adcode.ads.frequency"),
-  moveIn: () => commands.run("onboarding.moveIn"),
+  ...(isWebSurface() ? {} : { moveIn: () => commands.run("onboarding.moveIn") }),
   complete: () => {
     window.adcode.onboarding.complete().catch(() => undefined);
     /*
@@ -4871,7 +4871,8 @@ const chat = createChatWidget({
   openTools: () => commands.run("tools.open"),
   openSettings: (query) => openSetting(query),
   runCommand: (command, arg) => commands.run(command, arg),
-  moveIn: () => openMoveInDialog(),
+  // Move in reads the other AI apps on this computer: not something the web can reach.
+  ...(isWebSurface() ? {} : { moveIn: () => openMoveInDialog() }),
   uncommittedDiff: async () => {
     const [diff, status] = await Promise.all([
       window.adcode.git.diff().catch(() => ""),
@@ -5465,7 +5466,7 @@ window.adcode.releases.onAnnouncement((announcement) =>
 window.adcode.ads.onShow((toast) => notifications.showSponsored(toast));
 // The ad partner fills a slot no direct campaign did. Its frame only answers the desktop app,
 // so the web version hands the slot straight back.
-window.adcode.ads.onPartnerShow((toast) => isWebSurface() ? window.adcode.ads.partnerResult(toast.id, "empty") : notifications.showPartner(toast));
+window.adcode.ads.onPartnerShow((toast) => notifications.showPartner(toast));
 
 /*
  * The kill switch and Frequency Off take down what is already on screen, not only the next
@@ -7447,7 +7448,10 @@ function switchWorkArea(area: WorkArea): void {
   workAreaSwitch.set(area);
   applyWorkArea(area);
 }
-if (!windowIsIde) {
+// Team (shared projects with other people) is a desktop feature: the web keeps to your own chats.
+if (!windowIsIde && isWebSurface()) {
+  document.body.dataset["workArea"] = "solo";
+} else if (!windowIsIde) {
   const conversations = document.querySelector<HTMLElement>(".vibe-conversations");
   conversations?.prepend(workAreaSwitch.element);
   // Opening a solo chat from anywhere (a notification, the palette) brings the Solo area back.

@@ -23,6 +23,7 @@ import {
   type AgentProfile,
 } from "../ai/agentProfiles.ts";
 import { askThemed } from "../dialogs/confirmDialog.ts";
+import { isWebSurface } from "../surface.ts";
 import { createIcon, ICON } from "../workbench/icons.ts";
 import { agentBoxActions, boardSummary, buildBoard, evidenceChips, statusBadge, type BoxAction, type BoxColumn, type BoxModel } from "./agentBoardModel.ts";
 import { openAgentEditorDialog, openNewTaskDialog, openRaceCompareDialog, openRunDetailDialog } from "./agentDialogs.ts";
@@ -237,7 +238,8 @@ export function createAgentsPage(deps: AgentsPageDeps): AgentsPage {
   selectButton.title = "Pick two to four agents to split one task";
   const libraryText = el("div", "");
   libraryText.append(libraryTitle, libraryHint);
-  libraryHead.append(libraryText, selectButton);
+  // Picking agents builds an AI Team, which needs git worktrees on a computer: not on the web.
+  libraryHead.append(libraryText, ...(isWebSurface() ? [] : [selectButton]));
   const teamBar = el("div", "agents-team-bar");
   teamBar.hidden = true;
   const teamText = el("p", "", "Pick two to four agents.");

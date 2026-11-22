@@ -331,7 +331,8 @@ export function createAdRuntime(): AdRuntime {
    * Zeekend, in a slot no direct campaign filled - only while the person leaves sponsored
    * notifications on. What it is told is the project's topic tags in plain words, the same tags
    * our own ads are targeted by: no file names, paths, code or project name (see
-   * `partnerExchange`). Not in the web version, whose origin the sponsored frame does not answer.
+   * `partnerExchange`). On the web as well since 2026-11-22: the sponsored frame answers
+   * web.bluethenics.com (apps/web sponsoredNetworks.ts SPONSORED_EMBEDDERS).
    */
   function presentPartner(theme: ThemeKind): boolean {
     if (currentSettings()["adcode.ads.partnerNotifications"] !== true) return false;

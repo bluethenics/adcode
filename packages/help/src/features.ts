@@ -804,7 +804,9 @@ const DESKTOP_ONLY: ReadonlySet<string> = new Set([
   "adcode.privacy.usageStats",
   "adcode.git.gutterDiff", "adcode.git.blame", "adcode.git.fileTimeline", "adcode.git.mergeConflict",
   "adcode.session.autoSave", "adcode.session.localFileHistory", "adcode.session.crashRecovery",
-  "adcode.updates.auto", "adcode.appearance.zoom", "adcode.ads.chatSponsored", "adcode.ads.partnerNotifications",
+  "adcode.updates.auto", "adcode.appearance.zoom",
+  // Team: shared projects with other people, and AI Teams that work in git worktrees.
+  "workbench.soloTeam", "ai.team",
   "ai.inlineEdit", "adcode.ai.inlineCompletion", "adcode.ai.terminalAgentDetection", "ai.terminalTeam", "adcode.ai.autoContinue", "adcode.ai.mcpServer", "ai.agentRules", "ai.agentFiles",
   // The tool bridge listens on this computer's loopback; the web version has no computer to listen on.
   "ai.toolBridge",

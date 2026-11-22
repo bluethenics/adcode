@@ -123,6 +123,19 @@ async function boot(): Promise<void> {
   // `#/ide` is how the desktop opens its Code window; the web is only ever Vibe.
   if (location.hash.length > 0) history.replaceState(null, "", location.pathname + location.search);
 
+  /*
+   * The web version's main process runs in this tab (2026-11-21): the desktop's own main-process
+   * code in a Web Worker (src/browserHost), with projects from GitHub and nothing running on a
+   * computer of the person's own. It starts now, while the person signs in, rather than after:
+   * downloading and starting it takes a few seconds that the sign-in screen can hide. It needs
+   * no account to start; the sign-in token goes to it as soon as there is one.
+   */
+  const browserHost = startBrowserHost(BROWSER_HOST_URL);
+  // The worker writes its files to IndexedDB a moment after each change; going away, at once.
+  window.addEventListener("pagehide", () => browserHost.flush());
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") browserHost.flush(); });
+  const socket = createHostSocket(() => browserHost.open());
+
   const session = await gate();
   const showAccount = (section: unknown = "overview"): void => {
     void import("./accountPanel.tsx").then(({ openAccountPanel }) => openAccountPanel(session, section))
@@ -132,20 +145,10 @@ async function boot(): Promise<void> {
   const requestedAccount = new URL(location.href).searchParams.get("account");
   if (requestedAccount !== null) showAccount(requestedAccount);
 
-  /*
-   * The web version's main process runs in this tab (2026-11-21): the desktop's own main-process
-   * code in a Web Worker (src/browserHost), with projects from GitHub and nothing running on a
-   * computer of the person's own.
-   */
   document.body.dataset["webMode"] = "browser-host";
   showWaking();
 
   let token = session.token;
-  const browserHost = startBrowserHost(BROWSER_HOST_URL);
-  // The worker writes its files to IndexedDB a moment after each change; going away, at once.
-  window.addEventListener("pagehide", () => browserHost.flush());
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") browserHost.flush(); });
-  const socket = createHostSocket(() => browserHost.open());
 
   const sendToken = async (force: boolean): Promise<void> => {
     const fresh = await session.refresh(force).catch(() => null);
@@ -161,8 +164,6 @@ async function boot(): Promise<void> {
 
   // Connection state (and, if the worker stops, why), before waiting for it to say hello.
   const bar = mountStatusBar(socket, session);
-
-  await socket.ready();
 
   socket.onAsk(createAskHandler({
     openWindow: (url) => {
@@ -205,7 +206,9 @@ async function boot(): Promise<void> {
     (window as unknown as { __adcodeTestAuth?: (token: string) => void }).__adcodeTestAuth = (fake) => socket.raw({ t: "auth", token: fake });
   }
 
-  await import("../renderer/main.ts");
+  // The renderer loads while the worker finishes starting: calls it makes before the worker says
+  // hello wait in the socket and go out the moment it does (socket.ts), so neither waits on the other.
+  await Promise.all([socket.ready(), import("../renderer/main.ts")]);
   // After the renderer's own sheets, so the frame's layout wins without fighting specificity.
   // It is the same file the desktop's Vibe window loads - see `styles/webFrame.css`.
   await import("../renderer/styles/webFrame.css");

@@ -229,7 +229,18 @@ export default defineConfig(({ mode }) => ({
     emptyOutDir: true,
     chunkSizeWarningLimit: 4000,
     rollupOptions: {
-      output: { manualChunks: { monaco: ["monaco-editor"] } },
+      output: {
+        /*
+         * Monaco in a chunk of its own, and Vite's preload helper NOT in it. With the object form
+         * the helper landed in the monaco chunk, so the entry imported 3.9 MB of editor just to
+         * reach a 1 KB function, and the sign-in page preloaded the whole code editor (2026-11-22).
+         */
+        manualChunks(id: string): string | undefined {
+          if (id.includes("vite/preload-helper")) return "preload";
+          if (id.replace(/\\/g, "/").includes("/node_modules/monaco-editor/")) return "monaco";
+          return undefined;
+        },
+      },
     },
   },
   worker: { format: "es" as const },

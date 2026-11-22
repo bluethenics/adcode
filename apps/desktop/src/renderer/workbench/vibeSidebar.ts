@@ -458,7 +458,8 @@ export function createVibeSidebar(deps: VibeSidebarDeps): VibeSidebar {
       : { id: "share", control: share };
     const rail = createWebRail({
       home: () => { deps.showPage("chat"); closeDrawer(); },
-      places: VIBE_PAGES.map((page) => ({ id: page.id, label: page.label, icon: WEB_ICON[page.id], run: () => { deps.showPage(page.id); closeDrawer(); } })),
+      // Plugins and Artifacts install into this computer's ADCode folders: desktop pages, not the web's.
+      places: VIBE_PAGES.filter((page) => !web || (page.id !== "plugins" && page.id !== "artifacts")).map((page) => ({ id: page.id, label: page.label, icon: WEB_ICON[page.id], run: () => { deps.showPage(page.id); closeDrawer(); } })),
       panels: [
         accountPanel,
         ...(document.getElementById("open-projects") === null || document.getElementById("open-projects")!.hidden ? [] : [{ id: "projects", control: document.getElementById("open-projects")! }]),
