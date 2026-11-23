@@ -259,9 +259,27 @@ async function boot(): Promise<void> {
   bar.rendererLoaded();
 }
 
+/** When this tab last reloaded itself over a part of the app that would not download. */
+const RELOADED_FOR_CHUNK_KEY = "adcode.web.reloadedForChunk";
+
 void boot().catch((error: unknown) => {
   console.error("[adcode] the web version failed to start", error);
   const reason = error instanceof Error ? error.message : String(error);
+  /*
+   * A part of the app that would not download - a new file's first request just after a deploy
+   * can take most of a minute, and the browser gives up (23 Nov 2026). The browser also
+   * remembers that failure, so only a reload asks again: do that once, by itself, and show the
+   * screen below only if it happens again within a minute.
+   */
+  if (/dynamically imported module|Importing a module script failed|error loading dynamically imported module/i.test(reason)) {
+    let last = 0;
+    try { last = Number(sessionStorage.getItem(RELOADED_FOR_CHUNK_KEY) ?? 0); } catch { /* no storage: show the screen */ last = Date.now(); }
+    if (Date.now() - last > 60_000) {
+      try { sessionStorage.setItem(RELOADED_FOR_CHUNK_KEY, String(Date.now())); } catch { /* reload anyway */ }
+      location.reload();
+      return;
+    }
+  }
   showBlocked("ADCode couldn't start", `${reason.length > 0 ? `${reason}. ` : ""}Reload the page to try again. If it keeps happening, the desktop app works offline.`, [
     { label: "Reload", primary: true, run: () => location.reload() },
   ]);

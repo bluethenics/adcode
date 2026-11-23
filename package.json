@@ -56,6 +56,7 @@
     "web:deploy": "npm --prefix apps/web run deploy",
     "web:vibe": "node scripts/web-vibe.mjs",
     "cloud:build": "node scripts/cloud-build.mjs",
+    "cloud:warm": "node scripts/cloud-warm.mjs",
     "cloud:dev": "node scripts/cloud-build.mjs --dev && npm --prefix apps/cloud run dev",
     "cloud:deploy": "node scripts/cloud-build.mjs && npm --prefix apps/cloud run deploy",
     "seo-audit": "node scripts/seo-audit.mjs",
