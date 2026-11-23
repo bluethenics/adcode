@@ -3,6 +3,14 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
+## 2.6.5 — 2026-11-23
+
+- **Free DeepSeek for new accounts.** While the promotion runs, the first verified accounts get free usage of DeepSeek (direct), claimed by their first request to it or with Claim free usage on the AI credits page. It is spent before any paid credits and only on DeepSeek, and the meter beside the message box shows what is left. Keep sponsored cards on, and once your earnings reach the minimum, turn them into credits from Earnings to keep going.
+- **Long agent sessions keep going.** Included AI no longer refuses a conversation past 1,000 steps, or one sent the way OpenCode sends it, with "could not read this conversation". A conversation that does grow too long now offers Compact and carry on.
+- **Fewer stuck edits.** When a whole-file edit is cut off at the reply limit, the assistant is told to write a short version and extend it, instead of repeating the same call. A plan with two steps marked in progress keeps the first one going rather than being refused.
+- **Clear finish pages.** Signing in with Google or GitHub, connecting a service, confirming an email and finishing a purchase now end on one consistent card that says which account and service it was.
+- **On the web:** a calmer phone layout with an Android-style account screen, an Agents tab built for phones, earnings you can turn into credits, smaller notices, "Loading models…" instead of "Connect a model" while the list loads, and the app opens straight away and stays fast on repeat visits.
+
 ## 2.6.4 — 2026-11-22
 
 - **More coding CLIs, and faster follow-ups.** Besides Claude Code, Codex, OpenCode and Gemini CLI, the Coding CLIs tab now connects GitHub Copilot CLI and the agents that speak the Agent Client Protocol - Cursor Agent, Qwen Code, Kiro, goose, Kimi, Droid, Cline and others once they are installed. Each chat keeps its agent running, so a follow-up starts answering in a second or two instead of waiting for the CLI to start again (Claude Code went from 5-9 s to about 1.6 s), and the words appear as they are written.
