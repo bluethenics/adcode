@@ -21,6 +21,10 @@ describe("the one-time notice that sponsored cards are on", () => {
     expect(AD_PARTNER_NOTICE.body).toContain("Zeekend, our only ad partner");
     expect(AD_PARTNER_NOTICE.body).not.toContain("Imprezia");
     expect(AD_PARTNER_NOTICE.body).toContain("names of the languages");
+    // The phone wording says the same: who, and exactly what is sent.
+    expect(AD_PARTNER_NOTICE.bodyCompact).toContain("Zeekend, our only ad partner");
+    expect(AD_PARTNER_NOTICE.bodyCompact).toContain("names of the languages");
+    expect(AD_PARTNER_NOTICE.bodyCompact.length).toBeLessThan(AD_PARTNER_NOTICE.body.length * 0.6);
     expect(AD_PARTNER_NOTICE.turnOff).toBe("Turn off");
     expect(AD_PARTNER_PRIVACY_URL).toBe("https://adcode.bluethenics.com/privacy#sponsored-cards");
   });

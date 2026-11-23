@@ -185,7 +185,8 @@ async function boot(): Promise<void> {
     if (appUp && state !== "connecting") return;
     const stuck = !appUp ? "loading the app" : "starting its workspace in this tab";
     console.error(`[adcode] still ${stuck} after ${OPEN_TIMEOUT_MS / 1000} s (connection: ${state})`);
-    showBlocked("ADCode is taking too long to open", `It stopped while ${stuck}. Reload to try again - your projects are saved in this browser.`, [
+    // A slow connection is still loading, not stuck: the app replaces this the moment it is up.
+    showBlocked("ADCode is taking longer than usual", `Still ${stuck} - it opens by itself when it is ready. If it doesn't, reload; your projects are saved in this browser.`, [
       { label: "Reload", primary: true, run: () => location.reload() },
     ]);
   }, OPEN_TIMEOUT_MS);

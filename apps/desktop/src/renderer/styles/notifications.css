@@ -562,3 +562,21 @@
 }
 .notification-inbox-actions button:hover { border-color: var(--accent); }
 .notification-inbox-empty { margin: 0; padding: 26px 16px; color: var(--text-secondary); font-size: 13px; line-height: 1.5; text-align: center; }
+
+/* Phones (23 Nov 2026): notifications - the partner's ad card among them - come in under the top
+   bar instead of over the message box, a little narrower than the screen, and from above. */
+@media (max-width: 600px) {
+  .toast-layer {
+    top: calc(64px + env(safe-area-inset-top));
+    right: 12px;
+    bottom: auto;
+    left: 12px;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+  }
+  .toast { width: 100%; gap: 8px; padding: 12px; border-radius: 16px; font-size: 13px; }
+  /* The close button sits outside the card's left edge: leave it room. */
+  .toast.toast-partner { width: calc(100% - 36px); }
+  .toast:is(.toast-sponsored, .toast-partner)[data-state="entering"] { transform: translate3d(0, -14px, 0) scale(0.96); }
+}

@@ -34,6 +34,9 @@ export const AD_PARTNER_NOTICE = {
   body:
     "ADCode now shows one sponsored card under some AI replies, picked for that conversation, and lets our ad partner fill a sponsored message when no ADCode advertiser has one. " +
     "Cards send your message and the reply to Zeekend, our only ad partner. Partner messages send only the names of the languages you have open. Nothing else from your project.",
+  /** A phone has a third of the room: the same disclosure - who, and exactly what is sent - in fewer words. */
+  bodyCompact:
+    "Sponsored cards under AI replies send your message and the reply to Zeekend, our only ad partner; partner messages send only the names of the languages you have open. Nothing else from your project.",
   link: "What is sent",
   turnOff: "Turn off",
   settings: "Settings",
@@ -100,7 +103,7 @@ export function createAdPartnerNotice(host: HTMLElement, deps: AdPartnerNoticeDe
     // The disclosure comes before every button, so nothing can be kept on unread.
     const body = document.createElement("p");
     body.className = "pin-card-body";
-    body.textContent = `${copy.body} `;
+    body.textContent = `${window.matchMedia("(max-width: 600px)").matches ? AD_PARTNER_NOTICE.bodyCompact : copy.body} `;
     const link = document.createElement("a");
     link.href = AD_PARTNER_PRIVACY_URL;
     link.target = "_blank";

@@ -234,7 +234,7 @@ import {
 } from "../shared/keybindings.ts";
 import type { BindingOverrides } from "../shared/keybindings.ts";
 import { webShortcutOverrides } from "../shared/webShortcuts.ts";
-import { isWebSurface, OPEN_FROM_GITHUB_EVENT, usesWebFrame } from "./surface.ts";
+import { isWebSurface, OPEN_CREDIT_CONVERSION_EVENT, OPEN_FROM_GITHUB_EVENT, usesWebFrame } from "./surface.ts";
 import { scaffoldFor, todoMarksIn } from "@adcode/structure";
 import { createAccountMenu } from "./workbench/accountMenu.ts";
 import { createOnboardingSheet } from "./onboarding/onboardingSheet.ts";
@@ -6402,10 +6402,13 @@ function registerCommands(): void {
     openPrimaryPopup("earnings", earningsShell, earningsActivity, "keyboard"),
   );
   // Ad earnings into AI credits, in the earnings card; withdrawing happens on the website.
-  add("ads.convertEarnings", "Earnings: Convert to AI Credits", () => {
+  const openCreditConversion = (): void => {
     openPrimaryPopup("earnings", earningsShell, earningsActivity, "keyboard");
     earningsPopover.openConversion();
-  });
+  };
+  add("ads.convertEarnings", "Earnings: Convert to AI Credits", openCreditConversion);
+  // The web keeps earnings in its account panel, which asks for the same card (web/accountPanel.tsx).
+  document.addEventListener(OPEN_CREDIT_CONVERSION_EVENT, openCreditConversion);
   add("ads.withdrawEarnings", "Earnings: Withdraw on the Website", () => void window.open(WITHDRAW_URL, "_blank", "noopener,noreferrer"));
   add("invite.open", "Invite & Earn", () => openInvite("keyboard"));
   add(

@@ -890,3 +890,27 @@ textarea.form-input { resize: vertical; line-height: 1.5; }
 }
 
 .result-badge svg { width: 22px; height: 22px; stroke-width: 2.5; }
+
+/* Phones (23 Nov 2026, "notices are too big on mobile"): a notice drops in under the top bar
+   across the width, as an Android heads-up does, instead of a tall card over the message box.
+   Tighter type and padding; it scrolls inside itself rather than run off a short screen. */
+@media (max-width: 600px) {
+  .pin-card {
+    top: calc(64px + env(safe-area-inset-top));
+    right: 12px;
+    bottom: auto;
+    left: 12px;
+    width: auto;
+    max-height: calc(100dvh - 88px - env(safe-area-inset-top));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    gap: 6px;
+    padding: 12px 14px 10px;
+    border-radius: 18px;
+    transform: translateY(-12px) scale(0.98);
+  }
+  .pin-card[data-state="exiting"] { transform: translateY(-8px) scale(0.98); }
+  .pin-card-title { font-size: 15px; line-height: 1.3; }
+  .pin-card-body, .pin-card-steps, .pin-card-status { font-size: 13px; line-height: 1.45; }
+  .pin-card-actions :is(.pin-card-later, .pin-card-primary) { min-height: 36px; }
+}

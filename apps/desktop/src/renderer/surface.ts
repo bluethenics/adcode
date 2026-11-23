@@ -29,6 +29,8 @@ export function usesWebFrame(): boolean {
 export const OPEN_WEB_ACCOUNT_EVENT = "adcode:open-account";
 /** The web's Open from GitHub dialog (web/githubRepoPicker.ts); `detail.open` receives the opened folder. */
 export const OPEN_FROM_GITHUB_EVENT = "adcode:open-from-github";
+/** Converting earnings to AI credits, asked for from the web's account panel (web/accountPanel.tsx). */
+export const OPEN_CREDIT_CONVERSION_EVENT = "adcode:convert-earnings";
 export function openWebAccount(section = "overview"): void {
   document.dispatchEvent(new CustomEvent(OPEN_WEB_ACCOUNT_EVENT, { detail: section }));
 }
