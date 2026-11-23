@@ -2679,6 +2679,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     ],
     benefits: [
       "Works from $0.50 - you do not have to reach the $50 payout minimum before your earnings are useful.",
+      "While a free model promotion runs, new verified accounts get free usage of a paid model (such as $0.15 of DeepSeek for the first 300 accounts), claimed on first use or with Claim free usage on the AI credits page. It is spent first and only on that model, so you can keep working while your earnings build up to the conversion minimum.",
       "No fee, no card, no checkout: one dollar of earnings is one dollar of credits, and the credits never expire.",
       "The server sets the rate, checks your balance and moves the money in one step, so it is never counted twice; a double click or a retry after a dropped connection converts once.",
       "Every conversion is on the record: Converted to AI credits in your earnings ledger, From ad earnings in your credit activity.",

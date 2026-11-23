@@ -128,6 +128,8 @@ export async function signInToMcp(id: string, endpoint: string, values: Readonly
   if (resource === null) throw new Error("This server does not ask for an OAuth sign-in. Save its key as a value instead.");
   const server = await discoverAuthorizationServer(resource.authorizationServers[0]!);
   const google = isGoogleIssuer(server.issuer);
+  // What the result page names as the sign-in provider, like "api.supabase.com".
+  const signInHost = (() => { try { return new URL(server.issuer).host; } catch { return "your connector"; } })();
   const verifier = base64url(randomBytes(32));
   const challenge = base64url(createHash("sha256").update(verifier).digest());
   const state = base64url(randomBytes(16));
@@ -146,7 +148,7 @@ export async function signInToMcp(id: string, endpoint: string, values: Readonly
       const ok = "grant" in outcome;
       if (answer !== null && !answer.writableEnded) {
         answer.writeHead(ok ? 200 : 400, RESULT_PAGE_HEADERS);
-        answer.end(resultPage(ok ? "Connector signed in" : "Sign-in didn't finish", ok ? "Return to ADCode: the connector is connecting now." : outcome.reason, ok, "your connector"));
+        answer.end(resultPage(ok ? "Connector signed in" : "Sign-in didn't finish", ok ? "Return to ADCode: the connector is connecting now." : outcome.reason, ok, signInHost));
       }
       listener.close();
       if (ok) resolve(outcome.grant);
@@ -169,7 +171,7 @@ export async function signInToMcp(id: string, endpoint: string, values: Readonly
          * later, land on a closed listener and the connector report "could not be verified".
          */
         res.writeHead(400, RESULT_PAGE_HEADERS);
-        res.end(resultPage("This sign-in page is out of date", "ADCode started a newer sign-in for this connector. Finish that one, or start again from ADCode.", false, "your connector"));
+        res.end(resultPage("This sign-in page is out of date", "ADCode started a newer sign-in for this connector. Finish that one, or start again from ADCode.", false, signInHost));
         return;
       }
       if (answer !== null) { res.writeHead(409).end(); return; }

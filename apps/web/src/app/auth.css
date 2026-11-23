@@ -134,130 +134,15 @@
 .verification-actions { display:flex; flex-wrap:wrap; gap:8px; }
 
 /*
- * The browser handoff page (app/desktop-sign-in).
- *
- * You arrive here from the desktop app, mid-sign-in, with one decision to make. The
- * marketing navigation and the whole site footer used to sit on either side of this card:
- * a dozen exits placed exactly where somebody is trying to finish something. They are
- * hidden while this page is open. `display: none` also takes them out of the tab order and
- * the accessibility tree, which is the point - not just out of sight.
+ * Full-page success and connected cards (components/DoneCard.tsx): signing in to the desktop
+ * app, status alerts. You arrive mid-task with one decision to make, so the marketing
+ * navigation, the site footer and the floating guide are hidden while the card is the page.
+ * `display: none` also takes them out of the tab order and the accessibility tree, which is
+ * the point - not just out of sight. Overlay cards (checkout returns) cover the page instead.
  */
-body:has(.desktop-handoff) .marketplace-nav,
-body:has(.desktop-handoff) .marketplace-footer { display: none; }
-
-.desktop-handoff {
-  min-height: 100svh;
-  display: grid;
-  align-items: center;
-  padding-block: clamp(24px, 6vh, 72px);
-}
-
-.desktop-handoff > .wrap { width: min(940px, 100%); }
-
-.desktop-handoff .auth-card.auth-workspace.auth-upgrade {
-  max-width: 940px;
-  margin-inline: auto;
-  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1fr);
-}
-
-.desktop-handoff .auth-form-panel {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 34px;
-}
-
-/* A shorter field than the website's sign-in: this page has to fit a laptop screen whole. */
-.desktop-handoff .auth-ascii { height: 168px; }
-
-.desktop-handoff .auth-form-heading { margin-bottom: 22px; }
-.desktop-handoff .auth-form-heading :is(h1, h2) { text-wrap: balance; }
-.desktop-handoff .auth-context { padding-block: 28px; }
-.desktop-handoff .auth-context-copy p { max-width: 34ch; }
-.desktop-handoff .auth-context-note { margin-top: 14px; }
-
-/*
- * Short laptop screens (1366x768 leaves about 640px of viewport) cannot show the card and its
- * illustration at once. The character field is the one thing here that is decoration, so it
- * goes first and the button stays above the fold. Nothing else is removed.
- */
-@media (max-height: 780px) {
-  .desktop-handoff .auth-ascii,
-  .desktop-handoff .auth-art-top,
-  .desktop-handoff .auth-art-bottom { display: none; }
-  .desktop-handoff .auth-context-copy { margin-top: 26px; }
-}
-.desktop-handoff .provider-stack { margin-bottom: 0; }
-.desktop-handoff .auth-privacy { margin-top: 26px; }
-
-/* What to do when the link is dead, in place of a button that cannot work. */
-.auth-handoff-panel { padding: 16px 18px; border: 1px solid var(--hairline); border-radius: 12px; background: var(--card); }
-.auth-handoff-label { margin: 0 0 10px; color: var(--text); font-size: 12px; font-weight: 600; }
-.auth-handoff-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; counter-reset: handoff; }
-/*
- * Position the number instead of making the list item a grid. In a grid, every child becomes
- * an item, so a <strong> in the middle of a sentence lands in the number's 18px column and
- * wraps one word per line.
- */
-.auth-handoff-list li { position: relative; padding-left: 28px; color: var(--muted); font-size: 13px; line-height: 1.55; counter-increment: handoff; }
-.auth-handoff-list li::before {
-  content: counter(handoff);
-  position: absolute;
-  top: 1px;
-  left: 0;
-  display: grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  border: 1px solid color-mix(in srgb, var(--text) 22%, transparent);
-  border-radius: 50%;
-  color: var(--muted);
-  font: 600 10px/1 var(--font-mono), monospace;
-}
-.auth-handoff-list strong { color: var(--text); font-weight: 600; }
-
-@media (max-width: 900px) and (min-width: 721px) {
-  .desktop-handoff .auth-form-panel { padding: 30px; }
-}
-
-/*
- * Phone. The website keeps the character field beside the headline, which on a handoff screen
- * spends a third of the width on decoration and leaves a "Pause" toggle floating under
- * nothing. This page drops the field and puts everything in one column.
- *
- * These selectors are written at the same specificity as the site's phone rules
- * (`.auth-screen .auth-upgrade .auth-context` and friends). A two-class override loses to
- * them no matter where it sits in the file, which is how the copy once ended up in the site's
- * 120px art column, one word per line.
- */
-@media (max-width: 720px) {
-  .desktop-handoff { min-height: 100svh; padding-block: 16px; }
-  .desktop-handoff .auth-card.auth-workspace.auth-upgrade { max-width: 440px; grid-template-columns: minmax(0, 1fr); }
-  .desktop-handoff.auth-screen .auth-upgrade .auth-context {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0;
-    padding: 18px 20px 20px;
-  }
-  .desktop-handoff .auth-context .auth-art { display: none; }
-  .desktop-handoff .auth-context .auth-brand { grid-column: 1; grid-row: 1; }
-  .desktop-handoff.auth-screen .auth-upgrade .auth-context-copy { grid-column: 1; grid-row: 2; margin: 14px 0 0; }
-  .desktop-handoff.auth-screen .auth-upgrade .auth-context-copy h2 { font-size: 21px; line-height: 1.2; }
-  .desktop-handoff.auth-screen .auth-upgrade .auth-context-copy p { display: block; max-width: 46ch; margin-top: 8px; font-size: 13px; line-height: 1.55; }
-  .desktop-handoff .auth-context .auth-context-list { display: none; }
-  .desktop-handoff .auth-context .auth-context-note { display: none; }
-  .desktop-handoff.auth-screen .auth-upgrade .auth-form-panel { padding: 20px; }
-  .desktop-handoff .auth-form-heading { margin-bottom: 18px; }
-  .desktop-handoff .auth-privacy { margin-top: 18px; }
-  .desktop-handoff .auth-form-panel .auth-form-heading :is(h1, h2) { font-size: 23px; }
-}
-
-/* The smallest phones (320px wide) need the last few pixels to keep the button above the fold. */
-@media (max-width: 380px) {
-  .desktop-handoff { padding-block: 10px; }
-  .desktop-handoff.auth-screen .auth-upgrade .auth-form-panel { padding: 18px; }
-  .desktop-handoff .auth-form-panel .auth-form-heading :is(h1, h2) { font-size: 22px; }
-}
+body:has(.done-page:not([data-overlay])) .marketplace-nav,
+body:has(.done-page:not([data-overlay])) .marketplace-footer,
+body:has(.done-page:not([data-overlay])) .buck-guide { display: none; }
 
 
 /*

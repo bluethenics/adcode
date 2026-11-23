@@ -19,6 +19,14 @@ describe("composer usage meters", () => {
     expect(held).toMatchObject({label:"Held",value:"$0.6544"});
     expect(composerUsageModels(null,view,true,"free-model")[0].value).toBe("∞");
   });
+  it("shows a free promotion first on the models it covers, and only while some is left", () => {
+    const promo={name:"Free DeepSeek",models:["deepseek"],availableMicros:120_000,claimed:true,spotsLeft:10};
+    const view=allowance({unlimited:true,wallet:{availableMicros:0,reservedMicros:0,models:["deepseek","opus"],promo}});
+    expect(composerUsageModels(null,view,true,"deepseek")).toMatchObject([{label:"Free DeepSeek",value:"$0.1200",tone:"ok"},{label:"Paid credits",value:"$0.0000"}]);
+    expect(composerUsageModels(null,view,true,"opus")[0]).toMatchObject({label:"Paid credits",tone:"full"});
+    const spent=allowance({unlimited:true,wallet:{availableMicros:0,reservedMicros:0,models:["deepseek"],promo:{...promo,availableMicros:0}}});
+    expect(composerUsageModels(null,spent,true,"deepseek")[0]).toMatchObject({label:"Paid credits"});
+  });
   it("shows the session and weekly credit windows when the relay meters credits", () => {
     const now = Date.now();
     const view = allowance({ credits: {

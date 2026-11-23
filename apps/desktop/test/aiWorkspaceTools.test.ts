@@ -126,6 +126,19 @@ describe("sandboxed built-in AI tools", () => {
     expect(writeWorkspace).toHaveBeenCalled();
   });
 
+  it("takes content as contents, and explains a cut-off whole-file call", async () => {
+    const writeSandboxFile = vi.fn(async (path: string, contents: string) => createFileChange(path, "", contents));
+    const runner = createAiToolRunner({
+      workspace: async () => ({ taskId: "", sandboxRoot: human, humanRoot: human }),
+      memory: () => null, writeSandboxFile, onProposedEdit: () => undefined,
+    });
+    const aliased = await runner.run(call("propose_edit", { path: "src/new.ts", content: "export {};\n" }), new AbortController().signal);
+    expect(aliased.isError).toBe(false);
+    expect(writeSandboxFile).toHaveBeenCalledWith(expect.any(String), "export {};\n");
+    const missing = await runner.run(call("propose_edit", { path: "src/new.ts" }), new AbortController().signal);
+    expect(missing).toMatchObject({ isError: true, content: expect.stringContaining("edit_file in small steps") });
+  });
+
   it("fails an edit cleanly when the write workspace is unavailable", async () => {
     const runner = createAiToolRunner({
       workspace: async () => ({ taskId: "", sandboxRoot: human, humanRoot: human }),

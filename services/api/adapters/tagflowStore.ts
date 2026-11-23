@@ -1,4 +1,5 @@
 import { createModelWalletStore } from "./modelWalletStore.ts";
+import { createModelPromoStore } from "./modelPromoStore.ts";
 import type { TagflowStore, TagflowUsage, TokenLedgerEntry, TokenOrder } from "../src/tagflowTypes.ts";
 import type { PlanId } from "../src/aiPlans.ts";
 import type { CreditWindow } from "../src/credits.ts";
@@ -20,6 +21,7 @@ const check = (error: { message: string } | null): void => { if (error !== null)
 export function createTagflowStore(lazy: () => Promise<SupabaseClient>): TagflowStore {
   return {
     ...createModelWalletStore(lazy),
+    ...createModelPromoStore(lazy),
     ...createModelReportStore(lazy),
     async getTagflowConfig() {
       const { data, error } = await (await lazy()).from("tagflow_config").select("config, updated_at, updated_by").eq("id", 1).maybeSingle();

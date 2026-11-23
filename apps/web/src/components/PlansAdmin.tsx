@@ -7,6 +7,7 @@ import { dollars, formatTokens } from "@/app/ai-tokens/tokenFormatting";
 import { planName } from "@/app/ai-tokens/Plans";
 import { UsageCampaignAdmin } from "./UsageCampaignAdmin";
 import { PriceOfferAdmin } from "./PriceOfferAdmin";
+import { ModelPromoAdmin } from "./ModelPromoAdmin";
 import { PlanCatalogueTable, WalletSalesAdmin } from "./WalletSalesAdmin";
 
 type AdminCall = <T>(path: string, body?: unknown) => Promise<T>;
@@ -201,6 +202,7 @@ export function PlansAdmin({ call }: { call: AdminCall }) {
     <h3 id="plans-admin-heading">Plans &amp; promotions</h3>
     <p className="row-sub">Raise allowances for an account or everyone, share promo codes, and track subscriptions. Plans and boosts apply while paid models are enabled.</p>
     <PriceOfferAdmin call={call} />
+    <ModelPromoAdmin call={call} />
     <UsageCampaignAdmin call={call} />
     <div className="plans-admin-group">
       <h4>Plans on sale</h4>

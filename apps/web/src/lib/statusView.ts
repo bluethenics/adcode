@@ -79,6 +79,14 @@ export const LEVEL_LABELS: Record<string, string> = {
   quiet: "No recent traffic",
 };
 
+/**
+ * What the public page draws. A period with no requests had no failures either, so it is shown
+ * as operational (green) rather than as a blank, colourless "no traffic" bar: the owner found a
+ * page of grey gaps read as something wrong (23 Nov 2026). The API still reports `quiet`, and
+ * the admin view and alerts keep telling no traffic apart from healthy traffic.
+ */
+export const shownLevel = (level: string): string => (level === "quiet" ? "operational" : level);
+
 export const INCIDENT_STATUS_LABELS: Record<string, string> = {
   investigating: "Investigating",
   identified: "Identified",

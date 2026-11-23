@@ -130,6 +130,7 @@ import { adNetworkEncryptionKeys, encryptAdNetworkKey } from "./adNetworkCrypto.
 import { growthToWire } from "./growth.ts";
 import { parseModelCatalog, readModelCatalog, saveModelCatalog } from "./modelCatalog.ts";
 import { parseModelOutcomes, readModelHealth, recordModelOutcomes } from "./modelOutcomes.ts";
+import { doneCardDocument, type DoneCardContent } from "./doneCard.ts";
 import {
   STATUS_WINDOW_DAYS,
   handleAddStatusIncidentUpdate,
@@ -767,17 +768,20 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
         "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
         "x-robots-tag": "noindex, nofollow",
       };
-      const shell = (content: string) => '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ADCode email preferences</title><body style="margin:0;background:#f1efea;color:#292820;font:16px/1.7 Arial,Helvetica,sans-serif"><main style="max-width:480px;margin:12vh auto;padding:28px"><p style="font-weight:bold">adcode.</p>' + content + '</main></body></html>';
+      // The shared success card (doneCard.ts): the same design as every other ADCode "done" page.
+      const shell = (content: DoneCardContent) => doneCardDocument(content);
+      const kept = { label: "Your account", value: "Unchanged" };
+      const back = { kind: "link" as const, label: "Return to ADCode", href: "/dashboard#email-preferences" };
       // A status or model email's link stops that kind of email and nothing else; every other link stops all updates.
       const statusOnly = url.searchParams.get("topic") === "status";
       const modelsOnly = url.searchParams.get("topic") === "models";
       if (req.method === "GET") {
         res.writeHead(200, htmlHeaders);
         res.end(modelsOnly
-          ? shell('<h1>Stop model emails?</h1><p>You will no longer hear from ADCode about new free models or how the models are performing. Your other email choices and your account stay as they are.</p><form method="post" action="?token=' + token + '&amp;topic=models"><button style="padding:14px 24px;background:#292820;color:#fcfbf7;border:0;border-radius:8px;font:inherit;cursor:pointer">Stop model emails</button></form>')
+          ? shell({ tone: "info", title: "Stop model emails?", rows: [{ label: "Stops", value: "News about free models and how they perform" }, kept], notes: ["If you didn't follow a link from an ADCode email, close this tab."], action: { kind: "post", label: "Stop model emails", action: "?token=" + token + "&topic=models" } })
           : statusOnly
-          ? shell('<h1>Stop status emails?</h1><p>You will no longer hear from ADCode when free AI has an outage or when it is fixed. Your other email choices and your account stay as they are.</p><form method="post" action="?token=' + token + '&amp;topic=status"><button style="padding:14px 24px;background:#292820;color:#fcfbf7;border:0;border-radius:8px;font:inherit;cursor:pointer">Stop status emails</button></form>')
-          : shell('<h1>Make room in your inbox.</h1><p>Stop ADCode product updates and project reminders. Your account stays just as it is.</p><form method="post" action="?token=' + token + '"><button style="padding:14px 24px;background:#292820;color:#fcfbf7;border:0;border-radius:8px;font:inherit;cursor:pointer">Unsubscribe</button></form>'));
+          ? shell({ tone: "info", title: "Stop status emails?", rows: [{ label: "Stops", value: "Outage and recovery alerts for free AI" }, kept], notes: ["If you didn't follow a link from an ADCode email, close this tab."], action: { kind: "post", label: "Stop status emails", action: "?token=" + token + "&topic=status" } })
+          : shell({ tone: "info", title: "Make room in your inbox", rows: [{ label: "Stops", value: "Product updates and project reminders" }, kept], notes: ["If you didn't follow a link from an ADCode email, close this tab."], action: { kind: "post", label: "Unsubscribe", action: "?token=" + token } }));
       } else if (req.method === "POST" && modelsOnly) {
         const form = new URLSearchParams(await readBody(req));
         await options.mailing.unsubscribeModels(token, clock.now());
@@ -787,7 +791,7 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
           return;
         }
         res.writeHead(200, htmlHeaders);
-        res.end(shell('<h1>Model emails are off.</h1><p>You can turn them back on in your account whenever you like. How each model is doing is always on the <a href="/status" style="color:#292820">status page</a>.</p><a href="/dashboard#email-preferences" style="color:#292820">Return to ADCode</a>'));
+        res.end(shell({ title: "Model emails are off", rows: [{ label: "Stopped", value: "Model news and performance emails" }, kept], notes: ["You can turn them back on in your account whenever you like."], action: back, secondary: { label: "See how each model is doing", href: "/status" } }));
       } else if (req.method === "POST" && statusOnly) {
         const form = new URLSearchParams(await readBody(req));
         await options.mailing.unsubscribeStatus(token, clock.now());
@@ -797,7 +801,7 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
           return;
         }
         res.writeHead(200, htmlHeaders);
-        res.end(shell('<h1>Status emails are off.</h1><p>You can turn them back on in your account whenever you like. The status page is always at <a href="/status" style="color:#292820">adcode.bluethenics.com/status</a>.</p><a href="/dashboard#email-preferences" style="color:#292820">Return to ADCode</a>'));
+        res.end(shell({ title: "Status emails are off", rows: [{ label: "Stopped", value: "Outage and recovery alerts" }, { label: "Live status", value: "adcode.bluethenics.com/status" }], notes: ["You can turn them back on in your account whenever you like."], action: back, secondary: { label: "See live status", href: "/status" } }));
       } else if (req.method === "POST") {
         const form = new URLSearchParams(await readBody(req));
         await options.mailing.unsubscribe(token, clock.now());
@@ -807,7 +811,7 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
           return;
         }
         res.writeHead(200, htmlHeaders);
-        res.end(shell('<h1>You are unsubscribed.</h1><p>You will no longer receive ADCode product updates or project reminders. You can change this in your account whenever you like.</p><a href="/dashboard#email-preferences" style="color:#292820">Return to ADCode</a>'));
+        res.end(shell({ title: "You’re unsubscribed", rows: [{ label: "Stopped", value: "Product updates and project reminders" }, kept], notes: ["You can change this in your account whenever you like."], action: back }));
       } else { send(res, 405, { error: "method-not-allowed" }, { ...cors, allow: "GET, POST" }); }
       return;
     }

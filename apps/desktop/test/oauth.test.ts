@@ -53,8 +53,8 @@ describe("Google browser sign-in", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
     const html = await response.text();
-    expect(html).toContain("Sign-in approved");
-    expect(html).toContain("brand-logo");
+    expect(html).toContain("You’re signed in");
+    expect(html).toContain("done-icon");
     expect(html).not.toContain("test-identity");
     expect(cancelSignIn()).toBe(false);
   });
@@ -67,7 +67,7 @@ describe("Google browser sign-in", () => {
     expect(response.status).toBe(400);
     const html = await response.text();
     expect(html).toContain("Expired &lt;code&gt;");
-    expect(html).not.toContain("Sign-in approved");
+    expect(html).not.toContain("You’re signed in");
   });
   it("rejects a mismatched state even on a denial callback", async () => {
     const flow = linkWithGoogle();
@@ -174,7 +174,7 @@ it("serves a branded, private GitHub completion page without credential data", a
   expect(response.headers.get("referrer-policy")).toBe("no-referrer");
   const html = await response.text();
   expect(html).toContain("Your GitHub account is connected");
-  expect(html).toContain("brand-logo");
+  expect(html).toContain("done-icon");
   expect(html).not.toContain("test-access");
   expect((await realFetch(new URL("/favicon.ico", url))).status).toBe(404);
 });

@@ -17,6 +17,7 @@ export {
   IMPACT_LABELS,
   INCIDENT_STATUS_LABELS,
   LEVEL_LABELS,
+  shownLevel,
   parseStatusView,
   type StatusDay,
   type StatusCandle,

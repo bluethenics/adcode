@@ -184,11 +184,25 @@ export function DashboardBody() {
               value={rows.filter((row) => row.kind === "impression").length.toLocaleString("en-US")}
               hint="Cards you actually saw"
             />
-            <Tile
-              label="Clicks"
-              value={rows.filter((row) => row.kind === "click").length.toLocaleString("en-US")}
-              hint="Sponsors you followed"
-            />
+            {/*
+              * Zeekend, the only network serving since 13 Nov, pays for each card seen and
+              * reports no clicks to us, so a click never becomes a ledger row. A tile that
+              * read "Clicks 0" after somebody clicked looked like lost earnings (report
+              * rep-1-1795386014912). Paid clicks still show when an account has any.
+              */}
+            {rows.some((row) => row.kind === "click") ? (
+              <Tile
+                label="Paid clicks"
+                value={rows.filter((row) => row.kind === "click").length.toLocaleString("en-US")}
+                hint="Sponsors that paid for a click"
+              />
+            ) : (
+              <Tile
+                label="Clicks"
+                value="Not paid"
+                hint="You earn for each card you see; clicking adds nothing"
+              />
+            )}
             <Tile
               label="Corrections"
               value={rows.filter((row) => row.kind === "reversal").length.toLocaleString("en-US")}

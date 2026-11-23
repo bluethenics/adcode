@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { randomBytes } from "node:crypto";
-import { resultPage, RESULT_PAGE_HEADERS } from "./oauthResultPage.ts";
+import { emailFromIdToken, resultPage, RESULT_PAGE_HEADERS } from "./oauthResultPage.ts";
 
 /** Google credentials return through a state-bound form POST, never through a URL or log. */
 export function browserGoogleFlow(options: {
@@ -20,7 +20,7 @@ export function browserGoogleFlow(options: {
       const data = new URLSearchParams(body), token = data.get("idToken");
       if (data.get("state") !== state || token === null || !/^[\w-]+\.[\w-]+\.[\w-]+$/.test(token) || token.length > 16_000) { reject(400); return; }
       response.writeHead(200, RESULT_PAGE_HEADERS);
-      response.end(resultPage("Sign-in approved", "Return to ADCode to finish connecting your account.", true), () => finish({ ok: true, provider: "google.com", idToken: token }));
+      response.end(resultPage("You’re signed in", "Return to ADCode to finish connecting your account.", true, "Google", { account: emailFromIdToken(token) }), () => finish({ ok: true, provider: "google.com", idToken: token }));
     });
     const finish = (result: { ok: true; provider: "google.com"; idToken: string } | { ok: false; reason: string }) => {
       if (settled) return; settled = true; clearTimeout(timer); options.cancellation(null); server.close(); server.closeAllConnections(); resolve(result);

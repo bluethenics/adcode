@@ -232,6 +232,7 @@ describe("assistant failure explanations", () => {
     expect(describeAiFailure("Included AI returned HTTP 400: Included AI cannot read image attachments. (code images-not-supported)")).toMatchObject({ kind: "no-images", actions: ["models", "new-conversation"] });
     expect(describeAiFailure("Included AI returned HTTP 400: This model is not available in included AI. (code model-unavailable)").kind).toBe("model-missing");
     expect(describeAiFailure("Included AI returned HTTP 400: Invalid conversation (code invalid-messages)").kind).toBe("history");
+    expect(describeAiFailure("Included AI returned HTTP 413: This conversation has 4100 messages. (code too-many-messages)")).toMatchObject({ kind: "too-large", actions: ["compact-continue", "new-conversation"] });
     expect(describeAiFailure("Included AI returned HTTP 413: Estimated input tokens: Limit 32768, Requested 35000. (code context-length)")).toMatchObject({ kind: "too-large" });
   });
 });

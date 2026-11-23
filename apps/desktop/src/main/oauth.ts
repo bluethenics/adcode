@@ -21,7 +21,7 @@
 import { createServer, type ServerResponse } from "node:http";
 import { createHash, randomBytes } from "node:crypto";
 import { shell } from "electron";
-import { resultPage, RESULT_PAGE_HEADERS } from "./oauthResultPage.ts";
+import { emailFromIdToken, resultPage, RESULT_PAGE_HEADERS } from "./oauthResultPage.ts";
 import { browserGoogleFlow } from "./googleBrowserFlow.ts";
 
 /*
@@ -141,7 +141,7 @@ export async function linkWithGoogle(): Promise<OAuthResult> {
       controller.abort();
       if (callbackResponse !== null && !callbackResponse.writableEnded) {
         callbackResponse.writeHead(result.ok ? 200 : 400, RESULT_PAGE_HEADERS);
-        callbackResponse.end(resultPage(result.ok ? "Sign-in approved" : "Sign-in didn't finish", result.ok ? "Google approved your sign-in. Return to ADCode to finish connecting your account." : result.reason, result.ok));
+        callbackResponse.end(resultPage(result.ok ? "You’re signed in" : "Sign-in didn't finish", result.ok ? "Google approved your sign-in. Return to ADCode to finish connecting your account." : result.reason, result.ok, "Google", { account: result.ok && result.provider === "google.com" ? emailFromIdToken(result.idToken) : undefined }));
       }
       server.close();
       resolve(result);

@@ -3,6 +3,7 @@ import {
   IMPACT_LABELS,
   INCIDENT_STATUS_LABELS,
   LEVEL_LABELS,
+  shownLevel,
   parseStatusView,
 } from "../src/lib/status";
 
@@ -127,6 +128,10 @@ describe("parseStatusView", () => {
 });
 
 describe("labels", () => {
+  it("shows a period with no requests as operational on the public page, and nothing else", () => {
+    expect(shownLevel("quiet")).toBe("operational");
+    for (const level of ["operational", "degraded", "outage", "maintenance"]) expect(shownLevel(level)).toBe(level);
+  });
   it("names every level, state and impact the API can send", () => {
     for (const level of ["operational", "degraded", "outage", "maintenance", "quiet"]) {
       expect(LEVEL_LABELS[level], level).toBeTruthy();

@@ -155,10 +155,11 @@ describe("admin plans and promotions", () => {
     expect(html).toContain("Start offer"); expect(html).toContain("Percent off"); expect(html).toContain('max="25"');
     expect(html).toContain("$1.00 becomes $0.85");
   });
-  it("has independently submitted offer, allowance, promo and campaign forms and visible loading states", () => {
+  it("has independently submitted offer, free model promotion, allowance, promo and campaign forms and visible loading states", () => {
     const html = renderToStaticMarkup(<PlansAdmin call={async <T,>() => ({} as T)} />);
-    expect(html.match(/<form/g)).toHaveLength(4);
+    expect(html.match(/<form/g)).toHaveLength(5);
     expect(html).toContain("Price offer");
+    expect(html).toContain("Free model promotion");
     expect(html).toContain("Reset daily usage"); expect(html).toContain("Boost daily allowance"); expect(html).toContain("Gift a plan");
     expect(html).toContain("Everyone"); expect(html).toContain("Loading subscriptions"); expect(html).toContain("Loading promo codes");
   });

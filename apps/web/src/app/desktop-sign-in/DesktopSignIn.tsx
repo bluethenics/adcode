@@ -3,10 +3,7 @@
 import { useEffect, useState } from "react";
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { auth, authMessage, firebaseConfigured } from "@/lib/firebase";
-import { AuthAscii } from "@/components/AuthAscii";
-import { Mark } from "@/components/Mark";
-import { Icon } from "@/components/Icon";
-import { ArrowUpRight } from "lucide";
+import { DoneCard } from "@/components/DoneCard";
 
 /*
  * The page the desktop app opens in your browser when you press Continue with Google.
@@ -14,8 +11,9 @@ import { ArrowUpRight } from "lucide";
  * It is a handoff, not a marketing page: one decision, one button, and the job is done. It
  * used to sit between the site's navigation and its full footer, which turned a five-second
  * task into a 1172px page with a dozen ways to leave it. The nav and the footer are hidden
- * here (see the `.desktop-handoff` rule in auth.css) and the card is the same one the website
- * uses to sign in, so arriving from the app does not feel like landing on another product.
+ * here (see the `.done-page` rule in auth.css) and the card is the one every ADCode success
+ * and connected page uses (`components/DoneCard.tsx`), so the whole round trip, this tab and
+ * the "Sign-in approved" page the app answers with, looks like one product.
  *
  * The logic below is unchanged on purpose: the state parameter is still required, the idToken
  * still returns by a form POST to the loopback port, and the token never goes in a URL.
@@ -24,10 +22,13 @@ export function DesktopSignIn() {
   const [callback, setCallback] = useState<{ port: string; state: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // The link is read after hydration; until then draw the ready card, not the expired one.
+  const [checked, setChecked] = useState(false);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search), port = params.get("port") ?? "", state = params.get("state") ?? "";
     if (/^\d{4,5}$/.test(port) && Number(port) >= 1024 && Number(port) <= 65535 && /^[a-f0-9]{64}$/.test(state)) setCallback({ port, state });
     else setError("Open sign-in from the ADCode desktop app to continue.");
+    setChecked(true);
   }, []);
   async function signIn() {
     if (!callback || busy) return;
@@ -45,85 +46,46 @@ export function DesktopSignIn() {
   }
 
   // A link without valid parameters is the app's own message, not a Google failure.
-  const expired = callback === null;
+  const expired = checked && callback === null;
   const canSignIn = callback !== null && firebaseConfigured;
+  const footer = <><a href="/privacy">Privacy policy</a><span aria-hidden="true"> · </span><a href="/terms">Terms of service</a></>;
+
+  if (expired) {
+    return (
+      <DoneCard
+        tone="warn"
+        title="This sign-in link has expired"
+        rows={[
+          { label: "In ADCode", value: "Choose Continue with Google" },
+          { label: "Then", value: "Approve it in the tab that opens" },
+        ]}
+        notes={["A link only works while ADCode is waiting for it. Start again from the app and this page reopens by itself."]}
+        action={{ kind: "link", label: "Download ADCode", href: "/versions" }}
+        secondary={{ label: "See what ADCode does", href: "/" }}
+        footer={footer}
+      />
+    );
+  }
 
   return (
-    <div className="auth-screen desktop-handoff">
-      <div className="wrap">
-        <div className="ios-card auth-card auth-workspace auth-upgrade" data-state={expired ? "expired" : busy ? "busy" : error ? "error" : "ready"}>
-          <section className="auth-context" aria-label="Signing in to ADCode desktop">
-            <div className="auth-brand">
-              <span className="auth-brand-mark" aria-hidden="true"><Mark size={30} /></span>
-              <span>ADCode</span>
-              <span className="auth-brand-caption">Account connection</span>
-            </div>
-            <AuthAscii />
-            <div className="auth-context-copy">
-              <h2>
-                {expired ? "Start again." : "Almost there."}
-                <br />
-                <span>{expired ? "The link was single use." : "Finish in this tab."}</span>
-              </h2>
-              <p>
-                {expired
-                  ? "This page only listens while ADCode is waiting for it. Press Continue with Google in the app and a fresh tab opens here."
-                  : "Google approves the account here. ADCode is waiting in the background, and this tab closes itself once the connection lands."}
-              </p>
-            </div>
-            {!expired && (
-              <ol className="auth-context-list auth-context-steps">
-                <li><span aria-hidden="true">1</span>Pick the Google account you use for ADCode</li>
-                <li><span aria-hidden="true">2</span>Approve it on Google&apos;s screen</li>
-                <li><span aria-hidden="true">3</span>Return to ADCode, already signed in</li>
-              </ol>
-            )}
-            <p className="auth-context-note">ADCode never sees your password. Only a short-lived token returns to the app you started from.</p>
-          </section>
-
-          <section className="auth-form-panel" aria-labelledby="handoff-heading">
-            <header className="auth-form-heading">
-              <p className="auth-eyebrow">ADCode desktop</p>
-              <h1 id="handoff-heading">{expired ? "This sign-in link has expired." : "Sign in to your workspace."}</h1>
-              <p>
-                {expired
-                  ? "A link only works for the sign-in that created it, and only while that sign-in is waiting. Start again from ADCode and this page reopens by itself."
-                  : "Continue with the Google account you use for ADCode. Nothing to install, no password to remember."}
-              </p>
-            </header>
-
-            {expired ? (
-              <div className="auth-handoff-panel">
-                <p className="auth-handoff-label">To get a fresh link</p>
-                <ol className="auth-handoff-list">
-                  <li>Open the ADCode desktop app.</li>
-                  <li>Choose <strong>Continue with Google</strong> in the sign-in window.</li>
-                  <li>Keep the tab that opens here, and approve it there.</li>
-                </ol>
-                <p className="auth-handoff-alt">No ADCode on this computer yet? <a href="/versions">Download it</a>, or <a href="/">see what it does</a>.</p>
-              </div>
-            ) : (
-              <div className="provider-stack">
-                <button type="button" className="btn btn-provider auth-provider-primary" disabled={busy || !canSignIn} onClick={() => void signIn()}>
-                  <GoogleMark />
-                  {busy ? "Connecting to ADCode..." : "Continue with Google"}
-                  <span className={busy ? "auth-spinner" : "auth-provider-arrow"} aria-hidden="true">{busy ? null : <Icon node={ArrowUpRight} />}</span>
-                </button>
-              </div>
-            )}
-
-            {!firebaseConfigured && <p className="auth-error notice" role="alert">Browser sign-in is temporarily unavailable. Use GitHub in ADCode, or contact support.</p>}
-            {error !== "" && !expired && <p className="auth-error notice" role="alert">{error}</p>}
-
-            <p className="sr-only" role="status">{busy ? "Waiting for Google, then connecting to ADCode…" : ""}</p>
-            <p className="auth-privacy">
-              {busy ? "Leave this open until ADCode confirms. It usually takes a moment." : "Your account. Your control."}
-              <br /><a href="/privacy">Privacy policy</a><span aria-hidden="true"> · </span><a href="/terms">Terms of service</a>
-            </p>
-          </section>
-        </div>
-      </div>
-    </div>
+    <>
+      <DoneCard
+        tone="info"
+        title="Finish signing in to ADCode"
+        rows={[
+          { label: "App", value: "ADCode desktop" },
+          { label: "Sign-in provider", value: "Google" },
+          { label: "Returns to", value: "ADCode on this computer" },
+        ]}
+        notes={busy
+          ? ["Leave this open until ADCode confirms. It usually takes a moment."]
+          : ["If you didn't start this in the ADCode app, close this tab. ADCode never sees your password."]}
+        alert={!firebaseConfigured ? "Browser sign-in is temporarily unavailable. Use GitHub in ADCode, or contact support." : error !== "" ? error : undefined}
+        action={{ kind: "button", label: busy ? "Connecting to ADCode..." : <><GoogleMark />Continue with Google</>, busy, disabled: !canSignIn, onClick: () => void signIn() }}
+        footer={footer}
+      />
+      <p className="sr-only" role="status">{busy ? "Waiting for Google, then connecting to ADCode…" : ""}</p>
+    </>
   );
 }
 

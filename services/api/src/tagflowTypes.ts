@@ -7,6 +7,7 @@ import type { FreeWindow, PaidConfig, TokenBalance } from "./paidTokens.ts";
 import type { UsageCampaign } from "./usageCampaign.ts";
 import type { PriceOffer } from "./priceOffer.ts";
 import type { WalletStore } from "./modelWallet.ts";
+import type { ModelPromo, ModelPromoStore } from "./modelPromo.ts";
 import type { AiPlanState, PlanId, PromoInput } from "./aiPlans.ts";
 // Defined beside the providers, which can carry their own allowance, so neither file imports the other.
 export type { TagflowLimits } from "./includedProviders.ts";
@@ -53,6 +54,8 @@ export interface TagflowConfig {
   campaign?: UsageCampaign;
   /** A time-boxed percentage off every model paid from USD credits. See priceOffer.ts. */
   offer?: PriceOffer;
+  /** Free usage of chosen paid models for the first N verified accounts. See modelPromo.ts. */
+  modelPromo?: ModelPromo;
 }
 
 export interface TagflowConfigRecord {
@@ -133,7 +136,7 @@ export interface PromoView extends PromoInput { redemptions: number }
 export interface PlanCheckout { uid: string; orderId: string; plan: PlanId; billingCountry: string; createdAt: number; expiresAt: number; checkoutSession: string | null; checkoutUrl: string | null }
 export type PlanCheckoutClaim = { status: "subscribed" } | { status: "claimed" | "existing"; checkout: PlanCheckout };
 
-export interface TagflowStore extends WalletStore {
+export interface TagflowStore extends WalletStore, Partial<ModelPromoStore> {
   getModelAudienceProfile(uid: string): Promise<ModelAudienceProfile | null>;
   putModelAudienceProfile(profile: ModelAudienceProfile): Promise<void>;
   deleteModelAudienceProfile(uid: string): Promise<void>;

@@ -11,7 +11,7 @@ import { releaseWithResponse, requestTier, type PriorityLease, type RequestPrior
 import { corsHeaders } from "./cors.ts";
 import { DEFAULT_TAGFLOW_CONFIG, isTagflowUrl, parseTagflowConfig, parseTagflowLimits, tagflowCost } from "./tagflowConfig.ts";
 import type { Clock, Store, UserRecord } from "./store.ts";
-import type { TagflowConfig, TagflowModel, TagflowSettlement } from "./tagflowTypes.ts";
+import type { TagflowConfig, TagflowModel, TagflowSettlement, TagflowStore } from "./tagflowTypes.ts";
 import { HEABSY_RELEASE_DATES } from "./heabsyCatalog.ts";
 import { createWorkerSecrets, type WorkerSecrets } from "./workerSecrets.ts";
 import { includedProvider, isCustomProviderUrl, modelProvider, providerConnections, type IncludedProviderId } from "./includedProviders.ts";
@@ -20,6 +20,7 @@ import { BUY_PACKS_URL, BUY_TOKENS_URL, DEFAULT_PAID_CONFIG, PACKS_ON_SALE, TOKE
 import { CREDIT_UNITS, includedCharge, subscriptionCharge } from "./aiEconomics.ts";
 import { DOWNLOAD_URL, WALLET_CUSTOM_MAX_CENTS, WALLET_CUSTOM_MIN_CENTS, WALLET_ORDER_PREFIX, WALLET_TOPUPS_CENTS, WALLET_URL, isWalletAmount, walletCharge, walletPriceFactor, walletRates } from "./modelWallet.ts";
 import { chargeDiscount, endOffer, offerDiscount, publicOffer, startOffer } from "./priceOffer.ts";
+import { activeModelPromo, endModelPromo, promoCovers, publicModelPromo, startModelPromo, type PublicModelPromo } from "./modelPromo.ts";
 import { BUCK_DAILY_LIMIT, BUCK_MESSAGE_MAX, BUCK_REPLY_MAX_TOKENS, BUCK_VISITOR_LIMIT, BUCK_VISITOR_WINDOW_MS, buckFallback, buckMessages, buckReplyText, parseBuckRequest, visitorKey } from "./buckChat.ts";
 import type { PaymentProvider, YearlyPlanProduct } from "./payments.ts";
 import { YEARLY_ORDER_PREFIX, isPlanBilling, planChargeCents, planOrderBilling, PLAN_SALES_OPEN, PLANS, LEGACY_PLANS, effectiveWeeklyAllowance, hasActivePlan, hasUnlimitedPlan, hasAllModelAccess, hasLegacyAllowance, LEGACY_MODEL_IDS, requiresSubscription, parsePromo, planById } from "./aiPlans.ts";
@@ -112,8 +113,8 @@ export function isTagflowPath(path: string): boolean {
   return path === "/v1/ai/tagflow/config" || path === "/v1/ai/buck" || path === "/v1/ai/tagflow/usage" || path === "/v1/ai/tagflow/chat/completions" ||
     path === "/v1/ai/tagflow/feedback" || path === "/v1/ai/tagflow/audience" || path === "/v1/admin/tagflow/reports" ||
     path === "/v1/admin/tagflow" || path === "/v1/admin/tagflow/usage" || path === "/v1/admin/tagflow/keys" || path === "/v1/admin/tagflow/heabsy-models" || path === "/v1/admin/tagflow/submissions" || path === "/v1/admin/tagflow/submissions/decide" || path === "/v1/admin/tagflow/submissions/test" || /^\/v1\/admin\/tagflow\/users\/[^/]+$/.test(path) ||
-    path === "/v1/ai/plans/checkout" || path === "/v1/ai/plans/portal" || path === "/v1/ai/promo/redeem" || path === "/v1/ai/invites" || path === "/v1/ai/invites/redeem" ||
-    ["reset", "boost", "gift", "promo", "subscriptions", "end-renewals", "campaign", "offer", "verification-test"].some((route) => path === `/v1/admin/ai-plans/${route}`) ||
+    path === "/v1/ai/plans/checkout" || path === "/v1/ai/plans/portal" || path === "/v1/ai/promo/redeem" || path === "/v1/ai/promo/model" || path === "/v1/ai/invites" || path === "/v1/ai/invites/redeem" ||
+    ["reset", "boost", "gift", "promo", "subscriptions", "end-renewals", "campaign", "offer", "model-promo", "verification-test"].some((route) => path === `/v1/admin/ai-plans/${route}`) ||
     path === "/v1/ai/wallet" || path === "/v1/ai/wallet/checkout" || path === "/v1/ai/tokens/checkout" || path === "/v1/ai/tokens/orders" || path === "/v1/admin/ai-tokens/grant" || path === "/v1/admin/ai-tokens/sales" || path === "/v1/admin/ai-wallet/sales";
 }
 
@@ -148,13 +149,37 @@ async function readJson(request: Request): Promise<unknown> {
   return JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
 }
 
+/** The running free model promotion as one account sees it, or null when none runs or storage lacks it. */
+async function promoForAccount(store: TagflowStore, config: TagflowConfig, uid: string, now: number): Promise<PublicModelPromo | null> {
+  const promo = activeModelPromo(config.modelPromo, now);
+  if (promo === null || store.modelPromoStats === undefined || store.getModelPromoClaim === undefined) return null;
+  const [stats, claim] = await Promise.all([store.modelPromoStats(promo.id), store.getModelPromoClaim(promo.id, uid, now)]);
+  return publicModelPromo(promo, new Map(config.models.map((model) => [model.id, model.name])), stats.claims, claim);
+}
+
 /** Unknown options cannot bypass pricing with n, images or token-limit aliases. */
 type ChatBody = { body: Record<string, unknown>; model: TagflowModel; input: number; output: number; contextInput: number }
   | { error: { status: number; code: string; message: string }; contextInput?: number; output?: number };
 
-function chatBody(raw: unknown, config: TagflowConfig): ChatBody {
+/**
+ * The most turns one request may carry. Tokens are the real limit and are checked below; this
+ * only bounds parsing. It was 1,000, which long agent sessions (each tool call is two turns)
+ * passed while still well inside the model's context.
+ */
+export const MAX_CHAT_MESSAGES = 4000;
+
+/** A message whose content is only text parts, as the same message with one string. */
+function flattenTextParts(message: unknown): unknown {
+  if (!isRecord(message) || !Array.isArray(message["content"])) return message;
+  const parts = message["content"];
+  if (parts.length === 0 || !parts.every((part) => isRecord(part) && part["type"] === "text" && typeof part["text"] === "string")) return message;
+  return { ...message, content: parts.map((part) => (part as { text: string }).text).join("") };
+}
+
+function chatBody(request: unknown, config: TagflowConfig): ChatBody {
   const invalid = (code: string, message: string, status = 400): ChatBody => ({ error: { status, code, message } });
-  if (!isRecord(raw) || Object.keys(raw).some((key) => !["model", "messages", "tools", "tool_choice", "stream", "stream_options", "max_tokens", "max_completion_tokens", "reasoning_effort"].includes(key))) return invalid("bad-request", "Send a supported chat request.");
+  if (!isRecord(request) || Object.keys(request).some((key) => !["model", "messages", "tools", "tool_choice", "stream", "stream_options", "max_tokens", "max_completion_tokens", "reasoning_effort"].includes(key))) return invalid("bad-request", "Send a supported chat request.");
+  let raw: Record<string, unknown> = request;
   const model = config.models.find((one) => one.id === raw["model"] && one.enabled !== false);
   if (model === undefined) return invalid("model-unavailable", "This model is not available in included AI. Choose another offered model.");
   if (Array.isArray(raw["messages"]) && raw["messages"].some((message) => isRecord(message) && Array.isArray(message["content"]) && message["content"].some((part) => isRecord(part) && (part["type"] === "image_url" || part["type"] === "image")))) {
@@ -162,9 +187,14 @@ function chatBody(raw: unknown, config: TagflowConfig): ChatBody {
   }
   if (model.billing === "wallet" && Array.isArray(raw["tools"]) && raw["tools"].some(tool=>!isRecord(tool) || tool["type"]!=="function" || Object.keys(tool).some(k=>!["type","function"].includes(k)) || !isRecord(tool["function"]) || Object.keys(tool["function"]).some(k=>!["name","description","parameters","strict"].includes(k)))) return invalid("unsupported-paid-tool","Paid models support client-run function tools. Provider-hosted tools and custom cache controls are not included in these prices.");
   if (model.billing === "wallet" && Array.isArray(raw["messages"]) && raw["messages"].some(message=>isRecord(message) && message["cache_control"]!==undefined)) return invalid("unsupported-paid-cache","Use the provider's standard cache settings for paid models.");
-  if (!Array.isArray(raw["messages"]) || raw["messages"].length === 0 || raw["messages"].length > 1000 ||
-      !raw["messages"].every((message) => isRecord(message) && ["system", "user", "assistant", "tool"].includes(String(message["role"])) &&
-        (typeof message["content"] === "string" || message["role"] === "assistant" && message["content"] === null))) return invalid("invalid-messages", "Included AI could not read this conversation's message format. Start a fresh conversation, or switch model.");
+  if (Array.isArray(raw["messages"]) && raw["messages"].length > MAX_CHAT_MESSAGES) return invalid("too-many-messages", `This conversation has ${raw["messages"].length} messages, more than the ${MAX_CHAT_MESSAGES} included AI reads at once. Compact the conversation or start a fresh one; your files are unchanged.`, 413);
+  // Text sent as a list of text parts is the same text: OpenCode and other OpenAI-style clients send
+  // system and user turns that way, and refusing it ended their sessions with "could not read this
+  // conversation" (reports 11 Nov; 6-33 a day). Pictures were refused above; anything else still is.
+  if (Array.isArray(raw["messages"])) raw = { ...raw, messages: raw["messages"].map(flattenTextParts) };
+  const readable = (message: unknown): boolean => isRecord(message) && ["system", "user", "assistant", "tool"].includes(String(message["role"])) &&
+    (typeof message["content"] === "string" || message["role"] === "assistant" && (message["content"] === null || message["content"] === undefined && Array.isArray(message["tool_calls"])));
+  if (!Array.isArray(raw["messages"]) || raw["messages"].length === 0 || !raw["messages"].every(readable)) return invalid("invalid-messages", "Included AI could not read this conversation's message format. Start a fresh conversation, or switch model.");
   if (raw["tools"] !== undefined && (!Array.isArray(raw["tools"]) || raw["tools"].length > 100)) return invalid("bad-request", "Send a supported tool list.");
   if (raw["stream"] !== undefined && typeof raw["stream"] !== "boolean") return invalid("bad-request", "Send a valid stream option.");
   if (raw["max_tokens"] !== undefined && raw["max_completion_tokens"] !== undefined) return invalid("bad-request", "Send one output token limit.");
@@ -489,7 +519,7 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
       const audit = async (action: string, subjectUid = "*"): Promise<void> => deps.store.writeAudit({ adminUid: auth.uid, action, subjectUid, at: deps.clock.now() });
       if (url.pathname === "/v1/ai/wallet" && request.method === "GET") {
         const models = config.models.filter(m => m.billing === "wallet" && m.enabled !== false).map(m => ({ id: m.id, name: m.name, provider: includedProvider(modelProvider(m),config.providers)?.name ?? "Provider", available: providerKey(config,modelProvider(m)).length > 0, inputPrice: walletRates(m,deps.clock.now()).inputPrice * priceFactor, outputPrice: walletRates(m,deps.clock.now()).outputPrice * priceFactor, cacheInputPrice: (walletRates(m,deps.clock.now()).cacheInputPrice ?? m.inputPrice)*priceFactor, cacheWritePrice:(walletRates(m,deps.clock.now()).cacheWritePrice ?? m.inputPrice)*priceFactor }));
-        return json(200, { ...await deps.store.getModelWallet(auth.uid,deps.clock.now()), currency: "USD", offer: publicOffer(config.offer, deps.clock.now()), topupsCents: WALLET_TOPUPS_CENTS, customCents: { min: WALLET_CUSTOM_MIN_CENTS, max: WALLET_CUSTOM_MAX_CENTS }, models, checkoutEnabled: available && models.some(m=>m.available) && !(await deps.store.getTagflowPolicy(auth.uid))?.blocked && await deps.payments?.canCreateCheckout?.("ai-wallet") === true });
+        return json(200, { ...await deps.store.getModelWallet(auth.uid,deps.clock.now()), currency: "USD", offer: publicOffer(config.offer, deps.clock.now()), promo: await promoForAccount(deps.store, config, auth.uid, deps.clock.now()), topupsCents: WALLET_TOPUPS_CENTS, customCents: { min: WALLET_CUSTOM_MIN_CENTS, max: WALLET_CUSTOM_MAX_CENTS }, models, checkoutEnabled: available && models.some(m=>m.available) && !(await deps.store.getTagflowPolicy(auth.uid))?.blocked && await deps.payments?.canCreateCheckout?.("ai-wallet") === true });
       }
       if (url.pathname === "/v1/ai/wallet/checkout" && request.method === "POST") {
         const raw = await readJson(request);
@@ -578,6 +608,20 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
         const link = await deps.payments.customerPortal(subscription.customerId, `${deps.siteOrigin ?? "https://adcode.bluethenics.com"}/ai-tokens`);
         return link === null ? json(502, { error: "portal-unavailable" }) : json(200, { link });
       }
+      if (url.pathname === "/v1/ai/promo/model" && request.method === "GET") {
+        return json(200, { promo: await promoForAccount(deps.store, config, auth.uid, deps.clock.now()) });
+      }
+      if (url.pathname === "/v1/ai/promo/model" && request.method === "POST") {
+        // One free model grant per verified account, while places last. An unverified account is
+        // sent the usual verification link first, so the grant cannot be farmed with throwaways.
+        const promo = activeModelPromo(config.modelPromo, deps.clock.now());
+        if (promo === null || deps.store.claimModelPromo === undefined) return json(404, { error: "no-promo" });
+        const user = await deps.store.getUser(auth.uid);
+        if (!user?.email || user.emailVerified !== true) { const refusal = await verificationRefusal(user, auth.uid, bearerFrom(request.headers.get("authorization") ?? undefined)); if (refusal) return refusal; }
+        if ((await deps.store.getTagflowPolicy(auth.uid))?.blocked) return fail(403, "blocked", "Paid models are disabled for this account.");
+        const result = await deps.store.claimModelPromo(promo.id, auth.uid, promo.perUserMicros, promo.maxUsers, deps.clock.now());
+        return json(result === "full" ? 410 : 200, { result, promo: await promoForAccount(deps.store, config, auth.uid, deps.clock.now()) });
+      }
       if ((url.pathname === "/v1/ai/promo/redeem" || url.pathname === "/v1/ai/invites/redeem") && request.method === "POST") {
         const buyer = await deps.store.getUser(auth.uid);
         if (!buyer?.email || buyer.emailVerified !== true) return json(403, { error: "verify-account" });
@@ -638,7 +682,13 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
         }
         if (route === "campaign" && request.method === "GET") { await audit("read-usage-campaign"); return json(200, { campaign: config.campaign ?? null, active: activeCampaign(config.campaign, deps.clock.now()) !== null, now: deps.clock.now() }); }
         if (route === "offer" && request.method === "GET") { await audit("read-price-offer"); return json(200, { offer: config.offer ?? null, active: offerDiscount(config.offer, deps.clock.now()) > 0, now: deps.clock.now() }); }
-        if (request.method !== "POST" || !["reset", "boost", "gift", "promo", "campaign", "offer"].includes(route)) return json(405, { error: "method" });
+        if (route === "model-promo" && request.method === "GET") {
+          await audit("read-model-promo");
+          const promo = config.modelPromo ?? null;
+          const stats = promo === null || deps.store.modelPromoStats === undefined ? { claims: 0, spentMicros: 0 } : await deps.store.modelPromoStats(promo.id);
+          return json(200, { promo, active: activeModelPromo(config.modelPromo, deps.clock.now()) !== null, ...stats, models: config.models.filter((model) => model.billing === "wallet" && model.enabled !== false).map((model) => ({ id: model.id, name: model.name })), now: deps.clock.now() });
+        }
+        if (request.method !== "POST" || !["reset", "boost", "gift", "promo", "campaign", "offer", "model-promo"].includes(route)) return json(405, { error: "method" });
         const raw = await readJson(request);
         if (route === "campaign") {
           // Start (name + whole days, beginning now) or stop. Read-modify-write on the one config record.
@@ -662,6 +712,19 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
           const offer = started ?? (previous === undefined ? undefined : endOffer(previous, deps.clock.now()));
           await deps.store.putTagflowConfig({ config: offer === undefined ? rest : { ...rest, offer }, updatedAt: deps.clock.now(), updatedBy: auth.uid });
           return json(200, { offer: offer ?? null, active: started !== null });
+        }
+        if (route === "model-promo") {
+          // Start (name, cents per account, accounts, days, models) or stop. Stopping ends it now;
+          // a new one is a new pool with its own id, so earlier claims do not count against it.
+          const stopping = isRecord(raw) && raw["stop"] === true;
+          const wallet = config.models.filter((model) => model.billing === "wallet" && model.enabled !== false).map((model) => model.id);
+          const started = stopping ? null : startModelPromo(raw, wallet, deps.clock.now());
+          if (!stopping && started === null) return json(400, { error: "bad-model-promo" });
+          await audit(stopping ? "stop-model-promo" : "start-model-promo", started?.id);
+          const { modelPromo: previous, ...rest } = config;
+          const modelPromo = started ?? (previous === undefined ? undefined : endModelPromo(previous, deps.clock.now()));
+          await deps.store.putTagflowConfig({ config: modelPromo === undefined ? rest : { ...rest, modelPromo }, updatedAt: deps.clock.now(), updatedBy: auth.uid });
+          return json(200, { promo: modelPromo ?? null, active: started !== null });
         }
         if (route === "promo") {
           const promo = parsePromo(raw);
@@ -767,8 +830,8 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
           const body = await readJson(request);
           // The settings form knows nothing about campaigns or price offers: saving it must not end
           // one, and a form loaded before an offer was stopped must not bring it back.
-          const { offer: _formOffer, ...form } = isRecord(body) ? body : {};
-          const next = parseTagflowConfig(isRecord(body) ? { ...(body["campaign"] === undefined && config.campaign !== undefined ? { ...form, campaign: config.campaign } : form), ...(config.offer === undefined ? {} : { offer: config.offer }) } : body);
+          const { offer: _formOffer, modelPromo: _formPromo, ...form } = isRecord(body) ? body : {};
+          const next = parseTagflowConfig(isRecord(body) ? { ...(body["campaign"] === undefined && config.campaign !== undefined ? { ...form, campaign: config.campaign } : form), ...(config.offer === undefined ? {} : { offer: config.offer }), ...(config.modelPromo === undefined ? {} : { modelPromo: config.modelPromo }) } : body);
           if (next === null) return fail(400, "bad-config", "Check the providers (custom ones need a public HTTPS API address), the Tagflow HTTPS base URL, unique model IDs, prices, and non-negative limits.");
           if (next.enabled && !defaultKeyConfigured(next)) {
             const provider = includedProvider(modelProvider(next.models.find((model) => model.id === next.defaultModel)!), next.providers);
@@ -927,6 +990,9 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
         const running = activeCampaign(config.campaign, deps.clock.now());
         const walletState = offeredModels.some(m=>m.billing === "wallet") ? await deps.store.getModelWallet(subject,deps.clock.now()) : null;
         const wallet = walletState === null ? undefined : { availableMicros:walletState.availableMicros,reservedMicros:walletState.reservedMicros,models:hasAllModelAccess(planState, deps.clock.now()) && config.paid?.accounting === "cost-v1" ? [] : offeredModels.filter(m=>m.billing === "wallet").map(m=>m.id) };
+        // The free model promotion beside it; editors before 2.6.5 ignore the field.
+        const promoView = wallet === undefined ? null : await promoForAccount(deps.store, config, auth.uid, deps.clock.now());
+        if (wallet !== undefined && promoView !== null) Object.assign(wallet, { promo: { name: promoView.name, models: promoView.models.map((model) => model.id), availableMicros: promoView.claim?.availableMicros ?? (promoView.spotsLeft > 0 ? promoView.perUserMicros : 0), claimed: promoView.claim !== null, spotsLeft: promoView.spotsLeft } });
         const tokens = { legacyUntil: planState.legacyUntil, accounting: costAccount ? "cost-v1" : undefined, ...view, ...(running === null ? {} : { enabled: false }), campaign: running === null ? null : { name: running.name, endsAt: running.endsAt }, plan: planState.plan !== null && planState.plan.endsAt > deps.clock.now() ? planState.plan : null,
           paidModels: running !== null ? [] : offeredModels.filter((model) => (model.billing !== "wallet" || hasAllModelAccess(planState, deps.clock.now())) && isPaidModel(model, config.paid)).map((model) => model.id) };
         const usage = stored ?? { uid: subject, day, requests: 0, inputTokens: 0, outputTokens: 0, costMicros: 0, estimatedRequests: 0, reservedTokens: 0, reservedCostMicros: 0 };
@@ -1052,15 +1118,34 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
       const walletMaximum = walletModel ? Math.max(1,walletCharge({...quotedRates,inputPrice:Math.max(quotedRates.inputPrice,quotedRates.cacheWritePrice ?? 0)},walletInput,parsed.output,0,undefined,0,walletDiscount)) : 0;
       const walletTest = walletModel && auth.isAdmin && request.headers.get("x-adcode-ai-source") === "admin-test";
       let walletHeld = false;
-      if (walletModel && !walletTest) {
+      // A running free promotion pays first for the models it covers. The first such request from
+      // a verified account claims its place automatically, so choosing DeepSeek simply works; once
+      // the grant is spent, purchased credits pay as before.
+      let promoHeld = 0;
+      const promo = walletModel && !walletTest ? activeModelPromo(config.modelPromo, deps.clock.now()) : null;
+      if (promoCovers(promo, parsed.model.id) && deps.store.reserveModelPromo !== undefined) {
+        promoHeld = await deps.store.reserveModelPromo(reservation.id, promo.id, auth.uid, parsed.model.id, walletMaximum, deps.clock.now());
+        if (promoHeld === 0 && deps.store.claimModelPromo !== undefined && await deps.store.getModelPromoClaim?.(promo.id, auth.uid, deps.clock.now()) === null) {
+          const user = await deps.store.getUser(auth.uid);
+          if (user?.email && user.emailVerified === true && !(await deps.store.getTagflowPolicy(auth.uid))?.blocked
+            && await deps.store.claimModelPromo(promo.id, auth.uid, promo.perUserMicros, promo.maxUsers, deps.clock.now()) === "granted") {
+            promoHeld = await deps.store.reserveModelPromo(reservation.id, promo.id, auth.uid, parsed.model.id, walletMaximum, deps.clock.now());
+          }
+        }
+      }
+      const releaseHold = async (): Promise<void> => {
+        if (promoHeld > 0) await deps.store.settleModelPromo?.(reservation.id, 0, deps.clock.now());
+        else if (walletHeld) await deps.store.settleModelWallet(reservation.id, 0, false, deps.clock.now());
+      };
+      if (walletModel && !walletTest && promoHeld === 0) {
         walletHeld = await deps.store.reserveModelWallet(reservation.id,auth.uid,parsed.model.id,walletMaximum,deps.clock.now());
         if (!walletHeld) { await finishMetric("rejected","wallet-balance"); return fail(402,"wallet-balance",`Your paid credits cannot cover this request's maximum charge ($${(walletMaximum/1_000_000).toFixed(4)}). Add credits at ${WALLET_URL}, shorten the conversation, or lower the reply limit.`,{},{retryable:false,buyUrl:WALLET_URL}); }
       }
       let reserved: Awaited<ReturnType<typeof deps.store.reserveTagflow>>;
       try { reserved = await deps.store.reserveTagflow(reservation); }
-      catch (error) { if (walletHeld) await deps.store.settleModelWallet(reservation.id,0,false,deps.clock.now()); throw error; }
+      catch (error) { await releaseHold(); throw error; }
       if (reserved !== "ok") {
-        if (walletHeld) await deps.store.settleModelWallet(reservation.id,0,false,deps.clock.now());
+        await releaseHold();
         await finishMetric("rejected",reserved);
         if (reserved === "paid-limit") {
           // "daily-limit" with a reset time: every released desktop already pauses on it and resumes by itself.
@@ -1121,7 +1206,8 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
           if (!failed && observer.cacheReported) metric.cachedInputTokens = observer.cachedInput;
         }
         try {
-          if (walletHeld) await deps.store.settleModelWallet(reservation.id, failed ? 0 : walletCharge(walletRates(served.model,reservation.minute*60_000,inputTokens),inputTokens,outputTokens,observer.cachedInput,modelProvider(served.model)==="openrouter" ? observer.providerCost : undefined,observer.cacheWritten,walletDiscount),reported===null,deps.clock.now());
+          if (promoHeld > 0) await deps.store.settleModelPromo?.(reservation.id, failed ? 0 : walletCharge(walletRates(served.model,reservation.minute*60_000,inputTokens),inputTokens,outputTokens,observer.cachedInput,modelProvider(served.model)==="openrouter" ? observer.providerCost : undefined,observer.cacheWritten,walletDiscount), deps.clock.now());
+          else if (walletHeld) await deps.store.settleModelWallet(reservation.id, failed ? 0 : walletCharge(walletRates(served.model,reservation.minute*60_000,inputTokens),inputTokens,outputTokens,observer.cachedInput,modelProvider(served.model)==="openrouter" ? observer.providerCost : undefined,observer.cacheWritten,walletDiscount),reported===null,deps.clock.now());
           await deps.store.settleTagflow(reservation.id, result);
         }
         catch (error) { settlementFailed = true; throw error; }

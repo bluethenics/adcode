@@ -272,7 +272,13 @@ describe("update_plan", () => {
   it("explains a malformed plan", () => {
     expect(parsePlan({})).toContain("needs steps");
     expect(parsePlan({ steps: [{ step: "a", status: "doing" }] })).toContain("pending, in_progress or done");
-    expect(parsePlan({ steps: [{ step: "a", status: "in_progress" }, { step: "b", status: "in_progress" }] })).toContain("Only one");
+  });
+
+  it("keeps the first of two in-progress steps instead of refusing the plan", () => {
+    expect(parsePlan({ steps: [{ step: "a", status: "in_progress" }, { step: "b", status: "in_progress" }] })).toEqual([
+      { step: "a", status: "in_progress" },
+      { step: "b", status: "pending" },
+    ]);
   });
 });
 

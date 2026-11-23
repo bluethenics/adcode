@@ -75,8 +75,14 @@ export function parsePlan(input: Record<string, unknown>): PlanStep[] | string {
     if (status !== "pending" && status !== "in_progress" && status !== "done") return `Step ${index + 1}'s status must be pending, in_progress or done.`;
     parsed.push({ step, status });
   }
-  if (parsed.filter((step) => step.status === "in_progress").length > 1) return "Only one step can be in_progress at a time.";
-  return parsed;
+  // Two steps marked in_progress used to be refused, and models retried the same call (report
+  // rep-9-1794168762493 logged it twice in one task). The first stays in progress; the rest wait.
+  let seenInProgress = false;
+  return parsed.map((one) => {
+    if (one.status !== "in_progress") return one;
+    if (!seenInProgress) { seenInProgress = true; return one; }
+    return { ...one, status: "pending" };
+  });
 }
 
 /* ── ask_user: the questions, and the answers that come back ────────────── */
@@ -690,7 +696,7 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
   }
 
   async function run(call: ToolCallBlock, signal: AbortSignal): Promise<ToolRunResult> {
-      const input = call.input;
+      let input = call.input;
       if (["read_file", "propose_edit", "edit_file", "get_outline", "delete_file"].includes(call.name) &&
           (typeof input["path"] !== "string" || input["path"].trim().length === 0)) {
         return fail(`${call.name} requires a non-empty "path" string, such as "src/main.ts". No file was accessed. Retry with valid JSON arguments matching the tool schema.`);
@@ -961,7 +967,11 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
           if (workspace === null) return unavailable();
           const path = await resolveInWorkspace(workspace, input["path"]);
           if (path === null) return fail(INVALID_WORKSPACE_PATH);
-          if (typeof input["contents"] !== "string") return fail("propose_edit needs contents.");
+          // "content" is the spelling several models use. A missing value is nearly always a
+          // whole-file call cut off at the output limit: one 2.6.1 session retried the same
+          // truncated call 13 times against a bare "needs contents" (rep-16-1794844426600).
+          if (typeof input["contents"] !== "string" && typeof input["content"] === "string") input = { ...input, contents: input["content"] };
+          if (typeof input["contents"] !== "string") return fail("propose_edit arrived without contents. A long file is usually cut off at the reply limit, so do not resend the same call: write a short first version with propose_edit, then add the rest with edit_file in small steps.");
 
           let current = "";
           try {

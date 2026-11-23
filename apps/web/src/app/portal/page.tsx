@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, CreditCard, Plus } from "lucide";
 import { Icon } from "@/components/Icon";
 import { SignInCard } from "@/components/SignInCard";
+import { DoneCard, maskEmail } from "@/components/DoneCard";
 import { Segmented } from "@/components/ios/Segmented";
 import { TimeChart } from "@/components/charts/TimeChart";
 import { seriesColor } from "@/components/charts/palette";
@@ -24,6 +25,8 @@ export default function PortalOverview() {
   const portal = usePortal();
   const router = useRouter();
   const [announcement, setAnnouncement] = useState<{ tone: "ok" | "info"; text: string } | null>(null);
+  // Back from a paid checkout: the shared success card, over the page until closed.
+  const [paid, setPaid] = useState<{ order: string | null } | null>(null);
 
   // Old one-page anchors and the builder's old return address now have pages of their own.
   useEffect(() => {
@@ -35,18 +38,35 @@ export default function PortalOverview() {
     const params = new URLSearchParams(globalThis.location.search);
     if (params.get("signin") === "1") portal.askSignIn();
     if (params.get("checkout") === "success") {
-      setAnnouncement({ tone: "ok", text: "Payment received. Your balance updates as soon as it settles, usually within a minute, and campaigns waiting on credits can go live." });
+      setPaid({ order: params.get("order") });
     } else if (params.get("checkout") === "cancelled") {
       setAnnouncement({ tone: "info", text: "Checkout was cancelled. Nothing was charged." });
     }
   }, [router]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (portal.status === "checking" || portal.status === "loading") return <PortalSkeleton />;
-  if (portal.status === "error") return <PortalError message={portal.error} onRetry={() => void portal.reload()} />;
+  const paidCard = paid === null ? null : (
+    <DoneCard
+      overlay
+      live
+      title="Payment received"
+      rows={[
+        ...(maskEmail(portal.email) === "" ? [] : [{ label: "Account", value: maskEmail(portal.email) }]),
+        { label: "Purchase", value: "Advertising credits" },
+        ...(paid.order === null ? [] : [{ label: "Order", value: paid.order }]),
+        { label: "Balance", value: "Updates once the payment settles" },
+      ]}
+      notes={["It usually settles within a minute, and campaigns waiting on credits can then go live."]}
+      action={{ kind: "button", label: "Continue to your dashboard", onClick: () => setPaid(null) }}
+    />
+  );
+
+  if (portal.status === "checking" || portal.status === "loading") return <>{paidCard}<PortalSkeleton /></>;
+  if (portal.status === "error") return <>{paidCard}<PortalError message={portal.error} onRetry={() => void portal.reload()} /></>;
 
   if (portal.status === "signed-out" || portal.status === "none" || portal.campaigns.length === 0) {
     return (
       <>
+        {paidCard}
         {announcement !== null && <Announcement {...announcement} onDismiss={() => setAnnouncement(null)} />}
         <section className="ap-launch" aria-labelledby="ap-launch-title">
           <div className="ap-launch-copy">
@@ -77,7 +97,7 @@ export default function PortalOverview() {
     );
   }
 
-  return <Dashboard announcement={announcement} onDismiss={() => setAnnouncement(null)} />;
+  return <>{paidCard}<Dashboard announcement={announcement} onDismiss={() => setAnnouncement(null)} /></>;
 }
 
 function Announcement({ tone, text, onDismiss }: { tone: "ok" | "info"; text: string; onDismiss: () => void }) {

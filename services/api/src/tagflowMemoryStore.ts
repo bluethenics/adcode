@@ -10,6 +10,7 @@ import { summarizeModelReports } from "./tagflowReports.ts";
 import type { ModelAudienceProfile } from "./modelAudience.ts";
 import { admitCredits, settleWindow, type CreditWindows } from "./credits.ts";
 import { createModelWalletMemoryStore, type MemoryWalletExtras } from "./modelWalletMemoryStore.ts";
+import { createModelPromoMemoryStore } from "./modelPromo.ts";
 
 export function createTagflowMemoryStore(): TagflowStore & MemoryWalletExtras & { resetTagflow(): void } {
   let config: TagflowConfigRecord | null = null;
@@ -50,6 +51,7 @@ export function createTagflowMemoryStore(): TagflowStore & MemoryWalletExtras & 
   const key = (uid: string, day: string): string => `${uid}\u0000${day}`;
   return {
     ...createModelWalletMemoryStore(),
+    ...createModelPromoMemoryStore(),
     resetTagflow() { config = null; policies.clear(); days.clear(); reservations.clear(); windows.clear(); minutes.clear(); modelRequests.clear(); modelFeedback.clear(); profiles.clear(); verificationSends.clear(); collectionStartedAt = null;
       freeWeeks.clear(); balances.clear(); holds.clear(); orders.clear(); planCheckouts.clear(); ledger.length = 0; seenWebhooks.clear();
       subscriptions.clear(); gifts.length = 0; boosts.length = 0; promos.clear(); redemptions.clear(); invites.clear(); inviteOf.clear(); invitees.clear(); },

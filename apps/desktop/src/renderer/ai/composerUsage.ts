@@ -55,6 +55,13 @@ export function composerUsageModels(view: AiUsageView | null, allowance: Tagflow
     const unlimitedPlan = allowance.tokens?.enabled === true && isFairUsePlan(allowance.tokens.plan?.id) && aiPlanName(allowance.tokens.plan, Date.now()) !== null;
     if (modelId !== null && allowance.wallet?.models.includes(modelId) && !unlimitedPlan) {
       const wallet=allowance.wallet;
+      // A free promotion on this model pays first; an unclaimed one is claimed by the first request.
+      const promo=wallet.promo;
+      if (promo !== undefined && promo.models.includes(modelId) && promo.availableMicros>0) {
+        const free:ComposerMeterModel={label:promo.name,percent:null,value:`$${(promo.availableMicros/1_000_000).toFixed(4)}`,detail:promo.claimed?"Free usage left":"Free on first use",tone:"ok",tooltip:`Free usage of this model, spent before your paid credits. ${promo.claimed?"":"Your first request claims it while places last. "}Turn ad earnings into credits from Earnings to keep going.`};
+        const paid:ComposerMeterModel={label:"Paid credits",percent:null,value:`$${(wallet.availableMicros/1_000_000).toFixed(4)}`,detail:"After the free usage",tone:"ok",tooltip:"Purchased USD credits for paid models, used once the free usage runs out."};
+        return [free,paid];
+      }
       const available:ComposerMeterModel={label:"Paid credits",percent:null,value:`$${(wallet.availableMicros/1_000_000).toFixed(4)}`,detail:"USD available",tone:wallet.availableMicros>0?"ok":"full",tooltip:"Purchased USD credits for paid models. Unused request holds are released after the response. Manage credits from AI usage."};
       const held:ComposerMeterModel={label:"Held",percent:null,value:`$${(wallet.reservedMicros/1_000_000).toFixed(4)}`,detail:"For active requests",tone:"ok",tooltip:"Maximum charges reserved for running paid requests. Unused amounts return to your available credits."};
       return [available,held];

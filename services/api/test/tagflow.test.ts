@@ -9,6 +9,7 @@ import { INCLUDED_PROVIDERS } from "../src/includedProviders.ts";
 import { createTagflowMemoryStore } from "../src/tagflowMemoryStore.ts";
 import { DEFAULT_CREDIT_PLAN } from "../src/credits.ts";
 import { DEFAULT_PAID_CONFIG } from "../src/paidTokens.ts";
+import { MAX_CHAT_MESSAGES } from "../src/tagflow.ts";
 
 const config: TagflowConfig = { ...DEFAULT_TAGFLOW_CONFIG, enabled: true, baseUrl: "https://api.tagflow-ai.com/v1", defaultModel: "coder", models: [{ id: "coder", name: "Coder", contextWindow: 65_536, maxOutput: 4096, inputPrice: 0.1, outputPrice: 0.2 }] };
 const body = { model: "coder", messages: [{ role: "user", content: "Hello" }], max_tokens: 100, stream: true };
@@ -1228,8 +1229,21 @@ describe("included Tagflow AI", () => {
     expect(await model.json()).toMatchObject({ error: { code: "model-unavailable" } });
     const history = await chat("user", { ...body, messages: [{ role: "assistant", content: 7 }] });
     expect(await history.json()).toMatchObject({ error: { code: "invalid-messages" } });
+    const crowded = await chat("user", { ...body, messages: Array.from({ length: MAX_CHAT_MESSAGES + 1 }, () => ({ role: "user", content: "hi" })) });
+    expect(crowded.status).toBe(413);
+    expect(await crowded.json()).toMatchObject({ error: { code: "too-many-messages" } });
     expect(upstream).not.toHaveBeenCalled();
     expect(await usage()).toBeNull();
+  });
+  it("reads text sent as text parts, as OpenAI-style clients send it", async () => {
+    const parts = await chat("user", { ...body, messages: [{ role: "system", content: [{ type: "text", text: "Be brief." }] }, { role: "user", content: [{ type: "text", text: "Hello " }, { type: "text", text: "there" }] }] });
+    expect(parts.status).toBe(200); await parts.text();
+    const sent = JSON.parse(String((upstream.mock.calls.at(-1)?.[1] as RequestInit | undefined)?.body)) as { messages: { content: unknown }[] };
+    expect(sent.messages.map((message) => message.content)).toEqual(["Be brief.", "Hello there"]);
+  });
+  it("reads more than a thousand turns of a long agent session", async () => {
+    const long = await chat("user", { ...body, messages: Array.from({ length: 1500 }, (_, index) => ({ role: index % 2 === 0 ? "user" : "assistant", content: "ok" })) });
+    expect(long.status).toBe(200); await long.text();
   });
   it("clamps output and asks the provider for stream usage", async () => {
     await (await chat("user", { ...body, max_tokens: 60_000 })).text();

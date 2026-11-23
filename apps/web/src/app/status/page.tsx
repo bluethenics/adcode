@@ -10,6 +10,7 @@ import {
   INCIDENT_STATUS_LABELS,
   LEVEL_LABELS,
   readStatus,
+  shownLevel,
   type StatusDay,
   type StatusCandle,
   type StatusIncident,
@@ -96,11 +97,12 @@ const speed = (value: number | null): string | null => {
   return value >= 1_000 ? `${(value / 1_000).toFixed(1)}s` : `${String(Math.round(value))}ms`;
 };
 
+
 const percent = (value: number | null): string => (value === null ? "—" : `${value.toFixed(2)}%`);
 
 const dayTip = (day: StatusDay): string => {
   const label = dayLabel(day.day);
-  if (day.turns === 0) return `${label}: no requests`;
+  if (day.turns === 0) return `${label}: operational, no requests and no failures`;
   const errors =
     day.errors === 0 ? "no errors" : `${count(day.errors)} error${day.errors === 1 ? "" : "s"}`;
   const average = speed(day.avgMs);
@@ -114,13 +116,13 @@ const candleTip = (candle: StatusCandle): string => {
     month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC",
   });
   const range = `${format(candle.startAt)} to ${format(candle.endAt)} UTC`;
-  if (candle.turns === 0) return `${range}: no requests`;
+  if (candle.turns === 0) return `${range}: operational, no requests and no failures`;
   const average = speed(candle.avgMs);
   return `${range}: ${count(candle.turns)} requests, ${count(candle.errors)} errors${average === null ? "" : `, ${average} average`}`;
 };
 
 const OVERALL_NOTES: Record<string, string> = {
-  operational: "No open incident or elevated error rate in the latest measurements. Models without recent requests show no recent traffic.",
+  operational: "No open incident or elevated error rate in the latest measurements.",
   degraded: "Some models have elevated error rates in the latest measurements. See each model below.",
   outage: "Some models are failing requests in the latest measurements. See each model below.",
   maintenance: "Maintenance is scheduled or in progress.",
@@ -182,11 +184,12 @@ function ModelRow({ model, index, windowDays, liveWindowMinutes }: { model: Stat
   const uptime = model.uptimePct === null ? "No data" : `${model.uptimePct.toFixed(2)}%`;
   const candles = model.candles;
   const bars = candles === undefined
-    ? model.days.map(day => ({ key: day.day, level: day.level, tip: dayTip(day) }))
-    : candles.map(candle => ({ key: String(candle.startAt), level: candle.level, tip: candleTip(candle) }));
+    ? model.days.map(day => ({ key: day.day, level: shownLevel(day.level), tip: dayTip(day) }))
+    : candles.map(candle => ({ key: String(candle.startAt), level: shownLevel(candle.level), tip: candleTip(candle) }));
+  const state = shownLevel(model.state);
 
   return (
-    <article className="status-row" data-state={model.state} style={{ animationDelay: `${String(index * 70)}ms` }}>
+    <article className="status-row" data-state={state} style={{ animationDelay: `${String(index * 70)}ms` }}>
       <div className="status-row-head">
         <div className="status-row-name">
           <strong>{model.name}</strong>
@@ -197,9 +200,9 @@ function ModelRow({ model, index, windowDays, liveWindowMinutes }: { model: Stat
             }${average === null ? "" : ` · ${average} average`}`}
           </span>
         </div>
-        <span className="status-state" data-state={model.state} title={candles === undefined ? "Latest day with requests" : `Measured from requests in the last ${String(liveWindowMinutes)} minutes`}>
+        <span className="status-state" data-state={state} title={candles === undefined ? "Latest day with requests" : `Measured from requests in the last ${String(liveWindowMinutes)} minutes`}>
           <i className="status-state-dot" aria-hidden="true" />
-          {LEVEL_LABELS[model.state] ?? model.state}
+          {LEVEL_LABELS[state] ?? state}
         </span>
       </div>
       <div

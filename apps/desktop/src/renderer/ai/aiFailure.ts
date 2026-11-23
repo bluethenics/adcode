@@ -212,6 +212,11 @@ export function describeAiFailure(raw: string): AiFailure {
   if (/Choose an offered model and send text within its context limit/i.test(detail)) {
     return make("history", "Included AI rejected this request", "The included model could not accept this request. Try a fresh conversation or switch model. Details contain the server's response.", ["new-conversation", "models", "report"]);
   }
+  // A long agent session can outgrow the relay's turn count before it outgrows the model's
+  // context; compacting keeps the work and the conversation.
+  if (/\btoo-many-messages\b/i.test(detail)) {
+    return make("too-large", "This conversation has too many steps", "Compact it and carry on - your files are unchanged - or start a fresh conversation with the same request.", ["compact-continue", "new-conversation"]);
+  }
   if (/\binvalid-messages\b/i.test(detail)) {
     return make("history", "This model cannot read this conversation", "Start a fresh conversation with the same request, or choose another model.", ["new-conversation", "models"]);
   }

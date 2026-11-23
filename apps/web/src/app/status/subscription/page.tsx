@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import "../status.css";
+import { DoneCard, type DoneRow } from "@/components/DoneCard";
 
 /**
  * Where the status page's email form, and the links in its emails, land.
  *
- * One card that says what just happened. Confirming and unsubscribing are buttons that post,
- * never something a bare visit does: mail scanners open every link in an email, and a GET that
+ * One card that says what just happened, in the design every ADCode success page shares
+ * (`components/DoneCard.tsx`). Confirming and unsubscribing are buttons that post, never
+ * something a bare visit does: mail scanners open every link in an email, and a GET that
  * confirmed would sign people up - or off - without them. Like /status, no client script.
  */
 export const metadata: Metadata = {
@@ -20,6 +21,7 @@ type Tone = "ok" | "warn" | "info";
 interface Screen {
   tone: Tone;
   title: string;
+  rows?: DoneRow[];
   body: string;
   /** A form that posts the token, shown as the primary button. */
   post?: { action: string; token: string; label: string };
@@ -30,13 +32,21 @@ const SCREENS: Record<string, Screen> = {
   "check-email": {
     tone: "info",
     title: "Check your inbox",
-    body: "If that address can receive alerts, a confirmation email from noreply@bluethenics.com is on its way. Click the button in it and you are set. Nothing else is sent until you do. Not there in a minute? Look in spam or promotions.",
+    rows: [
+      { label: "Sent from", value: "noreply@bluethenics.com" },
+      { label: "Next step", value: "Click the button in that email" },
+    ],
+    body: "Nothing else is sent until you do. Not there in a minute? Look in spam or promotions.",
     back: { href: "/status", label: "Back to status" },
   },
   confirmed: {
     tone: "ok",
     title: "You're subscribed",
-    body: "You will get an email when an included model degrades or fails, and again when it is back to normal - plus incident updates if you chose them. Every email has a one-click unsubscribe.",
+    rows: [
+      { label: "Alerts", value: "Model health, plus incident updates if you chose them" },
+      { label: "Unsubscribe", value: "One click, in every email" },
+    ],
+    body: "You'll get an email when an included model degrades or fails, and again when it's back to normal.",
     back: { href: "/status", label: "See live status" },
   },
   expired: {
@@ -48,19 +58,23 @@ const SCREENS: Record<string, Screen> = {
   invalid: {
     tone: "warn",
     title: "That link doesn't work",
-    body: "It may have been used already, or copied only in part. If you are already subscribed, nothing has changed. To start over, enter your address on the status page.",
+    body: "It may have been used already, or copied only in part. If you are already subscribed, nothing has changed.",
     back: { href: "/status#subscribe", label: "Go to the form" },
   },
   unsubscribed: {
     tone: "ok",
     title: "You're unsubscribed",
-    body: "No more status emails will be sent to this address. The live status of every model is always at adcode.bluethenics.com/status.",
+    rows: [
+      { label: "Status emails", value: "Stopped for this address" },
+      { label: "Live status", value: "adcode.bluethenics.com/status" },
+    ],
+    body: "No more status emails will be sent to this address. Everything else stays as it is.",
     back: { href: "/status", label: "See live status" },
   },
   "invalid-email": {
     tone: "warn",
     title: "That email address doesn't look right",
-    body: "Check it for a typo - something like name@example.com - and try again.",
+    body: "Check it for a typo, something like name@example.com, and try again.",
     back: { href: "/status#subscribe", label: "Try again" },
   },
   "no-topic": {
@@ -94,7 +108,11 @@ function screenFor(params: Record<string, string | string[] | undefined>): Scree
     return {
       tone: "info",
       title: "Confirm your status alerts",
-      body: "One click and this address is on the list. You can unsubscribe from any alert with one click.",
+      rows: [
+        { label: "Alerts", value: "ADCode model health and incidents" },
+        { label: "Unsubscribe", value: "One click, in every email" },
+      ],
+      body: "One click and this address is on the list. If you didn't ask for this, close this tab.",
       post: { action: "/v1/status/confirm", token: confirm, label: "Confirm my alerts" },
       back: { href: "/status", label: "Not now" },
     };
@@ -105,22 +123,16 @@ function screenFor(params: Record<string, string | string[] | undefined>): Scree
     return {
       tone: "info",
       title: "Stop status emails?",
-      body: "This address will no longer hear about models degrading, recovering, or incident updates. Everything else stays as it is.",
+      rows: [
+        { label: "Stops", value: "Model health and incident emails" },
+        { label: "Everything else", value: "Stays as it is" },
+      ],
+      body: "This address will no longer hear about models degrading, recovering, or incident updates.",
       post: { action: "/v1/status/unsubscribe", token: unsubscribe, label: "Stop status emails" },
       back: { href: "/status", label: "Keep them" },
     };
   }
   return SCREENS[one("state")] ?? SCREENS["check-email"]!;
-}
-
-function Mark({ tone }: { tone: Tone }) {
-  return (
-    <span className="status-subscription-mark" aria-hidden="true">
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        {tone === "ok" ? <path d="M4.5 10.5l3.5 3.5 7.5-8" /> : tone === "warn" ? <path d="M10 5.5v5.5M10 14.5v.01" /> : <path d="M3.5 6.5l6.5 4.5 6.5-4.5M3.5 6v8.5h13V6" />}
-      </svg>
-    </span>
-  );
 }
 
 export default async function StatusSubscriptionPage({
@@ -130,25 +142,14 @@ export default async function StatusSubscriptionPage({
 }) {
   const screen = screenFor(await searchParams);
   return (
-    <section className="public-glass-page status-page">
-      <div className="marketplace-wrap">
-        <article className="status-subscription" data-tone={screen.tone} role="status">
-          <Mark tone={screen.tone} />
-          <h1>{screen.title}</h1>
-          <p>{screen.body}</p>
-          <div className="status-subscription-actions">
-            {screen.post !== undefined && (
-              <form method="post" action={screen.post.action}>
-                <input type="hidden" name="token" value={screen.post.token} />
-                <button type="submit" className="is-primary">{screen.post.label}</button>
-              </form>
-            )}
-            {screen.back !== undefined && (
-              <a href={screen.back.href} className={screen.post === undefined ? "is-primary" : undefined}>{screen.back.label}</a>
-            )}
-          </div>
-        </article>
-      </div>
-    </section>
+    <DoneCard
+      tone={screen.tone}
+      title={screen.title}
+      {...(screen.rows !== undefined ? { rows: screen.rows } : {})}
+      notes={[screen.body]}
+      {...(screen.post !== undefined
+        ? { action: { kind: "post" as const, label: screen.post.label, action: screen.post.action, fields: { token: screen.post.token } }, ...(screen.back !== undefined ? { secondary: screen.back } : {}) }
+        : screen.back !== undefined ? { action: { kind: "link" as const, ...screen.back } } : {})}
+    />
   );
 }

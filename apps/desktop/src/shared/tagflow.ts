@@ -38,7 +38,11 @@ export interface CreditsAllowance {
 
 /** Included AI's account-wide allowance, separate from this machine's usage history. */
 export interface TagflowAllowanceView {
-  wallet?: { availableMicros: number; reservedMicros: number; models: string[] };
+  wallet?: {
+    availableMicros: number; reservedMicros: number; models: string[];
+    /** A free model promotion (relays from 23 Nov 2026): free usage on these models, spent before paid credits. */
+    promo?: { name: string; models: string[]; availableMicros: number; claimed: boolean; spotsLeft: number };
+  };
   unlimited?: boolean;
   available: boolean;
   blocked: boolean;

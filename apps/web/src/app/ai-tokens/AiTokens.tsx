@@ -10,6 +10,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AdcodeLoader } from "@/components/AdcodeLoader";
+import { DoneCard, maskEmail } from "@/components/DoneCard";
 import { useAuth } from "@/components/AuthProvider";
 import { SignInCard } from "@/components/SignInCard";
 import { apiFetch, MESSAGES } from "@/lib/api";
@@ -157,6 +158,8 @@ export default function AiTokens() {
   const [balanceError, setBalanceError] = useState<string | null>(null);
   const [arrival, setArrival] = useState<Arrival | null>(null);
   const [checkoutReturn, setCheckoutReturn] = useState<CheckoutReturn | null>(null);
+  // Back from checkout, the result opens as the shared success card over the page until closed.
+  const [returnCardOpen, setReturnCardOpen] = useState(true);
   const [now, setNow] = useState(() => Date.now());
   const [selectedPlan, setSelectedPlan] = useState<PlanId | null>(null);
   const [intent, setIntent] = useState<ReturnType<typeof checkoutIntent>>(null);
@@ -325,6 +328,16 @@ export default function AiTokens() {
   return (
     <>
       {/* Signed in and free to buy, the chosen card is outlined and badged; a sentence on top would only repeat it. */}
+      {arrival !== null && checkoutReturn !== null && returnCardOpen && (
+        <CheckoutReturnCard
+          arrival={arrival}
+          returned={checkoutReturn}
+          email={auth.user?.email ?? null}
+          order={activity?.orders.find((row) => row.orderId === checkoutReturn.order) ?? null}
+          onRefresh={() => void refresh()}
+          onClose={() => setReturnCardOpen(false)}
+        />
+      )}
       {intent?.pack && <p className="notice" role="status">One-time credit packs are no longer sold. Add USD credits below in any amount instead; Tagflow AI stays free.</p>}
           {error !== null && <div className="notice" data-tone="error" role="alert">{error}</div>}
           {arrival !== null && (
@@ -377,6 +390,38 @@ export default function AiTokens() {
             </section>
           )}
     </>
+  );
+}
+
+/** The checkout result as the shared success card: what was bought, for whom, and whether it has landed. */
+function CheckoutReturnCard({ arrival, returned, email, order, onRefresh, onClose }: {
+  arrival: Arrival; returned: CheckoutReturn; email: string | null; order: TokenOrderView | null; onRefresh: () => void; onClose: () => void;
+}) {
+  const plan = returned.plan;
+  const account = maskEmail(email);
+  const purchase = plan !== null ? `${planName(plan)} plan` : order !== null ? `${topUpName(order.packId)}, ${dollars(order.priceCents)}` : "AI credits";
+  const title = arrival === "checking" ? "Confirming your payment" : arrival === "added" ? (plan !== null ? `Your ${planName(plan)} plan is active` : "Your credits are added") : "Payment not confirmed yet";
+  const status = arrival === "checking" ? "Waiting for confirmation" : arrival === "added" ? (plan !== null ? "Active" : "Paid") : "Not received yet";
+  return (
+    <DoneCard
+      overlay
+      live
+      tone={arrival === "added" ? "ok" : arrival === "checking" ? "info" : "warn"}
+      title={title}
+      rows={[
+        ...(account === "" ? [] : [{ label: "Account", value: account }]),
+        { label: "Purchase", value: purchase },
+        { label: "Order", value: returned.order },
+        { label: "Status", value: status },
+      ]}
+      notes={[plan !== null ? planArrivalMessage(arrival, plan) : arrivalMessage(arrival)]}
+      action={arrival === "not-yet"
+        ? { kind: "button", label: "Check again", onClick: onRefresh }
+        : arrival === "checking"
+          ? { kind: "button", label: "Confirming payment", busy: true, onClick: onClose }
+          : { kind: "button", label: "Continue", onClick: onClose }}
+      {...(arrival === "added" ? {} : { secondary: { label: "Close", onClick: onClose } })}
+    />
   );
 }
 

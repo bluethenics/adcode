@@ -298,7 +298,7 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   "ads.convertEarnings": {
     added: "2026-11-19",
     actions: [command("ads.convertEarnings", "Convert earnings to AI credits")],
-    keywords: ["convert earnings", "earnings to credits", "spend earnings", "use earnings", "ai credits", "buy credits with earnings", "pay for ai with ads", "credits from ads", "top up", "wallet", "paid models"],
+    keywords: ["convert earnings", "earnings to credits", "spend earnings", "use earnings", "ai credits", "buy credits with earnings", "pay for ai with ads", "credits from ads", "top up", "wallet", "paid models", "free deepseek", "free usage", "free credits", "promotion", "starter credit"],
   },
   "ads.withdrawEarnings": {
     added: "2026-11-19",
