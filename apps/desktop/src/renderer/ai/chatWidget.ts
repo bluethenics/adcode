@@ -649,6 +649,13 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   let statusTimer: number | null = null;
   let statusRefreshInFlight = false;
   let statusRefreshing: Promise<void> | null = null;
+  /*
+   * The model list arrives a few seconds after the chat (on the web, ~10 s on a cold start).
+   * Until a model has been ready once, or this grace has passed, the pill says it is loading:
+   * "Connect a model to begin" told people who were already set up that they were not.
+   */
+  const modelsLoadingUntil = Date.now() + 20_000;
+  let modelEverReady = false;
   /**
    * Guard overlapping 2s polls: a slow status read must never stack up and flicker the
    * pill. A caller that arrives mid-read gets that read, not an early return - a send
@@ -666,8 +673,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       const active = status.providers.find((provider) => provider.id === status.activeProvider);
       const saved = status.providers.some((provider) => provider.hasKey && provider.needsKey);
       modelPicker.noteStatus(status);
+      if (status.ready) modelEverReady = true;
       const label = status.ready
         ? composerChipLabel(status)
+        : !modelEverReady && Date.now() < modelsLoadingUntil ? "Loading models…"
         : saved ? "Select a saved connection" : "Connect a model to begin";
       // No flicker: only touch the DOM when the label actually changed.
       if (modelName.textContent !== label) {
