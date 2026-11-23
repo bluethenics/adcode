@@ -100,7 +100,10 @@ button:focus-visible,a:focus-visible { outline:2px solid var(--text); outline-of
   .account-nav button > span, .account-nav-foot, .account-toolbar { display:none; }
   .account-main { padding:16px 16px calc(24px + env(safe-area-inset-bottom)); scrollbar-gutter:auto; }
   .account-content .workspace-section { margin-top:4px; }
-  .account-content .workspace-section-title { margin:8px 4px 12px; font-size:16px; font-weight:600; letter-spacing:-.01em; }
+  /* The tab already names the section: its heading stays for screen readers only. */
+  .account-content .workspace-section-title { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+  /* A form's main action spans the width, as an Android form's does. */
+  .account-content form .btn-primary, .account-content .actions .btn-primary { width:100%; }
   .account-content .ios-card { padding:16px; border-radius:20px; }
   .account-content .hero-balance { margin:0 0 16px; padding:20px; border-radius:24px; }
   .account-content .hero-figure { font-size:40px; }

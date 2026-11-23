@@ -28,6 +28,9 @@ export const USAGE_SIGNALS_NOTICE = {
   body:
     "Besides counting which features you use, it now sends what went wrong for you - a failed AI request, a usage limit, a crash, how far a first session got - linked to your account, so we can find why people give up and fix it. " +
     "Only fixed names, codes, counts and timings are sent: never your code, prompts, files, paths or chats.",
+  /** For a phone: the same disclosure - what is sent, that it is linked to the account, what never is - in fewer words. */
+  bodyCompact:
+    "It now also sends what went wrong - failed AI requests, limits, crashes - linked to your account. Only names, codes, counts and timings: never your code, prompts, files, paths or chats.",
   link: "What is sent",
   turnOff: "Turn off",
   keep: "Keep on",
@@ -89,7 +92,7 @@ export function createUsageSignalsNotice(host: HTMLElement, deps: UsageSignalsNo
     // The disclosure comes before every button, so nothing can be kept on unread.
     const body = document.createElement("p");
     body.className = "pin-card-body";
-    body.textContent = `${copy.body} `;
+    body.textContent = `${window.matchMedia("(max-width: 600px)").matches ? copy.bodyCompact : copy.body} `;
     const link = document.createElement("a");
     link.href = USAGE_SIGNALS_PRIVACY_URL;
     link.target = "_blank";

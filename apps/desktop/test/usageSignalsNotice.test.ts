@@ -12,6 +12,9 @@ describe("the 2.6.3 usage-signals notice", () => {
   it("says plainly what changed and what is never sent", () => {
     expect(USAGE_SIGNALS_NOTICE.body).toContain("linked to your account");
     expect(USAGE_SIGNALS_NOTICE.body).toContain("never your code, prompts, files, paths or chats");
+    // The phone wording keeps the same promises.
+    expect(USAGE_SIGNALS_NOTICE.bodyCompact).toContain("linked to your account");
+    expect(USAGE_SIGNALS_NOTICE.bodyCompact).toContain("never your code, prompts, files, paths or chats");
     expect(USAGE_SIGNALS_NOTICE.turnOff).toBe("Turn off");
   });
 });
