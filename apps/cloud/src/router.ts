@@ -122,6 +122,9 @@ export function contentSecurityPolicy(env: Env, includeLegacySchema = false): st
   ].join("; ");
 }
 
+/** Vite's build output: `/assets/<name>-<8-character content hash>.<ext>`. */
+const HASHED_ASSET = /^\/assets\/[^/]+-[A-Za-z0-9_-]{8}\.[a-z0-9]+$/;
+
 async function servePage(request: Request, env: Env, assetPath?: string): Promise<Response> {
   const assetUrl = new URL(request.url);
   if (assetPath !== undefined) assetUrl.pathname = assetPath;
@@ -152,6 +155,10 @@ async function servePage(request: Request, env: Env, assetPath?: string): Promis
     }
     // The asset binding's SPA fallback otherwise makes every nonexistent path a soft 404.
     if (url.pathname !== "/" && url.pathname !== "/index.html" && !isPhonePage(url.pathname) && status === 200) status = 404;
+  } else if (status === 200 && HASHED_ASSET.test(url.pathname)) {
+    // A built file whose name carries its content hash never changes: the browser keeps it, so
+    // a returning visitor loads ~11 MB of app from disk, not through this Worker (23 Nov 2026).
+    headers.set("cache-control", "public, max-age=31536000, immutable");
   }
   return new Response(request.method === "HEAD" ? null : body, { status, headers });
 }

@@ -288,6 +288,23 @@ describe("the live preview's origin", () => {
     expect((await route(preview("/preview/bakery/", { method: "POST" }), env, deps)).status).toBe(405);
   });
 
+  it("lets the browser keep built files whose names carry their hash, and nothing else", async () => {
+    const { env } = fakeEnv();
+    assets(env, {
+      "/assets/main-DrpUcgbO.js": { type: "text/javascript", body: "/* app */" },
+      "/browser-host.js": { type: "text/javascript", body: "/* host */" },
+    });
+    const hashed = await route(new Request("https://web.bluethenics.com/assets/main-DrpUcgbO.js"), env, deps);
+    expect(hashed.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+    // Same name every build: it must be asked for again.
+    const host = await route(new Request("https://web.bluethenics.com/browser-host.js"), env, deps);
+    expect(host.headers.get("cache-control") ?? "").not.toContain("immutable");
+    // A missing file is the page's 404, never kept.
+    const missing = await route(new Request("https://web.bluethenics.com/assets/gone-AbCdEf12.js"), env, deps);
+    expect(missing.status).toBe(404);
+    expect(missing.headers.get("cache-control")).toBe("no-cache");
+  });
+
   it("never serves the app there, even when the build lacks its files", async () => {
     const { env } = fakeEnv();
     assets(env, {});
