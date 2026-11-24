@@ -6588,6 +6588,56 @@ checks.collabSessionStartsAndStops = await evaluate(
    })()`,
 );
 
+/*
+ * Team's door to GitHub (2.6.6). "Share this project" needs the open folder on github.com, and
+ * before this it answered every missing step with one sentence written into a hidden element.
+ * This repository is on GitHub, so the readiness must say "ready" and name it, and the command
+ * must put the steps card on screen with Share offered. Nothing here adds a remote, creates a
+ * shared project or logs a handler error; the not-ready steps and a refused address are drawn
+ * by apps/desktop/test/teamGitHub.test.ts's Chromium fixture.
+ */
+checks.teamConnectsGitHub = await evaluate(
+  `(async () => {
+     const readiness = await window.adcode.collab.sharedGitHub();
+     const palette = async (query) => {
+       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'P', ctrlKey: true, shiftKey: true, bubbles: true }));
+       await new Promise((r) => setTimeout(r, 350));
+       const input = document.querySelector('.quickopen-input[aria-label="Command palette"]');
+       if (!input) return false;
+       input.value = query;
+       input.dispatchEvent(new Event('input', { bubbles: true }));
+       await new Promise((r) => setTimeout(r, 250));
+       const row = [...document.querySelectorAll('.palette-row')].find((one) => (one.textContent ?? '').includes(query)) ?? null;
+       if (!row) { input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return false; }
+       row.click();
+       return true;
+     };
+     const ran = await palette('Team: Connect This Project to GitHub');
+     let card = null;
+     for (let i = 0; i < 40 && card === null; i++) {
+       await new Promise((r) => setTimeout(r, 150));
+       card = [...document.querySelectorAll('.team-connect')].find((one) => one.getClientRects().length > 0) ?? null;
+     }
+     const account = await window.adcode.account.status().catch(() => null);
+     const signedIn = account?.state === 'linked';
+     const box = card?.getBoundingClientRect();
+     const shown = {
+       readyHere: readiness.state === 'ready' && readiness.repository === 'bluethenics/adcode',
+       commandRuns: ran,
+       cardOnScreen: card !== null && box.width > 0 && box.height > 0 && card.classList.contains('team-connect') && card.dataset.state === 'ready',
+       stepsTicked: [...(card?.querySelectorAll('.team-connect-step') ?? [])].slice(0, 3).every((one) => one.dataset.status === 'done'),
+       // The Git steps need no account; signed out, the last step asks to sign in instead.
+       shareOffered: [...(card?.querySelectorAll('button') ?? [])].some((b) => b.textContent === (signedIn ? 'Share this project' : 'Sign in to share') && !b.disabled),
+     };
+     window.__teamAccount = signedIn ? 'signed in: Share offered' : 'signed out: Sign in to share';
+     await palette('Solo: Show My Own Conversations');
+     await new Promise((r) => setTimeout(r, 300));
+     return shown;
+   })()`,
+);
+
+checks.teamAccount = await evaluate(`window.__teamAccount ?? 'not reached'`);
+
 /* ── The explanation layer (P1) ───────────────────────────────────────── */
 
 /*
@@ -8095,11 +8145,12 @@ for (const line of bad) process.stdout.write(`  ${line}\n`);
 const observations = new Set([
   "title", "restoredWorkspace", "branch", "quickOpenRanks", "scmShowsBranch",
   "conflictsSaysNone", "conflictsStatusLine", "paletteFinds", "multipleTerminals",
-  "terminalContextMenu", "problemsRowJumpsToTheColumn",
+  "terminalContextMenu", "problemsRowJumpsToTheColumn", "teamAccount",
 ]);
 const requiredEvidence = {
   treeSitterColoursByMeaning: ["painted", "foundBoth", "toldApart"],
   terminalOffersSharedMemory: ["shown", "namesTheAgent", "carriesTheCommand", "offersCopy"],
+  teamConnectsGitHub: ["readyHere", "commandRuns", "cardOnScreen", "stepsTicked", "shareOffered"],
   settingsMcpCardStatesNode: ["statesRequirement", "showsCommandOrReason", "noDeadCopy", "noteFitsTheCard"],
   peekShowsTheDefinition: ["opened", "saysHowItWasFound", "matchedByName", "showsSource", "namesTheFile"],
   welcomeScreenIsUsable: ["primaryClickable", "showsVersion", "marked"],

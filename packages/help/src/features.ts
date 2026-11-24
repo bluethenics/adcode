@@ -396,8 +396,8 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   },
   "workbench.soloTeam": {
     added: "2026-11-17",
-    actions: [command("collab.teamArea", "Show Team sessions"), command("collab.soloArea", "Back to Solo")],
-    keywords: ["team", "solo", "team area", "shared sessions", "shared project chats", "team chats", "private chats", "workspace switch", "my chats", "team conversations"],
+    actions: [command("collab.teamArea", "Show Team sessions"), command("collab.soloArea", "Back to Solo"), command("collab.connectGitHub", "Connect this project to GitHub")],
+    keywords: ["team", "solo", "team area", "shared sessions", "shared project chats", "team chats", "private chats", "workspace switch", "my chats", "team conversations", "share this project", "team github", "connect project to github", "not on github", "create github repository"],
   },
   "ai.sortConversations": {
     added: "2026-11-17",

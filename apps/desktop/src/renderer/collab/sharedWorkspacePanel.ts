@@ -14,11 +14,12 @@
  * step that unlocks it.
  */
 import { renderChatMessageHtml } from "../ai/chatMarkdown.ts";
-import { ArrowUp, Copy, Ellipsis, FolderOpen, Link2, LogOut, MessageSquare, Plus, Sparkles, Users, Archive, RefreshCw, Radio } from "lucide";
-import type { ProjectChatMessage, SharedProjectLibrary, SharedProjectSnapshot } from "../../shared/api.ts";
+import { ArrowUp, Check, Copy, Ellipsis, ExternalLink, FolderGit2, FolderOpen, Link2, LogOut, MessageSquare, Plus, Sparkles, Users, Archive, RefreshCw, Radio } from "lucide";
+import type { ProjectChatMessage, SharedProjectLibrary, SharedProjectSnapshot, TeamGitHubReadiness } from "../../shared/api.ts";
 import { createFloatingPanel } from "../workbench/floatingPanel.ts";
 import { createIcon } from "../workbench/icons.ts";
 import { BUY_TOKENS_URL } from "../../shared/tagflow.ts";
+import { GITHUB_ADDRESS_HELP, githubRemoteFromInput } from "../../shared/githubRepository.ts";
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = "", className = ""): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
@@ -215,10 +216,18 @@ export function createSharedWorkspacePanel(deps: {
   }
 
   /* ── Empty states: what Team is, and the one step that unlocks it ──── */
+  /*
+   * Where errors show. In Vibe the status line lives in the strip above a team chat, and the
+   * strip is hidden while no team chat is open - so before 2.6.6 a failed "Share this project"
+   * from the empty state wrote its reason into a hidden element and the button seemed to do
+   * nothing. Any empty state brings the line back into the panel, above the card.
+   */
+  function statusInPanel() { if (status.parentElement !== main || status.nextElementSibling !== transcript) main.insertBefore(status, transcript); }
   function showEmpty(kind: "signed-out" | "no-projects" | "no-chats") {
     clearChat();
     chatId = null;
     deps.onModeChange?.("empty");
+    statusInPanel();
     if (inChat && kind === "no-chats") main.prepend(header);
     empty.hidden = false; transcript.hidden = true; composer.hidden = true; headerActions.hidden = true;
     header.hidden = kind !== "no-chats";
@@ -257,6 +266,113 @@ export function createSharedWorkspacePanel(deps: {
         button("Start a team chat", MessageSquare, "team-cta", () => void newChat(project?.id ?? null)));
     }
     empty.append(card);
+  }
+
+  /**
+   * "Connect this project to GitHub": the steps between an ordinary folder and a team project.
+   *
+   * A team project is keyed by its github.com repository, and until 2.6.6 Team only said so -
+   * one sentence, whatever was actually missing, and no way to fix it from here. Each step now
+   * has its own button, done steps are ticked, and the card re-reads the project after every
+   * step, so it always shows the next real one.
+   */
+  function showConnect(readiness: TeamGitHubReadiness) {
+    clearChat();
+    chatId = null;
+    deps.onModeChange?.("empty");
+    statusInPanel();
+    empty.hidden = false; transcript.hidden = true; composer.hidden = true; headerActions.hidden = true; header.hidden = true;
+    // Share and Join in the sidebar talk to the project service, which needs the account.
+    navActions.hidden = !connectSignedIn;
+    title.textContent = "Team"; subtitle.textContent = "";
+    say("");
+    const tracked = !["no-folder", "no-git", "not-repo", "untrusted"].includes(readiness.state);
+    const ready = readiness.state === "ready";
+    const card = element("div", "", "team-empty-card team-connect");
+    card.dataset["state"] = readiness.state;
+    const icon = element("div", "", "team-empty-icon");
+    icon.append(createIcon(FolderGit2));
+    card.append(icon, element("h3", ready ? "Ready to share" : "Connect this project to GitHub"),
+      element("p", "A team project is a GitHub repository: everyone you invite chats about the same code, and each person's AI works in their own copy of it.", "team-empty-lead"));
+    const note = element("p", readiness.message, "team-connect-note");
+    note.dataset["tone"] = ready ? "done" : "next";
+    card.append(note);
+
+    const steps = element("ol", "", "team-connect-steps");
+    const step = (heading: string, text: string, state: "done" | "current" | "todo", ...controls: HTMLElement[]) => {
+      const item = element("li", "", "team-connect-step");
+      item.dataset["status"] = state;
+      const mark = element("span", "", "team-connect-mark");
+      if (state === "done") mark.append(createIcon(Check));
+      const body = element("div", "", "team-connect-body");
+      body.append(element("strong", heading), element("p", text, "team-option-text"));
+      if (controls.length > 0 && state !== "done") { const row = element("div", "", "team-join-row"); row.append(...controls); body.append(row); }
+      item.append(mark, body);
+      steps.append(item);
+    };
+
+    // 1. A Git repository ADCode can read.
+    const first: HTMLElement[] = [];
+    if (readiness.state === "no-folder") first.push(button("Open a project", FolderOpen, "team-cta", deps.openLocalProjects));
+    else if (readiness.state === "no-git") first.push(button("Download Git", ExternalLink, "team-cta", () => { window.open("https://git-scm.com/downloads", "_blank", "noopener"); }), button("Check again", RefreshCw, "team-cta team-cta-secondary", () => void recheckGitHub()));
+    else if (readiness.state === "not-repo") first.push(button("Start tracking", Plus, "team-cta", () => void gitStep(() => window.adcode.git.init())));
+    else if (readiness.state === "untrusted") first.push(button("Trust this folder", Check, "team-cta", () => void gitStep(async () => {
+      if (!await deps.confirm("Trust this folder?", "Git refuses repositories it cannot confirm you own, which is every repository on a FAT32 or USB drive. Trusting it lets Git - and its hooks - run here. Trust it only if you made it or know where it came from.", "Trust folder")) return null;
+      return window.adcode.git.trust();
+    })));
+    step("Track this folder with Git", tracked ? `${readiness.folder} is a Git repository.` : readiness.state === "no-folder" ? "Open the folder you want your team to work on." : "Git records every change, which is what GitHub stores and your teammates download.", tracked ? "done" : "current", ...first);
+
+    // 2. An empty repository on GitHub, made in the browser - ADCode never gets that permission.
+    const name = (readiness.folder || "my-project").replace(/[^A-Za-z0-9_.-]+/g, "-").replace(/^-+|-+$/g, "") || "my-project";
+    step("Make an empty repository on GitHub", ready ? `GitHub repository: ${readiness.repository}.` : "Opens github.com/new with this folder's name filled in. Leave README, .gitignore and licence off so your first push goes through, then press Create repository.",
+      ready ? "done" : tracked ? "current" : "todo",
+      button("Open GitHub", ExternalLink, "team-cta team-cta-secondary", () => { window.open(`https://github.com/new?name=${encodeURIComponent(name)}&visibility=private`, "_blank", "noopener"); }));
+
+    // 3. Its address, added as this project's remote.
+    const address = element("input", "", "team-join-input team-connect-address");
+    address.placeholder = "https://github.com/you/project.git";
+    address.setAttribute("aria-label", "GitHub repository address");
+    address.disabled = !tracked;
+    const connect = button("Connect", Link2, "team-cta", () => void connectAddress(address.value));
+    connect.disabled = !tracked;
+    address.addEventListener("keydown", (event) => { if (event.key === "Enter") void connectAddress(address.value); });
+    step("Paste its address", ready ? `This project pushes to github.com/${readiness.repository} (remote "${readiness.remote}").` : "On the new repository's page, copy the HTTPS address and paste it here.", ready ? "done" : tracked ? "current" : "todo", address, connect);
+
+    // 4. Share.
+    // The Git steps are local and need no account; sharing does, so only this step asks for it.
+    const shareNow = connectSignedIn
+      ? button("Share this project", Plus, "team-cta", () => void task(createShared))
+      : button("Sign in to share", null, "team-cta", deps.signIn);
+    shareNow.disabled = !ready;
+    step("Share it with your team", ready ? (connectSignedIn ? "You get an invite link to send. So teammates can open the code too, commit and push it from Source Control." : "Team projects belong to your account: sign in, then press Share this project.") : "Unlocks once the project is connected.", ready ? "current" : "todo", shareNow);
+    card.append(steps);
+
+    const back = button(library !== null && library.projects.length > 0 ? "Back to team projects" : "Back", null, "team-nav-link", () => void task(async () => { await loadLibrary(); if (library !== null && library.projects.length > 0) { const target = selected ?? library.projects[0]?.id; if (target) await openProject(target); } }));
+    card.append(back);
+    empty.replaceChildren(card);
+    (ready ? shareNow : tracked ? address : card.querySelector<HTMLElement>(".team-connect-step[data-status='current'] button"))?.focus({ preventScroll: true });
+  }
+  /** Whether Share is offered or sign-in is asked for; the Git steps work either way. */
+  let connectSignedIn = true;
+  async function recheckGitHub() { await task(async () => { showConnect(await window.adcode.collab.sharedGitHub()); }); }
+  async function gitStep(work: () => Promise<{ readonly ok: boolean; readonly message: string } | null>) {
+    await task(async () => {
+      const result = await work();
+      if (result === null) return;
+      const next = await window.adcode.collab.sharedGitHub();
+      showConnect(next);
+      if (!result.ok) throw new Error(result.message);
+    });
+  }
+  async function connectAddress(raw: string) {
+    if (!raw.trim()) { say("Paste the repository's address from GitHub first - it looks like https://github.com/you/project.git."); return; }
+    // Checked here first, with the parser and words main uses, so a typo is answered at once.
+    if (githubRemoteFromInput(raw) === null) { say(GITHUB_ADDRESS_HELP); return; }
+    await task(async () => {
+      const next = await window.adcode.collab.sharedConnectGitHub(raw.trim());
+      showConnect(next);
+      if (next.state === "ready") say(`Connected to github.com/${next.repository}. ${connectSignedIn ? "Press Share this project." : "Sign in, then share it."}`, "info");
+    });
   }
   function showSignedOut() { library = null; renderLibrary(); showEmpty("signed-out"); }
   /** In Vibe, while a team chat is being opened: the chat's shape, not this panel's own chat. */
@@ -346,6 +462,7 @@ export function createSharedWorkspacePanel(deps: {
   async function openInChat() {
     if (!inChat || snapshot?.selectedSession == null) return;
     if (header.parentElement !== strip) strip.prepend(header);
+    if (status.parentElement !== strip) strip.append(status);
     const opened = await deps.openChat!(snapshot.id, snapshot.selectedSession);
     if (opened === null) { if (chatId === null) showEmpty("no-chats"); return; }
     chatId = opened;
@@ -362,8 +479,18 @@ export function createSharedWorkspacePanel(deps: {
     reveal();
     await task(async () => { if (snapshot?.id !== id) await openProject(id); apply(await window.adcode.collab.sharedSession(id, name.trim().slice(0, 100)), true); if (inChat) await openInChat(); else input.focus(); });
   }
+  /** Share the open project: at once when it is on GitHub, otherwise the steps that get it there. */
   async function shareCurrent() {
-    await task(async () => { const created = await window.adcode.collab.sharedCreate(); await loadLibrary(); await openProject(created.id); say("Project shared. Press Invite to copy the link for your team.", "info"); });
+    await task(async () => {
+      const readiness = await window.adcode.collab.sharedGitHub();
+      // Reached from the library, which only loads for a signed-in account.
+      connectSignedIn = true;
+      if (readiness.state !== "ready") { showConnect(readiness); return; }
+      await createShared();
+    });
+  }
+  async function createShared() {
+    const created = await window.adcode.collab.sharedCreate(); await loadLibrary(); await openProject(created.id); say("Project shared. Press Invite to copy the link for your team.", "info");
   }
   async function joinPrompt() {
     const invite = await deps.prompt("Join a team project", "Paste the invite a teammate sent you.", "");
@@ -582,6 +709,16 @@ export function createSharedWorkspacePanel(deps: {
     },
     /** The strip above the real chat; empty until a team chat is open. */
     strip,
+    /** "Team: Connect This Project to GitHub": the steps card, whatever the project's state. */
+    connectGitHub() {
+      reveal();
+      const run = async () => {
+        const account = typeof window.adcode.account.status === "function" ? await window.adcode.account.status().catch(() => null) : null;
+        connectSignedIn = account === null || account.state === "linked";
+        showConnect(await window.adcode.collab.sharedGitHub());
+      };
+      if (busy) queuedOpen = run; else void task(run);
+    },
     close() { active = false; clearTimeout(polling); generation++; toggleMenu(false); if (integrated) integrated.host.hidden = true; else panel.close(); },
     open(id?: string) {
       reveal();

@@ -426,6 +426,8 @@ export const BRIDGE = [
   // collab
   { path: "collab.sharedLibrary", kind: "invoke", channel: CHANNELS.sharedProjectLibrary },
   { path: "collab.sharedCreate", kind: "invoke", channel: CHANNELS.sharedProjectCreate },
+  { path: "collab.sharedGitHub", kind: "invoke", channel: CHANNELS.sharedProjectGitHub },
+  { path: "collab.sharedConnectGitHub", kind: "invoke", channel: CHANNELS.sharedProjectConnectGitHub },
   { path: "collab.sharedJoin", kind: "invoke", channel: CHANNELS.sharedProjectJoin },
   { path: "collab.sharedSnapshot", kind: "invoke", channel: CHANNELS.sharedProjectSnapshot },
   { path: "collab.sharedSession", kind: "invoke", channel: CHANNELS.sharedProjectSession },

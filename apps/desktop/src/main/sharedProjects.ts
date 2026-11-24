@@ -1,6 +1,10 @@
 import { join, basename } from "node:path";
+import { homedir } from "node:os";
 import { app, ipcMain, BrowserWindow } from "electron";
-import { CHANNELS, type SharedProjectLibrary, type SharedProjectSnapshot, type ProjectChatMessage } from "../shared/api.ts";
+import { nodeGitExec } from "@adcode/git";
+import { CHANNELS, type SharedProjectLibrary, type SharedProjectSnapshot, type ProjectChatMessage, type TeamGitHubReadiness } from "../shared/api.ts";
+import { githubRepositoryName } from "../shared/githubRepository.ts";
+import { teamGitHubReadiness, teamGitHubRemotePlan } from "./teamGitHub.ts";
 import { backendAccount } from "./backend.ts";
 import { DiskFileStore, FetchHttpTransport, SystemClock } from "./adPorts.ts";
 import { gitForWorkspace } from "./sourceControl.ts";
@@ -16,16 +20,40 @@ export async function projectRequest<T>(path: string, body?: unknown): Promise<T
   if (!response.ok) throw new Error(result.error ?? "The shared project could not connect.");
   return result;
 }
+/** The open project's github.com repository as `owner/repo`, read the same way Source Control reads it. */
 export async function currentRepository(): Promise<string | null> {
   for (const remote of await gitForWorkspace()?.remotes() ?? []) {
-    const match = /^(?:https:\/\/github\.com\/|git@github\.com:)([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+?)(?:\.git)?\/?$/.exec(remote.url);
-    if (match?.[1]) return match[1].toLowerCase();
+    const repository = githubRepositoryName(remote.url);
+    if (repository !== null) return repository;
   }
   return null;
 }
+/** Whether the open project can be shared, and the next step when it cannot (teamGitHub.ts). */
+export function teamGitHub(): Promise<TeamGitHubReadiness> {
+  const git = gitForWorkspace();
+  return teamGitHubReadiness({
+    root: git === null ? null : currentWorkspace()?.root ?? null,
+    repoState: () => git?.repoState() ?? Promise.resolve("none"),
+    remotes: () => git?.remotes() ?? Promise.resolve([]),
+    gitInstalled: async () => (await nodeGitExec.run(["--version"], { cwd: homedir() }).catch(() => ({ code: 1 }))).code === 0,
+  });
+}
+async function connectTeamGitHub(address: unknown): Promise<TeamGitHubReadiness> {
+  if (typeof address !== "string" || address.length > 500) throw new Error("Paste the repository's address from GitHub.");
+  const before = await teamGitHub();
+  const git = gitForWorkspace();
+  // Nothing to add a remote to yet: say which step comes first.
+  if (git === null || before.state === "no-folder" || before.state === "no-git" || before.state === "not-repo" || before.state === "untrusted") throw new Error(before.message);
+  const plan = teamGitHubRemotePlan(address, await git.remotes());
+  if (!plan.ok) throw new Error(plan.message);
+  const added = await git.addRemote(plan.name, plan.url);
+  if (!added.ok) throw new Error(`Git couldn't add the GitHub address: ${added.message}`);
+  return teamGitHub();
+}
 async function displayName() { const profile = await account()?.profile(); return profile?.ok && profile.value ? profile.value.displayName ?? profile.value.email?.split("@")[0] ?? "Teammate" : "Teammate"; }
 export async function createSharedProject(name?: string, chosenName?: string): Promise<SharedProjectSnapshot> {
-  const repository = await currentRepository(); if (!repository) throw new Error("Connect the open project's Git repository to GitHub before sharing it.");
+  const readiness = await teamGitHub(); if (readiness.state !== "ready") throw new Error(readiness.message);
+  const repository = readiness.repository;
   return projectRequest("/projects/create",{ name: name ?? basename(currentWorkspace()?.root ?? repository), repository, displayName: chosenName ?? await displayName() });
 }
 const projectId = (value: unknown): string => { if (typeof value !== "string" || !/^[a-f0-9]{64}$/.test(value)) throw new Error("Choose a shared project."); return value; };
@@ -64,6 +92,8 @@ export async function finishTeamTurn(project: string, session: string, lease: st
 export function registerSharedProjectsIpc() {
   ipcMain.handle(CHANNELS.sharedProjectLibrary,()=>projectRequest<SharedProjectLibrary>("/projects"));
   ipcMain.handle(CHANNELS.sharedProjectCreate,()=>createSharedProject());
+  ipcMain.handle(CHANNELS.sharedProjectGitHub,()=>teamGitHub());
+  ipcMain.handle(CHANNELS.sharedProjectConnectGitHub,(_event,address:unknown)=>connectTeamGitHub(address));
   ipcMain.handle(CHANNELS.sharedProjectJoin,async (_event,invite: unknown)=>{
     if (typeof invite !== "string" || invite.length > 300) throw new Error("Paste a project invite.");
     return projectRequest<SharedProjectSnapshot>("/projects/join",{invite:invite.trim(),displayName:await displayName()});

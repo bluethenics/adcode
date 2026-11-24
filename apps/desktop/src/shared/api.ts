@@ -128,6 +128,15 @@ import type { ActivityDelta } from "./activity.ts";
 import type { SharedProjectLibrary, SharedProjectSnapshot, ProjectChatMessage } from "@adcode/collab";
 import type { CommunityApi } from "./community.ts";
 export type { SharedProjectLibrary, SharedProjectSnapshot, ProjectChatMessage };
+
+/**
+ * Whether the open project can become a Team project, and the next step when it cannot.
+ * Team keys a shared project by its github.com repository; `message` is the sentence to show.
+ */
+export type TeamGitHubReadiness =
+  | { readonly state: "no-folder" | "no-git" | "not-repo" | "untrusted" | "no-remote"; readonly folder: string; readonly message: string }
+  | { readonly state: "other-remote"; readonly folder: string; readonly remotes: readonly string[]; readonly message: string }
+  | { readonly state: "ready"; readonly folder: string; readonly repository: string; readonly remote: string; readonly message: string };
 import type { MilestoneName } from "./milestones.ts";
 import type { AssistantControlAction, AssistantControlsView } from "./assistantControls.ts";
 import type { McpNodeCheck } from "./mcpNode.ts";
@@ -987,6 +996,8 @@ export const CHANNELS = {
   communityPluginsChanged: "community:plugins-changed",
   sharedProjectLibrary: "shared-project:library",
   sharedProjectCreate: "shared-project:create",
+  sharedProjectGitHub: "shared-project:github",
+  sharedProjectConnectGitHub: "shared-project:connect-github",
   sharedProjectJoin: "shared-project:join",
   sharedProjectSnapshot: "shared-project:snapshot",
   sharedProjectSession: "shared-project:session",
@@ -2873,6 +2884,10 @@ export interface AdcodeApi {
   readonly collab: {
     sharedLibrary(): Promise<SharedProjectLibrary>;
     sharedCreate(): Promise<SharedProjectSnapshot>;
+    /** Whether the open project has a github.com repository Team can share, and if not, why. */
+    sharedGitHub(): Promise<TeamGitHubReadiness>;
+    /** Add a pasted github.com address as the open project's remote; throws with the next step. */
+    sharedConnectGitHub(address: string): Promise<TeamGitHubReadiness>;
     sharedJoin(invite: string): Promise<SharedProjectSnapshot>;
     sharedSnapshot(id: string, session?: string | null, before?: number): Promise<SharedProjectSnapshot>;
     sharedSession(id: string, title: string): Promise<SharedProjectSnapshot>;

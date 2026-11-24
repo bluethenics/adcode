@@ -504,6 +504,8 @@ const api: AdcodeApi = {
   collab: {
     sharedLibrary: () => ipcRenderer.invoke(CHANNELS.sharedProjectLibrary),
     sharedCreate: () => ipcRenderer.invoke(CHANNELS.sharedProjectCreate),
+    sharedGitHub: () => ipcRenderer.invoke(CHANNELS.sharedProjectGitHub),
+    sharedConnectGitHub: (address) => ipcRenderer.invoke(CHANNELS.sharedProjectConnectGitHub, address),
     sharedJoin: (invite) => ipcRenderer.invoke(CHANNELS.sharedProjectJoin,invite),
     sharedSnapshot: (id,session,before) => ipcRenderer.invoke(CHANNELS.sharedProjectSnapshot,id,session,before),
     sharedSession: (id,title) => ipcRenderer.invoke(CHANNELS.sharedProjectSession,id,title),

@@ -144,6 +144,21 @@
 .team-session-pending { color: var(--accent); font-size: 11px; }
 .team-nav-link { border: 0; background: transparent; color: var(--text-secondary); font: inherit; font-size: 11px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; justify-self: start; padding: 0 4px; }
 .team-nav-link[hidden] { display: none; }
+/* Connect this project to GitHub: the steps card (sharedWorkspacePanel.ts showConnect). */
+.team-connect .team-nav-link { justify-self: center; margin-top: 4px; }
+.team-connect-note { margin: 2px 0 0; max-width: 52ch; padding: 8px 12px; border-radius: 10px; background: var(--bg-selected); font-size: var(--text-xs); line-height: 1.5; }
+.team-connect-steps { display: grid; gap: 8px; width: 100%; margin: 8px 0 0; padding: 0; list-style: none; text-align: left; }
+.team-connect-step { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 12px; padding: 14px 16px; border: 1px solid var(--border-hairline); border-radius: 14px; background: var(--bg-elevated); }
+.team-connect-step[data-status="todo"] { opacity: .55; }
+.team-connect-step[data-status="current"] { border-color: var(--border-strong, var(--text-secondary)); }
+.team-connect-mark { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 999px; border: 1.5px solid var(--border-hairline); counter-increment: team-step; font-size: 11px; font-weight: 650; color: var(--text-secondary); }
+.team-connect-steps { counter-reset: team-step; }
+.team-connect-mark:empty::before { content: counter(team-step); }
+.team-connect-step[data-status="done"] .team-connect-mark { border-color: var(--text-primary); background: var(--text-primary); color: var(--bg-app); }
+.team-connect-mark svg { width: 13px; height: 13px; }
+.team-connect-body { display: grid; gap: 6px; min-width: 0; }
+.team-connect-body strong { font-size: var(--text-sm); }
+.team-cta:disabled, .team-join-input:disabled { opacity: .5; cursor: not-allowed; }
 
 @keyframes team-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @keyframes team-dot { 0%, 100% { opacity: .3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }

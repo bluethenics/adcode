@@ -207,7 +207,7 @@ finds features with `adcode_features`, runs their commands and changes their set
 | Tools page | `workbench.toolsPage` | dedicated tool | `adcode_connectors`: list, add (preset or custom), connect, enable tools, disconnect, remove (confirmed). Also adcode_action: commands `tools.open`, `tools.addServer`, `tools.servers`, `tools.skills` |
 | Agent flow | `workbench.agentFlow` | dedicated tool | `manage_agent_flow`: create, edit, rename, delete, turn on or off for all or chosen chats, share, import. Every change is confirmed. Also adcode_action: commands `agents.flow`; after confirming: `adcode.ai.agentFlows` |
 | Mods | `workbench.mods` | dedicated tool | `customize_adcode`: apply or adjust a mod (confirmed), list, on, off, remove (confirmed). Also adcode_action: commands `mods.open` |
-| Solo and Team | `workbench.soloTeam` | adcode_action | adcode_action: commands `collab.teamArea`, `collab.soloArea` |
+| Solo and Team | `workbench.soloTeam` | adcode_action | adcode_action: commands `collab.teamArea`, `collab.soloArea`, `collab.connectGitHub` |
 | Sort and pin conversations | `ai.sortConversations` | adcode_action | adcode_action: commands `chat.sortConversations` |
 | Floating panels | `workbench.floatingPanels` | adcode_action | adcode_action: commands `view.resetFloatingPanels` |
 | Connect your apps (Gmail, Supabase, Cloudflare and more) | `community.apps` | dedicated tool | `adcode_connectors` adds and connects them; signing in to the app stays with the person. Also adcode_action: commands `community.apps` |

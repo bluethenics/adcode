@@ -23,14 +23,13 @@ import { CHANNELS, type CollabStatusView } from "../shared/api.ts";
 import { createCollabRuntime, type CollabRuntime } from "./collab/runtime.ts";
 import { localAddresses } from "./collab/lanTransport.ts";
 import { decodeInvite, encodeInvite } from "@adcode/collab";
-import { gitForWorkspace } from "./sourceControl.ts";
 import { recordMilestone } from "./milestones.ts";
 import { isRelayHost } from "./collab/relayTransport.ts";
 import { projectsStore, recentFolders } from "./recents.ts";
 import { recentKey } from "./recentsStore.ts";
 import { readProjectDetails } from "./projects.ts";
 import { basename } from "node:path";
-import { createSharedProject, currentRepository, projectRequest, registerSharedProjectsIpc } from "./sharedProjects.ts";
+import { createSharedProject, currentRepository, projectRequest, registerSharedProjectsIpc, teamGitHub } from "./sharedProjects.ts";
 import type { SharedProjectSnapshot } from "../shared/api.ts";
 
 type RemoteCall = { id: string; name: string; input: Record<string, unknown> };
@@ -39,14 +38,8 @@ let toolHandler: ((call: RemoteCall, signal: AbortSignal) => Promise<ToolResult>
 export function registerCollabToolHandler(handler: NonNullable<typeof toolHandler>): void { toolHandler = handler; }
 export function collabRemoteTool(call: RemoteCall, signal: AbortSignal): Promise<ToolResult> | null { return runtime?.remoteTool(call, signal) ?? null; }
 export function collabIsJoined(): boolean { return runtime?.status().mode === "joined"; }
-async function githubProject(): Promise<string | null> {
-  const remotes = await gitForWorkspace()?.remotes() ?? [];
-  for (const remote of remotes) {
-    const match = /^(?:https:\/\/github\.com\/|git@github\.com:)([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+?)(?:\.git)?\/?$/.exec(remote.url);
-    if (match?.[1]) return match[1].toLowerCase();
-  }
-  return null;
-}
+// One reading of the open project's GitHub repository, shared with Team (sharedProjects.ts).
+const githubProject = currentRepository;
 
 /** The runtime is created lazily: a user who never shares anything never starts one. */
 let runtime: CollabRuntime | null = null;
@@ -169,7 +162,7 @@ export function registerCollabIpc(deps: { readonly workspaceRoot: () => string |
     const displayName = requireString(options["displayName"], "displayName");
     const artifactLive = options["artifactLive"] === true;
     const project = bind === "internet" && !artifactLive ? await githubProject() : null;
-    if (bind === "internet" && !artifactLive && project === null) throw new Error("Connect this project's Git repository to GitHub before sharing it online.");
+    if (bind === "internet" && !artifactLive && project === null) throw new Error((await teamGitHub()).message);
     if (bind === "internet" && !artifactLive) {
       const id = options["sharedProjectId"];
       if (id !== undefined && (typeof id !== "string" || !/^[a-f0-9]{64}$/.test(id))) throw new Error("Choose a shared project.");

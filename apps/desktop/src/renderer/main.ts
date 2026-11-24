@@ -6519,6 +6519,7 @@ function registerCommands(): void {
   add("collab.liveRoom", "Live Room: Who Is Online and Room Chat", () => { showChatSurface(); chat.toggleLiveRoom(); });
   add("collab.teamArea", "Team: Show Shared Project Sessions", () => switchWorkArea("team"));
   add("collab.soloArea", "Solo: Show My Own Conversations", () => switchWorkArea("solo"));
+  add("collab.connectGitHub", "Team: Connect This Project to GitHub", () => { switchWorkArea("team"); sharedWorkspaceView().connectGitHub(); });
   add("chat.sortConversations", "Conversations: Sort and Pin", () => {
     if (workAreaSwitch.current() === "team") switchWorkArea("solo");
     showChatSurface();
