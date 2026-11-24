@@ -1567,6 +1567,8 @@ export interface ChatSessionView {
   readonly forkTask?: string;
   /** Set for a team chat: the shared session it mirrors. */
   readonly team?: { readonly projectId: string; readonly sessionId: string; readonly projectName: string; readonly aiReplies: boolean };
+  /** The model this chat uses; each chat keeps its own. Absent until its first turn. */
+  readonly model?: { readonly provider: string; readonly model: string };
 }
 
 /** How full the chat's context is. Token counts are estimates. */

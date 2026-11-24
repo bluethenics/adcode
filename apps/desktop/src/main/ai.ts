@@ -152,7 +152,8 @@ import { lightSession } from "../shared/sessionDelta.ts";
 import { checkpointView, checkpointsForSession } from "./aiCheckpointView.ts";
 import { ASSISTANT_EXTENSION_TOOLS, bridgeAppTools, offeredAppTools, withAssistantExtensions } from "./assistantControls.ts";
 import { memoryForWorkspace } from "./memory.ts";
-import { currentSettings, writeSetting } from "./settings.ts";
+import { currentSettings, loadSettings, writeSetting } from "./settings.ts";
+import { chatRoute, createModelChoiceWatch, sameChoice, type ChatModelChoice } from "./chatModels.ts";
 import { chooseInWindow, confirmInWindow } from "./themedConfirm.ts";
 import { withFlowTool } from "./flowTool.ts";
 import { fullAccessApplies, isFullAccessOn, runAgentTurn } from "./fullAccess.ts";
@@ -944,10 +945,15 @@ export async function aiResumeSession(id: string): Promise<ChatSession | null> {
   const found = thread?.session ?? (await aiSessions()).find((one) => one.id === id) ?? null;
   if (found === null) return null;
 
-  setShown(found);
+  // A chat saved before chats had their own model opens on the one in use now, and keeps it
+  // even if another window picks something else meanwhile. Held, not written: opening a chat
+  // is not a change to it, and its next turn saves the model with it.
+  const opened: ChatSession = found.model === undefined ? { ...found, model: routeOf(null) } : found;
+  if (thread !== undefined && opened !== found) thread.session = opened;
+  setShown(opened);
   if (thread !== undefined) thread.lastUsed = Date.now();
   activeTaskId = null;
-  return found;
+  return opened;
 }
 
 /** What the assistant is carrying into the next turn, for the memory strip. */
@@ -1020,8 +1026,17 @@ function invalidateChatAgents(provider?: string): void {
  * finishes its turn on the model it started with and takes the new one on its next turn.
  */
 export function aiModelSettingsChanged(): void {
+  const values = currentSettings();
+  // A model chosen - in the chip, Connect, Settings - is chosen for the chat on screen where
+  // it was chosen, and for chats not started yet. Every other chat keeps its own (chatModels.ts).
+  const onScreen = shown();
+  if (modelChoiceWatch.changed(values["adcode.ai.provider"], values["adcode.ai.model"]) && onScreen !== null) {
+    pinChatModel(onScreen, { provider: activeProvider(), model: activeModel(activeProvider()) });
+  }
   const thread = shownThread();
-  if (thread !== null && thread.agent !== null && (thread.agentProvider !== activeProvider() || thread.agentModel !== activeModel(activeProvider()) || thread.agentEndpoint !== baseUrlOf(activeProvider()))) invalidateChatAgent(thread);
+  if (thread === null || thread.agent === null) return;
+  const route = routeOf(thread.session);
+  if (thread.agentProvider !== route.provider || thread.agentModel !== route.model || thread.agentEndpoint !== baseUrlOf(route.provider)) invalidateChatAgent(thread);
 }
 
 function broadcast(channel: string, ...args: unknown[]): void {
@@ -1046,10 +1061,18 @@ export function aiSendFromPhone(text: string, sessionId: string | null): string 
   let id = sessionId;
   if (id === null) {
     const fresh = startSession();
-    threadFor(fresh);
+    threadFor(phoneChoice === null ? fresh : { ...fresh, model: phoneChoice });
     id = fresh.id;
   }
-  void aiSend(text, [], null, id).catch((error: unknown) => {
+  const target = id;
+  void (async () => {
+    // The model the phone picked is the one its messages go to, in whichever chat it writes.
+    if (phoneChoice !== null && sessionId !== null) {
+      const chat = threads.get(target)?.session ?? (shown()?.id === target ? shown() : null) ?? (await aiSessions()).find((one) => one.id === target) ?? null;
+      if (chat !== null) pinChatModel(threadFor(chat).session, phoneChoice);
+    }
+    return aiSend(text, [], null, target);
+  })().catch((error: unknown) => {
     broadcast(CHANNELS.aiEvent, { kind: "error", detail: error instanceof Error ? error.message : String(error), sessionId: id });
     for (const listener of chatEventListeners) listener({ kind: "error", detail: error instanceof Error ? error.message : String(error), sessionId: id });
   });
@@ -1059,9 +1082,11 @@ export function aiSendFromPhone(text: string, sessionId: string | null): string 
 /** What the phone shows about this computer's assistant. */
 export function aiPhoneSummary(): { readonly project: string | null; readonly model: string | null } {
   const root = currentWorkspace()?.root ?? null;
-  const provider = activeProvider();
-  return { project: root === null ? null : root.split(/[\\/]/).filter(Boolean).pop() ?? root, model: activeModel(provider) || null };
+  return { project: root === null ? null : root.split(/[\\/]/).filter(Boolean).pop() ?? root, model: routeOf(shown()).model || null };
 }
+
+/** The model picked on a phone, for the chats the phone writes in. Null until one is picked. */
+let phoneChoice: ChatModelChoice | null = null;
 
 /**
  * Switch the model the way the desktop's picker does (the same two settings), for a phone
@@ -1070,6 +1095,7 @@ export function aiPhoneSummary(): { readonly project: string | null; readonly mo
 export async function aiUseModelFromPhone(provider: string, model: string): Promise<void> {
   await writeSetting("adcode.ai.provider", provider);
   await writeSetting("adcode.ai.model", model);
+  phoneChoice = { provider, model: activeModel(provider) };
   invalidateChatAgents();
 }
 
@@ -1120,15 +1146,74 @@ function activeProvider(): string {
  * catalogue entry, which is the closest thing to "the obvious one".
  */
 function activeModel(provider: string): string {
+  return resolveModel(provider, currentSettings()["adcode.ai.model"]);
+}
+
+/** `value` - a setting's, or a chat's own - as the model id `provider` is sent. */
+function resolveModel(provider: string, value: unknown): string {
   const connection = connections().find(item => item.id === provider);
   if (connection) return connection.model;
-  const value = currentSettings()["adcode.ai.model"];
   if (provider === "tagflow") return typeof value === "string" && tagflowCatalogue()?.models.some((model) => model.id === value) ? value : tagflowDefaultModel();
   if (typeof value === "string" && value.trim().length > 0) return value.trim();
 
   // The provider's recommended model, not whatever upstream happened to list first - for
   // OpenRouter that was a stealth preview that filled every reply with "I stopped at a limit".
   return recommendedModel(catalogue, provider, preferences) ?? DEFAULT_ANTHROPIC_MODEL;
+}
+
+/**
+ * The provider and model a chat talks to: its own (chatModels.ts), or - for a chat that has
+ * not talked to a model yet - the one chosen last. Null asks for the chosen-last one.
+ */
+function routeOf(chat: ChatSession | null | undefined): ChatModelChoice {
+  return chatRoute(chat, {
+    chosenLast: () => {
+      const provider = activeProvider();
+      return { provider, model: activeModel(provider) };
+    },
+    resolve: resolveModel,
+    // A connection that was deleted is gone; every other provider stays, and says so if it lost its key.
+    exists: (provider) => !provider.startsWith("connection-") || connections().some((item) => item.id === provider),
+  });
+}
+
+/**
+ * Seen once the settings file is read, so the first change after launch is compared with what
+ * was there. Read on the first status a window asks for - not when this module loads, which is
+ * before the app has decided where its settings live.
+ */
+const modelChoiceWatch = createModelChoiceWatch();
+let modelChoiceSeeded = false;
+function seedModelChoice(): void {
+  if (modelChoiceSeeded) return;
+  modelChoiceSeeded = true;
+  void loadSettings()
+    .then((values) => modelChoiceWatch.seed(values["adcode.ai.provider"], values["adcode.ai.model"]))
+    .catch(() => { modelChoiceSeeded = false; });
+}
+
+/**
+ * Give a chat its own model. The thread and every window showing it follow; a saved chat's
+ * file is written too, so the app reopens it on that model. A chat with no messages is not
+ * on disk yet, and gets the model with its first save.
+ */
+const modelSaves = new Map<string, Promise<void>>();
+function pinChatModel(chat: ChatSession, choice: ChatModelChoice): ChatSession {
+  if (sameChoice(chat.model, choice)) return chat;
+  const thread = threads.get(chat.id);
+  const next: ChatSession = { ...(thread?.session ?? chat), model: choice };
+  if (thread !== undefined) adoptSession(thread, next);
+  else followShown(next);
+  if (next.messages.length > 0) {
+    // One save at a time per chat, each writing the chat as it is by then: a switch writes the
+    // provider and then the model, and two saves of one file at once share a temporary name.
+    const root = thread?.root ?? currentWorkspace()?.root ?? null;
+    const latest = (): ChatSession => threads.get(chat.id)?.session ?? [...shownChats.values()].find((one) => one?.id === chat.id) ?? next;
+    const saved = (modelSaves.get(chat.id) ?? Promise.resolve()).then(() => writeSession(root, latest())).catch(() => undefined);
+    modelSaves.set(chat.id, saved);
+    void saved.then(() => { if (modelSaves.get(chat.id) === saved) modelSaves.delete(chat.id); });
+  }
+  return next;
 }
 
 /** What the catalogue knows about a model, for the adapters: its effort levels and output ceiling. */
@@ -1473,21 +1558,25 @@ export async function aiStatus(): Promise<AiStatus> {
   }
   // Discovery and keychain reads can finish after a migration or user selection. Read the
   // active route together with its model now, rather than returning the earlier provider.
-  const provider = activeProvider();
+  // "Active" is the chat on screen in the asking window: its own model, which another chat's
+  // choice does not move (chatModels.ts). With no chat on screen, the model chosen last.
+  seedModelChoice();
+  const route = routeOf(shown());
+  const provider = route.provider;
   const active = providers.find((one) => one.id === provider);
 
   return {
     providers,
     connections: connections().map(item => ({...item,...requestScheduler.status(item.id)})),
     activeProvider: provider,
-    activeModel: activeModel(provider),
+    activeModel: route.model,
     // Ready means a turn would actually reach something: a key where one is needed, and an
     // address where the provider is the custom one.
     ready:
       (active?.hasKey ?? false) &&
       (provider !== "custom" || customUrl !== null) &&
       // A local model is ready only while Ollama runs and has it.
-      (provider !== "ollama" || local.models.includes(activeModel("ollama"))),
+      (provider !== "ollama" || local.models.includes(route.model)),
     customBaseUrl: customUrl ?? "",
     catalogueTakenOn: SNAPSHOT_TAKEN_ON,
     catalogueIsLive,
@@ -2126,8 +2215,8 @@ export async function aiCompact(rawFocus: unknown): Promise<AiCompactResultView>
   if (!begun.ok) return { ok: false, message: runs.isRunning(chat.id) ? "Wait for the current answer to finish, then compact." : begun.reason };
 
   try {
-    const providerId = activeProvider();
-    const ready = await ensureChatAgent(thread, providerId, activeModel(providerId));
+    const route = routeOf(thread.session);
+    const ready = await ensureChatAgent(thread, route.provider, route.model);
     if (typeof ready === "string") return { ok: false, message: ready };
     const outcome = await ready.compact(focus);
     if (!outcome.ok) return { ok: false, message: outcome.reason };
@@ -2144,8 +2233,7 @@ export async function aiCompact(rawFocus: unknown): Promise<AiCompactResultView>
 
 /** How full the chat on screen's context is, for the composer's meter. */
 export function aiContextUsage(): AiContextUsageView {
-  const providerId = activeProvider();
-  const model = activeModel(providerId);
+  const { provider: providerId, model } = routeOf(shown());
   const settings = currentSettings();
   const thread = shownThread();
   const agent = thread?.agent ?? null;
@@ -2436,8 +2524,11 @@ async function runTurn(
     if (changed.length > 0) announceProjectFiles(changed);
   };
   try {
-    const providerId = activeProvider();
-    const model = activeModel(providerId);
+    // This chat's own model. A chat that has none yet takes the one chosen last and keeps it,
+    // so a model chosen in another chat later - even mid-task, between two of this chat's
+    // turns - does not move it (chatModels.ts).
+    const { provider: providerId, model } = routeOf(thread.session);
+    if (thread.session.model === undefined) pinChatModel(thread.session, { provider: providerId, model });
 
     if (thread.startContext === undefined) {
       thread.startContext = null;
@@ -2725,7 +2816,7 @@ async function runTurn(
     send({ kind: "error", detail });
     recordMilestone("turn_failed");
     recordRetention("turn_failed", { code: outcomeOfError(detail) });
-    const failedCli = cliAgentFor(activeProvider());
+    const failedCli = cliAgentFor(routeOf(thread.session).provider);
     const failedHow = failedCli === undefined ? null : cliFailureOf({ error: detail, answer: "", cancelled: false });
     if (failedCli !== undefined && failedHow !== null) recordRetention("cli_failed", { code: `${failedCli.id}.${failedHow}` });
     return { kind: "done", ok: false, ended: "failed" };

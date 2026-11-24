@@ -20,6 +20,7 @@ import { createChatQueue, type QueuedMessage } from "./chatQueue.ts";
 import { sendWhenConversationIdle } from "./conversationSend.ts";
 import { createEditSummary } from "./editSummary.ts";
 import { chipLabel, rememberModel, switchedFrom, type ModelChoice, type ModelInUse } from "./modelSwitch.ts";
+import { jumpToBottom } from "./transcriptScroll.ts";
 import { createModelPicker } from "./modelPicker.ts";
 import { composerChipLabel } from "./modelPickerModel.ts";
 import { askThemed } from "../dialogs/confirmDialog.ts";
@@ -809,6 +810,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     activeSessionId = null;
     moveDraftTo(null);
     paintGoal();
+    // A new chat starts on the model chosen last, whatever the chat before it used.
+    void refreshModelStatus();
     conversationTitle.textContent = "New conversation";
     renderLineage(null);
     renderMemory(null);
@@ -1716,6 +1719,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   /** True while a reopened conversation is drawn, which should appear at once. */
   let restoring = false;
+  /** The resume still drawing its chat: its scrolls jump rather than glide. */
+  let landingFor: number | null = null;
   let includedFeedbackRequest: string | null = null;
 
   /** Draw a past conversation back into the transcript. */
@@ -1740,12 +1745,17 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     viewCard = null;
     transcript.replaceChildren();
     transcriptWindow.reset();
+    // Until this chat is drawn, every scroll lands at once: the chat opens at its newest
+    // message, as in Claude, instead of gliding down past every message (transcriptScroll.ts).
+    landingFor = generation;
     authorPending = true;
     streamingBubble = null;
     live.chatWindow.reset();
     activeSessionId = session.id;
     moveDraftTo(session.id);
     paintGoal();
+    // Each chat has its own model: the chip names this one's at once, not after the next poll.
+    void refreshModelStatus();
     conversationTitle.textContent = session.title;
     renderLineage(session);
 
@@ -1850,6 +1860,13 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       questionWaiting.delete(session.id);
       scrollToEnd(true);
     }
+    // Drawn. One more jump on the next frame, for what settled as it painted (fonts, the strip
+    // under the transcript); from then a reply being written glides along again.
+    requestAnimationFrame(() => {
+      if (landingFor !== generation) return;
+      scrollToEnd(true);
+      landingFor = null;
+    });
   }
 
   /**
@@ -3691,6 +3708,15 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     aligner.observe(conversation);
     aligner.observe(composer);
     aligner.observe(sponsorStrip.element);
+    // Read at the bottom, it stays at the bottom when the transcript gets shorter - a sponsored
+    // card or a taller composer arriving under it - instead of leaving the newest lines hidden.
+    let followedHeight = 0;
+    new ResizeObserver(() => {
+      const height = transcript.clientHeight;
+      if (height === followedHeight) return;
+      followedHeight = height;
+      if (stickToBottom && transcript.childElementCount > 0) scrollToEnd();
+    }).observe(transcript);
   }
   refreshWelcome();
   /*
@@ -3887,14 +3913,23 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   function scrollToEnd(force = false): void {
     if (!working.hidden && transcript.lastElementChild !== working) transcript.append(working);
-    if (!force && !stickToBottom) {
+    // A chat being opened always ends at its newest message, however far up the last one was read.
+    const landing = restoring || (landingFor !== null && landingFor === resumeGeneration);
+    if (!force && !landing && !stickToBottom) {
       pendingUnread += 1;
       updateScrollButton();
       return;
     }
     pendingUnread = 0;
     stickToBottom = true;
-    transcript.scrollTop = transcript.scrollHeight;
+    // Opening a chat jumps; a reply being written and Jump to latest glide (ai.css).
+    if (landing) {
+      // The transcript is display:none while the chat counts as empty, and that is settled by
+      // a MutationObserver that has not run yet: a jump into a hidden box went nowhere, and
+      // whatever scrolled next glided down the whole conversation. Settle it first.
+      refreshWelcome();
+      jumpToBottom(transcript);
+    } else transcript.scrollTop = transcript.scrollHeight;
     updateScrollButton();
   }
 

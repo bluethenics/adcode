@@ -208,6 +208,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Click the model name under the chat box (or run AI: Choose Model and Reasoning).",
       "Pick a provider on the left, or type part of a model's name in Search models.",
       "Click the model you want. The chip under the chat box shows it right away, and your next message uses it.",
+      "To use two models at once, start a new chat (+ New) and pick a different model there. Each chat keeps the model you chose in it - switch between them and each chip shows its own.",
       "Press the star next to models you use often. They move to Favourites, at the top of the left side.",
       "Press Ctrl+1 to Ctrl+9 (Cmd on a Mac) while typing to jump between your first nine favourites.",
       "Under Reasoning, choose how hard it thinks. Auto lets the model decide; higher levels think longer and cost more.",
@@ -215,6 +216,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     ],
     benefits: [
       "Switch models in the middle of a conversation without losing your place.",
+      "Each chat has its own model: a free model drafting in one chat while a stronger one works through a hard bug in another, both at the same time. Choosing a model in one chat never moves the other, and each reopens on its own model after a restart.",
       "Your favourite models are one key away.",
       "You only ever see thinking levels the model really accepts, so nothing fails for asking the wrong one.",
     ],

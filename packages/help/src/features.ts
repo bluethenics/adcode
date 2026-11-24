@@ -573,7 +573,7 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   },
   "adcode.ai.model": {
     actions: [command("ai.chooseModel", "Choose a model")],
-    keywords: ["switch model", "change model", "model menu", "model picker", "quick model switch", "recent models", "recommended model", "favourite models", "favorite models", "star a model", "reasoning", "thinking effort", "effort level", "ctrl+1", "search models"],
+    keywords: ["switch model", "change model", "model menu", "model picker", "quick model switch", "recent models", "recommended model", "favourite models", "favorite models", "star a model", "reasoning", "thinking effort", "effort level", "ctrl+1", "search models", "model per chat", "different model in each chat", "two models at once", "two chats two models"],
   },
   "adcode.ai.keepGoing": {
     keywords: ["dont stop", "step limit", "finish the job", "work until done", "carry on by itself"],

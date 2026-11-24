@@ -37,6 +37,17 @@ export interface ChatAuthor {
   readonly self: boolean;
 }
 
+/**
+ * The model one conversation talks to. Each chat keeps its own, so choosing a model in one
+ * chat leaves every other chat on the model it was using. Reported for 2.6.5 - "an issue
+ * when I try to use new, different models in two different chats" - when the model was one
+ * setting for the whole app and the last choice, made in any chat, moved every chat onto it.
+ */
+export interface ChatModelChoice {
+  readonly provider: string;
+  readonly model: string;
+}
+
 /** A chat that is the local side of a shared project's session (Team). */
 export interface ChatTeamLink {
   readonly projectId: string;
@@ -73,6 +84,11 @@ export interface ChatSession {
   readonly forkTask?: string;
   /** Set when this chat is a team chat: the shared session it mirrors. */
   readonly team?: ChatTeamLink;
+  /**
+   * The model this chat uses. Absent in a chat that has not talked to a model yet, and in
+   * conversations saved before 2.6.6: such a chat takes the model chosen last, and keeps it.
+   */
+  readonly model?: ChatModelChoice;
 }
 
 export interface ChatSummary {
@@ -209,7 +225,18 @@ export function validateSession(raw: unknown): ChatSession | null {
     ...(typeof forkedAt === "number" && Number.isFinite(forkedAt) && forkedAt >= 0 ? { forkedAt } : {}),
     ...(typeof forkTask === "string" && forkTask.trim().length > 0 ? { forkTask: forkTask.slice(0, 2_000) } : {}),
     ...(validateTeam(record["team"]) ?? {}),
+    ...(validateModelChoice(record["model"]) ?? {}),
   };
+}
+
+/** A provider id and a model id, as the settings hold them; anything else costs only this field. */
+function validateModelChoice(raw: unknown): { model: ChatModelChoice } | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const record = raw as Record<string, unknown>;
+  const provider = record["provider"], model = record["model"];
+  if (typeof provider !== "string" || !/^[A-Za-z0-9_.:-]{1,100}$/.test(provider)) return null;
+  if (typeof model !== "string" || model.trim().length === 0 || model.length > 200) return null;
+  return { model: { provider, model: model.trim() } };
 }
 
 function validateAuthor(raw: unknown): ChatAuthor | null {

@@ -265,3 +265,25 @@ describe("a conversation's summary", () => {
     expect(restoreHistory(session("s", 1))).toEqual([]);
   });
 });
+
+describe("a chat's own model", () => {
+  const saved = { id: "a", title: "Chat A", renamed: false, createdAt: 1, updatedAt: 2, messages: [{ role: "user", text: "hi", at: 1 }] };
+
+  it("survives a save and a reopen, so the app restores each chat on the model it used", () => {
+    const read = validateSession(JSON.parse(JSON.stringify({ ...saved, model: { provider: "connection-alpha", model: "alpha-free" } })));
+    expect(read?.model).toEqual({ provider: "connection-alpha", model: "alpha-free" });
+  });
+
+  it("is absent in a chat saved before chats had one", () => {
+    expect(validateSession(saved)).not.toHaveProperty("model");
+  });
+
+  it("costs only itself when it is malformed", () => {
+    for (const model of [null, "alpha", { provider: "", model: "x" }, { provider: "tagflow" }, { provider: "a b", model: "x" }, { provider: "tagflow", model: " " }, { provider: "tagflow", model: "x".repeat(201) }]) {
+      const read = validateSession({ ...saved, model });
+      expect(read).not.toBeNull();
+      expect(read).not.toHaveProperty("model");
+      expect(read?.messages).toHaveLength(1);
+    }
+  });
+});

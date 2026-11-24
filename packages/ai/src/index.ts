@@ -147,6 +147,7 @@ export {
   summaryCoverage,
   restoreHistory,
   type ChatMessage,
+  type ChatModelChoice,
   type ChatRole,
   type ChatSession,
   type ChatSummary,

@@ -139,3 +139,14 @@ describe("forking without being asked", () => {
     expect(AUTO_FORK_GUIDANCE).toMatch(/independent parts/);
   });
 });
+
+describe("a fork's model", () => {
+  it("is its parent's, not whatever another chat chose last", () => {
+    const child = forkChatSession({ parent: { ...parent, model: { provider: "tagflow", model: "tagflow-code-27b" } }, id: "fork-m", title: "Docs", at: 10 });
+    expect(child.model).toEqual({ provider: "tagflow", model: "tagflow-code-27b" });
+  });
+
+  it("is left to the first turn when the parent has none yet", () => {
+    expect(forkChatSession({ parent, id: "fork-n", title: "Docs", at: 10 })).not.toHaveProperty("model");
+  });
+});

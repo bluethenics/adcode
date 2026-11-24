@@ -91,6 +91,8 @@ export function forkChatSession(input: ForkChatSessionInput): ChatSession {
     parentId: input.parent.parentId ?? input.parent.id,
     forkedAt: input.at,
     ...(task.length === 0 ? {} : { forkTask: task.slice(0, 2_000) }),
+    // A fork carries on its parent's work, on its parent's model - not on whatever another chat chose last.
+    ...(input.parent.model === undefined ? {} : { model: { ...input.parent.model } }),
   };
 }
 
