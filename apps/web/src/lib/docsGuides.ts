@@ -1914,6 +1914,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "To bring it back, choose Tools > Stashed prompts, run AI: Stashed Prompts, or type /stash. With one stash it comes straight back; with several, pick one from the list.",
       "Paste a long log, a stack trace or a whole file: 32 KB or more becomes an attachment named after what it looks like, such as pasted-1.log. Press Ctrl+Shift+V (Cmd+Shift+V on a Mac) to paste it into the text instead.",
       "In a conversation that has run for hours, press Show earlier messages at the top to bring back older messages, a batch at a time.",
+      "The chat window holds about the last 500 messages. For anything older, press Open the whole conversation in the same bar - or choose Read the whole conversation from a chat's History menu - to see every message as one document. Type in Find and press Enter to jump between matches; Copy all and Save as take it elsewhere.",
       "Using Claude Code, Codex or another coding CLI as the model? Restart or update ADCode whenever you like: the chat picks up the same CLI session, with everything the CLI already read and did.",
     ],
     benefits: [

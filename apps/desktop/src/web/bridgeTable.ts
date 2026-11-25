@@ -89,6 +89,7 @@ export const BRIDGE = [
 
   // chat
   { path: "chat.sessions", kind: "invoke", channel: CHANNELS.aiSessions },
+  { path: "chat.sessionsDelta", kind: "invoke", channel: CHANNELS.aiSessionsDelta },
   { path: "chat.resume", kind: "invoke", channel: CHANNELS.aiResumeSession },
   { path: "chat.fork", kind: "invoke", channel: CHANNELS.aiForkSession },
   { path: "chat.rename", kind: "invoke", channel: CHANNELS.aiRenameSession },

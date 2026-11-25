@@ -74,6 +74,7 @@ import {
   toggleBreakpoint,
 } from "./debug.ts";
 import { CHANNELS, IDE_VIEW_COMMANDS, type IdeView, type PreviewStatus, type RuntimeCheckView } from "../shared/api.ts";
+import { lightSession, sessionsDelta } from "../shared/sessionDelta.ts";
 import { downloadUrlFor, installCommandFor, runtimeById, runtimeFor } from "../shared/runtimes.ts";
 import {
   onKeybindingsChanged,
@@ -707,6 +708,8 @@ export function registerIpc(
   /* ── Chat history ─────────────────────────────────────────────────────── */
 
   ipcMain.handle(CHANNELS.aiSessions, () => aiSessions());
+  // Only what changed since the window's copy: a day-long chat is not resent after every reply.
+  ipcMain.handle(CHANNELS.aiSessionsDelta, async (_event, known: unknown) => sessionsDelta(await aiSessions(), known));
   // Other tools' conversations: found in three known folders, listed without their text, saved only when chosen.
   ipcMain.handle(CHANNELS.aiImportScan, () => scanChatImports(app.getPath("home")));
   ipcMain.handle(CHANNELS.aiImportFile, async (event) => {
@@ -720,7 +723,8 @@ export function registerIpc(
     if (!Array.isArray(keys) || keys.length > 400 || keys.some((key) => typeof key !== "string" || key.length > 80)) throw new Error("Invalid import request");
     return importChats(keys as string[], target === "current" ? "current" : "own-folder", currentWorkspace()?.root ?? null);
   });
-  ipcMain.handle(CHANNELS.aiSessionChanged, () => aiCurrentSession());
+  // The latest messages and a count: its readers need the title, summary and size, not the history.
+  ipcMain.handle(CHANNELS.aiSessionChanged, () => { const current = aiCurrentSession(); return current === null ? null : lightSession(current); });
 
   ipcMain.handle(CHANNELS.aiResumeSession, (_event, id: unknown) =>
     isString(id) ? aiResumeSession(id) : null,

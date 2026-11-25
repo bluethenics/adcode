@@ -4675,3 +4675,14 @@ input[type="checkbox"]:checked + .chat-question-mark::after { content: ""; width
 .chat-goal[data-status="blocked"] .chat-goal-state, .chat-goal[data-status="limit"] .chat-goal-state { color: var(--warning, var(--text-primary)); }
 .chat-goal-action { flex: none; padding: 2px 8px; font-size: var(--text-xs); }
 @media (max-width: 520px) { .chat-goal { flex-wrap: wrap; } .chat-goal-text { flex-basis: calc(100% - 24px); } }
+.chat-earlier-all { font-size: var(--text-xs); }
+.chat-earlier [hidden] { display: none; }
+
+/* The whole conversation as one document (ai/fullConversation.ts). */
+.full-conversation-dialog .form-dialog-card { width: min(960px, 92vw); height: min(820px, 88vh); display: flex; flex-direction: column; gap: var(--space-3); }
+.full-conversation-bar { display: flex; align-items: center; gap: var(--space-2); }
+.full-conversation-search { flex: 1; min-width: 0; }
+.full-conversation-found { flex: none; color: var(--text-tertiary); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.full-conversation-text { flex: 1; min-height: 0; width: 100%; resize: none; font: 12px/1.6 var(--font-mono, monospace); white-space: pre-wrap; }
+.full-conversation-footer { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); }
+.full-conversation-size { margin-right: auto; color: var(--text-tertiary); font-size: var(--text-xs); }

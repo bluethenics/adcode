@@ -98,6 +98,7 @@ import {
   zoomLabel,
 } from "./appearanceModel.ts";
 import { openUsageDialog } from "./ai/usageDialog.ts";
+import { chatSessions } from "./ai/sessionList.ts";
 import { openChatAppearanceDialog } from "./ai/chatAppearanceDialog.ts";
 import "./ai/automationHost.ts";
 import { createSourceControlPanel } from "./panels/sourceControl.ts";
@@ -7444,7 +7445,7 @@ function applyWorkArea(area: WorkArea): void {
       document.body.dataset["teamChat"] = "leaving";
       teamChatId = null;
       const done = () => { if (document.body.dataset["teamChat"] === "leaving") delete document.body.dataset["teamChat"]; };
-      void window.adcode.chat.sessions().then(async (list) => {
+      void chatSessions().then(async (list) => {
         const latest = [...list].filter((one) => one.team === undefined && one.messages.length > 0).sort((a, b) => b.updatedAt - a.updatedAt)[0];
         if (latest !== undefined) await chat.openConversation(latest.id); else chat.newConversation();
       }).catch(() => chat.newConversation()).finally(done);

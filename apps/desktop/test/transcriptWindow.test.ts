@@ -4,6 +4,7 @@ import {
   earlierBatch,
   editSlots,
   restoreStart,
+  type WindowBarState,
   type WindowHost,
   type WindowNode,
 } from "../src/renderer/ai/transcriptWindow.ts";
@@ -36,21 +37,24 @@ class FakeNode {
   remove(): void { this.host?.detach(this); this.host = null; }
 }
 
-function setup(count: number, options: { max?: number; keep?: number; batch?: number; protect?: (name: string) => boolean; atBottom?: boolean } = {}) {
+function setup(count: number, options: { max?: number; keep?: number; batch?: number; hold?: number; openAll?: () => void; protect?: (name: string) => boolean; atBottom?: boolean } = {}) {
   const host = new FakeHost();
   for (let index = 0; index < count; index += 1) host.append(new FakeNode(`n${String(index)}`));
   host.scrollTop = host.scrollHeight;
-  let counted: [number, boolean] = [0, false];
+  let counted: WindowBarState | null = null;
+  let barActions: { readonly show: () => void; readonly openAll: () => void } | null = null;
   const bar = new FakeNode("bar");
   const window = createTranscriptWindow(host as unknown as WindowHost, {
     protect: (node) => options.protect?.((node as unknown as FakeNode).name) ?? false,
     atBottom: () => options.atBottom ?? true,
-    bar: () => ({ element: bar as unknown as WindowNode, setCount: (hidden, more) => { counted = [hidden, more]; } }),
+    bar: (actions) => { barActions = actions; return { element: bar as unknown as WindowNode, paint: (state) => { counted = state; } }; },
     max: options.max ?? 10,
     keep: options.keep ?? 6,
     batch: options.batch ?? 3,
+    ...(options.hold === undefined ? {} : { hold: options.hold }),
+    ...(options.openAll === undefined ? {} : { openAll: options.openAll }),
   });
-  return { host, window, counted: () => counted };
+  return { host, window, counted: () => counted, actions: () => barActions };
 }
 
 describe("where a reopened conversation starts", () => {
@@ -88,7 +92,7 @@ describe("the live transcript window", () => {
     window.trim();
     expect(host.names()).toEqual(["bar", "n6", "n7", "n8", "n9", "n10", "n11"]);
     expect(window.hidden()).toBe(6);
-    expect(counted()).toEqual([6, false]);
+    expect(counted()).toEqual({ more: 6, canShowMore: true, beyond: false });
   });
 
   it("stops at a protected element and never moves it", () => {
@@ -127,7 +131,7 @@ describe("the live transcript window", () => {
       undrawn -= drawn;
       return { nodes: nodes as unknown as WindowNode[], drawn };
     });
-    expect(counted()).toEqual([5, true]);
+    expect(counted()).toEqual({ more: 5, canShowMore: true, beyond: false });
     window.showEarlier();
     expect(host.names()).toEqual(["bar", "old2", "old3", "old4", "n0", "n1", "n2", "n3"]);
     window.showEarlier();
@@ -141,5 +145,43 @@ describe("the live transcript window", () => {
     window.reset();
     expect(window.hidden()).toBe(0);
     expect(host.names()).not.toContain("bar");
+  });
+});
+
+describe("holding at most so much of a day-long chat", () => {
+  it("lets go of the oldest set-aside elements past the limit and offers the whole conversation", () => {
+    const opened: string[] = [];
+    const { host, window, counted, actions } = setup(30, { max: 10, keep: 6, hold: 12, openAll: () => opened.push("all") });
+    window.trim();
+    expect(host.nodes).toHaveLength(7);
+    // 6 on screen and 6 set aside: the 18 oldest were let go.
+    expect(window.hidden()).toBe(6);
+    expect(counted()).toEqual({ more: 6, canShowMore: true, beyond: true });
+    actions()?.openAll();
+    expect(opened).toEqual(["all"]);
+  });
+
+  it("stops drawing older messages at the limit and offers the whole conversation instead", () => {
+    const { host, window, counted } = setup(4, { batch: 3, hold: 8, openAll: () => undefined });
+    let undrawn = 10;
+    window.setUndrawn(10, (count) => {
+      const drawn = Math.min(count, undrawn);
+      const nodes = Array.from({ length: drawn }, (_, index) => new FakeNode(`old${String(undrawn - drawn + index)}`));
+      for (const node of nodes) host.append(node);
+      undrawn -= drawn;
+      return { nodes: nodes as unknown as WindowNode[], drawn };
+    });
+    window.showEarlier();
+    window.showEarlier();
+    expect(undrawn).toBe(4);
+    window.showEarlier();
+    expect(undrawn).toBe(4);
+    expect(counted()).toEqual({ more: 0, canShowMore: false, beyond: true });
+  });
+
+  it("keeps everything when there is no whole conversation to offer", () => {
+    const { window } = setup(30, { max: 10, keep: 6, hold: 12 });
+    window.trim();
+    expect(window.hidden()).toBe(24);
   });
 });

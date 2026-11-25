@@ -29,6 +29,12 @@ export const LIVE_MAX = 700;
 export const LIVE_KEEP = 450;
 /** How many come back per press of "Show earlier messages". */
 export const SHOW_BATCH = 150;
+/**
+ * The most transcript elements held at once, on screen and set aside together - about the last
+ * 500 messages. Measured on a 4,000-message chat drawn whole: 1.2 GB more memory and 350-600 ms
+ * per keystroke. Older history opens as one document instead (`openAll`).
+ */
+export const HOLD_MAX = 1_200;
 
 /**
  * Where a reopened conversation starts drawing: the newest `window` messages, moved back to the
@@ -71,10 +77,18 @@ export interface WindowHost {
 
 export type WindowNode = Element;
 
+export interface WindowBarState {
+  /** Messages or elements above that "Show earlier messages" can still bring back. */
+  readonly more: number;
+  /** Whether "Show earlier messages" has anything left to bring back. */
+  readonly canShowMore: boolean;
+  /** Older history the window no longer holds: offer the whole conversation instead. */
+  readonly beyond: boolean;
+}
+
 export interface WindowBar {
   readonly element: WindowNode;
-  /** How many messages or elements are out of view above; the bar hides itself at zero. */
-  setCount(hidden: number, more: boolean): void;
+  paint(state: WindowBarState): void;
 }
 
 export interface TranscriptWindowOptions {
@@ -82,11 +96,15 @@ export interface TranscriptWindowOptions {
   readonly protect: (node: WindowNode) => boolean;
   /** Whether trimming may happen now: the person is reading at the bottom. */
   readonly atBottom: () => boolean;
-  /** Builds the bar; `show` is its button. */
-  readonly bar: (show: () => void) => WindowBar;
+  /** Builds the bar from its two actions. */
+  readonly bar: (actions: { readonly show: () => void; readonly openAll: () => void }) => WindowBar;
+  /** Opens the whole conversation as one document, for history the window no longer holds. */
+  readonly openAll?: () => void;
   readonly max?: number;
   readonly keep?: number;
   readonly batch?: number;
+  /** The most elements held, on screen and set aside together. */
+  readonly hold?: number;
 }
 
 export type UndrawnRenderer = (count: number) => { readonly nodes: readonly WindowNode[]; readonly drawn: number };
@@ -112,22 +130,30 @@ export function createTranscriptWindow(host: WindowHost, options: TranscriptWind
   const max = options.max ?? LIVE_MAX;
   const keep = options.keep ?? LIVE_KEEP;
   const batch = options.batch ?? SHOW_BATCH;
+  const hold = options.hold ?? HOLD_MAX;
   /** Detached elements, oldest first. */
   let aside: WindowNode[] = [];
   let undrawn: { count: number; render: UndrawnRenderer } | null = null;
+  /** Elements were let go past `hold`: that history is only in the whole conversation now. */
+  let released = false;
   let bar: WindowBar | null = null;
   let mounted = false;
 
   const total = (): number => aside.length + (undrawn?.count ?? 0);
+  const onScreen = (): number => Array.from(host.children).filter((node) => !(mounted && bar !== null && node === bar.element)).length;
+  const held = (): number => onScreen() + aside.length;
+  /** Undrawn messages that may still be drawn without passing the limit. */
+  const roomToDraw = (): boolean => undrawn !== null && held() < hold;
 
   function ensureBar(): WindowBar {
-    bar ??= options.bar(() => api.showEarlier());
+    bar ??= options.bar({ show: () => api.showEarlier(), openAll: () => options.openAll?.() });
     return bar;
   }
 
   function paintBar(): void {
-    const hidden = total();
-    if (hidden === 0) {
+    const canShowMore = aside.length > 0 || roomToDraw();
+    const beyond = options.openAll !== undefined && (released || (undrawn !== null && !roomToDraw()));
+    if (!canShowMore && !beyond) {
       if (mounted && bar !== null) bar.element.remove();
       mounted = false;
       return;
@@ -135,7 +161,7 @@ export function createTranscriptWindow(host: WindowHost, options: TranscriptWind
     const current = ensureBar();
     if (!mounted || host.children[0] !== current.element) host.prepend(current.element);
     mounted = true;
-    current.setCount(hidden, undrawn !== null && undrawn.count > 0);
+    current.paint({ more: canShowMore ? total() : 0, canShowMore, beyond });
   }
 
   /** The element the bar sits above, or the first one when there is no bar. */
@@ -170,12 +196,22 @@ export function createTranscriptWindow(host: WindowHost, options: TranscriptWind
       anchored(() => {
         for (const node of moving) node.remove();
         aside = [...aside, ...moving];
+        // Past the limit, the oldest set-aside elements are let go: a day-long chat's memory
+        // stays bounded, and that history is still in the whole conversation.
+        const excess = held() - hold;
+        if (excess > 0 && options.openAll !== undefined) {
+          aside = aside.slice(Math.min(excess, aside.length));
+          released = true;
+        }
         paintBar();
       });
     },
 
     showEarlier() {
-      if (total() === 0) return;
+      if (aside.length === 0 && !roomToDraw()) {
+        paintBar();
+        return;
+      }
       anchored(() => {
         if (aside.length > 0) {
           const back = aside.slice(-batch);
@@ -197,6 +233,7 @@ export function createTranscriptWindow(host: WindowHost, options: TranscriptWind
     reset() {
       aside = [];
       undrawn = null;
+      released = false;
       if (mounted && bar !== null) bar.element.remove();
       mounted = false;
     },

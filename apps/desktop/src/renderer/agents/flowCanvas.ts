@@ -21,6 +21,7 @@ import { Bot, Brain, Code, Copy, FlaskConical, Link2, ListChecks, Maximize2, Pal
 import { createIcon } from "../workbench/icons.ts";
 import { enhanceSelect } from "../workbench/selectMenu.ts";
 import type { AiProviderInfo, ChatSessionView } from "../../shared/api.ts";
+import { chatSessions } from "../ai/sessionList.ts";
 
 export const FLOWS_SETTING = "adcode.ai.agentFlows";
 
@@ -780,7 +781,7 @@ export function createFlowCanvas(deps: FlowCanvasDeps): FlowCanvas {
 
   /** A checklist of saved chats; the flow runs only in the ticked ones. */
   async function pickChats(): Promise<void> {
-    const sessions: readonly ChatSessionView[] = await window.adcode.chat.sessions().catch(() => []);
+    const sessions: readonly ChatSessionView[] = await chatSessions().catch(() => []);
     const flow = current();
     const chosen = new Set(flow.scope.kind === "chats" ? flow.scope.chatIds : []);
     const sheet = el("div", "flow-sheet");

@@ -27,6 +27,7 @@ import { BUY_TOKENS_URL, UNLIMITED_REQUESTS_PER_MINUTE, aiPlanName, isFairUsePla
 import { openAudienceProfile } from "./audienceProfile.ts";
 import { formatTokens } from "../../shared/aiUsage.ts";
 import { renderCliUsage } from "./cliUsageView.ts";
+import { chatSessions } from "./sessionList.ts";
 
 export type UsageView = UsageMetric | "limits" | "clis";
 
@@ -549,7 +550,7 @@ export function openUsageDialog(options: UsageDialogOptions = {}): Promise<void>
     async function loadContext(): Promise<void> {
       const [status, sessions] = await Promise.all([
         Promise.resolve().then(() => window.adcode.ai.status()).catch(() => null),
-        Promise.resolve().then(() => window.adcode.chat.sessions()).catch(() => null),
+        Promise.resolve().then(() => chatSessions()).catch(() => null),
       ]);
       for (const provider of status?.providers ?? []) names.set(provider.id, provider.id === "tagflow" ? "Included AI" : provider.displayName);
       for (const session of sessions ?? []) chatTitles.set(session.id, session.title);

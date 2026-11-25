@@ -13,7 +13,7 @@
  * an empty history, which is a worse experience and not a broken one.
  */
 import { createHash } from "node:crypto";
-import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { join, posix, win32 } from "node:path";
 import { app } from "electron";
 import {
@@ -74,6 +74,59 @@ function directories(workspace: string | null): string[] {
   return [...new Set([directory(workspace), ...legacyKeys(workspace).map((key) => join(sessionsRoot(), hash(key)))])];
 }
 
+/**
+ * Parsed conversations, by file, with the size and time they were read at.
+ *
+ * The list is asked for after every turn - the History panel, fork chats, the phone link -
+ * and it used to read and parse every file each time. With one chat open all day (13 MB) and
+ * 199 older ones, that was a third of a second per ask, growing with every reply. A file is
+ * now parsed once and again only when its size or modification time changes; saves through
+ * `writeSession` put what they wrote straight in, so the next list does not read it back.
+ */
+interface CachedFile {
+  readonly size: number;
+  readonly mtimeMs: number;
+  readonly session: ChatSession | null;
+  /**
+   * Whether size and time are enough to know the file is unchanged. Not for a file another
+   * program wrote in the last few seconds: FAT32 keeps times to two seconds, so a quick
+   * rewrite of the same length would look untouched.
+   */
+  readonly trusted: boolean;
+}
+const cache = new Map<string, CachedFile>();
+/** Older than this, a file's time is precise enough on any disk. */
+const SETTLED_MS = 3_000;
+
+async function readCached(path: string): Promise<ChatSession | null> {
+  let info;
+  try {
+    info = await stat(path);
+  } catch {
+    cache.delete(path);
+    return null;
+  }
+  const held = cache.get(path);
+  if (held !== undefined && held.trusted && held.size === info.size && held.mtimeMs === info.mtimeMs) return held.session;
+  let session: ChatSession | null = null;
+  try {
+    session = validateSession(JSON.parse(await readFile(path, "utf8")));
+  } catch {
+    // One unreadable file costs one conversation, never the list.
+  }
+  cache.set(path, { size: info.size, mtimeMs: info.mtimeMs, session, trusted: Date.now() - info.mtimeMs > SETTLED_MS });
+  return session;
+}
+
+/** Forget cached files under `where` that are no longer there. */
+function forgetMissing(where: string, present: ReadonlySet<string>): void {
+  for (const path of cache.keys()) {
+    if (path.startsWith(`${where}\\`) || path.startsWith(`${where}/`)) {
+      if (!present.has(path)) cache.delete(path);
+    }
+  }
+}
+
 export async function readSessions(workspace: string | null): Promise<ChatSession[]> {
   const found = new Map<string, ChatSession>();
 
@@ -83,20 +136,16 @@ export async function readSessions(workspace: string | null): Promise<ChatSessio
       names = await readdir(where);
     } catch {
       // No folder yet is the normal state on a first run, not a failure.
+      forgetMissing(where, new Set());
       continue;
     }
 
-    for (const name of names) {
-      if (!name.endsWith(".json")) continue;
-
-      try {
-        const raw = await readFile(join(where, name), "utf8");
-        const session = validateSession(JSON.parse(raw));
-        const seen = session === null ? undefined : found.get(session.id);
-        if (session !== null && (seen === undefined || session.updatedAt > seen.updatedAt)) found.set(session.id, session);
-      } catch {
-        // One unreadable file costs one conversation, never the list.
-      }
+    const paths = names.filter((name) => name.endsWith(".json")).map((name) => join(where, name));
+    forgetMissing(where, new Set(paths));
+    const sessions = await Promise.all(paths.map((path) => readCached(path)));
+    for (const session of sessions) {
+      const seen = session === null ? undefined : found.get(session.id);
+      if (session !== null && (seen === undefined || session.updatedAt > seen.updatedAt)) found.set(session.id, session);
     }
   }
 
@@ -117,6 +166,11 @@ export async function writeSession(
     // file that the read path skips, so the conversation vanished with no trace.
     await writeFile(temporary, JSON.stringify(session), "utf8");
     await rename(temporary, target);
+    // What was just written is what the next list would read back: keep it, unread.
+    const info = await stat(target).catch(() => null);
+    if (info === null) cache.delete(target);
+    // Written here, so its content is known whatever the disk's time resolution.
+    else cache.set(target, { size: info.size, mtimeMs: info.mtimeMs, session, trusted: true });
   } catch (error) {
     // A conversation that cannot be saved is still a conversation on screen - but it is logged.
     // Loaded on failure only: debugLog wraps ipcMain when imported, which this store has no need of.
@@ -138,12 +192,15 @@ export async function deleteSession(workspace: string | null, id: string): Promi
 
   for (const where of directories(workspace)) {
     // Already gone is the outcome the caller wanted.
-    await rm(join(where, `${id}.json`), { force: true }).catch(() => undefined);
+    const path = join(where, `${id}.json`);
+    cache.delete(path);
+    await rm(path, { force: true }).catch(() => undefined);
   }
 }
 
 export async function clearSessions(workspace: string | null): Promise<void> {
   for (const where of directories(workspace)) {
+    forgetMissing(where, new Set());
     await rm(where, { recursive: true, force: true }).catch(() => undefined);
   }
 }
@@ -153,6 +210,12 @@ export const sameWorkspace = (a: string | null, b: string | null): boolean => wo
 
 /** Drop the oldest once there are too many, so history never grows without bound. */
 async function enforceLimit(workspace: string | null): Promise<void> {
+  // Counting files is enough to know nothing needs pruning - the usual case after every save.
+  let files = 0;
+  for (const where of directories(workspace)) {
+    files += (await readdir(where).catch((): string[] => [])).filter((name) => name.endsWith(".json")).length;
+  }
+  if (files <= MAX_SESSIONS) return;
   const sessions = await readSessions(workspace);
   if (sessions.length <= MAX_SESSIONS) return;
 

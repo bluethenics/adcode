@@ -781,6 +781,7 @@ export const CHANNELS = {
   aiProposedEdit: "ai:proposed-edit",
   aiSessionChanged: "ai:session-changed",
   aiSessions: "ai:sessions",
+  aiSessionsDelta: "ai:sessions-delta",
   aiResumeSession: "ai:resume-session",
   aiForkSession: "ai:fork-session",
   aiRenameSession: "ai:rename-session",
@@ -1540,6 +1541,11 @@ export interface ChatSessionView {
   readonly createdAt: number;
   readonly updatedAt: number;
   readonly messages: readonly ChatMessageView[];
+  /**
+   * Set when `messages` holds only the latest few (the current chat and its change broadcast):
+   * how many messages the conversation has in all.
+   */
+  readonly messageCount?: number;
   /** The latest compaction summary; it stands for the first `coversUntil` messages. */
   readonly summary?: { readonly text: string; readonly coversUntil: number; readonly at: number } | null;
   /** The main chat this conversation was forked from. Absent for a normal conversation. */
@@ -2574,6 +2580,8 @@ export interface AdcodeApi {
    */
   readonly chat: {
     sessions(): Promise<readonly ChatSessionView[]>;
+    /** The list as changes to what the window already holds (`shared/sessionDelta.ts`). */
+    sessionsDelta(known: readonly import("./sessionDelta.ts").KnownSession[]): Promise<import("./sessionDelta.ts").SessionsDelta<ChatSessionView, ChatMessageView>>;
     resume(id: string): Promise<ChatSessionView | null>;
     /** Copy this conversation into its own visible chat. Null when it cannot be forked. */
     fork(id: string): Promise<ChatSessionView | null>;

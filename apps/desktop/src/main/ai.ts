@@ -147,6 +147,7 @@ import { describeInstalledMods, describeMod, modToolDefinition, readMod, MOD_TOO
 import { builtInSlashCommands, installedPlugins, installLocalPlugin, setPluginEnabled, uninstallPlugin } from "./community.ts";
 import { createChatForkService, MAX_FORKS_PER_CHAT, withChatForks, type ChatForkService } from "./aiChatForks.ts";
 import { CONTINUE_PROMPT } from "../shared/continuePrompt.ts";
+import { lightSession } from "../shared/sessionDelta.ts";
 import { checkpointView, checkpointsForSession } from "./aiCheckpointView.ts";
 import { ASSISTANT_EXTENSION_TOOLS, bridgeAppTools, offeredAppTools, withAssistantExtensions } from "./assistantControls.ts";
 import { memoryForWorkspace } from "./memory.ts";
@@ -2071,7 +2072,7 @@ async function recordCompaction(thread: ChatThread, from: Agent, event: { readon
   const compacted = withSummary(thread.session, { text: event.summary, coversUntil: summaryCoverage(thread.session.messages, turns), at: Date.now() });
   adoptSession(thread, compacted);
   await writeSession(thread.root, compacted);
-  if (shownAnywhere(compacted.id)) broadcast(CHANNELS.aiSessionChanged, compacted);
+  if (shownAnywhere(compacted.id)) broadcast(CHANNELS.aiSessionChanged, lightSession(compacted));
 }
 
 /** Summarise the older part of the conversation now: `/compact`, or Compact now on the meter. */
@@ -2200,7 +2201,7 @@ export async function aiTeamSync(idRaw: unknown): Promise<{ readonly added: numb
   const chat = threads.get(idRaw)?.session ?? (await aiSessions()).find((one) => one.id === idRaw) ?? null;
   if (chat?.team === undefined) return { added: 0 };
   const { added, session: synced } = await syncTeamSession(chat);
-  if (added > 0 && shownAnywhere(synced.id)) broadcast(CHANNELS.aiSessionChanged, synced);
+  if (added > 0 && shownAnywhere(synced.id)) broadcast(CHANNELS.aiSessionChanged, lightSession(synced));
   return { added };
 }
 
@@ -2234,7 +2235,7 @@ async function sendTeamMessage(chat: ChatSession, raw: string, attachments: read
   }
   if (!ask || posted.lease === null) {
     // A message for the people only: it joins the chat, and the composer is free again.
-    await syncTeamSession(threads.get(chat.id)?.session ?? chat).then(({ session: synced }) => { if (shownAnywhere(synced.id)) broadcast(CHANNELS.aiSessionChanged, synced); }).catch(() => undefined);
+    await syncTeamSession(threads.get(chat.id)?.session ?? chat).then(({ session: synced }) => { if (shownAnywhere(synced.id)) broadcast(CHANNELS.aiSessionChanged, lightSession(synced)); }).catch(() => undefined);
     broadcast(CHANNELS.aiEvent, { kind: "turn-end", reason: "end-turn", sessionId: chat.id });
     if (ask) broadcast(CHANNELS.aiEvent, { kind: "status", text: "Someone else's request to the AI is still being answered - yours is in the chat, ask again when it finishes.", sessionId: chat.id });
     return true;
@@ -2601,7 +2602,8 @@ async function runTurn(
 
     await writeSession(turnRoot, turnSession);
     adoptSession(thread, turnSession);
-    if (shownAnywhere(turnSession.id)) broadcast(CHANNELS.aiSessionChanged, turnSession);
+    // The latest messages and a count, not the whole day's history, to every window.
+    if (shownAnywhere(turnSession.id)) broadcast(CHANNELS.aiSessionChanged, lightSession(turnSession));
     const checkpoint = await (thread.checkpoint?.finish() ?? Promise.resolve(null)).catch(() => null);
     thread.checkpoint = null;
     if (checkpoint !== null) {

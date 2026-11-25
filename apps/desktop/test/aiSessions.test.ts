@@ -46,3 +46,31 @@ it("reads chats saved under the raw path, moves them on save, and never leaves a
   await clearSessions(workspace);
   expect(await readSessions(workspace)).toEqual([]);
 });
+
+it("re-reads a conversation another program changed, and forgets one it deleted", async () => {
+  const workspace = process.platform === "win32" ? "E:\\Cache" : "/tmp/Cache";
+  const where = folder(workspaceKey(workspace));
+  const file = join(where, "a.json");
+  await mkdir(where, { recursive: true });
+  await writeFile(file, JSON.stringify(session("a", 1, "one")));
+  expect((await readSessions(workspace))[0]?.title).toBe("one");
+  // Another program, at once, same length: a freshly written file it did not save is read again.
+  await writeFile(file, JSON.stringify(session("a", 2, "two")));
+  expect((await readSessions(workspace))[0]?.title).toBe("two");
+  // Saved here, then changed elsewhere to a different length: the size gives it away.
+  await writeSession(workspace, session("a", 3, "three"));
+  await writeFile(file, JSON.stringify(session("a", 4, "four, longer")));
+  expect((await readSessions(workspace))[0]?.title).toBe("four, longer");
+  await rm(file);
+  expect(await readSessions(workspace)).toEqual([]);
+});
+
+it("hands back what it saved without reading it again, and lists many chats", async () => {
+  const workspace = process.platform === "win32" ? "E:\\Many" : "/tmp/Many";
+  for (let index = 0; index < 30; index += 1) await writeSession(workspace, session(`c${String(index)}`, index));
+  const first = await readSessions(workspace);
+  const again = await readSessions(workspace);
+  expect(first).toHaveLength(30);
+  // The same objects: nothing was parsed a second time.
+  expect(again[0]).toBe(first[0]);
+});

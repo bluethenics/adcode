@@ -125,6 +125,8 @@ import { chatAppearanceFrom, watchChatAppearance, type ChatAppearance } from "./
 import { openChatAppearanceDialog } from "./chatAppearanceDialog.ts";
 import { createQuestionCard } from "./chatQuestionCard.ts";
 import { openUsageDialog } from "./usageDialog.ts";
+import { chatSessions, messageCount } from "./sessionList.ts";
+import { openFullConversation } from "./fullConversation.ts";
 import { createTranscriptWindow, earlierBatch, editSlots, restoreStart } from "./transcriptWindow.ts";
 import { createChatUsagePopover } from "./chatUsagePopover.ts";
 import { firstBuildPrompt, looksLikeBuildRequest } from "../../shared/firstBuild.ts";
@@ -1050,7 +1052,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     try {
       const [tasks, sessions] = await Promise.all([
         window.adcode.aiWorkspace.list().catch(() => []),
-        window.adcode.chat.sessions().catch(() => []),
+        chatSessions().catch(() => []),
       ]);
       folderMeta.textContent = currentFolderRoot === null
         ? "open a folder to scope chats and tasks"
@@ -1132,26 +1134,47 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       return false;
     },
     atBottom: () => stickToBottom,
-    bar: (show) => {
+    // History the window no longer holds opens as one document (fullConversation.ts).
+    openAll: () => { if (activeSessionId !== null) void readWholeConversation(activeSessionId); },
+    bar: (actions) => {
       const element = document.createElement("div");
       element.className = "chat-earlier";
       const more = document.createElement("button");
       more.type = "button";
       more.className = "ghost-button chat-earlier-button";
       more.textContent = "Show earlier messages";
-      more.addEventListener("click", () => show());
+      more.addEventListener("click", () => actions.show());
       const count = document.createElement("span");
       count.className = "chat-earlier-count";
-      element.append(more, count);
+      const all = document.createElement("button");
+      all.type = "button";
+      all.className = "ghost-button chat-earlier-all";
+      all.textContent = "Open the whole conversation";
+      all.title = "Every message as one document you can search, copy or save";
+      all.addEventListener("click", () => actions.openAll());
+      element.append(more, count, all);
       return {
         element,
-        setCount: (hidden) => {
-          count.textContent = `${hidden.toLocaleString()} more above`;
-          more.setAttribute("aria-label", `Show earlier messages, ${hidden.toLocaleString()} more above`);
+        paint: (state) => {
+          more.hidden = !state.canShowMore;
+          count.hidden = !state.canShowMore;
+          count.textContent = `${state.more.toLocaleString()} more above`;
+          more.setAttribute("aria-label", `Show earlier messages, ${state.more.toLocaleString()} more above`);
+          all.hidden = !state.beyond;
         },
       };
     },
   });
+
+  /** Every message of a saved conversation, as one searchable document. */
+  async function readWholeConversation(id: string): Promise<void> {
+    const session = (await chatSessions().catch(() => [])).find((one) => one.id === id);
+    if (session === undefined) {
+      complain("This conversation could not be read. Send a message first, or open it from History.");
+      return;
+    }
+    openFullConversation({ title: session.title, messages: session.messages });
+  }
 
   // Stick-to-bottom: the transcript follows the tail only while the user is
   // already near the bottom. Scrolling up pins the view and reveals the
@@ -1400,11 +1423,11 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   }
 
   async function refreshHistory(): Promise<void> {
-    saved = soloChats(await window.adcode.chat.sessions());
+    saved = soloChats(await chatSessions());
     const current = await window.adcode.chat.current().catch(() => null);
     activeSessionId = current?.id ?? null;
     usagePopover.refresh();
-    conversationTitle.textContent = current === null || current.messages.length === 0
+    conversationTitle.textContent = current === null || messageCount(current) === 0
       ? "New conversation"
       : current.title;
     renderLineage(current);
@@ -1419,7 +1442,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       complain("This conversation cannot be forked. A fork cannot start another fork, and a chat keeps up to six.");
       return;
     }
-    saved = soloChats(await window.adcode.chat.sessions());
+    saved = soloChats(await chatSessions());
     // A new fork should not arrive inside a branch the person had folded away.
     collapsedForks.delete(id);
     renderHistory();
@@ -1500,6 +1523,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           if (session.id === activeSessionId) conversationTitle.textContent = name;
           renderHistory();
         } },
+        { label: "Read the whole conversation", run: () => openFullConversation({ title: session.title, messages: session.messages }) },
         { label: "Copy as Markdown", run: async () => {
           const lines = [`# ${session.title}`, ...session.messages.map((message) => `## ${message.role === "user" ? "You" : appearance.name}\n${message.text}`)];
           const ok = await copyText(lines.join("\n\n")).then(() => true, () => false);
@@ -1851,7 +1875,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   memory.className = "chat-memory";
 
   function renderMemory(session: ChatSessionView | null): void {
-    const turns = session?.messages.length ?? 0;
+    // The current chat arrives as a light view: its count, not its whole history.
+    const turns = messageCount(session);
 
     memory.textContent =
       turns === 0
@@ -2157,11 +2182,31 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   // Auto-growing composer, capped at ~140px per the Agent Chat reference.
   // Height is the only layout read here, on local keystrokes — never in an
   // animation loop — so it cannot regress input latency (§1).
+  let composerHeight = -1;
+  let composerLength = 0;
   function autogrowComposer(): void {
+    const length = input.value.length;
+    const shrank = length < composerLength;
+    composerLength = length;
+    /*
+     * Resetting the height to "auto" collapses the box for a moment, and the transcript beside
+     * it is laid out again. Measured on a long chat, doing that on every keystroke cost
+     * 350-600 ms a key. Text that only grew needs the reset only when it no longer fits, and
+     * never at the cap; only a deletion can need the box to shrink.
+     */
+    if (!shrank && composerHeight !== -1) {
+      if (input.scrollHeight <= input.clientHeight) return;
+      if (composerHeight >= 140) {
+        if (input.style.overflowY !== "auto") input.style.overflowY = "auto";
+        return;
+      }
+    }
     input.style.height = "auto";
-    const next = Math.min(input.scrollHeight, 140);
+    const full = input.scrollHeight;
+    const next = Math.min(full, 140);
     input.style.height = `${String(next)}px`;
-    input.style.overflowY = input.scrollHeight > 140 ? "auto" : "hidden";
+    input.style.overflowY = full > 140 ? "auto" : "hidden";
+    composerHeight = next;
   }
   input.addEventListener("input", autogrowComposer);
 
@@ -2916,7 +2961,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     }
     const flat = words.replace(/\s+/g, " ");
     await window.adcode.chat.rename(child.id, `Side: ${flat.length > 60 ? `${flat.slice(0, 59)}…` : flat}`).catch(() => undefined);
-    saved = soloChats(await window.adcode.chat.sessions());
+    saved = soloChats(await chatSessions());
     collapsedForks.delete(parentId);
     renderHistory();
     await resume(child.id);
@@ -3516,7 +3561,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       return;
     }
     try {
-      const sessions = await window.adcode.chat.sessions();
+      const sessions = await chatSessions();
       const latest = sessions.find((one) => one.messages.length > 0 && one.id !== activeSessionId) ?? null;
       continueId = latest?.id ?? null;
       continueAction.hidden = latest === null;
@@ -4280,7 +4325,12 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     transcript.append(element);
     if (role === "assistant" && text.length > 0) transcript.append(messageActions(element));
     if (role === "user" && text.trim().length > 0) transcript.append(userMessageActions(element, text));
-    scrollToEnd(role === "user");
+    /*
+     * A reopened chat or a batch of older messages scrolls once when it is all drawn (resume,
+     * transcriptWindow). Scrolling per message forced a layout of the whole transcript each time:
+     * measured on a day-long chat, 150 older messages took 9.5 s, 7.4 s of it here.
+     */
+    if (!restoring) scrollToEnd(role === "user");
     return element;
   }
 
