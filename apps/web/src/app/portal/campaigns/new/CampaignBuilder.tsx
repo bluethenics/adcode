@@ -593,7 +593,7 @@ function FundingNote({ budgetMicros }: { budgetMicros: string | null }) {
   if (portal.advertiser !== null && available >= budget) {
     return (
       <div className="ap-banner" data-tone="ok">
-        <p>Your {money(available.toString())} balance covers this budget, so it goes live the moment you launch. Cards pass automated checks on submit; there is no review queue.</p>
+        <p>Your {money(available.toString())} balance covers this budget, so it goes live when you launch. Cards pass automated checks on submit; a new advertiser's first ads are also looked at by a person, usually within a day, and go live by themselves once approved.</p>
       </div>
     );
   }

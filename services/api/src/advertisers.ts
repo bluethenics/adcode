@@ -31,6 +31,7 @@ import type {
   Store,
 } from "./store.ts";
 import { assetKey, assetUrl, isDataUrl, parseDataUrl } from "./assets.ts";
+import { creativeNeedsReview, readAdSafety } from "./adSafety.ts";
 
 export interface AdvertiserDeps {
   store: Store;
@@ -355,14 +356,17 @@ export async function createCreative(
   if (!owned.ok) return owned;
 
   /*
-   * Approved on submit - there is no review queue between an advertiser and serving.
+   * Approved on submit, or held for a decision, as the administrator chose (adSafety.ts).
    *
-   * The gate is automated rather than human: `parseCreative` already enforces https-only
-   * links and logos, raster-only artwork (no SVG/HTML payloads that could carry script),
-   * size ceilings, and text limits before this function ever runs. Anything abusive that
-   * passes validation is handled after the fact - the account can be suspended and the
-   * creative rejected, both of which remove it from serving immediately.
+   * `parseCreative` already enforces https-only links and logos, raster-only artwork (no
+   * SVG/HTML payloads that could carry script), size ceilings, and text limits before this
+   * function ever runs. Since 2.7.0 the default also holds the cards of an advertiser with
+   * none approved yet, so a stranger's first ad is seen by a person before any developer sees
+   * it; a known advertiser's next card goes live as before. Suspending the account or
+   * rejecting the creative still removes it from serving immediately.
    */
+  const safety = await readAdSafety(deps.store.adSafety);
+  const held = creativeNeedsReview(safety, safety.creativeReview === "new-advertisers" && await advertiserHasApprovedCreative(deps, owned.value.advertiser.advertiserId));
   const record: CreativeRecord = {
     // The client's `creativeId` pattern is [A-Za-z0-9_-]{1,64}; ids are generated to fit.
     creativeId: deps.ids.next("cr").slice(0, LIMITS.creativeId),
@@ -374,7 +378,7 @@ export async function createCreative(
     // Placeholders: the artwork is stored below, once the id above exists to key it by.
     logoLight: body.logoLight,
     logoDark: body.logoDark,
-    status: "approved",
+    status: held ? "pending" : "approved",
   };
 
   /*
@@ -395,7 +399,7 @@ export async function createCreative(
    * is what makes this safe - an unfunded campaign simply stays paused until credits
    * arrive, and the portal's Set live button covers that path with one click.
    */
-  if (owned.value.campaign.status === "paused") {
+  if (!held && owned.value.campaign.status === "paused") {
     const spent = await deps.store.getSpend(body.campaignId);
     await deps.store.transitionCampaignCommitment({
       advertiserId: owned.value.advertiser.advertiserId,
@@ -408,6 +412,14 @@ export async function createCreative(
   }
 
   return ok(creativeView(record));
+}
+
+/** Whether any of this advertiser's campaigns has a card an administrator (or the old auto-approval) let through. */
+async function advertiserHasApprovedCreative(deps: AdvertiserDeps, advertiserId: string): Promise<boolean> {
+  for (const campaign of (await deps.store.campaignsForAdvertiser(advertiserId)).slice(0, 200)) {
+    if ((await deps.store.creativesForCampaign(campaign.campaignId)).length > 0) return true;
+  }
+  return false;
 }
 
 export async function listCreatives(

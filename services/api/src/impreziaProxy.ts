@@ -34,6 +34,13 @@ export interface ImpreziaProxyDeps {
   readonly now: () => number;
   /** Hears one line per ad answer (impreziaAnswerSummary), for the Worker's logs. */
   readonly log?: (line: Record<string, unknown>) => void;
+  /**
+   * Pages allowed to call the relay (the sponsored page's own origin). A request whose Origin
+   * is another site is refused. Absent: no origin check (tests, the local server).
+   */
+  readonly allowedOrigins?: readonly string[];
+  /** Requests a minute from everybody together; past it the relay answers busy (2026-11-26 audit, finding 3). */
+  readonly globalPerMinute?: number;
 }
 
 /**
@@ -79,6 +86,8 @@ export interface ImpreziaProxyRequest {
   readonly sdkPlatform: string | undefined;
   readonly userAgent: string | undefined;
   readonly ip: string | undefined;
+  /** The Origin header, when the browser sent one. Same-origin GETs and beacons may not. */
+  readonly origin?: string | undefined;
 }
 
 export interface ImpreziaProxyResponse {
@@ -93,6 +102,10 @@ export interface ImpreziaProxyResponse {
  */
 const FORWARDED = /^\/v1\/(?:(?:monetize|events)\/[A-Za-z0-9/_-]{1,80}|display)(?:\?[A-Za-z0-9=&%._-]{0,200})?$/;
 const PER_NETWORK_PER_MINUTE = 120;
+/** Callers with no address Imprezia could locate share one bucket; it is kept small so one cannot starve the rest. */
+const NO_ADDRESS_PER_MINUTE = 30;
+/** Everybody together, by default: far above today's traffic, far below what a script farm would send. */
+export const RELAY_GLOBAL_PER_MINUTE = 3_000;
 const MAX_BODY_CHARS = 64_000;
 
 const json = (status: number, error: string): ImpreziaProxyResponse => ({ status, contentType: "application/json", body: JSON.stringify({ error }) });
@@ -142,10 +155,16 @@ export async function relayImprezia(deps: ImpreziaProxyDeps, request: ImpreziaPr
     try { body = request.body.trim() === "" ? {} : JSON.parse(request.body); } catch { return json(400, "malformed-body"); }
   }
 
+  // Another site's page cannot spend ADCode's key through this relay. "null" is a sandboxed
+  // frame (the partner's own card renderer); a missing Origin is a same-origin GET or a beacon.
+  if (deps.allowedOrigins !== undefined && request.origin !== undefined && request.origin !== "null" && !deps.allowedOrigins.includes(request.origin)) return json(403, "origin-not-allowed");
+
   const ip = forwardableIp(request.ip);
   const now = deps.now();
+  const minute = now - (now % 60_000);
   const network = createHash("sha256").update(`imprezia-relay:${ip ?? "none"}`).digest("hex").slice(0, 32);
-  if (await deps.bump(`imprezia-relay:${network}`, now - (now % 60_000)) > PER_NETWORK_PER_MINUTE) return json(429, "busy");
+  if (await deps.bump(`imprezia-relay:${network}`, minute) > (ip === undefined ? NO_ADDRESS_PER_MINUTE : PER_NETWORK_PER_MINUTE)) return json(429, "busy");
+  if (await deps.bump("imprezia-relay:all", minute) > (deps.globalPerMinute ?? RELAY_GLOBAL_PER_MINUTE)) return json(429, "busy");
 
   let key: string | null;
   try {

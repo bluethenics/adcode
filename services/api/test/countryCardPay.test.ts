@@ -78,6 +78,7 @@ describe("saving the table", () => {
 describe("paying a card", () => {
   async function setup(config = zeekend()) {
     const store = createMemoryStore();
+    void store.adSafety?.put({ creativeReview: "auto", cardsNeedVerifiedEmail: false }, "test", 0); // the pre-2.7.0 policy these tests describe
     await store.adNetworks!.put(config, "admin", NOW);
     const deps = (country: string | null) => ({ adNetworks: store.adNetworks, bumpDailyCount: (key: string, day: number) => store.bumpRequestCount(key, day), now: NOW, country });
     return { store, deps };
@@ -105,6 +106,7 @@ describe("paying a card", () => {
 describe("the earn and rate routes", () => {
   async function api(country: (request: Request) => string | undefined) {
     const store = createMemoryStore();
+    void store.adSafety?.put({ creativeReview: "auto", cardsNeedVerifiedEmail: false }, "test", 0); // the pre-2.7.0 policy these tests describe
     await store.adNetworks!.put(zeekend(), "admin", NOW);
     // A live key: a connection with a test key, or none, pays nobody (adNetworks.ts servesTestCards).
     const encryption = Buffer.alloc(32, 9).toString("base64");

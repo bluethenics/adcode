@@ -32,6 +32,7 @@ import type { ModelOutcomeRow } from "./modelOutcomes.ts";
 import type { StatusIncidentRecord, StatusIncidentUpdateRecord } from "./status.ts";
 import { createMemoryNetworkImpressionStore } from "./networkImpressions.ts";
 import { createMemoryEarningReviewStore } from "./earningReview.ts";
+import { createMemoryAdSafetyStore, createMemoryEarningHoldStore } from "./adSafety.ts";
 import type {
   ActivityDay,
   AdminRecord,
@@ -160,6 +161,8 @@ export function createMemoryStore(): Store & { reset(): void } {
     adNetworks,
     networkImpressions: createMemoryNetworkImpressionStore(),
     earningReviews,
+    adSafety: createMemoryAdSafetyStore(),
+    earningHolds: createMemoryEarningHoldStore(),
     reset() {
       tagflow.resetTagflow();
       adNetworks.reset();

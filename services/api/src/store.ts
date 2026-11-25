@@ -718,6 +718,10 @@ export interface Store extends TagflowStore {
   earningReviews?: import("./earningReview.ts").EarningReviewStore;
   /** Claim guards and the per-network circuit breaker (adIntegrity.ts). */
   adIntegrity?: import("./adIntegrity.ts").AdIntegrityStore;
+  /** The administrator's ad safety switches (adSafety.ts). Absent: the defaults. */
+  adSafety?: import("./adSafety.ts").AdSafetyStore;
+  /** Earnings held while an ad partner reviews them (adSafety.ts). Absent: nothing is held here. */
+  earningHolds?: import("./adSafety.ts").EarningHoldStore;
   /**
    * Anonymous lifetime totals, plus accounts created in the seven days before `now`.
    * Excludes zero-cost test receipts; counts active users only; no account data.

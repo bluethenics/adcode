@@ -11,8 +11,9 @@ import { apiFetch, MESSAGES, type CreativeView } from "@/lib/api";
  *
  * The first card is created with the campaign on one screen; this is for the second one
  * and for running two messages against the same budget. Same fields, same live preview,
- * same logo drop - nothing here asks anyone to host a PNG somewhere first. Cards go
- * live immediately: there is no review step.
+ * same logo drop - nothing here asks anyone to host a PNG somewhere first. A card goes live
+ * at once unless the administrator's ad safety setting holds it for review (a new
+ * advertiser's first ads, by default; services/api adSafety.ts).
  */
 const LIMITS = { headline: 80, body: 160, advertiser: 40 } as const;
 

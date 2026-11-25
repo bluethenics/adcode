@@ -37,6 +37,7 @@ describe("a partner impression reported by the sponsored page", () => {
 
   it("counts a slot once, however often it is reported", async () => {
     const store = createMemoryStore();
+    void store.adSafety?.put({ creativeReview: "auto", cardsNeedVerifiedEmail: false }, "test", 0); // the pre-2.7.0 policy these tests describe
     const api = createFetchHandler({ store, clock: { now: () => NOW }, verifier });
     const post = (body: unknown) => api(new Request("https://api.example.com/v1/sponsored/impression", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
     expect(await (await post({ network: "zeekend", slotId: "slot_abcdef", layout: "banner" })).json()).toEqual({ counted: true });
@@ -47,6 +48,7 @@ describe("a partner impression reported by the sponsored page", () => {
 
   it("is refused past thirty a minute from one address", async () => {
     const store = createMemoryStore();
+    void store.adSafety?.put({ creativeReview: "auto", cardsNeedVerifiedEmail: false }, "test", 0); // the pre-2.7.0 policy these tests describe
     const api = createFetchHandler({ store, clock: { now: () => NOW }, verifier });
     const statuses: number[] = [];
     for (let i = 0; i < 32; i++) {
@@ -81,6 +83,7 @@ describe("paying for a Zeekend card", () => {
 
   async function ready() {
     const store = createMemoryStore();
+    void store.adSafety?.put({ creativeReview: "auto", cardsNeedVerifiedEmail: false }, "test", 0); // the pre-2.7.0 policy these tests describe
     await store.adNetworks!.put(zeekendConfig as never, "admin", NOW);
     // A live key: a connection with a test key, or none, pays nobody (adNetworks.ts servesTestCards).
     const encryption = Buffer.alloc(32, 9).toString("base64");
@@ -100,6 +103,7 @@ describe("paying for a Zeekend card", () => {
 
   it("needs a signed-in account", async () => {
     const store = createMemoryStore();
+    void store.adSafety?.put({ creativeReview: "auto", cardsNeedVerifiedEmail: false }, "test", 0); // the pre-2.7.0 policy these tests describe
     const api = createFetchHandler({ store, clock: { now: () => NOW }, verifier });
     const response = await api(new Request("https://api.example.com/v1/sponsored/earn", { method: "POST", body: JSON.stringify({ network: "zeekend", slotId: "slot_paid0002" }) }));
     expect(response.status).toBe(401);
@@ -108,6 +112,7 @@ describe("paying for a Zeekend card", () => {
   it("pays nothing without a live Zeekend connection, and stops at the daily cap", async () => {
     const { creditNetworkImpression, ZEEKEND_PAID_PER_DAY } = await import("../src/networkImpressions.ts");
     const store = createMemoryStore();
+    void store.adSafety?.put({ creativeReview: "auto", cardsNeedVerifiedEmail: false }, "test", 0); // the pre-2.7.0 policy these tests describe
     expect(await creditNetworkImpression({ adNetworks: store.adNetworks, bumpDailyCount: (key, day) => store.bumpRequestCount(key, day), now: NOW }, "dev-c", { network: "zeekend", slotId: "slot_cap00000" })).toEqual({ credited: false, reason: "no-network" });
     await store.adNetworks!.put(zeekendConfig as never, "admin", NOW);
     let count = ZEEKEND_PAID_PER_DAY;
@@ -118,6 +123,7 @@ describe("paying for a Zeekend card", () => {
   it("pays for an Imprezia card at Imprezia's own rate, even when the 2.6.5 app calls it Zeekend's", async () => {
     const { creditNetworkImpression } = await import("../src/networkImpressions.ts");
     const store = createMemoryStore();
+    void store.adSafety?.put({ creativeReview: "auto", cardsNeedVerifiedEmail: false }, "test", 0); // the pre-2.7.0 policy these tests describe
     const deps = { adNetworks: store.adNetworks, bumpDailyCount: (key: string, day: number) => store.bumpRequestCount(key, day), now: NOW };
     await store.adNetworks!.put(zeekendConfig as never, "admin", NOW);
     // Zeekend alone pays nothing for an Imprezia card.
@@ -132,6 +138,7 @@ describe("paying for a Zeekend card", () => {
   it("counts one day's paid cards across every network, so a split pays no more cards than one network did", async () => {
     const { creditNetworkImpression } = await import("../src/networkImpressions.ts");
     const store = createMemoryStore();
+    void store.adSafety?.put({ creativeReview: "auto", cardsNeedVerifiedEmail: false }, "test", 0); // the pre-2.7.0 policy these tests describe
     await store.adNetworks!.put({ ...zeekendConfig, zeekend: { placementId: "chat-main", paidCardsPerDay: 2 } } as never, "admin", NOW);
     await store.adNetworks!.put({ id: "imprezia", name: "Imprezia", provider: "imprezia", enabled: true, priority: 10, viewPayoutMicros: "0", clickPayoutMicros: "0", imprezia: { kind: "chat", id: "", paidCardsPerDay: 2 } }, "admin", NOW);
     // A minute apart each, so the per-minute pace never decides.
@@ -144,6 +151,7 @@ describe("paying for a Zeekend card", () => {
   it("paces paid cards per minute across every network", async () => {
     const { creditNetworkImpression, CARDS_PAID_PER_MINUTE } = await import("../src/networkImpressions.ts");
     const store = createMemoryStore();
+    void store.adSafety?.put({ creativeReview: "auto", cardsNeedVerifiedEmail: false }, "test", 0); // the pre-2.7.0 policy these tests describe
     await store.adNetworks!.put(zeekendConfig as never, "admin", NOW);
     await store.adNetworks!.put({ id: "imprezia", name: "Imprezia", provider: "imprezia", enabled: true, priority: 10, viewPayoutMicros: "0", clickPayoutMicros: "0", imprezia: { kind: "chat", id: "" } }, "admin", NOW);
     const deps = { adNetworks: store.adNetworks, bumpDailyCount: (key: string, day: number) => store.bumpRequestCount(key, day), now: NOW };
@@ -157,6 +165,7 @@ describe("paying for a Zeekend card", () => {
   it("pays the rate the admin set on the Zeekend connection, up to its daily cap", async () => {
     const { creditNetworkImpression } = await import("../src/networkImpressions.ts");
     const store = createMemoryStore();
+    void store.adSafety?.put({ creativeReview: "auto", cardsNeedVerifiedEmail: false }, "test", 0); // the pre-2.7.0 policy these tests describe
     await store.adNetworks!.put({ ...zeekendConfig, zeekend: { placementId: "chat-main", payPerCardMicros: "5000", paidCardsPerDay: 2 } } as never, "admin", NOW);
     const deps = { adNetworks: store.adNetworks, bumpDailyCount: (key: string, day: number) => store.bumpRequestCount(key, day), now: NOW };
     expect(await creditNetworkImpression(deps, "dev-d", { network: "zeekend", slotId: "slot_rate0001" })).toEqual({ credited: true, micros: "5000" });
@@ -168,6 +177,7 @@ describe("paying for a Zeekend card", () => {
   it("pays nothing at a rate of $0, without using up the slot", async () => {
     const { creditNetworkImpression } = await import("../src/networkImpressions.ts");
     const store = createMemoryStore();
+    void store.adSafety?.put({ creativeReview: "auto", cardsNeedVerifiedEmail: false }, "test", 0); // the pre-2.7.0 policy these tests describe
     await store.adNetworks!.put({ ...zeekendConfig, zeekend: { placementId: "chat-main", payPerCardMicros: "0" } } as never, "admin", NOW);
     const deps = { adNetworks: store.adNetworks, bumpDailyCount: (key: string, day: number) => store.bumpRequestCount(key, day), now: NOW };
     expect(await creditNetworkImpression(deps, "dev-e", { network: "zeekend", slotId: "slot_free0001" })).toEqual({ credited: false, reason: "unpaid" });

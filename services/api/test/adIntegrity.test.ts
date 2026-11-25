@@ -155,6 +155,7 @@ describe("over HTTP", () => {
   const verifier: TokenVerifier = { async verify(token) { return { uid: token, claims: {} }; } };
   it("the earn endpoint refuses a 30 s timer with a reason, and the networks endpoint drops a paused network", async () => {
     const store = createMemoryStore();
+    void store.adSafety?.put({ creativeReview: "auto", cardsNeedVerifiedEmail: false }, "test", 0); // the pre-2.7.0 policy these tests describe
     const handler = createFetchHandler({ store, verifier, clock: { now: () => T0 } });
     const earn = (slot: string) => handler(new Request("https://x/v1/sponsored/earn", {
       method: "POST", headers: { authorization: "Bearer u9", "content-type": "application/json" },

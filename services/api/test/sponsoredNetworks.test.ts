@@ -18,7 +18,8 @@ async function save(config: AdNetworkConfig, key: string | null): Promise<void> 
   await store.adNetworks!.put(config, "admin", 1_000);
   if (key !== null) await store.adNetworks!.putKey(config.id, encryptAdNetworkKey(config.id, key, encryption));
 }
-beforeEach(() => { store = createMemoryStore(); });
+beforeEach(() => { store = createMemoryStore(); void store.adSafety?.put({ creativeReview: "auto", cardsNeedVerifiedEmail: false }, "test", 0); // the pre-2.7.0 policy these tests describe
+});
 
 describe("Zeekend keys", () => {
   it("tells a live key from Zeekend's sandbox keys and refuses anything else", () => {

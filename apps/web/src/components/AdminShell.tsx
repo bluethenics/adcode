@@ -100,6 +100,7 @@ export const ADMIN_NAV: AdminNavGroup[] = [
     label: "Ads",
     items: [
       { href: "/admin/ad-networks", label: "Ad networks", hint: "Providers, API keys, on and off, per-view and per-click pay", icon: "target" },
+      { href: "/admin/safety", label: "Ad safety", hint: "Pause a network, review new advertisers, release held earnings", icon: "shield" },
       { href: "/admin/review", label: "Creatives", hint: "Ads waiting on a decision", tab: "creatives", icon: "doc", badge: (c) => c.creativesWaiting },
       { href: "/admin/money?tab=advertisers", label: "Advertisers", hint: "Funding, campaigns, delivery", tab: "advertisers", icon: "card" },
       { href: "/admin/tools", label: "Test delivery", hint: "Show a test ad, no money moves", icon: "wrench" },

@@ -228,6 +228,8 @@ export function createAdRuntime(): AdRuntime {
   let lastBalance: Balance | null = null;
   /** This person's pay per card where they are (cardRate.ts), asked at most every ten minutes. */
   let cardRate: string | null = null;
+  /** The server's reason the last card did not pay this account (verify, review), shown in Earnings. */
+  let cardNotice: string | null = null;
   let cardRateAskedAt = Number.NEGATIVE_INFINITY;
   let watchdog: NodeJS.Timeout | null = null;
   /** The window holding the live card, by id. See `toastTarget`. */
@@ -488,6 +490,7 @@ export function createAdRuntime(): AdRuntime {
         projectionLabel: option.projectionLabel,
       })),
       cardRateLabel: cardRate,
+      cardNotice,
     };
 
     broadcast(CHANNELS.earningsChanged, snapshot);
@@ -577,8 +580,12 @@ export function createAdRuntime(): AdRuntime {
           body: JSON.stringify(partnerEarnBody(slotId, conversationId)),
           signal: AbortSignal.timeout(10_000),
         });
-        const outcome = (await response.json().catch(() => null)) as { credited?: unknown } | null;
-        debug("partner impression", { slotId, status: response.status, credited: outcome?.credited });
+        const outcome = (await response.json().catch(() => null)) as { credited?: unknown; reason?: unknown; message?: unknown } | null;
+        debug("partner impression", { slotId, status: response.status, credited: outcome?.credited, reason: outcome?.reason });
+        // Not paying for a reason the person can act on: say so in Earnings, once, until a card pays.
+        const notice = outcome?.credited === true ? null
+          : (outcome?.reason === "verify" || outcome?.reason === "review") && typeof outcome.message === "string" ? outcome.message.slice(0, 240) : cardNotice;
+        if (notice !== cardNotice) { cardNotice = notice; void pushEarnings(); }
         // The balance moved on the server: show it, a moment later, without waiting for the next tick.
         if (outcome?.credited === true) setTimeout(() => { void runtimeRefresh(); }, 1_500).unref?.();
       } catch (error) {

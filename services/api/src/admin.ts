@@ -112,8 +112,17 @@ export async function handleSetCreativeStatus(
     at: deps.clock.now(),
   });
 
+  const firstApproved = status === "approved" && creative.status !== "approved" && (await deps.store.creativesForCampaign(creative.campaignId)).length === 0;
   const updated: CreativeRecord = { ...creative, status };
   await deps.store.putCreative(updated);
+  // A campaign that was waiting on review for its first card goes live now, as it would have
+  // on submission without review. Unfunded, it stays paused; the portal's Set live finishes it.
+  if (firstApproved) {
+    const campaign = await deps.store.getCampaign(creative.campaignId);
+    if (campaign !== null && campaign.status === "paused") {
+      await deps.store.transitionCampaignCommitment({ advertiserId: campaign.advertiserId, campaignId: campaign.campaignId, next: "active", spentMicros: await deps.store.getSpend(campaign.campaignId) }).catch(() => undefined);
+    }
+  }
   return updated;
 }
 

@@ -9,10 +9,11 @@ import { AdminLoader } from "@/components/AdminLoader";
 /**
  * The creative safety valve.
  *
- * Cards go live without human review - automated checks run on submit - so this queue
- * is normally empty. It exists for the exception: a reported or abusive card can be
- * rejected here, which pulls it out of serving immediately, and the decision is
- * audited against the admin who made it.
+ * Cards wait here when Admin > Ads > Ad safety holds them for review: by default, a new
+ * advertiser's first ads (services/api adSafety.ts). Approving a campaign's first card starts
+ * the campaign when it is funded. A reported or abusive card that is already serving can be
+ * rejected here too, which pulls it out of serving immediately; every decision is audited
+ * against the admin who made it.
  */
 export function ReviewQueue() {
   const { token } = useAuth();

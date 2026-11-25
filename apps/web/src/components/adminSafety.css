@@ -1,0 +1,20 @@
+/* Admin > Ads > Ad safety (app/admin/_sections/AdSafety.tsx). */
+.adm-safety-section { display: grid; gap: 12px; margin-top: 16px; padding: 20px; }
+.adm-safety-section h2 { margin: 4px 0 0; font-size: 16px; }
+.adm-safety-section > p { margin: 0; }
+.adm-safety-choices { display: grid; gap: 8px; }
+.adm-safety-choice { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--hairline); border-radius: 10px; cursor: pointer; }
+.adm-safety-choice[data-on="true"] { border-color: var(--accent, #6d5efc); background: color-mix(in srgb, var(--accent, #6d5efc) 8%, transparent); }
+.adm-safety-choice input { margin-top: 3px; }
+.adm-safety-choice span { display: grid; gap: 2px; }
+.adm-safety-choice small { color: var(--muted); font-size: 13px; line-height: 1.45; }
+.adm-safety-network[data-paused="true"] { border-color: color-mix(in srgb, var(--danger, #e5484d) 50%, var(--hairline)); }
+.adm-safety-state { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--success, #3fb27f) 14%, transparent); color: var(--success, #3fb27f); }
+.adm-safety-network[data-paused="true"] .adm-safety-state { background: color-mix(in srgb, var(--danger, #e5484d) 14%, transparent); color: var(--danger, #e5484d); }
+.adm-safety-alerts { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 14px; }
+.adm-safety-section .adm-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.adm-safety-section .adm-table th, .adm-safety-section .adm-table td { padding: 8px 6px; border-bottom: 1px solid var(--hairline); text-align: left; }
+@media (max-width: 640px) {
+  .adm-safety-section { padding: 14px; }
+  .adm-safety-section .adm-table { display: block; overflow-x: auto; }
+}

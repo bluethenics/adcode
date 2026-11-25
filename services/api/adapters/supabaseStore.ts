@@ -129,6 +129,7 @@ import { createAdNetworkStore } from "./adNetworkStore.ts";
 import { createNetworkImpressionStore } from "./networkImpressionStore.ts";
 import { createEarningReviewStore } from "./earningReviewStore.ts";
 import { createAdIntegrityStore } from "./adIntegrityStore.ts";
+import { createAdSafetyStore, createEarningHoldStore } from "./adSafetyStore.ts";
 import { createTagflowStore } from "./tagflowStore.ts";
 import { createAiPlanCache } from "./aiPlanCache.ts";
 import { cached, cachedBy, createBreaker } from "./dbGuard.ts";
@@ -1355,6 +1356,8 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
     networkImpressions: createNetworkImpressionStore(lazy),
     earningReviews: createEarningReviewStore(lazy),
     adIntegrity: createAdIntegrityStore(lazy),
+    adSafety: createAdSafetyStore(lazy),
+    earningHolds: createEarningHoldStore(lazy),
     async getModelCatalog() {
       const row = await maybe<{ overrides: unknown; updated_at: number | string; updated_by: string }>("getModelCatalog", (db) =>
         db.from("model_catalog").select("overrides, updated_at, updated_by").eq("id", 1).maybeSingle(),

@@ -527,6 +527,8 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
       row("Ads", snapshot.enabled ? "On" : "Off", { tone: snapshot.enabled ? "good" : "off" }),
       // Pay per card depends on the country the server sees (2026-11-25): this person's own rate.
       ...(snapshot.cardRateLabel ? [row("Pay per card", snapshot.cardRateLabel)] : []),
+      // The server's reason cards are not paying right now (verify your email, under review).
+      ...(snapshot.cardNotice ? [row("Sponsored cards", snapshot.cardNotice, { tone: "wait" })] : []),
       // Named for what it is. See the note at the top of this file on why this is not
       // presented as a count of ads seen.
       row(

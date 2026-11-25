@@ -601,6 +601,12 @@ export interface EarningsSnapshot {
    * the country (2026-11-25). Null until the server has said; absent from older main processes.
    */
   readonly cardRateLabel?: string | null;
+  /**
+   * Why sponsored cards are not paying this account, in the server's words, when it said so on
+   * the last claim (2.7.0): an email still to confirm, or earnings under review. Null once a card
+   * pays again; absent from older main processes.
+   */
+  readonly cardNotice?: string | null;
 }
 
 /* ── Live collaboration ────────────────────────────────────────────────────── */

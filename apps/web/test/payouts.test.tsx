@@ -123,6 +123,7 @@ describe("the admin rail", () => {
       "/admin/tagflow",
       "/admin/models",
       "/admin/ad-networks",
+      "/admin/safety",
       "/admin/review",
       "/admin/money?tab=advertisers",
       "/admin/tools",

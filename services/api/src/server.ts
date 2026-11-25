@@ -20,6 +20,7 @@ import { authenticate, type TokenVerifier } from "./auth.ts";
 import { handleAdNetworkAdmin, servesTestCards, type AdNetworkRuntime } from "./adNetworks.ts";
 import { readAdNetworkArtwork } from "./adNetworkArtwork.ts";
 import { relayImprezia } from "./impreziaProxy.ts";
+import { MANUAL_PAUSE_REASON, UNVERIFIED_CARD_MESSAGE, parseAdSafety, parseHoldRelease, readAdSafety } from "./adSafety.ts";
 import { sponsoredNetworks } from "./sponsoredNetworks.ts";
 import { checkClaim, createMemoryAdIntegrityStore, parseConversationId, withoutPausedNetworks } from "./adIntegrity.ts";
 import { creditNetworkImpression, parseNetworkImpression, sponsoredCardRate, withNetworkImpressions } from "./networkImpressions.ts";
@@ -688,6 +689,7 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
         now: () => clock.now(),
         // One line per ad answer, its shape only (impreziaAnswerSummary), readable with `wrangler tail`.
         log: (line) => console.log(`[imprezia] ${JSON.stringify(line)}`),
+        allowedOrigins: [siteOrigin],
       }, {
         method: req.method ?? "GET",
         path: path.slice("/v1/imprezia".length) + url.search,
@@ -697,6 +699,7 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
         sdkPlatform: firstHeader(req.headers["x-sdk-platform"]),
         userAgent: firstHeader(req.headers["user-agent"]),
         ip: firstHeader(req.headers["cf-connecting-ip"]) ?? firstHeader(req.headers["x-forwarded-for"])?.split(",")[0]?.trim(),
+        origin: firstHeader(req.headers.origin),
       });
       res.writeHead(relayed.status, { "content-type": relayed.contentType, "cache-control": "no-store", ...cors });
       res.end(relayed.body);
@@ -1569,6 +1572,57 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       send(res, 200, { alerts, breakers }, { ...cors, "cache-control": "no-store" });
       return;
     }
+    // Ad safety (adSafety.ts): the switches, every network's breaker, recent alerts, and held earnings in one read.
+    if (path === "/v1/admin/ad-safety" && req.method === "GET") {
+      const [settings, alerts, breakers, networks, holds] = await Promise.all([
+        readAdSafety(store.adSafety),
+        adIntegrity.listAlerts(50).catch(() => []),
+        adIntegrity.breakers().catch(() => []),
+        store.adNetworks?.list().catch(() => []) ?? [],
+        store.earningHolds?.list(100).catch(() => null) ?? null,
+      ]);
+      send(res, 200, {
+        settings, alerts, breakers, holds,
+        networks: networks.map((network) => ({ id: network.id, name: network.name, provider: network.provider, enabled: network.enabled })),
+      }, { ...cors, "cache-control": "no-store" });
+      return;
+    }
+    if (path === "/v1/admin/ad-safety" && (req.method === "PUT" || req.method === "POST")) {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const next = parseAdSafety(raw);
+      if (next === null) { send(res, 400, { error: "malformed ad safety settings" }, cors); return; }
+      if (store.adSafety === undefined) { send(res, 503, { error: "ad safety settings are not available on this server" }, cors); return; }
+      try { await store.adSafety.put(next, auth.uid, clock.now()); } catch { send(res, 503, { error: "Run migration 20261126120000_ad_safety_settings.sql, then save again." }, cors); return; }
+      send(res, 200, { settings: await readAdSafety(store.adSafety) }, { ...cors, "cache-control": "no-store" });
+      return;
+    }
+    // A breaker opened by hand: the network stops serving and paying at once, until Resume.
+    const adBreakerPause = /^\/v1\/admin\/ad-integrity\/([a-z0-9_-]{1,40})\/pause$/.exec(path);
+    if (adBreakerPause !== null && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const note = typeof (raw as Record<string, unknown>)["note"] === "string" ? String((raw as Record<string, unknown>)["note"]).slice(0, 300) : "";
+      const opened = await adIntegrity.openBreaker({ network: adBreakerPause[1] ?? "", reason: MANUAL_PAUSE_REASON, details: { by: auth.uid, ...(note === "" ? {} : { note }) }, now: clock.now() });
+      await store.writeAudit({ adminUid: auth.uid, action: `ad-breaker-pause:${adBreakerPause[1] ?? ""}`, subjectUid: adBreakerPause[1] ?? "", at: clock.now() });
+      send(res, 200, { opened }, { ...cors, "cache-control": "no-store" });
+      return;
+    }
+    if (path === "/v1/admin/earning-holds" && req.method === "GET") {
+      if (store.earningHolds === undefined) { send(res, 200, { holds: [], accounts: 0, heldMicros: "0" }, { ...cors, "cache-control": "no-store" }); return; }
+      send(res, 200, await store.earningHolds.list(200), { ...cors, "cache-control": "no-store" });
+      return;
+    }
+    if (path === "/v1/admin/earning-holds/release" && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const release = parseHoldRelease(raw);
+      if (release === null) { send(res, 400, { error: "choose one account (uid) or all: true" }, cors); return; }
+      if (store.earningHolds === undefined) { send(res, 404, { error: "no holds on this server" }, cors); return; }
+      const released = await store.earningHolds.release({ ...release, adminUid: auth.uid, now: clock.now() });
+      send(res, 200, { released }, { ...cors, "cache-control": "no-store" });
+      return;
+    }
     const adBreakerReset = /^\/v1\/admin\/ad-integrity\/([a-z0-9_-]{1,40})\/reset$/.exec(path);
     if (adBreakerReset !== null && req.method === "POST") {
       const closed = await adIntegrity.closeBreaker({ network: adBreakerReset[1] ?? "", adminUid: auth.uid, now: clock.now() });
@@ -2303,6 +2357,12 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       let raw: unknown = null;
       try { raw = JSON.parse(await readBody(req)); } catch { send(res, 400, { error: "invalid-body" }, cors); return; }
       const now = clock.now();
+      // Only verified accounts are paid for cards unless the administrator says otherwise (adSafety.ts):
+      // an anonymous account costs nothing to make, so it cannot be what a card's money rests on.
+      if ((await readAdSafety(store.adSafety)).cardsNeedVerifiedEmail && (await store.getUser(auth.uid))?.emailVerified !== true) {
+        send(res, 200, { credited: false, reason: "verify", message: UNVERIFIED_CARD_MESSAGE }, { ...cors, "cache-control": "no-store" });
+        return;
+      }
       // Integrity guards (adIntegrity.ts): per-conversation volume, the 25-35 s timer signature, a per-account
       // daily ceiling, and a network whose breaker is open. Fails open on database errors, never on a corrupt breaker.
       const claimed = parseNetworkImpression(raw);

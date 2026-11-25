@@ -39,6 +39,7 @@ const CREATIVE = {
 beforeEach(() => {
   counter = 0;
   store = createMemoryStore();
+  void store.adSafety?.put({ creativeReview: "auto", cardsNeedVerifiedEmail: false }, "test", 0); // the pre-2.7.0 policy these tests describe
 });
 
 /** Sign up, create a campaign, attach its card. Returns the campaign id. */

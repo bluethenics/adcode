@@ -81,7 +81,7 @@ export interface TouchResult {
   readonly beatRun: number;
 }
 
-export type BreakerReason = "repeat-ratio" | "conversation-breaches" | "country-spike";
+export type BreakerReason = "repeat-ratio" | "conversation-breaches" | "country-spike" | "manual";
 export const BREAKER_REASONS: readonly BreakerReason[] = ["repeat-ratio", "conversation-breaches", "country-spike"];
 
 export interface BreakerState { readonly network: string; readonly open: boolean; readonly reason: string | null; readonly openedAt: number | null }
@@ -242,7 +242,9 @@ export async function checkClaim(store: AdIntegrityStore | undefined, claim: Cla
     // A claim just refused by the breaker it opened is caught on the next one; this one is checked again here.
     if (await networkPaused(store, claim.network)) return refuse("network-paused");
     return { allow: true };
-  } catch {
+  } catch (error) {
+    // Fail open (see the header), but never silently: a guard that is down shows in the Worker's logs.
+    console.warn(`[ad-integrity] claim guard unavailable, allowing: ${error instanceof Error ? error.message : String(error)}`);
     return { allow: true };
   }
 }

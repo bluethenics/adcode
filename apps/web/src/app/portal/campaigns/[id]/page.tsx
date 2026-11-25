@@ -159,7 +159,7 @@ export default function CampaignPage() {
                         <span><strong>{card.headline}</strong>{card.body !== null && <small>{card.body}</small>}</span>
                       </span>
                     </th>
-                    <td><span className="ap-chip" data-tone={card.status === "rejected" ? "ended" : state.tone === "live" ? "live" : "paused"}>{card.status === "rejected" ? "Rejected" : state.tone === "live" ? "Serving" : "Ready"}</span></td>
+                    <td><span className="ap-chip" data-tone={card.status === "rejected" ? "ended" : card.status === "pending" ? "paused" : state.tone === "live" ? "live" : "paused"} title={card.status === "pending" ? "A person at ADCode looks at a new advertiser's first ads before they show, usually within a day. It goes live by itself once approved." : undefined}>{card.status === "rejected" ? "Rejected" : card.status === "pending" ? "In review" : state.tone === "live" ? "Serving" : "Ready"}</span></td>
                     <td><a href={card.clickUrl} target="_blank" rel="noopener noreferrer" className="ap-link">{domainOf(card.clickUrl)}<Icon node={ExternalLink} /></a></td>
                     <td className="num"><button type="button" className="ap-link" onClick={() => setView("previews")}>Preview</button></td>
                   </tr>

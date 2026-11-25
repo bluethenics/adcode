@@ -81,7 +81,7 @@ const LAUNCH: readonly { title: string; body: string }[] = [
   { title: "Audience", body: "Every developer, or only those in the languages, frameworks and tools you pick. Worldwide, or only the countries you sell in." },
   { title: "Your ad", body: "A destination link, your logo and one line. Up to three versions that share the budget." },
   { title: "Budget", body: `Any total from $1, and a maximum bid from ${FLOOR.block} per ${FLOOR.views} views. It stops the moment the budget is spent.` },
-  { title: "Review and launch", body: "See every ad in the desktop app and the browser editor, with the views your budget buys. Cards pass automated checks on submit, with no review queue." },
+  { title: "Review and launch", body: "See every ad in the desktop app and the browser editor, with the views your budget buys. Cards pass automated checks on submit, and a person looks at a new advertiser's first ads, usually within a day, so every developer sees ads that are real." },
 ];
 
 export default async function AdvertisersPage() {
