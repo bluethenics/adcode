@@ -71,6 +71,20 @@ it("asks again when an included stream dies before its first token, instead of s
   expect(events.at(-1)).toMatchObject({ kind: "turn-end", reason: "end-turn" });
 });
 
+it("passes an outside agent's tool calls through to the chat without running or recording them", async () => {
+  const tool = { id: "e1", name: "Edit", kind: "edit" as const, detail: "src/a.ts", status: "done" as const, paths: ["src/a.ts"] };
+  const provider = scriptedProvider([[{ kind: "agent-tool", tool }, { kind: "text", text: "Edited." }, { kind: "stop", reason: "end-turn" }]]);
+  const run = runner();
+  const agent = createAgent({ provider, model: "test", tools: [echoTool], runner: run });
+  const events: AgentEvent[] = [];
+  for await (const event of agent.send("Edit it")) events.push(event);
+  expect(events).toContainEqual({ kind: "agent-tool", tool });
+  expect(run.calls).toEqual([]);
+  // One request: the CLI already ran it, so the turn does not loop back with a tool result.
+  expect(provider.requests).toBe(1);
+  expect(JSON.stringify(agent.history())).not.toContain("src/a.ts");
+});
+
 function runner(impl?: Partial<ToolRunner>): ToolRunner & { calls: ToolCallBlock[] } {
   const calls: ToolCallBlock[] = [];
   return {

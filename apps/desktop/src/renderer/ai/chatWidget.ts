@@ -89,7 +89,7 @@ import {
   stableChatBoundary,
 } from "./chatMarkdown.ts";
 import { createResultImage, summarizeToolInput, toolHeaderLabel } from "./chatActivity.ts";
-import { createPixelSpinner, createTurnTimeline, type TurnTimeline } from "./chatTimeline.ts";
+import { createPixelSpinner, createTurnTimeline, outsideToolFrom, outsideToolRowName, type TurnTimeline } from "./chatTimeline.ts";
 import { workingWord, workingWordSeed, type WorkingPhase } from "./workingWords.ts";
 import { createFrameTask } from "../frameTask.ts";
 import { attachChatLayout } from "./chatLayout.ts";
@@ -3919,6 +3919,11 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
    * after its last step - the answer - is left below it, outside the fold.
    */
   let timeline: TurnTimeline | null = null;
+  /**
+   * A coding CLI's tool rows in each turn's timeline, by the CLI's call id, and whether each has
+   * settled. Per timeline: Codex numbers its items afresh every turn.
+   */
+  const outsideRows = new WeakMap<TurnTimeline, Map<string, boolean>>();
   /** When the next timeline's turn began, if earlier than now (a replayed turn). */
   let timelineStartsAt: number | null = null;
 
@@ -5805,6 +5810,38 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         // That bubble is finished: without this its streaming caret blinked forever.
         streamingBubble?.classList.remove("is-streaming");
         streamingBubble = null;
+        scrollToEnd();
+        break;
+      }
+
+      case "agent-tool": {
+        // A coding CLI's own tool call: the same row ADCode's own tool of that kind draws,
+        // opened when the call starts and settled under the same id when it ends.
+        streamingBubble?.classList.remove("is-streaming");
+        streamingBubble = null;
+        const tool = outsideToolFrom(event["tool"]);
+        const steps = ensureTimeline();
+        if (tool === null) {
+          // Not a shape this window knows: still said, as a line of the agent's activity.
+          const raw = (typeof event["tool"] === "object" && event["tool"] !== null ? event["tool"] : {}) as Record<string, unknown>;
+          const words = [raw["name"], raw["detail"]].filter((part): part is string => typeof part === "string" && part !== "").join(": ");
+          if (words !== "") steps.thinking(`› ${words}\n`);
+          break;
+        }
+        let rows = outsideRows.get(steps);
+        if (rows === undefined) outsideRows.set(steps, (rows = new Map()));
+        const name = outsideToolRowName(tool);
+        if (!rows.has(tool.id)) {
+          // A settle for a call this turn never showed opens nothing: it names no tool to draw.
+          if (tool.status !== "running" && tool.name === "") break;
+          rows.set(tool.id, false);
+          setWorkingLabel(toolHeaderLabel(name));
+          steps.toolCall({ id: tool.id, name, detail: tool.detail });
+        }
+        if (tool.status !== "running" && rows.get(tool.id) === false) {
+          rows.set(tool.id, true);
+          steps.toolResult(tool.id, tool.status === "done");
+        }
         scrollToEnd();
         break;
       }

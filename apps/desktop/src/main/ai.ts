@@ -139,6 +139,7 @@ import { createAiToolRunner } from "./aiTools.ts";
 import { askQuestionInWindows } from "./aiQuestion.ts";
 import { resolveSandboxPath } from "./aiSandbox.ts";
 import { createCheckpointStore, type CheckpointTurn, type UndoResult } from "./aiCheckpoints.ts";
+import { outsideToolForChat, startCliTurnSnapshot, workspaceSnapshotDeps, writesUnnamed, type CliTurnSnapshot } from "./cliTurnSnapshot.ts";
 import { announceFinishedUnseen, keepAwakeWhileWorking } from "./backgroundWork.ts";
 import { powerTurnEnded, powerTurnStarted } from "./powerAfterTasks.ts";
 import { createChatRuns, KEEP_GOING_LIMIT, MAX_PARALLEL_CHATS, shouldKeepGoing } from "./chatRuns.ts";
@@ -2421,6 +2422,19 @@ async function runTurn(
   thread.includedRequestId = undefined;
   thread.status = (status) => send({ kind: "status", text: status });
   currentTaskPrompt = text.slice(0, 200);
+  /** A coding CLI's turn writes from its own process; this rebuilds its checkpoint from outside. */
+  let cliSnapshot: CliTurnSnapshot | null = null;
+  /** Adds what a CLI turn changed on disk to the turn's checkpoint, just before it is saved. */
+  const recordCliChanges = async (): Promise<void> => {
+    const snapshot = cliSnapshot;
+    cliSnapshot = null;
+    if (snapshot === null || thread.checkpoint === null) return;
+    const changed = await snapshot.finish(thread.checkpoint).catch((error: unknown) => {
+      recordDebug("warn", "ai", `Could not record what the coding CLI changed: ${error instanceof Error ? error.message : String(error)}`);
+      return [] as string[];
+    });
+    if (changed.length > 0) announceProjectFiles(changed);
+  };
   try {
     const providerId = activeProvider();
     const model = activeModel(providerId);
@@ -2499,13 +2513,30 @@ async function runTurn(
     let keepGoing = false;
     // Automatic mode writes as it goes; this turn's writes become one undoable checkpoint.
     const turnRoot = thread.root;
-    thread.checkpoint = turnRoot !== null && configuredEditPolicy() === "trusted" ? checkpoints.open(turnRoot, turnSession.id) : null;
+    // A coding CLI writes the project from its own process whatever the edit policy says, so its
+    // turn always gets a checkpoint: the same Undo and diff as a turn of ADCode's own assistant.
+    const cliTurn = cliAgentFor(providerId) !== undefined;
+    thread.checkpoint = turnRoot !== null && (configuredEditPolicy() === "trusted" || cliTurn) ? checkpoints.open(turnRoot, turnSession.id) : null;
+    if (cliTurn && turnRoot !== null) {
+      cliSnapshot = await startCliTurnSnapshot(turnRoot, workspaceSnapshotDeps(turnRoot, resolveSandboxPath)).catch((error: unknown) => {
+        recordDebug("warn", "ai", `Undo is off for this coding CLI turn: ${error instanceof Error ? error.message : String(error)}`);
+        return null;
+      });
+    }
     recordDebug("info", "ai", `Turn started: ${providerId} / ${model}`);
 
-    for await (const event of ready.send(turnText, { images })) {
-      if (event.kind === "usage") {
-        noteUsage("chat", providerId, model, event, { chat: thread.session.id, project: thread.root });
+    for await (const raw of ready.send(turnText, { images })) {
+      if (raw.kind === "usage") {
+        noteUsage("chat", providerId, model, raw, { chat: thread.session.id, project: thread.root });
         continue;
+      }
+      // An outside agent's tool: keep how the files it names read now, and show them as the
+      // workspace names them.
+      let event: AgentEvent = raw;
+      if (raw.kind === "agent-tool") {
+        cliSnapshot?.touch(raw.tool.paths ?? []);
+        if (writesUnnamed(raw.tool.kind)) cliSnapshot?.noteUnnamedWrites();
+        if (turnRoot !== null) event = { kind: "agent-tool", tool: outsideToolForChat(raw.tool, turnRoot) };
       }
       // Out of steps with Keep going until done on: not an ending, the next turn picks it up.
       if (event.kind === "error" && !thread.stopRequested && shouldKeepGoing({
@@ -2641,6 +2672,7 @@ async function runTurn(
     adoptSession(thread, turnSession);
     // The latest messages and a count, not the whole day's history, to every window.
     if (shownAnywhere(turnSession.id)) broadcast(CHANNELS.aiSessionChanged, lightSession(turnSession));
+    await recordCliChanges();
     const checkpoint = await (thread.checkpoint?.finish() ?? Promise.resolve(null)).catch(() => null);
     thread.checkpoint = null;
     if (checkpoint !== null) {
@@ -2683,7 +2715,8 @@ async function runTurn(
     }
     const detail = error instanceof Error ? error.message : "the assistant failed";
     recordDebug("error", "ai", `Turn failed: ${detail}`);
-    // Whatever the turn wrote before failing is still undoable.
+    // Whatever the turn wrote before failing is still undoable - a coding CLI's writes included.
+    await recordCliChanges();
     const checkpoint = await (thread.checkpoint?.finish() ?? Promise.resolve(null)).catch(() => null);
     thread.checkpoint = null;
     if (checkpoint !== null) {

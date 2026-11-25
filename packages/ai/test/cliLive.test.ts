@@ -62,7 +62,7 @@ describe("Claude Code kept running between turns", () => {
     const parse = createCliLineParser("claude");
     const events = [...turn("s", ["Hel", "lo"]), `{"type":"assistant","message":{"model":"m","content":[{"type":"tool_use","name":"Read","input":{"file_path":"a.ts"}}]}}`].flatMap(parse);
     expect(events.filter((event) => event.kind === "text")).toEqual([{ kind: "text", text: "Hel" }, { kind: "text", text: "lo", joined: true }]);
-    expect(events).toContainEqual({ kind: "thinking", text: "› Read: a.ts\n" });
+    expect(events).toContainEqual({ kind: "tool", tool: { id: "claude-tool-1", name: "Read", kind: "read", detail: "a.ts", status: "running" } });
     expect(isClaudeResultLine(turn("s", [])[4]!)).toBe(false);
     expect(isClaudeResultLine(turn("s", []).at(-1)!)).toBe(true);
   });

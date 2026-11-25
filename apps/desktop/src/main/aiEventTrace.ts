@@ -30,6 +30,16 @@ export function agentEventTrace(event: AgentEvent): AgentEventTrace | null {
         outcome: "pending",
       };
     }
+    // A coding CLI's own tool: traced once, as it settles - the running row is the same call.
+    case "agent-tool":
+      return event.tool.status === "running"
+        ? null
+        : {
+            kind: "tool-result",
+            summary: `${event.tool.name} ${event.tool.status === "failed" ? "failed" : "completed"}`,
+            detail: (event.tool.paths ?? []).join(", ").slice(0, 96),
+            outcome: event.tool.status === "failed" ? "failed" : "ok",
+          };
     case "tool-result":
       return {
         kind: "tool-result",

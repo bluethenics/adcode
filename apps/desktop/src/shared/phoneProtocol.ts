@@ -249,6 +249,15 @@ export function phoneEventFor(event: { readonly kind: string; readonly [key: str
       if (call.name === "ask_user") return { k: "question" };
       return { k: "tool", label: toolLabel(call.name, typeof call.input === "object" && call.input !== null ? call.input as Record<string, unknown> : {}) };
     }
+    // A coding CLI's own tool, as it starts: the phone has one line per step, not per settle.
+    case "agent-tool": {
+      const tool = event["tool"] as { kind?: unknown; detail?: unknown; status?: unknown; name?: unknown } | undefined;
+      if (tool === undefined || tool.status !== "running") return null;
+      const detail = typeof tool.detail === "string" ? tool.detail : "";
+      const verb: Readonly<Record<string, string>> = { edit: "edit_file", delete: "delete_file", move: "move_file", read: "read_file", search: "search", execute: "run_command", fetch: "fetch_url" };
+      const name = typeof tool.kind === "string" && verb[tool.kind] !== undefined ? verb[tool.kind]! : typeof tool.name === "string" ? tool.name : "tool";
+      return { k: "tool", label: toolLabel(name, { path: detail, command: detail }) };
+    }
     case "status":
       return typeof event["text"] === "string" ? { k: "status", text: event["text"].slice(0, 200) } : null;
     case "error":

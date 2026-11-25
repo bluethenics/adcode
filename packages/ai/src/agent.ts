@@ -623,6 +623,12 @@ export function createAgent(deps: AgentDeps): Agent {
               yield { kind: "thinking", text: event.text };
               break;
 
+            case "agent-tool":
+              // The outside agent ran it in its own process: shown, never run again here, and
+              // not added to `messages` - the agent keeps its own record of its tools.
+              yield { kind: "agent-tool", tool: event.tool };
+              break;
+
             case "usage":
               reportedUsage = {
                 inputTokens: event.inputTokens,

@@ -84,7 +84,12 @@ describe("CLI agents", () => {
     const provider = createCliProvider({ spec: codex, models: ["default"], spawn: first.spawn, cwd: () => "E:/project", sessions });
     const events = await collect(provider.stream(request(["Fix the button"], { model: "gpt-6-luna" }), new AbortController().signal));
     expect(events.filter((event) => event.kind === "text")).toEqual([{ kind: "text", text: "Fixed the button." }]);
-    expect(events.filter((event) => event.kind === "thinking").map((event) => event.kind === "thinking" && event.text)).toEqual(["Looking at the button.\n", "› Ran: npm test\n", "› Changed: src/app.ts\n"]);
+    expect(events.filter((event) => event.kind === "thinking").map((event) => event.kind === "thinking" && event.text)).toEqual(["Looking at the button.\n"]);
+    // Its tools are rows, not lines of thinking: the edit names its file, for the turn's Undo.
+    expect(events.filter((event) => event.kind === "agent-tool")).toEqual([
+      { kind: "agent-tool", tool: { id: "item_2", name: "command_execution", kind: "execute", detail: "npm test", status: "done" } },
+      { kind: "agent-tool", tool: { id: "item_3", name: "file_change", kind: "edit", detail: "src/app.ts", status: "done", paths: ["src/app.ts"] } },
+    ]);
     expect(events.at(-2)).toEqual({ kind: "usage", inputTokens: 1200, outputTokens: 90, cachedTokens: 800 });
     expect(events.at(-1)).toEqual({ kind: "stop", reason: "end-turn" });
     expect(first.calls[0]).toMatchObject({ command: "codex", cwd: "E:/project", input: "Fix the button" });
@@ -109,7 +114,7 @@ describe("CLI agents", () => {
     const claude = CLI_AGENTS.find((agent) => agent.id === "claude")!;
     const events = await collect(createCliProvider({ spec: claude, models: claude.models, spawn: fakeSpawn(CLAUDE_OK).spawn, cwd: () => "." }).stream(request(["run the tests"]), new AbortController().signal));
     expect(events.filter((event) => event.kind === "text").map((event) => event.kind === "text" && event.text).join("")).toBe("I'll check the tests.\n\nAll tests pass.");
-    expect(events).toContainEqual({ kind: "thinking", text: "› Ran: npm test\n" });
+    expect(events).toContainEqual({ kind: "agent-tool", tool: { id: "claude-tool-1", name: "Bash", kind: "execute", detail: "npm test", status: "running" } });
     expect(events).toContainEqual({ kind: "usage", inputTokens: 920, outputTokens: 40, cachedTokens: 900 });
   });
 
@@ -302,6 +307,58 @@ describe("what Claude Code's chat says while it works (2026-11-24)", () => {
     const events = await collect(createCliProvider({ spec: claude, models: claude.models, spawn: fakeSpawn(lines).spawn, cwd: () => "." }).stream(request(["read it"]), new AbortController().signal));
     expect(thinking(events)).toContain("› Read failed: src/missing.ts - File does not exist.\n");
     expect(texts(events)).toBe("That file is not there.");
+  });
+
+  it("draws Claude Code's edits as tool rows that name their files, and settles each by its id", async () => {
+    const ok = (id: string, content: string) => line({ type: "user", message: { role: "user", content: [{ type: "tool_result", tool_use_id: id, content }] } });
+    const lines = [
+      call("e1", "Edit", { file_path: "E:/project/src/a.ts", old_string: "a", new_string: "b" }),
+      ok("e1", "The file has been updated."),
+      call("e2", "Write", { file_path: "E:/project/src/b.ts", content: "export {};" }),
+      ok("e2", "File created."),
+      call("e3", "Read", { file_path: "E:/project/src/c.ts" }),
+      result("e3", "File does not exist."),
+      line({ type: "assistant", message: { model: "claude-opus-5-5", stop_reason: "end_turn", content: [{ type: "text", text: "Done." }] } }),
+      line({ type: "result", subtype: "success", is_error: false, usage: {} }),
+    ];
+    const events = await collect(createCliProvider({ spec: claude, models: claude.models, spawn: fakeSpawn(lines).spawn, cwd: () => "E:/project" }).stream(request(["edit both"]), new AbortController().signal));
+    expect(events.filter((event) => event.kind === "agent-tool").map((event) => event.kind === "agent-tool" ? event.tool : null)).toEqual([
+      { id: "e1", name: "Edit", kind: "edit", detail: "E:/project/src/a.ts", status: "running", paths: ["E:/project/src/a.ts"] },
+      { id: "e1", name: "Edit", kind: "edit", detail: "E:/project/src/a.ts", status: "done", paths: ["E:/project/src/a.ts"] },
+      { id: "e2", name: "Write", kind: "edit", detail: "E:/project/src/b.ts", status: "running", paths: ["E:/project/src/b.ts"] },
+      { id: "e2", name: "Write", kind: "edit", detail: "E:/project/src/b.ts", status: "done", paths: ["E:/project/src/b.ts"] },
+      { id: "e3", name: "Read", kind: "read", detail: "E:/project/src/c.ts", status: "running" },
+      { id: "e3", name: "Read", kind: "read", detail: "E:/project/src/c.ts", status: "failed" },
+    ]);
+    // A failure still says why, in words; a success says nothing more than its row.
+    expect(thinking(events)).toEqual(["› Read failed: E:/project/src/c.ts - File does not exist.\n"]);
+  });
+
+  it("knows what an outside agent's tool does by its name, and which files a writing tool changes", async () => {
+    const { outsideToolKind, toolEditPaths } = await import("../src/cliAgents.ts");
+    expect(["Bash", "Edit", "MultiEdit", "Grep", "WebFetch", "TodoWrite", "run_shell_command", "replace", "mcp__adcode__edit_file", "delete_file", "SomethingNew"].map(outsideToolKind))
+      .toEqual(["execute", "edit", "edit", "search", "fetch", "think", "execute", "edit", "other", "delete", "other"]);
+    expect(toolEditPaths("edit", { file_path: "a.ts", old_string: "x" })).toEqual(["a.ts"]);
+    expect(toolEditPaths("edit", { notebook_path: "n.ipynb" })).toEqual(["n.ipynb"]);
+    expect(toolEditPaths("edit", { filePath: "b.ts" })).toEqual(["b.ts"]);
+    // A read names a file it does not change.
+    expect(toolEditPaths("read", { file_path: "a.ts" })).toEqual([]);
+  });
+
+  it("opens a Codex tool row when the item starts and settles it, failed on a non-zero exit, when it completes", () => {
+    const parse = createCliLineParser("codex");
+    const events = [
+      `{"type":"item.started","item":{"id":"item_5","type":"command_execution","command":"npm test","aggregated_output":"","exit_code":null,"status":"in_progress"}}`,
+      `{"type":"item.completed","item":{"id":"item_5","type":"command_execution","command":"npm test","aggregated_output":"1 failed","exit_code":1,"status":"failed"}}`,
+      `{"type":"item.completed","item":{"id":"item_6","type":"file_change","changes":[{"path":"src/a.ts","kind":"update"},{"path":"src/b.ts","kind":"add"}],"status":"completed"}}`,
+      `{"type":"item.completed","item":{"id":"item_7","type":"file_change","changes":[{"path":"old.ts","kind":"delete"}],"status":"completed"}}`,
+    ].flatMap(parse);
+    expect(events).toEqual([
+      { kind: "tool", tool: { id: "item_5", name: "command_execution", kind: "execute", detail: "npm test", status: "running" } },
+      { kind: "tool", tool: { id: "item_5", name: "command_execution", kind: "execute", detail: "npm test (exit 1)", status: "failed" } },
+      { kind: "tool", tool: { id: "item_6", name: "file_change", kind: "edit", detail: "src/a.ts, src/b.ts", status: "done", paths: ["src/a.ts", "src/b.ts"] } },
+      { kind: "tool", tool: { id: "item_7", name: "file_change", kind: "delete", detail: "old.ts", status: "done", paths: ["old.ts"] } },
+    ]);
   });
 
   it("says when Claude Code stopped straight after a tool call", async () => {

@@ -5,6 +5,8 @@ import {
   helperTasksFrom,
   joinsToolGroup,
   matchHelperStatus,
+  outsideToolFrom,
+  outsideToolRowName,
   parseHelperReports,
   thinkingSummary,
   toolGroupCount,
@@ -89,6 +91,35 @@ describe("tool rows", () => {
     // Thinking or text between two searches starts a new row: the timeline reads in order.
     expect(joinsToolGroup({ kind: "thinking" }, "search")).toBe(false);
     expect(joinsToolGroup(null, "search")).toBe(false);
+  });
+});
+
+describe("a coding CLI's tool rows", () => {
+  it("draw the row ADCode's own tool of the same kind draws", () => {
+    expect(outsideToolRowName({ name: "Bash", kind: "execute" })).toBe("run_command");
+    expect(outsideToolRowName({ name: "Edit", kind: "edit" })).toBe("edit_file");
+    expect(outsideToolRowName({ name: "file_change", kind: "delete" })).toBe("delete_file");
+    expect(outsideToolRowName({ name: "Grep", kind: "search" })).toBe("search");
+    expect(outsideToolRowName({ name: "TodoWrite", kind: "think" })).toBe("update_plan");
+    // ADCode's own tools reached through the tool bridge are themselves.
+    expect(outsideToolRowName({ name: "mcp__adcode__read_file", kind: "other" })).toBe("read_file");
+    expect(outsideToolRowName({ name: "mcp__github__create_issue", kind: "other" })).toBe("call_mcp");
+    expect(toolStepLabel(outsideToolRowName({ name: "Task", kind: "other" }))).toBe("Task");
+    expect(toolStepLabel(outsideToolRowName({ name: "", kind: "other" }))).toBe("Tool");
+  });
+
+  it("read only a well-formed tool; anything else is left to the line fallback", () => {
+    expect(outsideToolFrom({ id: "e1", name: "Edit", kind: "edit", detail: "src/a.ts", status: "done", paths: ["src/a.ts"] }))
+      .toEqual({ id: "e1", name: "Edit", kind: "edit", detail: "src/a.ts", status: "done" });
+    expect(outsideToolFrom({ id: "", name: "Edit", status: "done" })).toBeNull();
+    expect(outsideToolFrom({ id: "e1", name: "Edit", status: "half-done" })).toBeNull();
+    expect(outsideToolFrom("Edit")).toBeNull();
+  });
+
+  it("open a row once per call and settle it once, in the chat itself", () => {
+    expect(widgetSource).toContain('case "agent-tool": {');
+    expect(widgetSource).toContain("steps.toolCall({ id: tool.id, name, detail: tool.detail });");
+    expect(widgetSource).toContain('steps.toolResult(tool.id, tool.status === "done");');
   });
 });
 

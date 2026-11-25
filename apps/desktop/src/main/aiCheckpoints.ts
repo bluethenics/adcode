@@ -17,7 +17,9 @@
  * back byte for byte.
  *
  * Limits, stated rather than hidden: only edits made through the file tools are recorded.
- * What a command the assistant ran did to the disk (an npm install, a build) is not.
+ * What a command the assistant ran did to the disk (an npm install, a build) is not. A coding
+ * CLI's turn is the exception: it writes from its own process, so cliTurnSnapshot.ts compares the
+ * files before and after the turn - commands included, through git - and records that instead.
  */
 import { randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";

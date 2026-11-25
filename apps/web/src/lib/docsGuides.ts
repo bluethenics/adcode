@@ -225,7 +225,8 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Press Connect. If it is installed, it becomes ADCode's model straight away. If not, a terminal opens that installs it and signs you in; come back to ADCode and it looks again by itself.",
       "Under the card, pick a model from the list. These are the models that CLI offers your account right now, with its own names and descriptions. Show all lists every one.",
       "Pick a reasoning level in the model picker if you want one (Auto, Low, Medium, High, Max). ADCode passes the nearest level that model has; Auto leaves it to the CLI.",
-      "Type your message as usual. The CLI works in your open project, and what it ran or changed appears above its answer. Your next message continues the same CLI session.",
+      "Type your message as usual. The CLI works in your open project, and each command it runs and file it reads or edits appears above its answer as a row - the same Run command, Edit file and Read file rows ADCode's own assistant draws, with a spinner while it works and a tick or a cross when it finishes. Your next message continues the same CLI session.",
+      "Changed your mind about what it did? Press Undo on the reply. Every file the CLI changed in that turn goes back to how it was before the turn, and files it created are removed. The turn's diff is in Changes, as for any assistant turn. If you edited one of those files since, ADCode asks before overwriting your edit.",
       "When the CLI wants to run a command (or delete or move a file) that its own settings do not already allow, ADCode asks you in a dialog: Allow, Allow for this chat, or Deny. Deny tells the CLI you said no, and it carries on without it.",
     ],
     benefits: [
@@ -238,8 +239,9 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "No silent stalls: a quiet CLI shows that it is still working, and when it needs a permission it asks you in ADCode instead of refusing by itself and stopping part way. Before, Claude Code turned down every command its settings did not cover and then told you to approve a prompt that never appeared.",
       "Fewer tokens per turn: your editor context goes with a message only when it changed, and ADCode no longer pastes its own instructions (up to 8,000 characters) into every message - text the CLI kept in its history and paid for again on every later request.",
       "Each chat keeps its own CLI session, in its own project, and continue after a failure resumes the CLI's session with everything it had done.",
+      "A CLI's work reads like ADCode's own: tool rows instead of a stream of text lines, and one-click Undo with a diff for every turn that changed files - including files a command it ran changed, which git picks up. In a terminal, undoing a CLI's edits means git checkout and hoping you had nothing else uncommitted; ADCode keeps your own uncommitted work as it was before the turn.",
     ],
-    betterThan: "Running a CLI in a terminal gives you its model but none of your editor: no open file, no selection, no preview to check its work, and a model list you have to remember by name. Other editors that wrap a CLI usually hard-code a few model names. ADCode asks the CLI itself for its models - the same list its own picker shows - and gives the CLI ADCode's preview, page checks and connectors, so the agent you already pay for can see and test the app it is building.",
+    betterThan: "Running a CLI in a terminal gives you its model but none of your editor: no open file, no selection, no preview to check its work, no per-turn Undo, and a model list you have to remember by name. Other editors that wrap a CLI usually hard-code a few model names. ADCode asks the CLI itself for its models - the same list its own picker shows - and gives the CLI ADCode's preview, page checks and connectors, so the agent you already pay for can see and test the app it is building.",
   },
   "ai-tool-bridge": {
     steps: [

@@ -13,7 +13,7 @@
  * Pure: no Node, no Electron. The desktop injects `spawn`, so every parser here is tested against
  * the CLIs' real output captured as strings.
  */
-import type { Message, Provider, ProviderEvent, ProviderRequest } from "./types.ts";
+import type { Message, OutsideToolActivity, OutsideToolKind, Provider, ProviderEvent, ProviderRequest } from "./types.ts";
 import { effortFor } from "./effort.ts";
 
 export type CliAgentId =
@@ -415,7 +415,9 @@ export type CliEvent =
   /** One model step ended; `reason` is the CLI's word for why ("stop", "tool-calls"). */
   | { readonly kind: "step"; readonly reason: string }
   /** A passing note for the chat's status line, such as "waiting for your answer". Never from a parser. */
-  | { readonly kind: "status"; readonly text: string };
+  | { readonly kind: "status"; readonly text: string }
+  /** One of the CLI's own tool calls starting or settling, for the chat to draw as a row. */
+  | { readonly kind: "tool"; readonly tool: OutsideToolActivity };
 
 const record = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 const str = (value: unknown): string => (typeof value === "string" ? value : "");
@@ -424,6 +426,54 @@ const num = (value: unknown): number => (typeof value === "number" && Number.isF
 /** One line of a tool's activity, as a person would say it. */
 export function activity(verb: string, detail: string): CliEvent {
   return { kind: "thinking", text: activityLine(verb, detail) };
+}
+
+/** A tool call as a row: the detail on one line, the paths only when there are some. */
+export function outsideTool(id: string, name: string, kind: OutsideToolKind, detail: string, status: OutsideToolActivity["status"], paths: readonly string[] = []): CliEvent {
+  const line = detail.replace(/\s+/g, " ").trim();
+  const clean = [...new Set(paths.map((path) => path.trim()).filter((path) => path !== ""))];
+  return { kind: "tool", tool: { id, name, kind, detail: line.length > 200 ? `${line.slice(0, 197)}…` : line, status, ...(clean.length > 0 ? { paths: clean } : {}) } };
+}
+
+/**
+ * What a CLI's tool does, by its name. Claude Code's, Gemini CLI's and OpenCode's names first,
+ * then by the words in an unknown one, so a tool added next month still lands on a sensible row.
+ */
+const TOOL_KINDS: Readonly<Record<string, OutsideToolKind>> = {
+  // Claude Code
+  Bash: "execute", BashOutput: "execute", KillShell: "execute", KillBash: "execute",
+  Read: "read", Write: "edit", Edit: "edit", MultiEdit: "edit", NotebookEdit: "edit",
+  Glob: "search", Grep: "search", LS: "search", WebFetch: "fetch", WebSearch: "fetch",
+  TodoWrite: "think", ExitPlanMode: "think", Task: "other", Agent: "other", Skill: "other",
+  // Gemini CLI and OpenCode
+  run_shell_command: "execute", bash: "execute", read_file: "read", read_many_files: "read", read: "read",
+  write_file: "edit", replace: "edit", edit: "edit", write: "edit", patch: "edit", apply_patch: "edit",
+  glob: "search", grep: "search", list: "search", list_directory: "search", search_file_content: "search",
+  web_fetch: "fetch", webfetch: "fetch", google_web_search: "fetch", todowrite: "think", todoread: "think",
+};
+
+export function outsideToolKind(name: string): OutsideToolKind {
+  const known = TOOL_KINDS[name];
+  if (known !== undefined) return known;
+  if (name.startsWith("mcp__")) return "other";
+  if (/delete|remove|\brm\b/i.test(name)) return "delete";
+  if (/move|rename/i.test(name)) return "move";
+  if (/write|edit|replace|patch|create_file/i.test(name)) return "edit";
+  if (/shell|bash|exec|command|terminal/i.test(name)) return "execute";
+  if (/fetch|web|url|http/i.test(name)) return "fetch";
+  if (/grep|glob|search|find|list/i.test(name)) return "search";
+  if (/read|view|cat/i.test(name)) return "read";
+  if (/todo|plan|think/i.test(name)) return "think";
+  return "other";
+}
+
+/**
+ * The files a writing tool changes, from what it was given: Claude Code's `file_path` (Write,
+ * Edit, MultiEdit) and `notebook_path`, OpenCode's `filePath`, Gemini CLI's `file_path`.
+ */
+export function toolEditPaths(kind: OutsideToolKind, input: unknown): string[] {
+  if ((kind !== "edit" && kind !== "delete" && kind !== "move") || !record(input)) return [];
+  return ["file_path", "filePath", "notebook_path", "path", "source", "destination", "target"].map((key) => str(input[key])).filter((path) => path !== "");
 }
 
 export function activityLine(verb: string, detail: string): string {
@@ -507,8 +557,9 @@ function createClaudeReader(declined: ReadonlySet<string> = new Set()): (event: 
   let streamedThinking = false;
   /** The next text delta starts a new block: it is a new message, not more of the last one. */
   let newBlock = true;
-  /** Each tool call's name and what it was given, so a failed result can say which call failed. */
-  const calls = new Map<string, { name: string; detail: string }>();
+  /** Each tool call's name and what it was given, so its result settles the right row and a failure says which call failed. */
+  const calls = new Map<string, { name: string; detail: string; kind: OutsideToolKind; paths: string[] }>();
+  let unnamed = 0;
   /** Calls already reported as refused, so the result's own list of refusals does not repeat them. */
   const refused = new Set<string>();
   /** The streamed message already said why it ended, so the whole message that follows does not say it twice. */
@@ -550,8 +601,11 @@ function createClaudeReader(declined: ReadonlySet<string> = new Set()): (event: 
         else if (block["type"] === "tool_use") {
           const name = str(block["name"]) || "Tool";
           const detail = toolDetail(block["input"]);
-          if (typeof block["id"] === "string") calls.set(block["id"], { name, detail });
-          out.push(activity(claudeToolVerb(name), detail));
+          const kind = outsideToolKind(name);
+          const paths = toolEditPaths(kind, block["input"]);
+          const id = str(block["id"]) || `claude-tool-${String(++unnamed)}`;
+          calls.set(id, { name, detail, kind, paths });
+          out.push(outsideTool(id, name, kind, detail, "running", paths));
         }
       }
       if (!streamedStop) { const step = stepFor(str(event["message"]["stop_reason"])); if (step !== null) out.push(step); }
@@ -561,11 +615,14 @@ function createClaudeReader(declined: ReadonlySet<string> = new Set()): (event: 
     // stop with no word as to why.
     if (event["type"] === "user" && record(event["message"]) && Array.isArray(event["message"]["content"])) {
       for (const block of event["message"]["content"]) {
-        if (!record(block) || block["type"] !== "tool_result" || block["is_error"] !== true) continue;
+        if (!record(block) || block["type"] !== "tool_result") continue;
         const id = str(block["tool_use_id"]);
+        const call = calls.get(id) ?? { name: "Tool", detail: "", kind: "other" as const, paths: [] };
+        // The row settles either way; only a failure says more.
+        if (calls.has(id)) out.push(outsideTool(id, call.name, call.kind, call.detail, block["is_error"] === true ? "failed" : "done", call.paths));
+        if (block["is_error"] !== true) continue;
         // The person said no in ADCode's own dialog, and the chat already says so.
         if (declined.has(id)) continue;
-        const call = calls.get(id) ?? { name: "Tool", detail: "" };
         const problem = toolResultText(block["content"]).replace(/<\/?tool_use_error>/g, "").replace(/\s+/g, " ").trim();
         if (CLAUDE_PERMISSION.test(problem)) {
           refused.add(id);
@@ -606,17 +663,40 @@ function codexLine(event: Record<string, unknown>): CliEvent[] {
     const usage = event["usage"];
     return [{ kind: "usage", input: num(usage["input_tokens"]), output: num(usage["output_tokens"]), cached: num(usage["cached_input_tokens"]) }];
   }
-  if (type !== "item.completed" || !record(event["item"])) return [];
+  if ((type !== "item.completed" && type !== "item.started") || !record(event["item"])) return [];
   const item = event["item"];
+  if (type === "item.started") return codexToolItem(item, true);
   switch (item["type"]) {
     case "agent_message": return str(item["text"]) ? [{ kind: "text", text: str(item["text"]) }] : [];
     case "reasoning": return str(item["text"]) ? [{ kind: "thinking", text: `${str(item["text"])}\n` }] : [];
-    case "command_execution": return [activity("Ran", `${str(item["command"])}${typeof item["exit_code"] === "number" && item["exit_code"] !== 0 ? ` (exit ${item["exit_code"]})` : ""}`)];
-    case "file_change": return [activity("Changed", (Array.isArray(item["changes"]) ? item["changes"] : []).map((change) => (record(change) ? str(change["path"]) : "")).filter(Boolean).join(", "))];
-    case "mcp_tool_call": return [activity("Used", `${str(item["server"])} ${str(item["tool"])}`)];
-    case "web_search": return [activity("Searched", str(item["query"]))];
     // "error" items are configuration warnings; a real failure arrives as turn.failed.
-    default: return [];
+    default: return codexToolItem(item, false);
+  }
+}
+
+/**
+ * Codex's tool items as rows. `item.started` opens one, `item.completed` settles it under the
+ * same id; a `file_change` names every file it touched in `changes[].path`.
+ */
+function codexToolItem(item: Record<string, unknown>, started: boolean): CliEvent[] {
+  const id = str(item["id"]) || `codex-${str(item["type"])}`;
+  const exit = typeof item["exit_code"] === "number" ? item["exit_code"] : null;
+  const status = started ? "running" : item["status"] === "failed" || (exit !== null && exit !== 0) ? "failed" : "done";
+  switch (item["type"]) {
+    case "command_execution":
+      return [outsideTool(id, "command_execution", "execute", `${str(item["command"])}${!started && exit !== null && exit !== 0 ? ` (exit ${String(exit)})` : ""}`, status)];
+    case "file_change": {
+      const changes = (Array.isArray(item["changes"]) ? item["changes"] : []).filter(record);
+      const paths = changes.map((change) => str(change["path"])).filter(Boolean);
+      const kind = changes.length > 0 && changes.every((change) => change["kind"] === "delete") ? "delete" : "edit";
+      return [outsideTool(id, "file_change", kind, paths.join(", "), status, paths)];
+    }
+    case "mcp_tool_call":
+      return [outsideTool(id, `mcp__${str(item["server"])}__${str(item["tool"])}`, "other", `${str(item["server"])} ${str(item["tool"])}`, status)];
+    case "web_search":
+      return [outsideTool(id, "web_search", "fetch", str(item["query"]), status)];
+    default:
+      return [];
   }
 }
 
@@ -631,12 +711,16 @@ function openCodeLine(event: Record<string, unknown>): CliEvent[] {
       const state = record(part["state"]) ? part["state"] : {};
       const tool = str(part["tool"]) || "Tool";
       const detail = str(state["title"]) || toolDetail(state["input"]);
+      const kind = outsideToolKind(tool);
+      const id = str(part["callID"]) || str(part["id"]) || `opencode-${tool}`;
+      const settled = state["status"] === "error" ? "failed" : state["status"] === "completed" ? "done" : "running";
+      out.push(outsideTool(id, tool, kind, detail, settled, toolEditPaths(kind, state["input"])));
       if (state["status"] === "error") {
         // A failed call used to read like a finished one: the run then ended and nobody knew why.
         const problem = str(state["error"]).replace(/\s+/g, " ").trim();
         out.push(activity(`${tool} failed`, `${detail}${detail && problem ? " - " : ""}${problem.slice(0, 200)}`));
         if (/rejected permission|permission (was )?denied|auto-reject/i.test(problem)) out.push({ kind: "denied", tool, detail });
-      } else out.push(activity(tool, detail));
+      }
       break;
     }
     case "step_finish": {
@@ -655,7 +739,14 @@ function geminiLine(event: Record<string, unknown>): CliEvent[] {
   const out: CliEvent[] = [];
   if (event["type"] === "init" && typeof event["session_id"] === "string") out.push({ kind: "session", id: event["session_id"] });
   if (event["type"] === "message" && event["role"] === "assistant" && str(event["content"])) out.push({ kind: "text", text: str(event["content"]) });
-  if (event["type"] === "tool_use") out.push(activity(str(event["tool_name"]) || "Tool", toolDetail(event["parameters"])));
+  if (event["type"] === "tool_use") {
+    const tool = str(event["tool_name"]) || "Tool";
+    const kind = outsideToolKind(tool);
+    out.push(outsideTool(str(event["tool_id"]) || `gemini-${tool}`, tool, kind, toolDetail(event["parameters"]), "running", toolEditPaths(kind, event["parameters"])));
+  }
+  if (event["type"] === "tool_result" && str(event["tool_id"])) {
+    out.push(outsideTool(str(event["tool_id"]), "", "other", "", event["status"] === "error" ? "failed" : "done"));
+  }
   if (event["type"] === "error") out.push({ kind: "error", message: errorText(event["message"] ?? event["error"]) });
   if (event["type"] === "result") {
     const stats = record(event["stats"]) ? event["stats"] : {};
@@ -1072,6 +1163,7 @@ export function createCliProvider(options: CliProviderOptions): Provider {
               wrote = true; lastText = event.joined === true ? lastText + event.text : event.text; answeredSinceTools = true;
               yield { kind: "text", text };
             } else if (event.kind === "status") yield { kind: "status", text: event.text };
+            else if (event.kind === "tool") yield { kind: "agent-tool", tool: event.tool };
             else yield { kind: "thinking", text: event.text };
           }
         }

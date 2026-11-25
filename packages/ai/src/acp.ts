@@ -13,8 +13,8 @@
  * One process serves a chat's every turn, as T3 Code runs them: only the first turn waits for
  * the agent to start. Pure apart from the injected `CliLiveSpawn`, so every rule is tested.
  */
-import { HEARTBEAT_MS, LIVE_IDLE_MS, LIVE_MAX, SIGNED_OUT, activity, cliEffort, cliPrompt, cliProviderId, conversationKey, dropLive, permissionOutcome, permissionWaiting, unfinishedRunNote, withHeartbeat, type CliEvent, type CliLiveEntry, type CliLiveProcess, type CliMcpServer, type CliModelInfo, type CliPermissionAnswer, type CliPermissionAsk, type CliProviderOptions, isSafeCliToken } from "./cliAgents.ts";
-import type { Provider, ProviderEvent, ProviderRequest } from "./types.ts";
+import { HEARTBEAT_MS, LIVE_IDLE_MS, LIVE_MAX, SIGNED_OUT, cliEffort, cliPrompt, cliProviderId, conversationKey, dropLive, outsideTool, permissionOutcome, permissionWaiting, unfinishedRunNote, withHeartbeat, type CliEvent, type CliLiveEntry, type CliLiveProcess, type CliMcpServer, type CliModelInfo, type CliPermissionAnswer, type CliPermissionAsk, type CliProviderOptions, isSafeCliToken } from "./cliAgents.ts";
+import type { OutsideToolKind, Provider, ProviderEvent, ProviderRequest } from "./types.ts";
 
 export const ACP_PROTOCOL_VERSION = 1;
 
@@ -132,8 +132,25 @@ export function acpPermissionChoice(params: unknown, answer: CliPermissionAnswer
   return pickPermissionOption(params, answer === "session" ? ["allow_always", "allow_once"] : ["allow_once", "allow_always"]);
 }
 
+const ACP_TOOL_KINDS: ReadonlySet<string> = new Set(["read", "edit", "delete", "move", "search", "execute", "fetch", "think"]);
+
+/** What an ACP tool call's update says about it, merged over what was known before. */
+interface AcpCall { name: string; kind: OutsideToolKind; detail: string; paths: string[] }
+
+/**
+ * The files an ACP tool call is about: its `locations`, the paths of any `diff` content, and for
+ * a writing call the path in its raw input.
+ */
+function acpPaths(update: Record<string, unknown>, kind: OutsideToolKind): string[] {
+  const locations = Array.isArray(update["locations"]) ? update["locations"].filter(record).map((location) => str(location["path"])) : [];
+  const diffs = Array.isArray(update["content"]) ? update["content"].filter(record).filter((part) => part["type"] === "diff").map((part) => str(part["path"])) : [];
+  const raw = record(update["rawInput"]) ? update["rawInput"] : {};
+  const input = kind === "edit" || kind === "delete" || kind === "move" ? [str(raw["file_path"]), str(raw["filePath"]), str(raw["path"])] : [];
+  return [...locations, ...diffs, ...input].filter((path) => path !== "");
+}
+
 /** One `session/update`, as the chat's events. `state` carries which kind came last, to join streamed words. */
-export function acpUpdateEvents(update: unknown, state: { last: "text" | "thought" | "other" | null }): CliEvent[] {
+export function acpUpdateEvents(update: unknown, state: { last: "text" | "thought" | "other" | null; calls?: Map<string, AcpCall> }): CliEvent[] {
   if (!record(update)) return [];
   const kind = str(update["sessionUpdate"]);
   const content = record(update["content"]) ? update["content"] : {};
@@ -151,16 +168,27 @@ export function acpUpdateEvents(update: unknown, state: { last: "text" | "though
       state.last = "thought";
       return [{ kind: "thinking", text }];
     }
-    case "tool_call": {
-      state.last = "other";
-      const raw = record(update["rawInput"]) ? update["rawInput"] : {};
-      const detail = str(update["title"]) || str(raw["command"]) || str(raw["path"]) || str(raw["filePath"]);
-      return [activity(toolVerb(str(update["kind"])), detail)];
-    }
+    // A call opens a row; its updates settle the same row, by `toolCallId`. An update may name
+    // only what changed, so what is known about the call is kept between them.
+    case "tool_call":
     case "tool_call_update": {
-      if (update["status"] !== "failed") return [];
       state.last = "other";
-      return [activity("Failed", str(update["title"]) || str(update["toolCallId"]))];
+      const calls = (state.calls ??= new Map());
+      const id = str(update["toolCallId"]) || `acp-tool-${String(calls.size + 1)}`;
+      const known = calls.get(id);
+      const rawKind = str(update["kind"]);
+      const toolKind: OutsideToolKind = ACP_TOOL_KINDS.has(rawKind) ? (rawKind as OutsideToolKind) : known?.kind ?? "other";
+      const raw = record(update["rawInput"]) ? update["rawInput"] : {};
+      const detail = str(update["title"]) || str(raw["command"]) || str(raw["path"]) || str(raw["filePath"]) || known?.detail || "";
+      const fresh = acpPaths(update, toolKind);
+      const paths = [...new Set([...(known?.paths ?? []), ...fresh])];
+      const call: AcpCall = { name: rawKind || known?.name || "tool", kind: toolKind, detail, paths };
+      calls.set(id, call);
+      const status = str(update["status"]);
+      const settled = status === "completed" ? "done" : status === "failed" ? "failed" : "running";
+      // An update that neither settles the call nor names a new file adds nothing to its row.
+      if (kind === "tool_call_update" && settled === "running" && fresh.every((path) => known?.paths.includes(path) === true)) return [];
+      return [outsideTool(id, call.name, toolKind, detail, settled, paths)];
     }
     case "plan": {
       const entries = Array.isArray(update["entries"]) ? update["entries"].filter(record) : [];
@@ -170,20 +198,6 @@ export function acpUpdateEvents(update: unknown, state: { last: "text" | "though
     }
     default:
       return [];
-  }
-}
-
-function toolVerb(kind: string): string {
-  switch (kind) {
-    case "read": return "Read";
-    case "edit": return "Edited";
-    case "delete": return "Deleted";
-    case "move": return "Moved";
-    case "search": return "Searched";
-    case "execute": return "Ran";
-    case "fetch": return "Fetched";
-    case "think": return "Thought";
-    default: return "Used a tool";
   }
 }
 
@@ -425,7 +439,7 @@ export function createAcpProvider(options: CliProviderOptions): Provider {
         sessions.set(key, { id: sessionId, messages: request.messages.length });
 
         const queue = new EventQueue<CliEvent | { kind: "end" }>();
-        const state: { last: "text" | "thought" | "other" | null } = { last: null };
+        const state: Parameters<typeof acpUpdateEvents>[1] = { last: null };
         const denied: { tool: string; detail: string }[] = [];
         connection.listening = sessionId;
         connection.onUpdate = (update) => { for (const event of acpUpdateEvents(update, state)) queue.push(event); };
@@ -479,6 +493,7 @@ export function createAcpProvider(options: CliProviderOptions): Provider {
               lastText = event.joined === true ? lastText + event.text : event.text;
               yield { kind: "text", text };
             } else if (event.kind === "thinking") yield { kind: "thinking", text: event.text };
+            else if (event.kind === "tool") yield { kind: "agent-tool", tool: event.tool };
           }
           if (!signal.aborted) await prompt;
         } finally {

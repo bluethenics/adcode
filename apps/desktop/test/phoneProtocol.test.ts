@@ -36,6 +36,10 @@ describe("phone link protocol", () => {
     expect(phoneEventFor({ kind: "text", text: "Hi" })).toEqual({ k: "text", text: "Hi" });
     expect(phoneEventFor({ kind: "tool-call", call: { name: "write_file", input: { path: "src/app/page.tsx" } } })).toEqual({ k: "tool", label: "Editing page.tsx" });
     expect(phoneEventFor({ kind: "tool-call", call: { name: "ask_user", input: {} } })).toEqual({ k: "question" });
+    // A coding CLI's tool reads like ADCode's own, once - as it starts, not again as it settles.
+    expect(phoneEventFor({ kind: "agent-tool", tool: { id: "t1", name: "Bash", kind: "execute", detail: "npm test", status: "running" } })).toEqual({ k: "tool", label: "Running npm test" });
+    expect(phoneEventFor({ kind: "agent-tool", tool: { id: "t2", name: "Edit", kind: "edit", detail: "src/app.ts", status: "running" } })).toEqual({ k: "tool", label: "Editing app.ts" });
+    expect(phoneEventFor({ kind: "agent-tool", tool: { id: "t2", name: "Edit", kind: "edit", detail: "src/app.ts", status: "done" } })).toBeNull();
     expect(phoneEventFor({ kind: "run-ended", ended: "finished" })).toEqual({ k: "ended", ended: "finished" });
     expect(phoneEventFor({ kind: "tool-draft", append: "secret code" })).toBeNull();
     expect(phoneEventFor({ kind: "usage", input: 10 })).toBeNull();

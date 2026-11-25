@@ -168,8 +168,37 @@ export interface LimitPause {
   readonly buyUrl?: string;
 }
 
+/**
+ * What a tool does, in the Agent Client Protocol's words (`ToolKind`), so every outside agent's
+ * tools - Claude Code's `Bash`, Codex's `file_change`, an ACP agent's `execute` - draw the same
+ * rows as ADCode's own `run_command` and `edit_file`.
+ */
+export type OutsideToolKind = "read" | "edit" | "delete" | "move" | "search" | "execute" | "fetch" | "think" | "other";
+
+/**
+ * One tool call an outside coding agent (a CLI such as Claude Code, Codex, an ACP agent) made
+ * in its own process. Shown in the chat, never run by ADCode: the agent already ran it.
+ *
+ * The same `id` arrives again as the call moves on (running, then done or failed), so the chat
+ * settles one row rather than adding a second.
+ */
+export interface OutsideToolActivity {
+  /** The agent's own id for the call; a made-up one when it gives none. */
+  readonly id: string;
+  /** The agent's name for its tool: `Bash`, `Edit`, `command_execution`, `execute`. */
+  readonly name: string;
+  readonly kind: OutsideToolKind;
+  /** The specifics, one line: the command, the path, the query. */
+  readonly detail: string;
+  readonly status: "running" | "done" | "failed";
+  /** Files the call changes - for an edit, delete or move - as the agent named them. */
+  readonly paths?: readonly string[];
+}
+
 export type AgentEvent =
   | { readonly kind: "text"; readonly text: string }
+  /** An outside agent's tool call, passed through for the chat to draw: never run, never recorded. */
+  | { readonly kind: "agent-tool"; readonly tool: OutsideToolActivity }
   /** A summary of the model's reasoning, where the provider exposes one. */
   | { readonly kind: "thinking"; readonly text: string }
   /** Transient progress to show, never to keep: "waiting out a rate limit". */
@@ -263,6 +292,8 @@ export type ProviderEvent =
   /** Host-side progress (the request scheduler waiting), passed through, never recorded. */
   | { readonly kind: "status"; readonly text: string; readonly limit?: LimitPause }
   | { readonly kind: "tool-call"; readonly call: ToolCallBlock }
+  /** A tool an outside agent ran itself (a coding CLI): the agent passes it on without running it. */
+  | { readonly kind: "agent-tool"; readonly tool: OutsideToolActivity }
   /** One streamed fragment of a call's JSON arguments, passed through as it arrives. */
   | { readonly kind: "tool-input"; readonly index: number; readonly id: string; readonly name: string; readonly fragment: string }
   /**

@@ -27,7 +27,7 @@ export const MAX_PARALLEL_CHATS = 4;
 export const KEEP_GOING_LIMIT = 20;
 
 /** What the transcript draws. Usage and context readings feed meters, and are not replayed. */
-const REPLAYED = new Set(["thinking", "text", "tool-call", "tool-result", "tool-draft", "status", "compacting", "continuing"]);
+const REPLAYED = new Set(["thinking", "text", "tool-call", "tool-result", "agent-tool", "tool-draft", "status", "compacting", "continuing"]);
 
 export interface ReplayEvent {
   readonly kind: string;

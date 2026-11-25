@@ -89,7 +89,7 @@ describe("ACP agents", () => {
     expect(acpPermission({ toolCall: { kind: "execute", title: "npm test" }, options }, true).optionId).toBe("yes");
   });
 
-  it("joins streamed words and shows tool calls as activity", () => {
+  it("joins streamed words and shows tool calls as rows", () => {
     const state = { last: null as "text" | "thought" | "other" | null };
     const events = [
       { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Hel" } },
@@ -97,7 +97,28 @@ describe("ACP agents", () => {
       { sessionUpdate: "tool_call", toolCallId: "1", title: "npm test", kind: "execute", status: "pending" },
       { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Done" } },
     ].flatMap((update) => acpUpdateEvents(update, state));
-    expect(events).toEqual([{ kind: "text", text: "Hel" }, { kind: "text", text: "lo", joined: true }, { kind: "thinking", text: "› Ran: npm test\n" }, { kind: "text", text: "Done" }]);
+    expect(events).toEqual([{ kind: "text", text: "Hel" }, { kind: "text", text: "lo", joined: true }, { kind: "tool", tool: { id: "1", name: "execute", kind: "execute", detail: "npm test", status: "running" } }, { kind: "text", text: "Done" }]);
+  });
+
+  it("settles an ACP tool call's row from its updates, keeping what the call first said and every file it named", () => {
+    const state: Parameters<typeof acpUpdateEvents>[1] = { last: null };
+    const events = [
+      { sessionUpdate: "tool_call", toolCallId: "e1", title: "Edit src/a.ts", kind: "edit", status: "pending", locations: [{ path: "E:/project/src/a.ts" }] },
+      // Says nothing new: no second row.
+      { sessionUpdate: "tool_call_update", toolCallId: "e1", status: "in_progress" },
+      { sessionUpdate: "tool_call_update", toolCallId: "e1", status: "completed", content: [{ type: "diff", path: "E:/project/src/b.ts", oldText: null, newText: "x" }] },
+      { sessionUpdate: "tool_call", toolCallId: "r1", title: "cat missing.txt", kind: "read", status: "in_progress" },
+      { sessionUpdate: "tool_call_update", toolCallId: "r1", status: "failed" },
+      { sessionUpdate: "tool_call", toolCallId: "x1", title: "Something", kind: "switch_mode" },
+    ].flatMap((update) => acpUpdateEvents(update, state));
+    expect(events).toEqual([
+      { kind: "tool", tool: { id: "e1", name: "edit", kind: "edit", detail: "Edit src/a.ts", status: "running", paths: ["E:/project/src/a.ts"] } },
+      { kind: "tool", tool: { id: "e1", name: "edit", kind: "edit", detail: "Edit src/a.ts", status: "done", paths: ["E:/project/src/a.ts", "E:/project/src/b.ts"] } },
+      { kind: "tool", tool: { id: "r1", name: "read", kind: "read", detail: "cat missing.txt", status: "running" } },
+      { kind: "tool", tool: { id: "r1", name: "read", kind: "read", detail: "cat missing.txt", status: "failed" } },
+      // A kind ADCode has no row for still draws one, as "other".
+      { kind: "tool", tool: { id: "x1", name: "switch_mode", kind: "other", detail: "Something", status: "running" } },
+    ]);
   });
 
   it("hands the tool bridge over as an HTTP MCP server only to agents that take one", () => {

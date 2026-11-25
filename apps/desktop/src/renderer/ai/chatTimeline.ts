@@ -163,6 +163,45 @@ export function toolStepIcon(name: string): ToolStepIcon {
   return "tool";
 }
 
+/* ── An outside agent's tools (coding CLIs) ───────────────────────────── */
+
+/** A coding CLI's tool call as the main process forwards it (`OutsideToolActivity`). */
+export interface OutsideToolView {
+  readonly id: string;
+  readonly name: string;
+  readonly kind: string;
+  readonly detail: string;
+  readonly status: "running" | "done" | "failed";
+}
+
+/** The event's tool, or null when it is not shaped like one (the chat then shows it as a line). */
+export function outsideToolFrom(value: unknown): OutsideToolView | null {
+  if (typeof value !== "object" || value === null) return null;
+  const tool = value as Record<string, unknown>;
+  const status = tool["status"];
+  if (typeof tool["id"] !== "string" || tool["id"] === "" || (status !== "running" && status !== "done" && status !== "failed")) return null;
+  const text = (key: string): string => (typeof tool[key] === "string" ? (tool[key] as string) : "");
+  return { id: tool["id"], name: text("name"), kind: text("kind"), detail: text("detail"), status };
+}
+
+/** ADCode's own tool for each kind: a CLI's `Bash` draws the row `run_command` draws. */
+const OUTSIDE_ROWS: Readonly<Record<string, string>> = {
+  read: "read_file", edit: "edit_file", delete: "delete_file", move: "move_file",
+  search: "search", execute: "run_command", fetch: "fetch_url", think: "update_plan",
+};
+
+/**
+ * The row an outside agent's tool draws. ADCode's own tools reached through the tool bridge
+ * (`mcp__adcode__read_file`) are themselves; another MCP server's tool is "Use MCP tool";
+ * anything else is its own name in words.
+ */
+export function outsideToolRowName(tool: Pick<OutsideToolView, "name" | "kind">): string {
+  const bridged = /^mcp__adcode__(.+)$/.exec(tool.name);
+  if (bridged !== null) return bridged[1]!;
+  if (tool.name.startsWith("mcp__")) return "call_mcp";
+  return OUTSIDE_ROWS[tool.kind] ?? (tool.name.trim() === "" ? "tool" : tool.name);
+}
+
 /** "11 calls" beside a grouped row; nothing for a single call, whose detail says enough. */
 export function toolGroupCount(calls: number): string {
   return calls > 1 ? `${String(calls)} calls` : "";
