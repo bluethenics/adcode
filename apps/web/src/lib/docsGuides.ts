@@ -2854,6 +2854,23 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     betterThan:
       "Account-first products gate every feature on a sign-up form. ADCode earns immediately and anonymously, and signs in later purely to make your earnings portable - in that order.",
   },
+  "account-banned": {
+    steps: [
+      "If an account is banned, the desktop app and the web version show a full-window screen titled This account has been banned, and the website shows the same message on your dashboard, AI credits and advertiser portal pages.",
+      "Read the message: it lists what a banned account cannot do - use AI, claim a free model promotion, earn from sponsored cards, convert or withdraw earnings, or open its account pages.",
+      "To appeal, press Email support. Your mail app opens a message to adcode.support@gmail.com with your account ID already filled in. Say what happened and send it from the email address on the account.",
+      "Support replies by email with the reason, and lifts the ban if it was a mistake.",
+      "Once the ban is lifted, the screen disappears by itself within a minute, or at once when you press Check again. Everything comes back as it was.",
+    ],
+    benefits: [
+      "You are told plainly that the account is banned, instead of AI, ads and payouts each failing with an unrelated error or a sign-in prompt that never works.",
+      "Nothing is deleted while a ban is reviewed: projects on your computer are untouched, and your balance, credits and chats are kept.",
+      "The appeal already carries your account ID, so support can find your account without asking you for it again.",
+    ],
+    betterThan:
+      "Many services suspend an account silently: features stop working, the app asks you to sign in again and again, and you have to guess why. ADCode refuses a banned account the same way on every server and says so on every screen, with one address to write to and a promise in the terms that you will be told the reason.",
+  },
+
 
   /* ── Files and gestures ──────────────────────────────────────────────── */
 

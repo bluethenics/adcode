@@ -22,8 +22,13 @@ export interface AuthState {
    * a database outage used to tell the founding administrator she was not one.
    */
   adminError: ApiError | null;
-  /** Ask again, after a failure that was not a refusal. */
+  /** Ask again, after a failure that was not a refusal - or to see whether a ban was lifted. */
   retryAdmin: () => void;
+  /**
+   * The server refused this account as banned. Every signed-in page shows `BannedAccount`
+   * instead of itself; public pages carry on. Learnt from the same `/v1/me` question.
+   */
+  banned: boolean;
 }
 
 export const AuthContext = createContext<AuthState>({
@@ -35,6 +40,7 @@ export const AuthContext = createContext<AuthState>({
   adminLoading: false,
   adminError: null,
   retryAdmin: () => {},
+  banned: false,
 });
 
 

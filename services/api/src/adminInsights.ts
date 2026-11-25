@@ -16,6 +16,7 @@
  * A Web `Request` handler answered before the main router, like adminConsole.ts, so the routes
  * live together here instead of in server.ts.
  */
+import { bannedResponse } from "./accountBan.ts";
 import { authenticate, type TokenVerifier } from "./auth.ts";
 import { corsHeaders } from "./cors.ts";
 import type { Clock, Store } from "./store.ts";
@@ -96,7 +97,8 @@ export function createAdminInsightsHandler(options: AdminInsightsOptions): (requ
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers });
 
     const auth = await authenticate({ store, verifier: options.verifier, clock }, request.headers.get("authorization") ?? undefined);
-    if (!auth.ok) return fail(auth.failure === "banned" ? 403 : 401, auth.failure, "Sign in as an administrator.");
+    if (!auth.ok && auth.failure === "account-banned") return bannedResponse(headers);
+    if (!auth.ok) return fail(401, auth.failure, "Sign in as an administrator.");
     if (!auth.isAdmin) return fail(403, "not-admin", "Administrator access is required.");
     const audit = (action: string): Promise<void> => store.writeAudit({ adminUid: auth.uid, action, subjectUid: "*", at: clock.now() });
 

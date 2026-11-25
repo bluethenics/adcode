@@ -34,6 +34,7 @@ import { CHANNELS, type EarningsSnapshot, type SponsoredToast } from "../shared/
 import { DiskFileStore, FetchHttpTransport, SystemClock, toDataUrl } from "./adPorts.ts";
 import { currentSettings, onSettingsChanged } from "./settings.ts";
 import { apiBaseUrl, apiOrigin, createBackendTokens } from "./backend.ts";
+import { isAccountBanned } from "./accountBan.ts";
 import { adsHeldForNewcomer } from "./milestones.ts";
 import { nextTickDelay, partnerEarnBody, partnerRetryDelay } from "./partnerNotification.ts";
 import { currentDebugState } from "./debug.ts";
@@ -312,7 +313,7 @@ export function createAdRuntime(): AdRuntime {
   const adRenderer = createAdRenderer({
     sink,
     clock,
-    isSuppressed: () => suppressed,
+    isSuppressed: () => suppressed || isAccountBanned(),
     onReceipt: (receipt: Receipt) => {
       void queue.enqueue(receipt).catch(() => undefined);
     },
@@ -403,6 +404,9 @@ export function createAdRuntime(): AdRuntime {
     timer = setTimeout(() => {
       timer = null;
       if (partnerRetryAt !== null && clock.now() >= partnerRetryAt) partnerRetryAt = null;
+      // A banned account is served and paid nothing (the server refuses both); asking anyway
+      // would only be a stream of 403s. The tick keeps its cadence, so an unban resumes it.
+      if (isAccountBanned()) { schedule(); return; }
       void service
         .tick()
         .then(async () => {
@@ -524,7 +528,7 @@ export function createAdRuntime(): AdRuntime {
      * messages off: nothing.
      */
     async notePartnerImpression(slotId: string, conversationId?: string): Promise<void> {
-      if (!/^slot_[A-Za-z0-9_-]{4,64}$/.test(slotId) || currentSettings()["adcode.ads.enabled"] === false) return;
+      if (!/^slot_[A-Za-z0-9_-]{4,64}$/.test(slotId) || currentSettings()["adcode.ads.enabled"] === false || isAccountBanned()) return;
       // The server pays three cards a minute per account and holds an account that keeps going
       // past that (networkImpressions.ts ZEEKEND_PAID_PER_MINUTE). Several windows each showing a
       // card can go past it honestly, so this process keeps its own claims under it.

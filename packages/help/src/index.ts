@@ -12,6 +12,7 @@ import { HELP_ENTRIES } from "./entries/index.ts";
 import type { HelpEntry, HelpGroupId } from "./types.ts";
 
 export { HELP_ENTRIES };
+export { ACCOUNT_BANNED_COPY, appealMailto } from "./accountBan.ts";
 export { FEATURE_COMMANDS, NEW_FEATURE_DAYS, entryOnSurface, featureFor, featureRecords, isNewFeature, searchFeatures, setFeatureSurface, surfaceAllows, type FeatureSurface } from "./features.ts";
 import { entryOnSurface } from "./features.ts";
 export type {

@@ -40,6 +40,7 @@ function setAuth(overrides: Partial<AuthState>): void {
     adminLoading: false,
     adminError: null,
     retryAdmin: () => undefined,
+    banned: false,
     ...overrides,
   };
 }
@@ -53,6 +54,15 @@ const render = (): string =>
 
 describe("the admin gate", () => {
   beforeEach(() => setAuth({}));
+
+  it("shows a banned account the banned page, never the panel, with a way to appeal", () => {
+    setAuth({ banned: true, isAdmin: true });
+    const markup = render();
+    expect(markup).toContain("This account has been banned");
+    expect(markup).toContain("mailto:adcode.support@gmail.com");
+    expect(markup).toContain("Check again");
+    expect(markup).not.toContain("Admin content");
+  });
 
   it("offers a retry when the server could not answer, rather than calling the account a non-admin", () => {
     setAuth({ adminError: "server-error" });

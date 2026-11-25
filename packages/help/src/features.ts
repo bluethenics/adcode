@@ -338,6 +338,11 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("account.open", "Open account")],
     keywords: ["login", "google", "github", "email"],
   },
+  // The banned screen appears by itself; the command asks again on demand (after an appeal).
+  "account.banned": {
+    actions: [command("account.checkStanding", "Check account standing")],
+    keywords: ["banned", "ban", "account banned", "suspended", "blocked account", "appeal", "unban", "account disabled", "why can't i use adcode"],
+  },
   "gestures.multiSelect": {
     actions: [
       command("view.explorer", "Open Explorer"),

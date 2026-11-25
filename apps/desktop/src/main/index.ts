@@ -172,6 +172,8 @@ function hardenWebContents(contents: Electron.WebContents): void {
   // which is also §1's rule for ad clicks: "never a webview, never in-editor navigation."
   contents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("https://")) void shell.openExternal(url);
+    // One mail address, and only it: the banned screen's appeal (renderer/accountBan.ts).
+    else if (url.startsWith("mailto:adcode.support@gmail.com?")) void shell.openExternal(url);
     return { action: "deny" };
   });
 

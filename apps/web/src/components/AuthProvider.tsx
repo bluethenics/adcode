@@ -26,6 +26,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminError, setAdminError] = useState<ApiError | null>(null);
   const [adminAttempt, setAdminAttempt] = useState(0);
+  const [banned, setBanned] = useState(false);
   const userRef = useRef<User | null>(null);
 
   useEffect(() => {
@@ -58,6 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsAdmin(false);
       setAdminLoading(false);
       setAdminError(null);
+      setBanned(false);
       return;
     }
 
@@ -76,12 +78,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (!result.ok) {
           setIsAdmin(false);
+          // A ban is an answer too, and the strongest one: every signed-in page says so.
+          setBanned(result.error === "account-banned");
+          if (result.error === "account-banned") { setAdminError(null); return; }
           // `not-admin` is an answer. Everything else - offline, a 500, an expired
           // token - is a question that went unanswered.
           setAdminError(result.error === "not-admin" ? null : result.error);
           return;
         }
 
+        setBanned(false);
         const admin = result.value.isAdmin === true;
         setIsAdmin(admin);
         // An administrator's own visits are not an audience. Excluded on this browser
@@ -114,8 +120,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<AuthState>(
-    () => ({ user, loading, configured: firebaseConfigured, token, isAdmin, adminLoading, adminError, retryAdmin }),
-    [user, loading, token, isAdmin, adminLoading, adminError, retryAdmin],
+    () => ({ user, loading, configured: firebaseConfigured, token, isAdmin, adminLoading, adminError, retryAdmin, banned }),
+    [user, loading, token, isAdmin, adminLoading, adminError, retryAdmin, banned],
   );
 
   return <Ctx.Provider value={value}><EmailVerificationNotice />{children}</Ctx.Provider>;

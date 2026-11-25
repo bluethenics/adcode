@@ -340,6 +340,8 @@ const api: AdcodeApi = {
     signInInstead: () => ipcRenderer.invoke(CHANNELS.accountSignInInstead),
     cancelLink: () => ipcRenderer.invoke(CHANNELS.accountCancelLink),
     onDeviceCode: (listener) => subscribe(CHANNELS.accountDeviceCode, listener),
+    ban: (recheck) => ipcRenderer.invoke(CHANNELS.accountBan, recheck),
+    onBan: (listener) => subscribe(CHANNELS.accountBanChanged, listener),
   },
   notices: {
     onShow: (listener) => subscribe(CHANNELS.serviceNotice, listener),

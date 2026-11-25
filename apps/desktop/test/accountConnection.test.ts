@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   auth: { uid: () => "test-user", profile: vi.fn(), linkGitHub: vi.fn(), linkGoogle: vi.fn(), linkPassword: vi.fn(), signInPassword: vi.fn(), getToken: vi.fn(), signInGitHub: vi.fn() },
 }));
 vi.mock("electron", () => ({ app: { getPath: () => ".tmp/account-connection-test" }, ipcMain: { handle: (channel: string, handler: (...args: unknown[]) => unknown) => mocks.handlers.set(channel, handler) }, BrowserWindow: { getAllWindows: () => [] } }));
-vi.mock("../src/main/backend.ts", () => ({ backendAccount: () => mocks.auth, apiBaseUrl: () => "http://127.0.0.1" }));
+vi.mock("../src/main/backend.ts", () => ({ backendAccount: () => mocks.auth, apiBaseUrl: () => "http://127.0.0.1", apiOrigin: () => "http://127.0.0.1" }));
 vi.mock("../src/main/adPorts.ts", () => ({ DiskFileStore: class {}, FetchHttpTransport: class {}, SystemClock: class {} }));
 vi.mock("../src/main/oauth.ts", () => ({ linkWithGitHub: mocks.github, linkWithGoogle: mocks.google, cancelSignIn: vi.fn(), openGitHubCompletionPage: mocks.completion }));
 import { registerAccountIpc } from "../src/main/accountIpc.ts";

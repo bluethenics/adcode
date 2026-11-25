@@ -47,7 +47,8 @@ export async function forwardAccountApi(request: Request, env: Env): Promise<Res
     const response = await env.ACCOUNT_API.fetch(new Request(forwarded, { headers, redirect: "manual" }));
     if (response.status >= 300 && response.status < 400) return Response.json({ error: "provider-unavailable" }, { status: 502 });
     const outgoing = new Headers({ "content-type": response.headers.get("content-type") ?? "application/json", "cache-control": "no-store", "x-content-type-options": "nosniff" });
-    for (const name of ["x-adcode-request-id", "retry-after"]) {
+    // `x-adcode-account` is how the web version's main process learns the account is banned.
+    for (const name of ["x-adcode-request-id", "retry-after", "x-adcode-account"]) {
       const value = response.headers.get(name);
       if (value !== null) outgoing.set(name, value);
     }

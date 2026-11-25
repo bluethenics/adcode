@@ -4,6 +4,7 @@ import { boundedJson, projectRoute, ProjectDirectory, SharedProject } from "./pr
 import { communityRoute, CommunityHub, ArtifactVault } from "./community.ts";
 import { ArtifactRoom } from "./artifactRoom.ts";
 import { PhoneLink, PHONE_ORIGINS, phoneLinkRoute } from "./phoneLink.ts";
+import { bannedResponse, createAccountGate, type AccountGate } from "../../cloud/src/accountGate.ts";
 export { ProjectDirectory, SharedProject, CommunityHub, ArtifactVault, ArtifactRoom, PhoneLink };
 export { PriorityQueue, RequestPriority } from "./priority.ts";
 
@@ -11,6 +12,22 @@ type Env = CollabRelayEnv;
 type Attachment = { role: "host" | "guest"; uid?: string; id: string; generation: string; minute: number; count: number; bytes: number };
 type Keys = { host: string; guest: string; expires: number; generation: string; projectId?: string };
 const json = (value: unknown, status = 200): Response => Response.json(value, { status, headers: { "cache-control": "no-store" } });
+/*
+ * A ban, as the API's users table holds it, through the website Worker's RPC (apps/web/worker.ts).
+ * Kept a few seconds per isolate; unanswerable means "not banned" here, because nothing on this
+ * relay costs or pays money - see accountGate.ts. Until the website ships `accountStatus`, the
+ * call throws and every account is let through, exactly as before.
+ */
+let gate: AccountGate | null = null;
+async function isBanned(env: Env, uid: string): Promise<boolean> {
+  gate ??= createAccountGate(async (who) => {
+    const status = await (env.ENTITLEMENTS as typeof env.ENTITLEMENTS & { accountStatus(uid: string): Promise<string> }).accountStatus(who);
+    if (status !== "active" && status !== "banned") throw new Error("Unknown account status.");
+    return status;
+  });
+  return (await gate.standing(uid, "")) === "banned";
+}
+
 const secret = (): string => crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", "");
 
 /** Only credentials and expiry persist; document content is relayed without storage or logging. */
@@ -37,6 +54,7 @@ export class CollabRoom extends DurableObject<Env> {
     if (keys.projectId) {
       const who = await verifyIdToken(request.headers.get("x-adcode-account-token") ?? "", this.env.FIREBASE_PROJECT_ID);
       if (!who) return json({ error: "Sign in and join this shared project first." },401);
+      if (await isBanned(this.env, who.uid)) return bannedResponse();
       try { await this.env.SHARED_PROJECTS.getByName(keys.projectId).canUse(who.uid); } catch { return json({ error: "Join this project with its permanent project invite before entering the live session." },403); }
       uid = who.uid;
       if (this.ctx.getWebSockets().some(socket => (socket.deserializeAttachment() as Attachment).uid === uid)) return json({ error: "You are already connected to this project's live session." },409);
@@ -101,24 +119,28 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === "/health") return json({ ok: true });
     if (url.pathname === "/phone/host" || url.pathname === "/phone/phone") {
-      return phoneLinkRoute(request, env, (token) => verifyIdToken(token, env.FIREBASE_PROJECT_ID), PHONE_ORIGINS);
+      return phoneLinkRoute(request, env, (token) => verifyIdToken(token, env.FIREBASE_PROJECT_ID), PHONE_ORIGINS, (uid) => isBanned(env, uid));
     }
     if (url.pathname === "/community" || url.pathname.startsWith("/community/")) {
       // Reading the directory is public; the route itself decides what needs an account.
       const token = (request.headers.get("authorization") ?? "").replace(/^Bearer /,"");
       const who = token ? await verifyIdToken(token, env.FIREBASE_PROJECT_ID) : null;
       if (token && !who && request.method !== "GET") return json({ error: "Your ADCode sign-in has expired. Sign in again." }, 401);
+      // The directory stays readable to everybody, a banned account included - as a stranger.
+      if (who && await isBanned(env, who.uid)) return request.method === "GET" ? communityRoute(request, env, null) : bannedResponse();
       return communityRoute(request, env, who);
     }
     if (url.pathname === "/projects" || url.pathname.startsWith("/projects/")) {
       const who = await verifyIdToken((request.headers.get("authorization") ?? "").replace(/^Bearer /,""),env.FIREBASE_PROJECT_ID);
       if (!who?.email) return json({ error: "Sign in with Google, GitHub, or email to use shared projects." },401);
+      if (await isBanned(env, who.uid)) return bannedResponse();
       return projectRoute(request,env,who.uid);
     }
     if (url.pathname === "/rooms" && request.method === "POST") {
       if (Number(request.headers.get("content-length") ?? 0) > 1024) return json({ error: "Request too large." }, 413);
       const who = await verifyIdToken((request.headers.get("authorization") ?? "").replace(/^Bearer /, ""), env.FIREBASE_PROJECT_ID);
       if (!who) return json({ error: "Sign in to share a project." }, 401);
+      if (await isBanned(env, who.uid)) return bannedResponse();
       try {
         const body = await boundedJson(request);
         if (body.projectId !== undefined && (typeof body.projectId !== "string" || !/^[a-f0-9]{64}$/.test(body.projectId))) return json({ error: "Invalid shared project." },400);

@@ -82,7 +82,7 @@ export async function openAccountPanel(session: WebSession, initial: unknown = "
   try {
     const user = (session.token === null || session.token === "dev") ? null : await currentUser();
     if (!dialog.open) return;
-    const auth: AuthState = { user, token: () => session.refresh(false), configured: true, loading: false, isAdmin: false, adminLoading: false, adminError: null, retryAdmin: () => undefined };
+    const auth: AuthState = { user, token: () => session.refresh(false), configured: true, loading: false, isAdmin: false, adminLoading: false, adminError: null, retryAdmin: () => undefined, banned: false };
     root.render(<AuthContext.Provider value={auth}><Account initial={accountSection(initial)} close={close} session={session} /></AuthContext.Provider>);
   } catch {
     if (dialog.open) root.render(<div className="account-loading" role="alert"><p>Couldn't open your account. Please try again.</p><button onClick={close}>Back to workspace</button></div>);

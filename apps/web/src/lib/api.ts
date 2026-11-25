@@ -10,6 +10,7 @@
  * can say what went wrong and what to do about it.
  */
 import { API_ORIGIN } from "./site";
+import { ACCOUNT_BANNED_COPY } from "@adcode/help/accountBan";
 import type { AdvertiserView, CampaignView, CreativeView, SeriesPointView } from "./apiViews";
 
 /**
@@ -29,6 +30,7 @@ const apiBase = (): string => (typeof window === "undefined" ? API_ORIGIN : "");
 
 export type ApiError =
   | "unauthenticated"
+  | "account-banned"
   | "no-advertiser"
   | "already-advertiser"
   | "suspended"
@@ -53,6 +55,7 @@ export type ApiResult<T> = { ok: true; value: T } | { ok: false; error: ApiError
 
 /** Server refusal strings to the client's vocabulary. Anything unmapped is a server error. */
 const KNOWN: ReadonlySet<string> = new Set<ApiError>([
+  "account-banned",
   "no-advertiser",
   "already-advertiser",
   "suspended",
@@ -87,6 +90,7 @@ function classify(status: number, body: unknown): ApiError {
 /** Sentences for people, not error codes. Used wherever a refusal reaches the screen. */
 export const MESSAGES: Record<ApiError, string> = {
   unauthenticated: "Your session expired. Sign in again.",
+  "account-banned": ACCOUNT_BANNED_COPY.message,
   "no-advertiser": "You don't have an advertiser account yet.",
   "already-advertiser": "You already have an advertiser account.",
   suspended: "This account is suspended. Email adcode.support@gmail.com.",
@@ -153,6 +157,8 @@ export async function apiFetch<T>({ path, token, method = "GET", body, signal }:
       if (response.ok) return { ok: false, error: "server-error" };
     }
 
+    // A ban is recognised by its header, whichever body shape the route answers in.
+    if (response.status === 403 && response.headers.get(ACCOUNT_BANNED_COPY.header) === "banned") return { ok: false, error: "account-banned" };
     if (!response.ok) return { ok: false, error: classify(response.status, parsed) };
     return { ok: true, value: parsed as T };
   } catch {

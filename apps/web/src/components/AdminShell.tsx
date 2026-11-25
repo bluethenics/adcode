@@ -16,6 +16,7 @@ import "./adminConsole.css";
 import { AdminPalette } from "./AdminPalette";
 import { AdminLoader } from "./AdminLoader";
 import { readCached, writeCached } from "@/lib/adminCache";
+import { BannedAccount } from "@/components/BannedAccount";
 
 /**
  * The admin panel's chrome.
@@ -162,7 +163,7 @@ export function AdminShell({
   actions?: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const { user, loading, configured, isAdmin, adminLoading, adminError, retryAdmin, token } = useAuth();
+  const { user, loading, configured, isAdmin, adminLoading, adminError, retryAdmin, token, banned } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -279,6 +280,8 @@ export function AdminShell({
    * administrator was shown "Not an admin account" while every admin endpoint would
    * still have accepted her. Offer the question again instead.
    */
+  if (banned && preview === null && user !== null) return <BannedAccount />;
+
   if (adminError !== null && preview === null && user !== null) {
     return (
       <section className="band">

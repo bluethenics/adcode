@@ -86,12 +86,17 @@ const endpoint = `http://127.0.0.1:${model.address().port}/v1`;
 
 const FILES = { "README.md": "# Bakery\n\nFresh bread.\n", "index.html": "<h1>Bakery</h1>\n", "src/menu.ts": "export const menu = [\"bread\"];\n" };
 const pulls = [];
+/** The smoke's banned step: refuse every signed-in call as the API and the cloud Worker refuse a banned account. */
+let banned = false;
+const BANNED = { error: "account-banned", message: "This ADCode account has been banned.", support: "adcode.support@gmail.com" };
 const github = createServer(async (req, res) => {
   let body = "";
   for await (const chunk of req) body += chunk;
   const url = new URL(req.url ?? "/", "http://fake");
   const json = (status, value) => { res.writeHead(status, { "content-type": "application/json" }); res.end(JSON.stringify(value)); };
-  // The API (/v1) has nothing for this smoke; a 404 is not a refused sign-in.
+  if (banned && (req.headers["authorization"] ?? "").startsWith("Bearer ")) { res.writeHead(403, { "content-type": "application/json", "x-adcode-account": "banned" }); res.end(JSON.stringify(BANNED)); return; }
+  if (url.pathname === "/v1/me") return json(200, { uid: "web-smoke-user", isAdmin: false });
+  // The API (/v1) has nothing else for this smoke; a 404 is not a refused sign-in.
   if (url.pathname.startsWith("/v1/")) return json(404, { error: "not-found" });
   if (!(req.headers["authorization"] ?? "").startsWith("Bearer ")) return json(401, { error: { code: "unauthenticated", message: "Sign in first." } });
   switch (url.pathname) {
@@ -282,6 +287,31 @@ try {
   // Chats belong to their project: open it again, then count them.
   checks.chatsAfterReload = await browser.evaluate("window.__adcodeTestOp('projects', []).then(async (p) => { await window.adcode.workspace.openPath(p[0].path); return (await window.adcode.chat.sessions()).length; })");
   checks.consoleErrors = await browser.evaluate("(window.__adcodeConsoleErrors ?? []).length");
+  // A banned account (main/accountBan.ts in the tab's worker, renderer/accountBan.ts): every
+  // signed-in call is refused the way the API and the cloud Worker refuse it, the screen covers
+  // the tab, and an unban takes it away. Last, because while banned nothing else would answer.
+  banned = true;
+  checks.bannedAsked = await browser.evaluate("window.adcode.account.ban(true).then((state) => state.banned)");
+  await sleep(600);
+  checks.bannedScreen = await browser.evaluate(`(() => {
+    const dialog = document.querySelector("dialog.account-ban");
+    if (!dialog) return { found: false };
+    const box = dialog.getBoundingClientRect();
+    const centre = document.elementFromPoint(innerWidth / 2, innerHeight / 2);
+    return {
+      found: true, open: dialog.open,
+      coversWindow: box.width >= innerWidth - 1 && box.height >= innerHeight - 1,
+      topmost: centre !== null && dialog.contains(centre),
+      saysBanned: (dialog.querySelector("h1")?.textContent ?? "") === "This account has been banned",
+      appealsToSupport: (dialog.querySelector("a.account-ban-primary")?.getAttribute("href") ?? "").startsWith("mailto:adcode.support@gmail.com?"),
+    };
+  })()`);
+  await shot("account-banned");
+  checks.bannedChatsRefused = await browser.evaluate("fetch('/api/chats', { headers: { authorization: 'Bearer x' } }).then((r) => r.status + ' ' + r.headers.get('x-adcode-account'))");
+  banned = false;
+  await browser.evaluate("document.querySelector('dialog.account-ban .account-ban-secondary')?.click(), true");
+  await sleep(1_200);
+  checks.unbanLifts = await browser.evaluate("document.querySelector('dialog.account-ban')?.open === false");
 } catch (error) {
   checks.threw = String(error);
 } finally {
@@ -298,6 +328,8 @@ const passed = checks.threw === undefined && checks.ready && checks.mode === "br
   typeof checks.commit === "string" && checks.commit.includes("pull/1") && checks.pullRequest &&
   checks.pageReply && checks.previewUrl === `${PREVIEW_ORIGIN}/preview/bakery/` && checks.previewShowsPage && checks.previewStyled === "rgb(170, 51, 0)" &&
   checks.previewIsolated === PREVIEW_ORIGIN && checks.ryeReply && checks.previewReloaded &&
-  checks.reloaded && checks.projectsAfterReload?.includes("bakery") && checks.chatsAfterReload >= 1;
+  checks.reloaded && checks.projectsAfterReload?.includes("bakery") && checks.chatsAfterReload >= 1 &&
+  checks.bannedAsked === true && Object.values(checks.bannedScreen ?? {}).length === 6 && Object.values(checks.bannedScreen).every(Boolean) &&
+  checks.bannedChatsRefused === "403 banned" && checks.unbanLifts === true;
 if (!passed) console.log(`--- stack log (tail) ---\n${stackLog.slice(-3000)}`);
 process.exit(passed ? 0 : 1);

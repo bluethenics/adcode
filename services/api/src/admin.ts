@@ -56,6 +56,9 @@ export async function handleSetUserStatus(
 ): Promise<void> {
   const user = await deps.store.getUser(subjectUid);
   if (user === null) throw new Error(`no such user: ${subjectUid}`);
+  // An administrator who bans their own account is refused by the next request they make -
+  // including the one that would unban it. Somebody else has to do it.
+  if (status === "banned" && subjectUid === adminUid) throw new CannotBanSelfError();
 
   await deps.store.writeAudit({
     adminUid,
@@ -65,6 +68,10 @@ export async function handleSetUserStatus(
   });
 
   await deps.store.putUser({ ...user, status });
+}
+
+export class CannotBanSelfError extends Error {
+  constructor() { super("An administrator cannot ban their own account."); this.name = "CannotBanSelfError"; }
 }
 
 /* ── Moderation ─────────────────────────────────────────────────────────── */

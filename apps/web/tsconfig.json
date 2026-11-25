@@ -32,6 +32,9 @@
       "@/*": [
         "./src/*"
       ],
+      "@adcode/help/accountBan": [
+        "../../packages/help/src/accountBan.ts"
+      ],
       "@adcode/api/*": [
         "../../services/api/*"
       ]

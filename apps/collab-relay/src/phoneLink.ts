@@ -14,6 +14,7 @@
  * reach its own room. A phone also has to come from an allowed page.
  */
 import { DurableObject } from "cloudflare:workers";
+import { BANNED_CLOSE_CODE, bannedResponse } from "../../cloud/src/accountGate.ts";
 
 type Role = "host" | "phone";
 
@@ -143,6 +144,7 @@ export async function phoneLinkRoute(
   env: CollabRelayEnv,
   verify: (token: string) => Promise<{ uid: string } | null>,
   allowedOrigins: readonly string[],
+  isBanned: (uid: string) => Promise<boolean> = async () => false,
 ): Promise<Response> {
   const url = new URL(request.url);
   const role = url.pathname === "/phone/host" ? "host" : url.pathname === "/phone/phone" ? "phone" : null;
@@ -166,6 +168,13 @@ export async function phoneLinkRoute(
     const pair = new WebSocketPair();
     pair[1].accept();
     pair[1].close(4401, "Signed out");
+    return new Response(null, { status: 101, webSocket: pair[0], headers: { "sec-websocket-protocol": "adcode.phone.v1" } });
+  }
+  if (await isBanned(who.uid)) {
+    if (role === "host") return bannedResponse();
+    const pair = new WebSocketPair();
+    pair[1].accept();
+    pair[1].close(BANNED_CLOSE_CODE, "Account banned");
     return new Response(null, { status: 101, webSocket: pair[0], headers: { "sec-websocket-protocol": "adcode.phone.v1" } });
   }
   const target = new URL(`https://phone.link/${role}`);

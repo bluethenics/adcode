@@ -77,7 +77,7 @@ describe("authenticate", () => {
     await store.putUser({ uid: "u-1", status: "banned", createdAt: 0 });
     expect(await authenticate({ store, verifier, clock }, "Bearer good")).toEqual({
       ok: false,
-      failure: "banned",
+      failure: "account-banned",
     });
   });
 
@@ -210,6 +210,6 @@ describe("identity from the token", () => {
       "Bearer x",
     );
 
-    expect(result).toEqual({ ok: false, failure: "banned" });
+    expect(result).toEqual({ ok: false, failure: "account-banned" });
   });
 });

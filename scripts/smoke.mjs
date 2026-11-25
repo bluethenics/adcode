@@ -8105,6 +8105,50 @@ checks.projectWindows = await (async () => {
 })();
 
 /*
+ * A banned account sees why (renderer/accountBan.ts, main/accountBan.ts). The mock refuses every
+ * signed-in request the way the real API refuses a banned account; "Check again" asks the server,
+ * the screen covers the window, and an unban takes it away again. Last on purpose: while banned,
+ * every other check here would be refused.
+ */
+checks.accountBannedScreen = await (async () => {
+  backend.server.setBanned(true);
+  try {
+    const asked = await evaluate("window.adcode.account.ban(true).then((state) => state.banned)");
+    await sleep(600);
+    const shown = await evaluate(`(() => {
+      const dialog = document.querySelector("dialog.account-ban");
+      if (!dialog) return { found: false };
+      const box = dialog.getBoundingClientRect();
+      const mail = dialog.querySelector("a.account-ban-primary");
+      const centre = document.elementFromPoint(innerWidth / 2, innerHeight / 2);
+      return {
+        found: true,
+        open: dialog.open,
+        coversWindow: box.width >= innerWidth - 1 && box.height >= innerHeight - 1,
+        topmost: centre !== null && dialog.contains(centre),
+        saysBanned: (dialog.querySelector("h1")?.textContent ?? "") === "This account has been banned",
+        explains: (dialog.textContent ?? "").includes("email adcode.support@gmail.com"),
+        appealsToSupport: (mail?.getAttribute("href") ?? "").startsWith("mailto:adcode.support@gmail.com?"),
+        escapeKeepsIt: (() => { dialog.dispatchEvent(new Event("cancel", { cancelable: true })); return dialog.open; })(),
+      };
+    })()`);
+    const shot = await send("Page.captureScreenshot", { format: "png", fromSurface: true });
+    if (typeof shot.result?.data === "string") {
+      const path = join(tmpdir(), "adcode-account-banned.png");
+      await writeFile(path, Buffer.from(shot.result.data, "base64"));
+      windowScreenshotPaths.push(path);
+    }
+    backend.server.setBanned(false);
+    await evaluate("document.querySelector('dialog.account-ban .account-ban-secondary')?.click()");
+    await sleep(1_200);
+    const lifted = await evaluate("document.querySelector('dialog.account-ban')?.open === false");
+    return { askedBanned: asked === true, ...shown, unbanLifts: lifted === true };
+  } finally {
+    backend.server.setBanned(false);
+  }
+})();
+
+/*
  * Exactly one anonymous account, and made on the mock. Zero means identity went back to
  * production; two means one install became two accounts.
  */
@@ -8160,6 +8204,7 @@ const requiredEvidence = {
   licencesDialog: ["opened", "threeTabs", "showsApache", "closes"],
   chatUsageBoxOpens: ["found", "chipAtTopLeft", "chipSaysSomething", "opened", "topmost", "underTheChip", "insideTheChat", "hasHeading", "offersFullUsage", "escapeCloses", "chatStaysOpen"],
   liveSessionCardFloats: ["found", "opened", "topmost", "aboveTheComposer", "composerKeepsWidth", "onScreen", "clickElsewhereCloses", "escapeCloses", "chatStaysOpen"],
+  accountBannedScreen: ["askedBanned", "found", "open", "coversWindow", "topmost", "saysBanned", "explains", "appealsToSupport", "escapeKeepsIt", "unbanLifts"],
   projectWindows: ["opened", "newWindow", "showsItsOwnFiles", "mainKnowsItsFolder", "titledByProject", "notTheFirstProject", "firstUntouched"],
   usageSignalsNoticeTells: ["saysAccountLinked", "saysNeverCode", "disclosureFirst", "offersTurnOff", "dismissed"],
   adPartnerNoticeTells: ["namesZeekendOnly", "disclosureFirst", "offersTurnOff", "bothOnByDefault", "dismissed"],

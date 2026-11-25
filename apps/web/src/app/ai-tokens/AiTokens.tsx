@@ -21,6 +21,7 @@ import { ModelWallet } from "./ModelWallet";
 import { dollars, formatTokens } from "./tokenFormatting";
 import { creditAmount } from "@adcode/api/src/aiEconomics.ts";
 import { topUpDescription, topUpName, walletAmountFromQuery } from "@/lib/pricing";
+import { BannedAccount } from "@/components/BannedAccount";
 export { walletAmountFromQuery } from "@/lib/pricing";
 export { formatTokens } from "./tokenFormatting";
 
@@ -324,6 +325,9 @@ export default function AiTokens() {
   // choosePlan and buy read the latest state when called; the intent runs exactly once.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intent, user, offer, activity, busy, subscribed]);
+
+  // Signed in as a banned account: nothing here can be bought or spent, so say why instead.
+  if (auth.banned && auth.user !== null && !devPreview) return <BannedAccount />;
 
   return (
     <>

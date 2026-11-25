@@ -8,6 +8,7 @@ import { SignInCard, type SignInAudience } from "./SignInCard";
 import { Mark } from "./Mark";
 import { Icon } from "@/components/Icon";
 import { ArrowUpRight } from "lucide";
+import { BannedAccount } from "@/components/BannedAccount";
 
 /**
  * The gate and chrome shared by the portal, dashboard, and admin areas.
@@ -238,7 +239,7 @@ export function AppShell({
   requireAdmin?: boolean;
   children: React.ReactNode;
 }) {
-  const { user, loading, configured, isAdmin, adminLoading, adminError, retryAdmin } = useAuth();
+  const { user, loading, configured, isAdmin, adminLoading, adminError, retryAdmin, banned } = useAuth();
   const pathname = usePathname();
 
   const [drawer, setDrawer] = useState(false);
@@ -316,6 +317,8 @@ export function AppShell({
       </section>
     );
   }
+
+  if (banned) return <BannedAccount />;
 
   /*
    * The admin question went unanswered. That is not the same as "no", and treating it

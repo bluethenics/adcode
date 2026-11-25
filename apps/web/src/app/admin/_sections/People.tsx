@@ -211,6 +211,11 @@ function UserPanel({ uid, onClose }: { uid: string; onClose: () => void }) {
           </header>
 
           {notice !== null && <div className="notice" data-tone="success" role="status">{notice}</div>}
+          {profile.status === "banned" && (
+            <div className="notice" data-tone="error" role="status">
+              <p><b>Banned.</b> Every ADCode request from this account is refused: AI, paid models, sponsored-card earning, converting and withdrawing, invites and reports. The desktop app, the web version and the website show it a banned screen that points to {"adcode.support@gmail.com"}. Its balance, credits and projects are kept; unbanning restores them within seconds.</p>
+            </div>
+          )}
 
           <dl className="adm-facts-grid">
             <Fact label="Last active" value={ago(profile.activity?.lastActiveAt)} hint={`Joined ${date(profile.createdAt)}`} />
@@ -335,7 +340,7 @@ function Actions({ profile, onDone }: { profile: UserProfile; onDone: (message: 
       <div className="adm-actions">
         <ActionButton
           label={banned ? "Unban" : confirm === "ban" ? "Confirm ban" : "Ban account"}
-          hint={banned ? "Let them sign in and use ADCode again" : "Signs them out of everything ADCode"}
+          hint={banned ? "Gives the account back within seconds, everywhere" : "Within seconds: every request refused, a banned screen everywhere"}
           tone={banned ? undefined : "bad"} busy={busy === "ban"} armed={confirm === "ban"}
           onClick={banned
             ? () => void run("ban", () => plain(`/admin/users/${encodeURIComponent(profile.uid)}/status`, { status: "active" }), "Account unbanned.")

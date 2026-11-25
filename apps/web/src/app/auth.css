@@ -188,3 +188,12 @@ body:has(.done-page:not([data-overlay])) .buck-guide { display: none; }
   .auth-screen:not(.desktop-handoff) .auth-upgrade .auth-context-steps { grid-row: 2; }
   .auth-screen { padding-block: 16px; }
 }
+
+/* A banned account, on every signed-in page (components/BannedAccount.tsx). */
+.banned-account { max-width: 560px; margin-inline: auto; padding: clamp(24px, 4vw, 40px); border: 1px solid var(--border-strong, rgba(127,127,127,.25)); border-radius: var(--radius-card, 18px); background: var(--surface, transparent); display: grid; gap: 14px; }
+.banned-account h1 { margin: 0; font-size: clamp(22px, 2.4vw, 28px); line-height: 1.2; }
+.banned-account p { margin: 0; line-height: 1.55; }
+.banned-account-kept, .banned-account-id { color: var(--muted, inherit); font-size: var(--fs-small, 14px); }
+.banned-account-mark { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; color: #d64545; background: color-mix(in srgb, #d64545 14%, transparent); }
+.banned-account-mark svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.banned-account-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }

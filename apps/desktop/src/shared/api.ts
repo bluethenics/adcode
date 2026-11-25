@@ -179,6 +179,15 @@ export type ReportResult =
  * no sign-up. Linking is what makes the balance reachable from the web dashboard and, in
  * time, withdrawable.
  */
+/**
+ * Whether the server has banned the account on this machine (main/accountBan.ts). The banned
+ * screen (renderer/accountBan.ts) shows while `banned` is true; `uid` is the account it
+ * belongs to, so support can find it from an appeal.
+ */
+export type AccountBanState =
+  | { readonly banned: false }
+  | { readonly banned: true; readonly uid: string | null; readonly since: number };
+
 export type AccountState =
   | {
       readonly state: "anonymous";
@@ -1079,6 +1088,8 @@ export const CHANNELS = {
   releaseList: "release:list",
   licencesRead: "licences:read",
   accountStatus: "account:status",
+  accountBan: "account:ban",
+  accountBanChanged: "account:ban-changed",
   accountVerification: "account:verification",
   accountChanged: "account:changed",
   accountLink: "account:link",
@@ -2685,6 +2696,12 @@ export interface AdcodeApi {
     cancelLink(): Promise<boolean>;
     onChanged(listener: (state: AccountState) => void): () => void;
     onDeviceCode(listener: (code: DeviceCode) => void): () => void;
+    /**
+     * Whether the server has banned this account (main/accountBan.ts). `true` asks the server
+     * again first - the banned screen's "Check again" - otherwise the last known answer.
+     */
+    ban(recheck: boolean): Promise<AccountBanState>;
+    onBan(listener: (state: AccountBanState) => void): () => void;
   };
   readonly notices: {
     onShow(listener: (notices: readonly ServiceNotice[]) => void): () => void;

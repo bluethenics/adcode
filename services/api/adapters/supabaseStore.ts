@@ -1546,8 +1546,10 @@ function withHotCaches(store: Store): Store {
   const impressions = cached(() => store.liveImpressions(), { ttlMs: 120_000, staleMs: 24 * 3_600_000 });
   // "This week" in the stats moves by at most the two minutes a copy is kept.
   const stats = cached(() => store.publicStats(Date.now()), { ttlMs: 120_000, staleMs: 24 * 3_600_000 });
-  // Every authenticated request reads its user row; a ban or rename applies within 20 s.
-  const users = cachedBy((uid) => store.getUser(uid), { ttlMs: 20_000, staleMs: 600_000, max: 5_000 });
+  // Every authenticated request reads its user row. A ban applies at once in the isolate that
+  // wrote it (putUser forgets the entry) and within 5 s in every other one: a ban has to bite
+  // on the banned person's next request, not a while later.
+  const users = cachedBy((uid) => store.getUser(uid), { ttlMs: 5_000, staleMs: 600_000, max: 5_000 });
   // Every included-AI request reads the account's AI policy, which only an administrator changes;
   // a block or new allowance applies here at once and within 30 s in every other isolate.
   const policies = cachedBy((uid) => store.getTagflowPolicy(uid), { ttlMs: 30_000, staleMs: 600_000, max: 5_000 });

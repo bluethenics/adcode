@@ -10,6 +10,7 @@ import { installTooltips } from "./workbench/tooltip.ts";
  */
 import "./styles/tokens.css";
 import { createAccountGate } from "./onboarding/accountGate.ts";
+import { mountAccountBan } from "./accountBan.ts";
 import { showFirstOnboarding } from "./onboarding/welcomeJourney.ts";
 import { calmRemaining, holdUntilCalm, inCalmStart, markFirstWelcome } from "./onboarding/calmStart.ts";
 // The web look's type and tokens, shared by the web version and the desktop Vibe window
@@ -3469,6 +3470,8 @@ const accountMenu = createAccountMenu(
  * the same reasoning behind the 900ms the sheet itself waits for.
  */
 const accountGate = createAccountGate(accountMenu, () => {}, window.adcode.platform.info().then((info) => info.accountGate !== false));
+// Over everything, the sign-in gate included: a banned account sees why, and how to appeal.
+mountAccountBan();
 const PIN_PROMPT_DELAY_MS = 1_200;
 
 const pinPromptCard = createPinPromptCard(document.body);
@@ -6223,6 +6226,12 @@ function registerCommands(): void {
   });
   add("settings.open", "Preferences", () => openSettings("keyboard"));
   add("account.open", "Open Account", () => accountMenu.open());
+  // Asks the server now. Banned: the banned screen comes up (renderer/accountBan.ts); otherwise say so.
+  add("account.checkStanding", "Account: Check Account Standing", () => {
+    void window.adcode.account.ban(true)
+      .then((state) => { if (!state.banned) setStatus("Your ADCode account is in good standing.", 4000); })
+      .catch(() => setStatus("Couldn't reach ADCode to check your account. Try again in a moment.", 4000));
+  });
 
   /* Edit - Monaco owns these, so they are triggered rather than reimplemented (§2). */
   commands.registerEditorAction("edit.undo", "Undo", "undo");

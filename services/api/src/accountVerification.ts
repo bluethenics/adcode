@@ -2,6 +2,7 @@ import { authenticate, bearerFrom, type AuthDeps } from "./auth.ts";
 import type { AccountIdentity } from "./accountIdentity.ts";
 import type { AccountEmailProof } from "./accountEmailProof.ts";
 import { corsHeaders } from "./cors.ts";
+import { bannedResponse } from "./accountBan.ts";
 
 interface VerificationDependencies extends AuthDeps { identity?: AccountIdentity; emailProof?: AccountEmailProof }
 
@@ -11,6 +12,8 @@ export async function accountVerification(request: Request, deps: VerificationDe
   if (!["GET", "POST"].includes(request.method)) return json({ message: "Use GET to check verification or POST to send a link." },405);
   try {
     const auth = await authenticate(deps, request.headers.get("authorization") ?? undefined);
+    // Not "sign in": a banned person who is told to sign in signs in, and is told again.
+    if (!auth.ok && auth.failure === "account-banned") return bannedResponse(corsHeaders(request.headers.get("origin") ?? undefined));
     if (!auth.ok) return json({ message: "Sign in before verifying your email." },401);
     const token = bearerFrom(request.headers.get("authorization") ?? undefined), identity = deps.identity;
     if (!token || !identity) return json({ message: "Email verification is temporarily unavailable. Please try again shortly." },503);

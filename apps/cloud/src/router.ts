@@ -16,6 +16,7 @@
  */
 import { verifyIdToken, type Verified } from "./auth.ts";
 import { forwardAccountApi, forwardAdAsset } from "./accountApi.ts";
+import { bannedResponse, createAccountGate, standingFromApi, type AccountGate, type AccountStanding } from "./accountGate.ts";
 import type { Env } from "./env.ts";
 import { parsePreviewHost } from "./previewAuth.ts";
 import { INDEXABLE_LAUNCH_ROBOTS, LAUNCH_ROBOTS, LEGACY_WEB_APP_SCHEMA_CSP, publicAppHost, robots, sitemap, WEB_APP_SCHEMA_CSP } from "./seo.ts";
@@ -26,7 +27,12 @@ export interface RouterDeps {
   readonly refuseSocket: (code: number, reason: string) => Response;
   /** Hands a preview hostname's request on; absent in tests that do not exercise previews. */
   readonly preview?: (request: Request, port: number, previewId: string) => Promise<Response>;
+  /** Whether this sign-in's account is banned (accountGate.ts); absent means nobody is. */
+  readonly standing?: (uid: string, token: string) => Promise<AccountStanding>;
 }
+
+/** Per isolate, like every other cache a Worker keeps between requests. */
+let gate: AccountGate | null = null;
 
 export const DEV_UID = "web-dev-user";
 /** The close code an old tab hears from /socket: there is no sandbox to connect to any more. */
@@ -37,6 +43,11 @@ export function defaultDeps(env: Env): RouterDeps {
     verify: async (token) => {
       if (env.ALLOW_DEV_TOKEN === "1" && token === "dev") return { uid: DEV_UID, email: "dev@localhost", exp: Number.MAX_SAFE_INTEGER };
       return verifyIdToken(token, env.FIREBASE_PROJECT_ID);
+    },
+    standing: (uid, token) => {
+      if (env.ALLOW_DEV_TOKEN === "1" && token === "dev") return Promise.resolve("active");
+      gate ??= createAccountGate(standingFromApi(env.ACCOUNT_API));
+      return gate.standing(uid, token);
     },
     refuseSocket: (code, reason) => {
       const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket];
@@ -263,6 +274,8 @@ export async function route(request: Request, env: Env, deps: RouterDeps = defau
     const token = bearer(request);
     const who = token === null ? null : await deps.verify(token);
     if (who === null) return json({ ok: false, error: "Sign in first" }, 401);
+    // The API refuses a banned account on every /v1 call; these never reach it, so they ask.
+    if (token !== null && (await deps.standing?.(who.uid, token)) === "banned") return bannedResponse({ "x-robots-tag": "noindex, nofollow" });
 
     if (url.pathname.startsWith("/api/ad-assets/")) return forwardAdAsset(request, env, url.pathname.slice("/api/ad-assets/".length));
 

@@ -12,6 +12,7 @@ import { loadPortalReport } from "@/lib/portalReport";
 import { campaignState } from "@/lib/portalModel";
 import { portalPreview } from "@/lib/portalPreview";
 import { signOutNow } from "@/lib/firebase";
+import { BannedAccount } from "@/components/BannedAccount";
 
 /**
  * The advertiser portal's frame, mounted once in `app/portal/layout.tsx` so the sidebar and
@@ -146,6 +147,7 @@ const NAV = [
 
 export function PortalShell({ children }: { children: React.ReactNode }) {
   const data = usePortalData();
+  const { banned } = useAuth();
   const pathname = usePathname() ?? "/portal";
   const router = useRouter();
   const [drawer, setDrawer] = useState(false);
@@ -248,6 +250,8 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
       </div>
     </nav>
   );
+
+  if (banned) return <BannedAccount />;
 
   return (
     <PortalContext.Provider value={value}>

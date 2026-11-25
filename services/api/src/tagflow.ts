@@ -3,6 +3,7 @@ import { isHeld, reviewAccount } from "./earningReview.ts";
 /** Streaming relay to approved providers, with atomic account allowances. */
 import { randomUUID } from "node:crypto";
 import { Buffer } from "node:buffer";
+import { ACCOUNT_BANNED, BANNED_HEADERS, BANNED_MESSAGE } from "./accountBan.ts";
 import { authenticate, bearerFrom, type TokenVerifier } from "./auth.ts";
 import type { AccountIdentity } from "./accountIdentity.ts";
 import { heabsyAccess } from "./heabsyAccess.ts";
@@ -515,7 +516,10 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
         } catch (error) { console.warn("Buck: Tagflow unavailable", { model: model.id, reason: error instanceof Error ? error.name : "unknown" }); return fallback("upstream"); }
       }
       const auth = await authenticate(deps, request.headers.get("authorization") ?? undefined);
-      if (!auth.ok) return fail(auth.failure === "banned" ? 403 : 401, auth.failure, "Sign in to use included AI. Banned accounts cannot use it.");
+      // The relay's own body shape, `{ error: { code, message } }`, so older clients that read
+      // `code` still recognise it; the header is what current ones look at (accountBan.ts).
+      if (!auth.ok && auth.failure === "account-banned") return fail(403, ACCOUNT_BANNED, BANNED_MESSAGE, BANNED_HEADERS);
+      if (!auth.ok) return fail(401, auth.failure, "Sign in to use included AI.");
       if (url.pathname.startsWith("/v1/admin/") && !auth.isAdmin) return fail(403, "not-admin", "Administrator access is required.");
       const audit = async (action: string, subjectUid = "*"): Promise<void> => deps.store.writeAudit({ adminUid: auth.uid, action, subjectUid, at: deps.clock.now() });
       if (url.pathname === "/v1/ai/wallet" && request.method === "GET") {

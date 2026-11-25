@@ -28,7 +28,8 @@ export interface AuthDeps {
   clock: Clock;
 }
 
-export type AuthFailure = "missing-token" | "bad-token" | "banned" | "not-admin";
+/** `account-banned` is the wire code too (`accountBan.ts`): every route sends it unchanged. */
+export type AuthFailure = "missing-token" | "bad-token" | "account-banned" | "not-admin";
 
 export type AuthResult =
   | { ok: true; uid: string; isAdmin: boolean }
@@ -59,7 +60,7 @@ export async function authenticate(
    */
   const [user, isAdmin] = await Promise.all([ensureUser(deps, verified), adminFromEmail(deps, verified)]);
 
-  if (user.status === "banned") return { ok: false, failure: "banned" };
+  if (user.status === "banned") return { ok: false, failure: "account-banned" };
 
   return { ok: true, uid: verified.uid, isAdmin };
 }

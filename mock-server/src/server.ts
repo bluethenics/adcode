@@ -8,6 +8,7 @@
  * parameter properties, which type stripping cannot erase.
  */
 import { randomBytes } from "node:crypto";
+import { BANNED_HEADERS, bannedBody } from "../../services/api/src/accountBan.ts";
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import type {
@@ -98,6 +99,11 @@ export interface MockServer {
   claims(): { code: string; how: string }[];
   /** Another live code, with the first name its invite page shows. */
   seedInvite(code: string, inviterName: string): void;
+  /**
+   * Refuse every signed-in request as the real API refuses a banned account (403, the ban
+   * header, the same sentence) - the smoke run's banned-screen check.
+   */
+  setBanned(on: boolean): void;
 }
 
 interface State {
@@ -120,6 +126,7 @@ interface State {
   claim: { code: string; how: string } | null;
   claims: { code: string; how: string }[];
   showName: boolean;
+  banned: boolean;
 }
 
 function freshState(): State {
@@ -141,6 +148,7 @@ function freshState(): State {
     claim: null,
     claims: [],
     showName: true,
+    banned: false,
   };
 }
 
@@ -328,6 +336,18 @@ export async function createMockServer(options: { port?: number } = {}): Promise
     if (state.hangs.remaining > 0) {
       state.hangs.remaining -= 1;
       await new Promise((resolve) => setTimeout(resolve, state.hangs.ms));
+    }
+
+    if (state.banned) {
+      res.writeHead(403, { "content-type": "application/json", ...BANNED_HEADERS });
+      res.end(JSON.stringify(bannedBody()));
+      return;
+    }
+
+    // Who is asking: the real API's answer to an account that is not banned.
+    if (path === "/v1/me" && req.method === "GET") {
+      send(res, 200, { uid: "mock-user", isAdmin: false });
+      return;
     }
 
     if (state.failures.remaining > 0) {
@@ -528,6 +548,9 @@ export async function createMockServer(options: { port?: number } = {}): Promise
     claims: () => state.claims.map((c) => ({ ...c })),
     seedInvite: (code, inviterName) => {
       state.invites.set(code, inviterName);
+    },
+    setBanned: (on) => {
+      state.banned = on;
     },
   };
 }

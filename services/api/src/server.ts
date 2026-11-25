@@ -7,6 +7,7 @@
  */
 import { UNSUBSCRIBE_TOKEN, type MailingStore, type SendResult } from "./mailing.ts";
 import { handleAnnounce } from "./announcements.ts";
+import { BANNED_HEADERS, bannedBody } from "./accountBan.ts";
 import { verifyMailingWebhook } from "./mailingDelivery.ts";
 import { STATUS_TOKEN, parseSubscribe, type StatusAlertStore } from "./statusAlerts.ts";
 import type { AccountIdentity } from "./accountIdentity.ts";
@@ -42,6 +43,7 @@ import {
   parsePostAsset,
   handleSetCreativeStatus,
   handleSetUserStatus,
+  CannotBanSelfError,
   handleListAdvertisers,
   handleAdminCampaigns,
   handleSetAdvertiserStatus,
@@ -993,8 +995,11 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
     ]);
     if (!auth.ok) {
       // A ban is 403 rather than 401: the credentials are fine, the answer is still no,
-      // and a client that retries auth on a 401 would loop forever.
-      send(res, auth.failure === "banned" ? 403 : 401, { error: auth.failure }, cors);
+      // and a client that retries auth on a 401 would loop forever. Every route below this
+      // line - AI, the wallet, earning, converting, withdrawing, invites, reports, /v1/me -
+      // is refused here, before routing, so none can forget to ask (accountBan.ts).
+      if (auth.failure === "account-banned") send(res, 403, bannedBody(), { ...cors, ...BANNED_HEADERS });
+      else send(res, 401, { error: auth.failure }, cors);
       return;
     }
 
@@ -1602,11 +1607,14 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
           decodeURIComponent(userStatus[1] ?? ""),
           next,
         );
-      } catch {
-        send(res, 404, { error: "not-found" }, cors);
+      } catch (error) {
+        if (error instanceof CannotBanSelfError) send(res, 409, { error: "cannot-ban-self", message: error.message }, cors);
+        else send(res, 404, { error: "not-found" }, cors);
         return;
       }
-      send(res, 200, { ok: true }, cors);
+      // The account's state as it now stands, so the panel shows what the server holds rather
+      // than what it asked for. A ban applies to the account's next request (accountBan.ts).
+      send(res, 200, { ok: true, status: next }, cors);
       return;
     }
 

@@ -1884,6 +1884,17 @@ Access: `All Features → Zoom`; `Zoom in`; `Zoom out`; `Reset zoom`; `Settings`
 
 ## Account
 
+<!-- feature:account.banned -->
+### A banned account
+
+If ADCode bans an account, every ADCode app shows a screen that says so, and the account can't use ADCode until the ban is lifted.
+
+Why use it: An account is banned for breaking the terms - most often faking ad views or abusing free AI. The screen says what that means and how to appeal, instead of things quietly failing one by one.
+
+How to use it: When an administrator bans an account, within seconds the desktop app and the web version cover the window with "This account has been banned", and the website's signed-in pages (your dashboard, AI credits, the advertiser portal) show the same message. While banned, the account can't use included or paid AI, claim a free model promotion, earn from sponsored cards, convert or withdraw earnings, send invites or reports, or open its account pages; the servers refuse each request whichever app sends it. Nothing is deleted: projects on your computer are untouched, and the balance, credits and chats are kept while the ban is reviewed. To appeal, press Email support on the screen; it opens an email to adcode.support@gmail.com with your account ID already in it - send it from the address on the account, and support tells you the reason. When a ban is lifted the screen goes away by itself within a minute, or at once if you press Check again; Account: Check Account Standing in the command palette asks the same question at any time and says when the account is in good standing. Public pages - the website, docs, releases and the status page - stay open to everyone.
+
+Access: `All Features → A banned account`; `Check account standing`.
+
 <!-- feature:community.roomContext -->
 ### A live room's shared context and chat
 

@@ -23,6 +23,16 @@ export class ProjectEntitlements extends WorkerEntrypoint<{ SUPABASE_URL: string
     const state = await createSupabaseStore({ url: this.env.SUPABASE_URL, serviceRoleKey: this.env.SUPABASE_SERVICE_ROLE_KEY }).getAiPlanState(uid, Date.now());
     return state.plan && state.plan.endsAt > Date.now() ? { plan: state.plan.id, endsAt: state.plan.endsAt } : { plan: "free" as const, endsAt: 0 };
   }
+  /**
+   * Whether the projects relay must refuse this account (apps/cloud/src/accountGate.ts). The relay
+   * verifies Firebase tokens itself and never reaches the API, so this is its only way to learn
+   * of a ban. An account this database has never seen is not banned.
+   */
+  async accountStatus(uid: string): Promise<"active" | "banned"> {
+    if (!uid || uid.length > 128) throw new Error("Invalid account.");
+    const user = await createSupabaseStore({ url: this.env.SUPABASE_URL, serviceRoleKey: this.env.SUPABASE_SERVICE_ROLE_KEY }).getUser(uid);
+    return user?.status === "banned" ? "banned" : "active";
+  }
 }
 
 export default {

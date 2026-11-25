@@ -328,6 +328,8 @@ export const BRIDGE = [
   { path: "account.signInInstead", kind: "invoke", channel: CHANNELS.accountSignInInstead },
   { path: "account.cancelLink", kind: "invoke", channel: CHANNELS.accountCancelLink },
   { path: "account.onDeviceCode", kind: "subscribe", channel: CHANNELS.accountDeviceCode },
+  { path: "account.ban", kind: "invoke", channel: CHANNELS.accountBan },
+  { path: "account.onBan", kind: "subscribe", channel: CHANNELS.accountBanChanged },
 
   // notices
   { path: "notices.onShow", kind: "subscribe", channel: CHANNELS.serviceNotice },

@@ -20,6 +20,7 @@ import { CHANNELS, type AccountState, type LinkOutcome } from "../shared/api.ts"
 import { DiskFileStore, FetchHttpTransport, SystemClock } from "./adPorts.ts";
 import { apiBaseUrl, backendAccount } from "./backend.ts";
 import { recordRetention } from "./milestones.ts";
+import { noteAccountChangedForBan, registerAccountBan } from "./accountBan.ts";
 import { linkWithGitHub, cancelSignIn, linkWithGoogle, openGitHubCompletionPage } from "./oauth.ts";
 
 function account() {
@@ -31,6 +32,7 @@ function account() {
 }
 
 function broadcast(state: AccountState): void {
+  noteAccountChangedForBan();
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed()) window.webContents.send(CHANNELS.accountChanged, state);
   }
@@ -177,6 +179,7 @@ async function offerSignIn(auth: FirebaseAuth, held: Held): Promise<LinkOutcome>
 
 let verificationAnnouncedUid: string | null = null;
 export function registerAccountIpc(): void {
+  registerAccountBan();
   ipcMain.handle(CHANNELS.accountVerification, async (_event, send: unknown) => {
     if (typeof send !== "boolean") throw new Error("Choose whether to send a verification link.");
     const auth = account(), token = await auth?.getToken();
