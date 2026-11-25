@@ -313,8 +313,8 @@ export class AcpConnection {
   }
 }
 
-/** A queue a turn reads its events from while its prompt runs. */
-class EventQueue<T> implements AsyncIterable<T> {
+/** A queue a turn reads its events from while its prompt runs. Codex's app-server client uses it too. */
+export class EventQueue<T> implements AsyncIterable<T> {
   private items: T[] = [];
   private waiting: ((result: IteratorResult<T>) => void) | null = null;
   private closed = false;

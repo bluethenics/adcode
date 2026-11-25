@@ -45,8 +45,12 @@ export interface CliAgentSpec {
    * `acpArgs`. One process then serves a chat's every turn (acp.ts), so only the first waits
    * for it to start: OpenCode measured 10-14 s a message through `opencode run`, 5.6 s for a
    * message to a running `opencode acp` (both with its free big-pickle model).
+   *
+   * "codex-app-server": Codex's own JSON-RPC protocol over `codex app-server`
+   * (codexAppServer.ts), kept running per chat the same way. It streams the reply word by word
+   * and asks before commands, which `codex exec --json` could do neither of.
    */
-  readonly protocol?: "acp";
+  readonly protocol?: "acp" | "codex-app-server";
   readonly acpArgs?: readonly string[];
   /**
    * Listed even when it is not installed, with a way to install it. The rest are listed only
@@ -74,7 +78,7 @@ const acp = (id: CliAgentId, name: string, command: string, acpArgs: readonly st
 
 export const CLI_AGENTS: readonly CliAgentSpec[] = [
   { id: "claude", name: "Claude Code", command: "claude", headless: true, featured: true, npmPackage: "@anthropic-ai/claude-code", models: ["default", "opus", "sonnet", "haiku"], modelProtocol: "claude-initialize", signIn: "claude", install: "npm install -g @anthropic-ai/claude-code", docs: "https://docs.claude.com/en/docs/claude-code/overview" },
-  { id: "codex", name: "Codex CLI", command: "codex", headless: true, featured: true, npmPackage: "@openai/codex", models: ["default"], modelProtocol: "codex-app-server", signIn: "codex login", install: "npm install -g @openai/codex", docs: "https://developers.openai.com/codex/cli" },
+  { id: "codex", name: "Codex CLI", command: "codex", headless: true, featured: true, npmPackage: "@openai/codex", models: ["default"], modelProtocol: "codex-app-server", protocol: "codex-app-server", signIn: "codex login", install: "npm install -g @openai/codex", docs: "https://developers.openai.com/codex/cli" },
   acp("opencode", "OpenCode", "opencode", ["acp"], { featured: true, npmPackage: "opencode-ai", signIn: "opencode auth login", install: "npm install -g opencode-ai", docs: "https://opencode.ai/docs/acp/" }),
   acp("gemini", "Gemini CLI", "gemini", ["--acp"], { featured: true, npmPackage: "@google/gemini-cli", install: "npm install -g @google/gemini-cli", docs: "https://geminicli.com" }),
   acp("copilot", "GitHub Copilot CLI", "copilot", ["--acp"], { featured: true, npmPackage: "@github/copilot", install: "npm install -g @github/copilot", docs: "https://github.com/features/copilot/cli/" }),
@@ -172,6 +176,17 @@ export function cliEnv(id: CliAgentId, mcp: CliMcpServer | null | undefined): Re
   return {};
 }
 
+/**
+ * ADCode's tool bridge as Codex config overrides, each `-c` followed by its value: the address,
+ * and the name of the environment variable holding the key (`cliEnv`). A value that is not TOML
+ * is read as a string. Empty when the bridge is off or a value could not pass the shell.
+ */
+export function codexBridgeOverrides(mcp: CliMcpServer | null | undefined): string[] {
+  if (mcp === null || mcp === undefined || mcp.url === undefined || mcp.token === undefined || !/^[a-z][a-z0-9-]{0,40}$/.test(mcp.server)) return [];
+  const values = [`mcp_servers.${mcp.server}.url=${mcp.url}`, `mcp_servers.${mcp.server}.bearer_token_env_var=${CLI_BRIDGE_TOKEN_ENV}`];
+  return values.every(isSafeCliToken) ? values.flatMap((value) => ["-c", value]) : [];
+}
+
 /** The arguments for one headless turn. `session` resumes the CLI's own conversation. */
 export function cliArgs(id: CliAgentId, options: { readonly model: string; readonly session?: string; readonly mcp?: CliMcpServer | null; readonly effort?: string; readonly bypassPermissions?: boolean }): string[] {
   // A level is one lowercase word from the model's own list (effortFor); anything else is dropped.
@@ -180,10 +195,7 @@ export function cliArgs(id: CliAgentId, options: { readonly model: string; reado
   const session = options.session !== undefined && isSafeCliToken(options.session) ? options.session : null;
   const mcp = options.mcp !== undefined && options.mcp !== null && isSafeCliToken(options.mcp.configPath) && /^[a-z][a-z0-9-]{0,40}$/.test(options.mcp.server) ? options.mcp : null;
   const bypass = options.bypassPermissions === true;
-  // Codex takes the bridge as two config overrides; a value that is not TOML is read as a string.
-  const codexBridge = mcp !== null && mcp.url !== undefined && mcp.token !== undefined
-    ? [`mcp_servers.${mcp.server}.url=${mcp.url}`, `mcp_servers.${mcp.server}.bearer_token_env_var=${CLI_BRIDGE_TOKEN_ENV}`].filter(isSafeCliToken)
-    : [];
+  const codexBridge = codexBridgeOverrides(mcp);
   switch (id) {
     case "claude":
       // acceptEdits: it may edit files in the project, but shell commands still need the
@@ -199,7 +211,8 @@ export function cliArgs(id: CliAgentId, options: { readonly model: string; reado
     case "codex":
       // `-` reads the prompt from stdin. workspace-write: edits inside the project, no network.
       // Full access drops both the sandbox and the approval prompts for this turn.
-      return ["exec", ...(session ? ["resume", session] : []), "--json", "--skip-git-repo-check", ...(bypass ? ["--dangerously-bypass-approvals-and-sandbox"] : session ? [] : ["--sandbox", "workspace-write"]), ...(model ? ["-m", model] : []), ...(effort ? ["-c", `model_reasoning_effort=${effort}`] : []), ...(codexBridge.length === 2 ? codexBridge.flatMap((value) => ["-c", value]) : []), "-"];
+      // Only for a build that cannot keep a process running: chats use `codex app-server`.
+      return ["exec", ...(session ? ["resume", session] : []), "--json", "--skip-git-repo-check", ...(bypass ? ["--dangerously-bypass-approvals-and-sandbox"] : session ? [] : ["--sandbox", "workspace-write"]), ...(model ? ["-m", model] : []), ...(effort ? ["-c", `model_reasoning_effort=${effort}`] : []), ...codexBridge, "-"];
     case "opencode":
       // `--thinking` streams the model's reasoning: without it a thinking model (DeepSeek)
       // sends nothing for a minute or more and the chat looks stuck. `run` turns down every

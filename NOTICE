@@ -24,4 +24,8 @@ The coding CLI usage reader (apps/desktop/src/main/cliUsageModel.ts) ports the
 Claude Code and Codex transcript parsing rules from T3 Code by T3 Tools, Inc.
 (https://github.com/pingdotgg/t3code), licensed under the MIT licence. ADCode
 is not affiliated with or endorsed by T3 Tools, Inc. Its notice ships in
-THIRD-PARTY-NOTICES.txt.
+THIRD-PARTY-NOTICES.txt. The Codex app-server client
+(packages/ai/src/codexAppServer.ts) follows T3 Code's way of counting a turn's
+tokens from Codex's running thread totals (CodexTurnTokenUsage.ts) and of
+answering Codex's MCP tool approvals (CodexMcpElicitation.ts), under the same
+licence.

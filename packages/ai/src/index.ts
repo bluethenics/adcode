@@ -17,6 +17,7 @@ export * from "./automation.ts";
 export * from "./continuation.ts";
 export * from "./cliAgents.ts";
 export * from "./acp.ts";
+export * from "./codexAppServer.ts";
 export * from "./terminalTeam.ts";
 export * from "./teamMailbox.ts";
 export * from "./chatForks.ts";

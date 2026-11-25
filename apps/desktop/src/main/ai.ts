@@ -201,7 +201,7 @@ import { toAiAutomationView } from "./aiAutomationViews.ts";
 import { askOllama, localModels, startOllama } from "./localModels.ts";
 import { cliModels, cliModelsNow, cliModelsQuick, detectCliAgents, detectCliAgentsQuick, forgetCliModels, spawnCli, spawnCliLive, stopLiveClis } from "./cliAgents.ts";
 import { claudeToolBridge } from "./toolBridge.ts";
-import { AUDIT_PAGE, CLI_AGENTS, DEFERRED_TOOL_NAMES, OPEN_PREVIEW, VIEW_PAGE, cliAgentFor, cliProviderId, createAcpProvider, createCliProvider, type CliLiveEntry, type CliPermissionAnswer, type CliPermissionAsk } from "@adcode/ai";
+import { AUDIT_PAGE, CLI_AGENTS, DEFERRED_TOOL_NAMES, OPEN_PREVIEW, VIEW_PAGE, cliAgentFor, cliProviderId, createAcpProvider, createCliProvider, createCodexProvider, type CliLiveEntry, type CliPermissionAnswer, type CliPermissionAsk } from "@adcode/ai";
 import { apiBaseUrl } from "./backend.ts";
 import { buildTagflowProvider, refreshTagflowModels, tagflowCatalogue, tagflowDefaultModel } from "./tagflowAi.ts";
 import { recordModelOutcome } from "./modelOutcomes.ts";
@@ -1198,9 +1198,9 @@ export async function buildProvider(
     // Kept on disk, so a long CLI chat resumes the same CLI session after a restart.
     const sessions = cliSessionsFor(cli.id);
     const listedModels = await cliModelsQuick(cli, homedir());
-    // ACP agents (OpenCode, Gemini CLI, Copilot, Cursor...) through one protocol client; Claude
-    // Code and Codex through their own stream-JSON.
-    return (cli.protocol === "acp" ? createAcpProvider : createCliProvider)({ spec: cli, models: listedModels.map((model) => model.id), modelEfforts: Object.fromEntries(listedModels.filter((model) => model.efforts !== undefined).map((model) => [model.id, model.efforts!])), spawn: spawnCli, live: spawnCliLive, liveProcesses: cliLive, cwd: () => chat?.root() ?? currentWorkspace()?.root ?? homedir(), sessions, mcp: claudeToolBridge, bypassPermissions: () => fullAccessActive(), askPermission: askCliPermission, ...(chat === undefined ? {} : { conversation: chat.id }) });
+    // ACP agents (OpenCode, Gemini CLI, Copilot, Cursor...) through one protocol client, Codex
+    // through its app-server, Claude Code through its own stream-JSON.
+    return (cli.protocol === "acp" ? createAcpProvider : cli.protocol === "codex-app-server" ? createCodexProvider : createCliProvider)({ spec: cli, models: listedModels.map((model) => model.id), modelEfforts: Object.fromEntries(listedModels.filter((model) => model.efforts !== undefined).map((model) => [model.id, model.efforts!])), spawn: spawnCli, live: spawnCliLive, liveProcesses: cliLive, cwd: () => chat?.root() ?? currentWorkspace()?.root ?? homedir(), sessions, mcp: claudeToolBridge, bypassPermissions: () => fullAccessActive(), askPermission: askCliPermission, ...(chat === undefined ? {} : { conversation: chat.id }) });
   }
   const key = offeredKey ?? (KEYLESS.has(id) ? "" : ((await keys.get(id)) ?? ""));
   const paced = (provider: Provider) => requestScheduler.wrap(provider, id, () => connections().find(item => item.id === id)?.rpm ?? 6000);
