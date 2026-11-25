@@ -13,6 +13,8 @@
 import { explainConnectionFailure } from "../shared/connectionCheck.ts";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { readFileSync, writeFileSync } from "node:fs";
+import { createCliSessionStore, type CliSessionStore } from "./cliSessionStore.ts";
 import { dirname, join, relative } from "node:path";
 import { homedir } from "node:os";
 import { app, BrowserWindow } from "electron";
@@ -810,6 +812,8 @@ function chatForks(): ChatForkService {
     startTurn: (sessionId, text) => aiSend(text, [], null, sessionId),
     cancel: (sessionId) => aiCancel(sessionId),
     freeSlots: () => maxParallelChats() - runs.list().length,
+    // Forks report back to an idle main chat, the way Claude's nested sessions do.
+    reportBack: { later: (run, ms) => { setTimeout(run, ms).unref?.(); } },
   });
   return chatForkService;
 }
@@ -1167,8 +1171,8 @@ export async function buildProvider(
     // A CLI on this computer: its own account and tools answer, in the open project.
     // The last answers, at once: a turn never waits on a background refresh of either.
     if (!cli.headless || !(await detectCliAgentsQuick(homedir())).some((view) => view.id === cli.id && view.installed)) return null;
-    let sessions = cliSessions.get(cli.id);
-    if (sessions === undefined) cliSessions.set(cli.id, sessions = new Map());
+    // Kept on disk, so a long CLI chat resumes the same CLI session after a restart.
+    const sessions = cliSessionsFor(cli.id);
     const listedModels = await cliModelsQuick(cli, homedir());
     // ACP agents (OpenCode, Gemini CLI, Copilot, Cursor...) through one protocol client; Claude
     // Code and Codex through their own stream-JSON.
@@ -1585,8 +1589,22 @@ export function aiDetectOllama(): Promise<{ running: boolean; models: string[] }
   return askOllama();
 }
 
-/** Each CLI's conversations, kept across rebuilt providers so a chat resumes the CLI's session. */
-const cliSessions = new Map<string, Map<string, { id: string; messages: number }>>();
+/**
+ * Each CLI's conversations, kept across rebuilt providers and restarts so a chat resumes the
+ * CLI's own session (`cliSessionStore.ts`).
+ */
+let cliSessionStore: CliSessionStore | null = null;
+function cliSessionsFor(cliId: string): Map<string, { id: string; messages: number }> {
+  cliSessionStore ??= createCliSessionStore({
+    read: () => { try { return readFileSync(join(app.getPath("userData"), "cli-sessions.json"), "utf8"); } catch { return null; } },
+    write: (text) => { writeFileSync(join(app.getPath("userData"), "cli-sessions.json"), text, "utf8"); },
+  });
+  return cliSessionStore.forCli(cliId);
+}
+/** Write the CLI sessions now: on quit, so the last turn's session is not lost. */
+export function flushCliSessions(): void {
+  cliSessionStore?.flush();
+}
 /** Claude Code processes kept running per chat between turns (`createCliProvider`'s `live`). */
 const cliLive = new Map<string, CliLiveEntry>();
 /** Stops the kept Claude Code processes: on quit, so none outlives ADCode. */

@@ -19,6 +19,7 @@ import {
   STOP_CHAT_NAME,
   WAIT_FOR_CHAT_FORKS_NAME,
   LIST_CHAT_FORKS_NAME,
+  chatForkReportNote,
   createTeamMailbox,
   formatInbox,
   forkChatSession,
@@ -53,7 +54,23 @@ export interface ChatForkServiceDeps {
   readonly mailbox?: TeamMailbox;
   /** How long one wait_for_chat_forks call may hold the main chat; defaults to ten minutes. */
   readonly maxWaitMs?: number;
+  /**
+   * Report back like Claude's nested sessions: once every fork a main chat started has
+   * finished and the main chat is idle, start its next turn with their reports. Absent, a
+   * main chat hears from its forks only when it waits for them.
+   */
+  readonly reportBack?: {
+    /** Look again after `ms`: the main chat was busy, or no chat slot was free. */
+    readonly later: (run: () => void, ms: number) => void;
+    /** Automatic report turns one main chat may get, so it and its forks cannot wake each other forever. */
+    readonly maxWakes?: number;
+  };
 }
+
+/** How often a pending report looks again while the main chat is busy. */
+export const REPORT_RETRY_MS = 5_000;
+/** Default cap on automatic report turns per main chat. */
+export const MAX_REPORT_WAKES = 8;
 
 /**
  * One wait returns after this long even if forks are still working. Without it a fork that
@@ -115,6 +132,10 @@ export function createChatForkService(deps: ChatForkServiceDeps): ChatForkServic
   const runs = new Map<string, ForkRunRecord>();
   const starting = new Set<string>();
   const exchanges = new Map<string, number>();
+  /** Per main chat: forks that finished since the main chat last read their reports. */
+  const unreported = new Map<string, Set<string>>();
+  const wakes = new Map<string, number>();
+  const retrying = new Set<string>();
 
   function working(sessionId: string): boolean {
     return starting.has(sessionId) || deps.isRunning(sessionId) || runs.get(sessionId)?.outcome === "running";
@@ -148,8 +169,50 @@ export function createChatForkService(deps: ChatForkServiceDeps): ChatForkServic
       } finally {
         starting.delete(session.id);
       }
+      // A fork the person stopped has nothing to report; anything else does.
+      if (deps.reportBack !== undefined && session.parentId !== undefined && record.outcome !== "stopped") {
+        const pending = unreported.get(session.parentId) ?? new Set<string>();
+        pending.add(session.id);
+        unreported.set(session.parentId, pending);
+        await reportBack(session.parentId);
+      }
     })();
     runs.set(session.id, record);
+  }
+
+  function retryReport(parentId: string): void {
+    if (deps.reportBack === undefined || retrying.has(parentId)) return;
+    retrying.add(parentId);
+    deps.reportBack.later(() => {
+      retrying.delete(parentId);
+      void reportBack(parentId);
+    }, REPORT_RETRY_MS);
+  }
+
+  /** Wake an idle main chat with its forks' reports, once all of them have settled. */
+  async function reportBack(parentId: string): Promise<void> {
+    const pending = unreported.get(parentId);
+    if (deps.reportBack === undefined || pending === undefined || pending.size === 0) return;
+    const all = await deps.sessions();
+    const children = all.filter((session) => session.parentId === parentId);
+    // One report for the batch, not one wake per fork: the last fork to finish brings it.
+    if (children.some((child) => working(child.id))) return;
+    const parent = all.find((session) => session.id === parentId);
+    if (parent === undefined) { unreported.delete(parentId); return; }
+    if (working(parentId) || deps.freeSlots() < 1) { retryReport(parentId); return; }
+    const used = wakes.get(parentId) ?? 0;
+    // Past the cap the reports stay where list_chat_forks and the fork tabs show them.
+    if (used >= (deps.reportBack.maxWakes ?? MAX_REPORT_WAKES)) { unreported.delete(parentId); return; }
+    const finished = children.filter((child) => pending.has(child.id));
+    unreported.delete(parentId);
+    if (finished.length === 0) return;
+    wakes.set(parentId, used + 1);
+    start(parent, chatForkReportNote(finished.map((child) => ({
+      title: child.title,
+      id: child.id,
+      outcome: `${statusOf(child)}${outcomeDetail(child)}`,
+      report: latestReport(child),
+    }))));
   }
 
   function spendMessage(familyId: string): boolean {
@@ -246,13 +309,14 @@ export function createChatForkService(deps: ChatForkServiceDeps): ChatForkServic
           title: task.title,
           task: task.prompt,
           at,
+          ...(task.fresh === true ? { fresh: true } : {}),
         });
         await deps.write(child);
         created.push(child);
       }
       for (const child of created) start(child, child.forkTask ?? "Continue the work you were given.");
       return done([
-        `Started ${String(created.length)} fork chat${created.length === 1 ? "" : "s"}. They are visible in History and have their own tabs.`,
+        `Started ${String(created.length)} fork chat${created.length === 1 ? "" : "s"}. They are visible in History and have their own tabs.${deps.reportBack === undefined ? "" : " If you end your turn first, their reports come back to you when they are all done."}`,
         ...created.map((child) => `- ${child.title} (${child.id})`),
         "",
         "Use wait_for_chat_forks to wait for their reports. Use send_chat_message to give one more instructions while it works. They can message you and each other.",
@@ -334,6 +398,9 @@ export function createChatForkService(deps: ChatForkServiceDeps): ChatForkServic
         latestReport(session),
       ].join("\n"));
       const waiting = fresh.filter((session) => working(session.id)).length;
+      // Reports read here are not sent again when the main chat goes idle.
+      const pendingReports = unreported.get(parent.id);
+      for (const session of fresh) if (!working(session.id)) pendingReports?.delete(session.id);
       return done([
         stopped
           ? `Stopped waiting. ${String(waiting)} fork${waiting === 1 ? " is" : "s are"} still working; ask again with wait_for_chat_forks.`

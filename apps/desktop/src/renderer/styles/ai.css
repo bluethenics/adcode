@@ -4654,3 +4654,24 @@ input[type="checkbox"]:checked + .chat-question-mark::after { content: ""; width
 .chat-history-row[data-pinned="true"] .chat-history-status[data-status="idle"]::before { background: var(--accent); }
 .chat-welcome-streak { margin: -4px 0 0; color: var(--text-tertiary); font-size: var(--text-xs); animation: chat-streak-in 400ms var(--ease-toast) both; animation-delay: 300ms; }
 @keyframes chat-streak-in { from { opacity: 0; } to { opacity: 1; } }
+
+/*
+ * A day-long chat (ai/transcriptWindow.ts): older messages wait above this bar, and finished
+ * messages off screen skip style, layout and paint until they are scrolled near. The reply
+ * still streaming never does, so following it stays exact.
+ */
+.chat-earlier { display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: 4px 0; color: var(--text-tertiary); font-size: var(--text-xs); }
+.chat-earlier-count { font-variant-numeric: tabular-nums; }
+/* Assistant replies only: they stretch to full width, so a skipped one needs only a height. A user bubble sizes to its text and must always be laid out. */
+.chat-transcript > .chat-bubble-assistant:not(.is-streaming) { content-visibility: auto; contain-intrinsic-block-size: auto 160px; }
+
+/* /goal (ai/goalMode.ts): what the chat is working toward, above the composer. */
+.chat-goal { flex: 1 0 100%; display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 10px; border: 1px solid var(--border-hairline); border-radius: var(--radius-md); background: var(--bg-app); font-size: var(--text-xs); color: var(--text-secondary); }
+.chat-goal[hidden] { display: none; }
+.chat-goal svg { flex: none; width: 14px; height: 14px; color: var(--accent, var(--text-primary)); }
+.chat-goal-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
+.chat-goal-state { flex: none; font-variant-numeric: tabular-nums; }
+.chat-goal[data-status="met"] .chat-goal-state { color: var(--success, var(--text-primary)); font-weight: 600; }
+.chat-goal[data-status="blocked"] .chat-goal-state, .chat-goal[data-status="limit"] .chat-goal-state { color: var(--warning, var(--text-primary)); }
+.chat-goal-action { flex: none; padding: 2px 8px; font-size: var(--text-xs); }
+@media (max-width: 520px) { .chat-goal { flex-wrap: wrap; } .chat-goal-text { flex-basis: calc(100% - 24px); } }

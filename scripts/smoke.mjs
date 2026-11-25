@@ -669,7 +669,8 @@ const checks = {
   vibeAgentsAndToolsPagesEvidence: vibePages,
   chatMemoryAndMotion: typeof memoryAndMotion === "object" && memoryAndMotion !== null && Object.values(memoryAndMotion).every(Boolean),
   chatMemoryAndMotionEvidence: memoryAndMotion,
-  changesPanel: changesPanel !== null && changesPanel.tabs === "Project,Changes" && /Commit & Push|Push/.test(changesPanel.commitButton)
+  // Project, Code (the file tree and reader beside the chat) and Changes share one panel.
+  changesPanel: changesPanel !== null && changesPanel.tabs === "Project,Code,Changes" && /Commit & Push|Push/.test(changesPanel.commitButton)
     && changesPanel.everyRowHasRevertAndCheckbox && changesPanel.rowsFit && changesPanel.caption.length > 0,
   changesPanelEvidence: changesPanel,
   title: await evaluate("document.title"),
@@ -7532,7 +7533,11 @@ checks.chatConnectLayeringEvidence = await evaluate(
    })()`,
 );
 
+// The popup shell fades a dialog out over 160 ms before closing it. Chromium skips that fade
+// when the page has had no recent input, so checking at once only passed by that accident:
+// wait for the close to land, as a person would see it, then assert the same things.
 await pressEscape();
+await waitForPopupsClosed(['#popup-dependent-host dialog[data-popup-id="connect"]']);
 Object.assign(checks.chatConnectLayeringEvidence, await evaluate(`(() => {
   const chat = document.querySelector('#popup-primary-host dialog[data-popup-id="chat"]');
   const connect = document.querySelector('#popup-dependent-host dialog[data-popup-id="connect"]');
@@ -7540,6 +7545,7 @@ Object.assign(checks.chatConnectLayeringEvidence, await evaluate(`(() => {
   return { layeredEscape: connect.open === false && chat.open === true, focusReturn: document.activeElement === button };
 })()`));
 await pressEscape();
+await waitForPopupsClosed(['dialog[data-popup-id="chat"]']);
 checks.chatConnectLayeringEvidence.chatEscape = await evaluate(
   `document.querySelector('dialog[data-popup-id="chat"]').open === false && document.activeElement === document.querySelector('.project-tools')`,
 );

@@ -1819,6 +1819,8 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "The assistant can start a family too. When a task splits cleanly it calls its fork tool with one to three titled parts; each fork opens its own chat, starts from a copy of the conversation and begins work on its part. A chat keeps up to six forks, and only the main chat can start or stop one.",
       "Let the family talk. Forks and the main chat can send each other short messages - a decision, a warning that two chats are about to edit the same file, or a question. A message to an idle chat starts it on that message; a message to a busy chat arrives at its next tool call.",
       "The main chat waits for its forks and reads their reports, then checks the combined result. A fork's reply is saved in its own history, so open it to read the whole turn.",
+      "If the main chat ends its turn before the forks finish, nothing is lost: once every fork is done, their reports come back to the main chat by themselves, and it starts a new turn to check the work and tell you where things stand.",
+      "For a self-contained part, or when the conversation has been running for hours, the assistant can start a fork fresh - with only its task instead of a copy of the whole history - which starts faster and costs far less.",
     ],
     benefits: [
       "A large job finishes sooner: the assistant runs its independent parts at the same time instead of one after another, without being asked.",
@@ -1829,6 +1831,99 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     ],
     betterThan:
       "Sub-agents are one tool call deep: their work appears as a report and disappears. Separate browser chats run in other tools with no shared project and no way to talk to each other. A fork is a real conversation in the same project that you can open, redirect or continue tomorrow, and the chats can hand decisions to each other while they work.",
+  },
+
+  "workbench-code-files": {
+    steps: [
+      "In Vibe, choose Code in the sidebar. You can also run Show Code and Files from the command palette (Ctrl+Shift+P), or open the ⋯ menu and choose Code and files.",
+      "The panel opens in the column beside the chat, sharing its tabs with the preview and the browser. Your project's files are on the left.",
+      "Click a folder to open it and a file to read it on the right, with line numbers and colour. Arrow keys move through the tree; Right opens a folder and Left closes it.",
+      "Type in Filter files to narrow the folders you have opened to matching names.",
+      "Keep chatting: when the assistant changes the open file, it redraws in place without losing your scroll position.",
+      "Use Copy to copy the file, Ask to ask the assistant about it, or Open in editor to change it in the IDE.",
+    ],
+    benefits: [
+      "See what the assistant wrote, and where, without leaving the conversation.",
+      "The project's structure is always one click away, next to the running preview.",
+      "Large generated folders stay out of the way until you open them.",
+      "Reading never risks an accidental edit: changes happen in the editor, on purpose.",
+    ],
+    betterThan:
+      "Chat-first tools tend to hide the code or make you open another app to read it, and a full editor takes over the screen. This keeps the conversation, the running app and the code side by side, with the editor one button away when you want it.",
+  },
+
+  "ai-cli-usage": {
+    steps: [
+      "Run AI: Show Claude Code and Codex Usage from the command palette (Ctrl+Shift+P), type /usage in the chat, or open Usage from the chat header and choose Coding CLIs.",
+      "Pick a range at the top: Today, 7 days, 30 days or 90 days.",
+      "Read the four numbers first: the estimated API cost, total tokens, what the prompt cache saved, and how many requests and sessions that was.",
+      "If you use Codex, Subscription limits shows each window - the 5-hour and weekly ones on paid plans - with how much is left and when it resets. The reading is Codex's own from its last request, and the card says how old it is.",
+      "Below that, a row per tool and a bar per day show where the use landed. The By model table splits every model into input, cache reads, cache writes and output, with its cache hit rate and cost.",
+      "Open Where this was read to see each folder ADCode looked in and how many history files it found. Press Refresh after a long session; only the new part of each file is read.",
+    ],
+    benefits: [
+      "Your coding agents' use in one place, including work done in a terminal or another editor, not just inside ADCode.",
+      "The cost figure says what the same tokens would cost on an API key, so you can tell whether a subscription is paying for itself.",
+      "See which model and which day used the most, and how much the prompt cache saved you.",
+      "Codex's remaining allowance and reset time without opening another app.",
+      "Nothing is uploaded: the history files are read on your computer and never changed.",
+    ],
+    betterThan:
+      "The CLIs' own status commands show the current session or a single percentage. Command-line usage tools need installing and print a table once. This reads the same history incrementally, so it stays fast with months of transcripts, and puts it next to the rest of your AI use with the same ranges and model names.",
+  },
+
+  "ai-goal": {
+    steps: [
+      "In the chat, type /goal followed by what done means - for example /goal all tests in src/api pass - and press Enter. You can also run AI: Set a Goal, or choose Goal from the composer's Tools menu.",
+      "A Goal strip appears above the composer, and the assistant starts working toward it.",
+      "After each turn it either ends with GOAL MET, says GOAL BLOCKED and what it needs from you, or keeps going. When it keeps going, ADCode sends the next turn by itself - up to 30 automatic turns.",
+      "Type a message while it works and it is queued; your message goes first, then the goal continues.",
+      "Press Stop, or switch to another chat, to pause it. Press Resume on the strip, or type /goal resume, to carry on with a fresh 30 turns.",
+      "Type /goal on its own to see the goal, /goal pause to pause it, and /goal clear to remove it.",
+    ],
+    benefits: [
+      "Long jobs finish without you pressing Continue after every turn.",
+      "It stops when the goal is met and checked, not when the model runs out of things to say.",
+      "It comes back to you when it is genuinely stuck, with the reason.",
+      "A hard cap of 30 automatic turns means a goal that cannot be met does not run all night.",
+    ],
+    betterThan:
+      "Keep going until done continues a turn that hit its step limit; a goal continues across turns until a finish line you wrote is met. Chat tools without goals stop after every answer, so a large job needs you at the keyboard the whole time.",
+  },
+
+  "ai-side-chats": {
+    steps: [
+      "In a main conversation, type /btw and your question - for example /btw why did it choose SQLite? - and press Enter. You can also run AI: Ask on the Side, or choose Side chat from the composer's Tools menu.",
+      "ADCode copies the conversation into a new chat titled Side: and your question, opens it and sends the question there. The side chat already knows everything the conversation does.",
+      "The main conversation keeps working while you read the answer.",
+      "Go back with the link at the top of the side chat. Both stay in History, so you can return to the side chat later.",
+    ],
+    benefits: [
+      "Ask about the work without adding a detour to the conversation doing it.",
+      "No need to re-explain the project: the side chat starts with the whole conversation.",
+      "The main chat's work is never interrupted or steered off course by your question.",
+    ],
+    betterThan:
+      "Asking in the same chat puts the question in its history and can change what it does next. Asking in a new chat means explaining everything again. A side chat has the full context and none of the side effects.",
+  },
+
+  "ai-composer-memory": {
+    steps: [
+      "Just type: drafts are kept for each conversation as you go. After a reload or a switch to another chat, an empty composer gets your draft back. Sending clears it.",
+      "To put a prompt aside, open the composer's Tools menu and choose Stash prompt. The prompt and its attachments are saved and the composer is cleared.",
+      "To bring it back, choose Tools > Stashed prompts, run AI: Stashed Prompts, or type /stash. With one stash it comes straight back; with several, pick one from the list.",
+      "Paste a long log, a stack trace or a whole file: 32 KB or more becomes an attachment named after what it looks like, such as pasted-1.log. Press Ctrl+Shift+V (Cmd+Shift+V on a Mac) to paste it into the text instead.",
+      "In a conversation that has run for hours, press Show earlier messages at the top to bring back older messages, a batch at a time.",
+      "Using Claude Code, Codex or another coding CLI as the model? Restart or update ADCode whenever you like: the chat picks up the same CLI session, with everything the CLI already read and did.",
+    ],
+    benefits: [
+      "A reload, a crash or a stray click never costs you a long prompt.",
+      "Park a half-written idea and come back to it after the current task.",
+      "A huge paste no longer freezes the box or buries what you were asking.",
+      "A day-long conversation opens and scrolls as quickly as a short one, and nothing in it is deleted.",
+    ],
+    betterThan:
+      "Most chat boxes forget what you typed on reload and render every message of a long conversation at once. These are small things until the chat is where you spend the day, and then they are the things you notice most.",
   },
 
   "ai-tagflow": {

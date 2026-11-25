@@ -51,6 +51,10 @@ export const SLASH_COMMANDS: readonly SlashCommand[] = [
   { id: "team", hint: "Split the task across AI roles", kind: "action" },
   { id: "schedule", hint: "Send a message later", kind: "action" },
   { id: "compact", hint: "Summarise the older conversation to make room", kind: "action" },
+  { id: "goal", hint: "Keep working, turn after turn, until a goal is met", kind: "action" },
+  { id: "btw", hint: "Ask about this chat on the side, without adding to it", kind: "action" },
+  { id: "stash", hint: "Put this prompt aside for later, or bring one back", kind: "action" },
+  { id: "usage", hint: "AI usage, including Claude Code and Codex", kind: "action" },
   { id: "sleep", hint: "Sleep or shut down the computer when the work is done", kind: "action" },
   { id: "phone", hint: "Chat with this computer from your phone", kind: "action" },
 ];

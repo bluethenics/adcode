@@ -675,6 +675,17 @@ How to use it: Terminal sandboxes are cleaned oldest first. An applied task may 
 
 Access: `All Features → AI workspace storage`; `Settings`.
 
+<!-- feature:ai.composerMemory -->
+### All-day chat: drafts, stash, big pastes and long conversations
+
+The chat keeps up with people who use it all day: drafts survive a reload, prompts can be put aside for later, huge pastes become attachments, and a conversation that ran for hours still opens and scrolls quickly.
+
+Why use it: When the chat is where you work, losing a long prompt to a reload, a 200 KB log freezing the box, or a day-long conversation that takes seconds to open are the things that hurt most.
+
+How to use it: Drafts: whatever you type is kept for each conversation as you go; after a reload or a switch to another chat, an empty composer gets it back, and sending clears it. Stash: choose Tools > Stash prompt to put the prompt and its attachments aside and clear the composer, and Tools > Stashed prompts, AI: Stashed Prompts or /stash to bring one back (/stash followed by words stashes those words). Up to 20 are kept; very large attachments are left out of a stash. Big pastes: pasting 32 KB or more of text adds it as an attachment named after what it looks like (pasted-1.log, pasted-2.json) instead of filling the box; press Ctrl+Shift+V (Cmd+Shift+V on a Mac) to paste it into the text instead. The model reads the first 50,000 characters of an attachment. Long conversations: reopening a conversation draws its newest messages first, and a live chat that has grown very long sets its oldest finished messages aside; press Show earlier messages at the top to bring them back, a batch at a time. Nothing is deleted - it is only drawn when you scroll back to it. Coding CLIs: a chat that runs on Claude Code, Codex or another CLI resumes the same CLI session after ADCode restarts or updates, so the CLI keeps everything it read and did; if the CLI has since removed that session, the chat says so once and your next message starts a new session with the conversation so far.
+
+Access: `All Features → All-day chat: drafts, stash, big pastes and long conversations`; `Stashed prompts`.
+
 <!-- feature:adcode.ai.askBeforeConnectorTools -->
 ### Ask before connector tools
 
@@ -718,6 +729,17 @@ Why use it: A real job takes minutes. You should not have to watch one finish be
 How to use it: Send a message, then open another conversation (or press + New) and send there too: up to four chats work at the same time, one at a time in Review mode. In Conversations a spinner means a chat is working, a green dot means it finished while you were elsewhere, and an amber dot means it stopped before finishing - each until you open it. Opening a working chat shows its timeline so far and carries on live; Stop stops only the chat on screen. A message typed into a chat while it works waits for that chat, even if you leave it. Minimise the app or switch to another program and the work goes on: ADCode keeps the computer from suspending it while a chat works, and a notification says when one finishes. On the web the cloud workspace stays awake while a chat works, even with the tab in the background or closed - it counts against the day's cloud time - and the tab's title gets a dot when one finishes. With Keep going until done on, a long job carries on past the step limit by itself. Run AI: Show Working Chats to see them all.
 
 Access: `All Features → Chats that keep working`; `Show working chats`.
+
+<!-- feature:ai.cliUsage -->
+### Claude Code and Codex usage
+
+See what Claude Code and Codex used - tokens, cache savings, cost per model and day, and Codex's plan limits - read from the history they keep on this computer, including work done outside ADCode.
+
+Why use it: If you drive coding agents all day on a subscription, their own screens tell you little. This shows where the tokens went, what the prompt cache saved, which model costs most and how much of your Codex allowance is left - in the same place as the rest of your AI use.
+
+How to use it: Run AI: Show Claude Code and Codex Usage, type /usage in the chat, or open Usage and choose Coding CLIs. Pick Today, 7 days, 30 days or 90 days at the top. You see the estimated API cost, tokens, what the cache saved and how many requests and sessions, then Codex's limits (each window with how much is left and when it resets, dated to Codex's last request), a row per tool, a bar per day and a table by model with input, cache reads, cache writes, output and cache hit rate. Costs are what the same tokens would cost at API list prices from ADCode's model list - not your subscription bill - and a model with no known price shows No price and is left out of the cost. Press Refresh to read again; only what changed since the last read is read, so it stays quick with years of history. Only ~/.claude/projects (or CLAUDE_CONFIG_DIR) and ~/.codex/sessions (or CODEX_HOME) are read, nothing is changed or sent anywhere, and Where this was read lists each folder and what was found. Claude Code deletes its own transcripts after 30 days by default, so older Claude use may be missing. Claude's plan limits are not shown: Claude Code does not write them to disk.
+
+Access: `All Features → Claude Code and Codex usage`; `Show Claude Code and Codex usage`.
 
 <!-- feature:ai.connect -->
 ### Connect a model
@@ -781,7 +803,7 @@ Split a job into visible fork chats that work in parallel, already know the conv
 
 Why use it: Some jobs split naturally into independent parts - research two APIs while a third part writes the tests. Helpers disappear into one tool result, but a fork is a real conversation you can open, redirect or continue afterwards.
 
-How to use it: Ask for a task with independent parts and the assistant forks it by itself, saying which forks it started; turn off Fork chats on its own in Settings > AI to have it fork only when you ask. You can also fork the conversation yourself: press Fork in the chat header, choose Fork this conversation from a conversation's menu, or run AI: Fork This Conversation. A manual fork copies the conversation, appears in History with a branch mark, and waits for you to send in it. The assistant can also start up to three forks in one go with up to six per chat; only the main chat can start or stop a fork. Each fork has its own tab, model turn and history, and starts from a copy of the parent's conversation so it does not need the same explanation again. Forks can send each other short messages - a decision, a warning about a shared file, a question - which arrive between tool calls, and the main chat can wait for its forks and collect their reports. Fork chats cannot start more forks. All chats share the same project files, so assign separate files where possible. The family can exchange up to forty messages before it is asked to finish.
+How to use it: Ask for a task with independent parts and the assistant forks it by itself, saying which forks it started; turn off Fork chats on its own in Settings > AI to have it fork only when you ask. You can also fork the conversation yourself: press Fork in the chat header, choose Fork this conversation from a conversation's menu, or run AI: Fork This Conversation. A manual fork copies the conversation, appears in History with a branch mark, and waits for you to send in it. The assistant can also start up to three forks in one go with up to six per chat; only the main chat can start or stop a fork. Each fork has its own tab, model turn and history, and starts from a copy of the parent's conversation so it does not need the same explanation again - or, for a self-contained part or a long conversation, fresh, with only its task, which is faster and much cheaper. Forks can send each other short messages - a decision, a warning about a shared file, a question - which arrive between tool calls, and the main chat can wait for its forks and collect their reports. If the main chat finishes its turn first, the forks report back by themselves once they are all done: the main chat starts its next turn with their reports, checks the work and tells you where things stand, the way Claude's nested sessions report to the session that started them. A fork you stopped stays quiet, and a main chat is woken at most eight times this way. Fork chats cannot start more forks. All chats share the same project files, so assign separate files where possible. The family can exchange up to forty messages before it is asked to finish.
 
 Access: `All Features → Fork chats`; `Fork this conversation`; `Turn on or off`; `Settings`.
 
@@ -806,6 +828,17 @@ Why use it: Some jobs are a long chain of small permissions: connect a server, e
 How to use it: Turn it on from the approval menu in the chat's composer - it reads Auto or Review; the first entry is Full access - or from Settings, under Assistant, then confirm the card that lists what stops being asked. While it is on, a red shield at the bottom of the message box says so, and clicking that shield switches the mode off at once with no dialog. It covers ADCode's own confirmations in a chat, including: starting a connector's program, enabling its tools or removing it, changing guarded settings such as where edits land or how the app updates, running this project's approval-gated hooks, creating or updating an agent plan, and applying edits even when AI edit approval is set to Review. It does not override those capability switches by itself - AI file tools, Let the assistant use the Browser and Let other AI tools use ADCode still apply - it still refuses passwords and card numbers, the shell's small list of machine-destroying commands stays blocked, and the assistant cannot turn it on or off itself: its own action tool refuses that one setting, and only the card you press or the Settings switch changes it. It applies to this app's chats and agent runs that ADCode starts, not to another program using ADCode's tools through the tool bridge, which still asks. When ADCode answers through a connected coding CLI used as the model - Claude Code or Codex - Full access also runs that CLI with its own permission questions off (Claude Code's bypass mode, Codex's bypass-approvals-and-sandbox mode), so those turns act with the CLI's full machine access. ADCode's own deny rules and hard blocks still apply to its own tools. Turning it off is immediate, even in the middle of a turn; the assistant's next guarded action asks again. It is session-only: closing ADCode turns it off, and it is off again on the next launch, so a forgotten switch cannot keep the guard rails down for weeks.
 
 Access: `All Features → Full access mode`; `Change full access`; `Turn on or off`; `Settings`.
+
+<!-- feature:ai.goal -->
+### Goals: keep going until it is done
+
+Type /goal and what done means - /goal all tests in src/api pass - and the assistant keeps working, turn after turn, until it has met and checked it.
+
+Why use it: Big jobs stop after every turn to ask whether to continue. With a goal you can set the finish line and walk away; it comes back when the work is done or when it genuinely needs you.
+
+How to use it: Type /goal followed by what done means and press Enter, or run AI: Set a Goal. A Goal strip appears above the composer. After each turn the assistant either ends with GOAL MET (the strip says Met), GOAL BLOCKED and a reason (the strip says what it needs from you), or keeps going: ADCode sends the next turn by itself, up to 30 automatic turns, then stops so a goal that cannot be met never runs all night. A message you queue goes first, and the goal continues after it. Stop, an error or opening another chat pauses the goal; press Resume on the strip or type /goal resume to continue with a fresh 30 turns. /goal on its own shows the goal, /goal pause pauses it and /goal clear removes it.
+
+Access: `All Features → Goals: keep going until it is done`; `Set a goal`.
 
 <!-- feature:ai.subagents -->
 ### Helpers: agents that start agents
@@ -1048,6 +1081,17 @@ Why use it: A reminder that can actually reach the assistant is useful for follo
 How to use it: Choose Schedule beside the chat composer, choose where to send the message and set a local time, then confirm. Built-in chat is always available. For a detected terminal AI, first choose Allow next schedule while its prompt is visibly waiting; later terminal activity removes that one-time permission. If ADCode, the project, or scheduled messages are unavailable at delivery time, the message is marked missed and waits for you to choose Run now.
 
 Access: `All Features → Scheduled AI messages`; `Schedule`; `Turn on or off`; `Settings`.
+
+<!-- feature:ai.sideChats -->
+### Side chats
+
+Ask a question about the conversation without adding it to the conversation: /btw why did it pick SQLite? opens a side chat that already knows everything, while the main chat keeps working.
+
+Why use it: Mid-task questions - what does this function do, why that library - clutter a long conversation and can steer it off course. A side chat answers them apart, and the main work never sees the detour.
+
+How to use it: Type /btw and your question in a main conversation and press Enter, or run AI: Ask on the Side, or choose Side chat from Tools. ADCode copies the conversation into a new chat titled Side: and your question, opens it and sends the question there. The main chat keeps working; its link is at the top of the side chat, and both stay in History. A side chat counts toward the six forks a conversation can have, and it cannot be started from a fork.
+
+Access: `All Features → Side chats`; `Ask on the side`.
 
 <!-- feature:ai.mcpSignIn -->
 ### Sign in to a connector
@@ -1472,6 +1516,17 @@ Why use it: When the assistant edits as it works, this is where you see what it 
 How to use it: Choose Changes on the Vibe window's rail, or Show Workspace Changes in the command palette; it opens as a floating window you can move, resize and maximise. The bar at the top shows the uncommitted +added −removed total, the branch and Commit & Push; the line under it always says which files the next commit takes. Each row is a file with its line counts, a New or Deleted tag, a revert arrow and a checkbox. Select a file to see its diff - a new file shows its whole contents. Untick a file to leave it out of the next commit; while every box is ticked, Commit & Push takes every file. Commit & Push commits and pushes in one step, with a message such as Update css/app.css and 2 more files when you have not written one; the arrow beside it offers Commit only and Write the commit message. A project not yet connected to GitHub is committed on this computer, and the panel says how to connect it. The revert arrow asks first, then puts an edited file back as it was at the last commit, or moves a new file to the Recycle Bin. The branch button switches branch; the ⋯ button holds Include everything, Pull, Push, Revert all changes and Source Control. In a folder without Git, Turn on version control starts tracking it. On a drive that does not record who owns files (FAT32 or exFAT, most USB sticks), Git refuses a repository until the folder is trusted: one ADCode just created is trusted for you, and for any other the panel says Git needs your OK and offers Trust this folder - trust only folders you made or got from someone you trust, because a repository can run its own scripts. Work from Review mode or an AI Team that is waiting to be applied appears at the top of the panel.
 
 Access: `All Features → Changes panel`; `Open Changes`.
+
+<!-- feature:workbench.codeFiles -->
+### Code and files beside the chat
+
+See your project's files and the code in them in the column beside the chat, next to the preview and the browser, without switching to the IDE.
+
+Why use it: When the assistant builds something you want to see what it wrote and where it put it. Switching to the full editor breaks the flow of the conversation; this keeps the code one click away from it.
+
+How to use it: Choose Code in the Vibe sidebar, run Show Code and Files from the command palette, or open the ⋯ menu and choose Code and files. The panel opens in the column beside the chat with the project's files on the left: click a folder to open it, click a file to read it on the right with line numbers and colour. Arrow keys move through the tree, Right opens a folder and Left closes it. Type in Filter files to narrow the folders you have opened. The open file redraws as the assistant changes it, keeping your place. Copy copies the file, Ask asks the assistant about it, and Open in editor takes you to the IDE to change it. Large folders such as node_modules and .git are dimmed and stay closed until you open them. Images show as pictures; very large or binary files say so and offer the editor instead. The panel shares its tabs with Project and Changes, and on a narrow window the tree sits above the code.
+
+Access: `All Features → Code and files beside the chat`; `Show code and files`.
 
 <!-- feature:workbench.commandPalette -->
 ### Command palette

@@ -125,12 +125,38 @@ import { chatAppearanceFrom, watchChatAppearance, type ChatAppearance } from "./
 import { openChatAppearanceDialog } from "./chatAppearanceDialog.ts";
 import { createQuestionCard } from "./chatQuestionCard.ts";
 import { openUsageDialog } from "./usageDialog.ts";
+import { createTranscriptWindow, earlierBatch, editSlots, restoreStart } from "./transcriptWindow.ts";
 import { createChatUsagePopover } from "./chatUsagePopover.ts";
 import { firstBuildPrompt, looksLikeBuildRequest } from "../../shared/firstBuild.ts";
 import { BUY_TOKENS_URL } from "../../shared/tagflow.ts";
 import { createLimitPauseCard, parseLimitPause } from "./limitPause.ts";
 import { createLiveSessionDock } from "../collab/liveSessionDock.ts";
-import { AppWindow, ArrowDown, ArrowRight, CalendarClock, CircleAlert, Folder, Maximize2, Mic, Moon, Smartphone, Users, type IconNode } from "lucide";
+import { AppWindow, Archive, ArrowDown, ArrowRight, CalendarClock, CircleAlert, Folder, Maximize2, MessagesSquare, Mic, Moon, Smartphone, Target, Users, type IconNode } from "lucide";
+import {
+  addToStash,
+  browserStore,
+  draftKey,
+  forgetSentDraft,
+  pasteBecomesAttachment,
+  pasteName,
+  readDraft,
+  readStash,
+  stashLabel,
+  takeFromStash,
+  writeDraft,
+  type StashedPrompt,
+} from "./composerMemory.ts";
+import {
+  afterGoalTurn,
+  goalContinuePrompt,
+  goalStartPrompt,
+  goalSummary,
+  newGoal,
+  parseGoalCommand,
+  pauseGoal,
+  resumeGoal,
+  type GoalState,
+} from "./goalMode.ts";
 import { openPhoneLinkDialog, phoneChipText } from "../phone/phoneLinkDialog.ts";
 import { openPowerDialog, powerChipText } from "../power/powerUi.ts";
 import { enhanceSelect } from "../workbench/selectMenu.ts";
@@ -162,6 +188,10 @@ export interface ChatWidget {
   newConversation(): void;
   /** Copy the conversation on screen into a new visible chat and open it. */
   forkConversation(): void;
+  /** Put `/goal ` or `/btw ` at the start of the composer, ready for the words after it. */
+  startCommand(command: "goal" | "btw"): void;
+  /** List the prompts put aside with Stash, or bring back the only one. */
+  openStash(): void;
   /** Bring chat forward and open the existing, confirmed Team setup flow. */
   openTeamSetup(): void;
   /** Bring chat forward and open the existing local schedule composer. */
@@ -764,9 +794,12 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     planCard = null;
     viewCard = null;
     transcript.replaceChildren();
+    transcriptWindow.reset();
     authorPending = true;
     streamingBubble = null;
     activeSessionId = null;
+    moveDraftTo(null);
+    paintGoal();
     conversationTitle.textContent = "New conversation";
     renderLineage(null);
     renderMemory(null);
@@ -1085,6 +1118,41 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   transcript.setAttribute("role", "log");
   transcript.setAttribute("aria-label", "Conversation");
 
+  /*
+   * A day-long chat stays fast (`transcriptWindow.ts`): a reopened conversation draws its newest
+   * messages first, and a live one sets its oldest finished elements aside once it is long.
+   * Nothing is lost: "Show earlier messages" brings them back.
+   */
+  const transcriptWindow = createTranscriptWindow(transcript, {
+    protect: (node) => {
+      if (!(node instanceof HTMLElement)) return false;
+      if (node === working || node === liveCard || node === streamingBubble) return true;
+      if (node.contains(document.activeElement)) return true;
+      for (const entry of questionCards.values()) if (entry.card.element === node) return true;
+      return false;
+    },
+    atBottom: () => stickToBottom,
+    bar: (show) => {
+      const element = document.createElement("div");
+      element.className = "chat-earlier";
+      const more = document.createElement("button");
+      more.type = "button";
+      more.className = "ghost-button chat-earlier-button";
+      more.textContent = "Show earlier messages";
+      more.addEventListener("click", () => show());
+      const count = document.createElement("span");
+      count.className = "chat-earlier-count";
+      element.append(more, count);
+      return {
+        element,
+        setCount: (hidden) => {
+          count.textContent = `${hidden.toLocaleString()} more above`;
+          more.setAttribute("aria-label", `Show earlier messages, ${hidden.toLocaleString()} more above`);
+        },
+      };
+    },
+  });
+
   // Stick-to-bottom: the transcript follows the tail only while the user is
   // already near the bottom. Scrolling up pins the view and reveals the
   // floating "Jump to latest" button instead of yanking the user back down
@@ -1275,6 +1343,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   /** A chat left while it worked: the follow-ups typed there go with it, not to the next chat. */
   function leaveShownChat(): void {
+    holdGoal("you opened another chat");
     if (activeSessionId !== null && runningChats.has(activeSessionId) && followUps.items().length > 0) {
       parkedFollowUps.set(activeSessionId, [...followUps.items()]);
     }
@@ -1639,19 +1708,40 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     planCard = null;
     viewCard = null;
     transcript.replaceChildren();
+    transcriptWindow.reset();
     authorPending = true;
     streamingBubble = null;
     live.chatWindow.reset();
     activeSessionId = session.id;
+    moveDraftTo(session.id);
+    paintGoal();
     conversationTitle.textContent = session.title;
     renderLineage(session);
 
-    restoring = true;
-    const messageNodes: HTMLElement[] = [];
-    try {
-      let editIndex = 0;
-      for (const message of session.messages) {
-        while (editIndex < edits.length && edits[editIndex]!.createdAt < message.at) appendEditSummary(edits[editIndex++]!);
+    /*
+     * A long conversation draws its newest messages now and the rest on request
+     * (`transcriptWindow.ts`), so a chat that ran all day opens as fast as a short one.
+     */
+    const messages = session.messages;
+    const roles = messages.map((message) => message.role);
+    const slots = editSlots(edits.map((edit) => edit.createdAt), messages.map((message) => message.at));
+    const editsBefore = new Map<number, AiCheckpointView[]>();
+    edits.forEach((edit, index) => {
+      const slot = slots[index]!;
+      editsBefore.set(slot, [...(editsBefore.get(slot) ?? []), edit]);
+    });
+    const nodeAt = new Map<number, HTMLElement>();
+    // Everything above the line is what the summary stands for; the model reads the
+    // summary and the messages below it.
+    currentSummary = session.summary?.text ?? null;
+    const summary = session.summary ?? null;
+    const coversUntil = summary !== null && summary.coversUntil > 0 ? summary.coversUntil : null;
+    let divider: HTMLElement | null = null;
+    /** Draw messages [from, to) and the edits among them at the end; the divider when it moved. */
+    const drawRange = (from: number, to: number): HTMLElement | null => {
+      for (let index = from; index < to; index += 1) {
+        for (const edit of editsBefore.get(index) ?? []) appendEditSummary(edit);
+        const message = messages[index]!;
         // "Continue", said by Keep going until done or the Continue button, was never typed: a
         // reopened chat shows it as the note it was, not as twenty messages from the person.
         if (message.role === "user" && message.text.trim() === CONTINUE_PROMPT) {
@@ -1659,7 +1749,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           note.className = "chat-mode-note";
           note.textContent = "Continued after the step limit";
           transcript.append(note);
-          messageNodes.push(note);
+          nodeAt.set(index, note);
           continue;
         }
         const node = bubble(message.role === "user" ? "user" : "assistant", message.text, [], message.at, message.includedRequestId);
@@ -1670,19 +1760,45 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
             if (!message.author.self) node.classList.add("is-teammate");
           } else if (!message.author.self) node.dataset["askedBy"] = message.author.name;
         }
-        messageNodes.push(node);
+        nodeAt.set(index, node);
       }
-      while (editIndex < edits.length) appendEditSummary(edits[editIndex++]!);
+      if (to === messages.length) for (const edit of editsBefore.get(messages.length) ?? []) appendEditSummary(edit);
+      if (coversUntil === null || coversUntil < from || coversUntil >= to) return null;
+      divider ??= compactionDivider();
+      transcript.insertBefore(divider, nodeAt.get(coversUntil) ?? null);
+      return divider;
+    };
+    const start = restoreStart(roles);
+    restoring = true;
+    try {
+      drawRange(start, messages.length);
     } finally {
       restoring = false;
     }
-    // Everything above the line is what the summary stands for; the model reads the
-    // summary and the messages below it.
-    currentSummary = session.summary?.text ?? null;
-    const summary = session.summary ?? null;
-    if (summary !== null && summary.coversUntil > 0) {
-      transcript.insertBefore(compactionDivider(), messageNodes[summary.coversUntil] ?? null);
+    // Summarised history that is not drawn yet: the line still marks where the summary ends.
+    if (coversUntil !== null && coversUntil < start) {
+      divider = compactionDivider();
+      transcript.insertBefore(divider, transcript.firstChild);
     }
+    let undrawnEnd = start;
+    transcriptWindow.setUndrawn(start, (count) => {
+      const { from, to } = earlierBatch(roles, undrawnEnd, count);
+      const before = new Set(Array.from(transcript.children));
+      // Drawing older messages must not change who replies next or what was asked last.
+      const keepAuthor = authorPending;
+      const keepPrompt = lastUserPrompt;
+      let moved: HTMLElement | null = null;
+      restoring = true;
+      try {
+        moved = drawRange(from, to);
+      } finally {
+        restoring = false;
+        authorPending = keepAuthor;
+        lastUserPrompt = keepPrompt;
+      }
+      undrawnEnd = from;
+      return { nodes: Array.from(transcript.children).filter((node) => !before.has(node) || node === moved), drawn: to - from };
+    });
     refreshContextMeter();
 
     finishedUnseen.delete(session.id);
@@ -2098,6 +2214,15 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   // Enter while a turn runs queues the message instead of stopping the work it is about.
   // Each one goes, in order, when the turn before it finishes; Send now and × act on one.
   const followUps = createChatQueue<PendingAttachment>();
+  /* Composer drafts and /goal state, declared before anything that can leave a chat uses them. */
+  let draftChat = draftKey(null);
+  let savedDraft = "";
+  let draftTimer: number | null = null;
+  const goals = new Map<string, GoalState>();
+  const goalStrip = document.createElement("div");
+  goalStrip.className = "chat-goal";
+  goalStrip.setAttribute("role", "status");
+  goalStrip.hidden = true;
   /** A follow-up waiting for the turn it interrupted to finish cancelling. */
   let sendAfterCancel: QueuedMessage<PendingAttachment> | null = null;
   const queueStrip = document.createElement("div");
@@ -2632,6 +2757,298 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       ? `Live project · ${String(state.online)} online · ${String(state.working)} working${unread ? ` · ${String(state.unread)} unread` : ""}`
       : "Start or join a live project session";
   });
+  /* ── What the composer remembers (composerMemory.ts), side chats and /goal (goalMode.ts) ── */
+
+  // Stash: put this prompt aside for later and clear the composer; bring one back any time.
+  const stashMenu = createContextMenu(document.body);
+  attachContextMenuDismissal(stashMenu, () => input.focus());
+  function stashPrompt(text = input.value): void {
+    if (text.trim().length === 0 && pending.length === 0) {
+      openStash();
+      return;
+    }
+    const { droppedAttachments } = addToStash(browserStore, {
+      text,
+      attachments: pending.map(({ name, kind, mediaType, data }) => ({ name, kind, mediaType, data })),
+    });
+    input.value = "";
+    autogrowComposer();
+    clearAttachments();
+    saveDraftNow();
+    complain(droppedAttachments
+      ? "Stashed the text; its attachments were too large to keep. Tools > Stashed prompts brings it back."
+      : "Stashed. Tools > Stashed prompts, or /stash, brings it back.");
+  }
+  function restoreStash(item: StashedPrompt): void {
+    const taken = takeFromStash(browserStore, item.id);
+    if (taken === null) return;
+    // Whatever is already in the composer stays, above the restored prompt.
+    input.value = input.value.trim().length === 0 ? taken.text : `${input.value}\n\n${taken.text}`;
+    autogrowComposer();
+    for (const attachment of taken.attachments) {
+      if (attachment.kind === "text") {
+        addTextContext(attachment.name, attachment.data);
+        continue;
+      }
+      pending = [...pending, {
+        id: `stash-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+        name: attachment.name,
+        kind: attachment.kind as PendingAttachment["kind"],
+        mediaType: attachment.mediaType,
+        size: Math.round(attachment.data.length * 0.75),
+        previewUrl: attachment.kind === "image" ? `data:${attachment.mediaType};base64,${attachment.data}` : "",
+        data: attachment.data,
+      }];
+    }
+    renderAttachments();
+    input.focus();
+  }
+  function openStash(anchor: HTMLElement = input): void {
+    const stash = readStash(browserStore);
+    if (stash.length === 0) {
+      complain("Nothing stashed yet. Tools > Stash prompt puts what you are writing aside for later.");
+      return;
+    }
+    if (stash.length === 1 && input.value.trim().length === 0 && pending.length === 0) {
+      restoreStash(stash[0]!);
+      return;
+    }
+    const rect = anchor.getBoundingClientRect();
+    stashMenu.open(rect.left, rect.top - 4, [
+      { kind: "heading", label: "Stashed prompts" },
+      ...stash.map((item) => ({ label: stashLabel(item), run: () => restoreStash(item) })),
+    ], () => undefined, { prefer: "above" });
+  }
+
+  /*
+   * Drafts, per conversation: a reload, a crash or a switch to another chat keeps what you were
+   * writing, and coming back with an empty composer puts it back.
+   */
+  function saveDraftNow(): void {
+    if (draftTimer !== null) {
+      window.clearTimeout(draftTimer);
+      draftTimer = null;
+    }
+    if (input.value === savedDraft) return;
+    savedDraft = input.value;
+    writeDraft(browserStore, draftChat, input.value);
+  }
+  /** The composer now belongs to another conversation: keep this one's draft, offer that one's. */
+  function moveDraftTo(sessionId: string | null): void {
+    saveDraftNow();
+    draftChat = draftKey(sessionId);
+    if (input.value.trim().length === 0) {
+      const text = readDraft(browserStore, draftChat);
+      if (text !== null) {
+        input.value = text;
+        autogrowComposer();
+      }
+    }
+    savedDraft = input.value;
+  }
+  input.addEventListener("input", () => {
+    if (draftTimer !== null) window.clearTimeout(draftTimer);
+    draftTimer = window.setTimeout(saveDraftNow, 400);
+  });
+  // Sending, queueing and stashing empty the box without an input event, and a new chat gets
+  // its id after the first send: a light tick keeps the draft in step with both.
+  window.setInterval(() => {
+    const key = draftKey(activeSessionId);
+    if (key === draftChat) { saveDraftNow(); return; }
+    if (input.value.trim().length > 0) {
+      // The words in the box go with the conversation that is now shown.
+      writeDraft(browserStore, draftChat, "");
+      draftChat = key;
+      savedDraft = "";
+      saveDraftNow();
+    } else moveDraftTo(activeSessionId);
+  }, 2_000);
+  window.addEventListener("beforeunload", saveDraftNow);
+  window.setTimeout(() => moveDraftTo(activeSessionId), 0);
+
+  // Big pastes become an attachment; Ctrl+Shift+V (Cmd+Shift+V) keeps one in the text.
+  let pasteInline = false;
+  let pasteCount = 0;
+  input.addEventListener("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "v") {
+      pasteInline = true;
+      window.setTimeout(() => { pasteInline = false; }, 1_000);
+    }
+  }, true);
+  /** True when the paste was taken as an attachment. */
+  function takeBigPaste(text: string): boolean {
+    const inline = pasteInline;
+    pasteInline = false;
+    if (!pasteBecomesAttachment(text, inline)) return false;
+    pasteCount += 1;
+    const name = pasteName(text, pasteCount);
+    if (!addTextContext(name, text)) return true;
+    const size = `${Math.round(new Blob([text]).size / 1024).toLocaleString()} KB`;
+    complain(text.length > MAX_TEXT_CHARS
+      ? `Pasted ${size} as ${name}; the first ${MAX_TEXT_CHARS.toLocaleString()} characters go to the model. Ctrl+Shift+V pastes into the box instead.`
+      : `Pasted ${size} as ${name} so the box stays quick. Ctrl+Shift+V pastes into the box instead.`);
+    return true;
+  }
+
+  /*
+   * Side chats (/btw): ask about this conversation without adding to it. A copy of the chat
+   * answers in its own tab while this one keeps working, and History keeps both.
+   */
+  async function sideChat(question: string): Promise<void> {
+    const words = question.trim();
+    if (words.length === 0) {
+      complain("Type your question after /btw, for example: /btw why did it choose SQLite?");
+      return;
+    }
+    if (activeSessionId === null) {
+      complain("Send a message first: a side chat starts from what this conversation already knows.");
+      return;
+    }
+    if (lineageParentId !== null) {
+      complain("Side chats start from a main conversation. Open its parent to ask on the side.");
+      return;
+    }
+    const parentId = activeSessionId;
+    const child = await window.adcode.chat.fork(parentId).catch(() => null);
+    if (child === null) {
+      complain("No side chat: a conversation keeps up to six forks and side chats. Remove one from History first.");
+      return;
+    }
+    const flat = words.replace(/\s+/g, " ");
+    await window.adcode.chat.rename(child.id, `Side: ${flat.length > 60 ? `${flat.slice(0, 59)}…` : flat}`).catch(() => undefined);
+    saved = soloChats(await window.adcode.chat.sessions());
+    collapsedForks.delete(parentId);
+    renderHistory();
+    await resume(child.id);
+    if (activeSessionId !== child.id) return;
+    sendQueued({ id: -1, text: words, attachments: [] });
+    complain("Side chat: the main conversation keeps working. Its link is at the top of this chat.");
+  }
+
+  /* /goal: keep working, turn after turn, until the goal is met (goalMode.ts). */
+  function currentGoal(): GoalState | null {
+    return goals.get(draftKey(activeSessionId)) ?? null;
+  }
+  function setGoal(state: GoalState | null): void {
+    const key = draftKey(activeSessionId);
+    if (state === null) goals.delete(key);
+    else goals.set(key, state);
+    paintGoal();
+  }
+  function goalButton(label: string, run: () => void): HTMLButtonElement {
+    const node = document.createElement("button");
+    node.type = "button";
+    node.className = "ghost-button chat-goal-action";
+    node.textContent = label;
+    node.addEventListener("click", run);
+    return node;
+  }
+  function paintGoal(): void {
+    const goal = currentGoal();
+    goalStrip.hidden = goal === null;
+    goalStrip.replaceChildren();
+    if (goal === null) return;
+    goalStrip.dataset["status"] = goal.status;
+    const text = document.createElement("span");
+    text.className = "chat-goal-text";
+    text.textContent = `Goal: ${goal.goal}`;
+    text.title = goal.goal;
+    const state = document.createElement("span");
+    state.className = "chat-goal-state";
+    state.textContent = goalSummary(goal);
+    goalStrip.append(createIcon(Target), text, state);
+    if (goal.status === "working") goalStrip.append(goalButton("Pause", () => setGoal(pauseGoal(goal, "paused by you"))));
+    else if (goal.status !== "met") goalStrip.append(goalButton("Resume", () => runGoalCommand("resume")));
+    goalStrip.append(goalButton(goal.status === "met" ? "Dismiss" : "Clear", () => setGoal(null)));
+  }
+  /** Send a goal turn without touching the composer: what the person is typing stays theirs. */
+  function sendGoalTurn(text: string): void {
+    if (sendButton.dataset["mode"] === "stop") {
+      followUps.add(text, []);
+      complain("The goal starts when the current turn finishes.");
+      return;
+    }
+    sendQueued({ id: -1, text, attachments: [] });
+  }
+  function runGoalCommand(rest: string): void {
+    const command = parseGoalCommand(rest);
+    const goal = currentGoal();
+    switch (command.kind) {
+      case "show":
+        complain(goal === null ? "No goal set. Type /goal and what done means, for example: /goal all tests in src/api pass." : `Goal: ${goal.goal} - ${goalSummary(goal)}`);
+        return;
+      case "clear":
+        setGoal(null);
+        complain(goal === null ? "There was no goal to clear." : "Goal cleared.");
+        return;
+      case "pause":
+        if (goal === null) complain("There is no goal to pause.");
+        else setGoal(pauseGoal(goal, "paused by you"));
+        return;
+      case "resume": {
+        if (goal === null) { complain("There is no goal to resume. Set one with /goal and what done means."); return; }
+        if (goal.status === "met") { complain("That goal is already met. Set a new one with /goal."); return; }
+        const resumed = resumeGoal(goal);
+        setGoal(resumed);
+        sendGoalTurn(goalContinuePrompt(resumed));
+        return;
+      }
+      case "set":
+        setGoal(newGoal(command.goal, activeSessionId));
+        sendGoalTurn(goalStartPrompt(command.goal));
+        return;
+    }
+  }
+  /** A turn ended: judge the reply against the goal, and send the next turn when it made progress. */
+  function continueGoal(reply: string): void {
+    const key = draftKey(activeSessionId);
+    let goal = goals.get(key);
+    if (goal === undefined && activeSessionId !== null) {
+      // Set in a chat that had no id yet: it belongs to the conversation that answered.
+      const unnamed = goals.get(draftKey(null));
+      if (unnamed !== undefined && unnamed.sessionId === null) {
+        goals.delete(draftKey(null));
+        goal = unnamed;
+      }
+    }
+    if (goal === undefined) return;
+    const next = afterGoalTurn(goal, reply, { queued: followUps.items().length > 0, sessionId: activeSessionId });
+    goals.set(key, next.state);
+    paintGoal();
+    if (next.state.status === "met" && goal.status !== "met") complain("Goal met.");
+    if (next.send === null) return;
+    const text = next.send;
+    window.setTimeout(() => {
+      if (draftKey(activeSessionId) === key && sendButton.dataset["mode"] !== "stop" && goals.get(key)?.status === "working") sendQueued({ id: -1, text, attachments: [] });
+    }, 600);
+  }
+  /** The person stepped in, or the turn failed: a working goal waits for /goal resume. */
+  function holdGoal(reason: string): void {
+    const goal = currentGoal();
+    if (goal !== null && goal.status === "working") setGoal(pauseGoal(goal, reason));
+  }
+
+  function toolShortcut(label: string, icon: IconNode, hint: string, run: () => void): HTMLButtonElement {
+    const node = document.createElement("button");
+    node.type = "button";
+    node.className = "chat-team-button";
+    node.addEventListener("click", run);
+    return toolRow(node, icon, label, hint);
+  }
+  const typeCommand = (command: string): void => {
+    input.value = `/${command} ${input.value.trim()}`.trimEnd() + " ";
+    autogrowComposer();
+    input.focus();
+    const end = input.value.length;
+    input.setSelectionRange(end, end);
+  };
+  toolsMenu.append(
+    toolShortcut("Goal", Target, "Keep going until it is done: /goal", () => typeCommand("goal")),
+    toolShortcut("Side chat", MessagesSquare, "Ask about this chat without adding to it: /btw", () => typeCommand("btw")),
+    toolShortcut("Stash prompt", Archive, "Put this prompt aside for later", () => stashPrompt()),
+    toolShortcut("Stashed prompts", Archive, "Bring back a prompt you put aside", () => openStash(toolsLabel)),
+  );
+
   // A live session is shared with other people over this computer's connection: a desktop
   // feature, like Team, so the web composer has no Live button.
   utilities.append(attachButton, attachContext, ...(isWebSurface() ? [] : [liveButton]), composerTools);
@@ -2659,6 +3076,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       { kind: "heading", label: "Enter · send message" },
       { kind: "heading", label: "Shift+Enter · new line" },
       { kind: "heading", label: "↑ · reuse your last prompt" },
+      { kind: "heading", label: "Ctrl+Shift+V · paste a big text into the box" },
+      { kind: "heading", label: "/goal · keep going until it is done" },
+      { kind: "heading", label: "/btw · ask on the side" },
+      { kind: "heading", label: "/stash · put this prompt aside" },
       { kind: "separator" },
       { label: "Browse commands", accelerator: "/", run: () => api.openComposerMenu("/") },
       { label: "Add a project file", accelerator: "@", run: () => api.openComposerMenu("@") },
@@ -2710,7 +3131,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   }, () => undefined);
   const composerMain = document.createElement("div");
   composerMain.className = "chat-composer-main";
-  composerMain.append(queueStrip, input, attachmentStrip, composerNotice, toolbar, composerFooter);
+  composerMain.append(goalStrip, queueStrip, input, attachmentStrip, composerNotice, toolbar, composerFooter);
   composer.append(composerMain, liveDock.element, filePicker);
 
   /* ── Typed menus: `/` runs a command, `@` adds a file ─────────────────── */
@@ -2752,6 +3173,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       case "compact": void compactNow(rest.length > 0 ? rest : undefined); return;
       case "sleep": void openPowerDialog(); return;
       case "phone": void openPhoneLinkDialog(); return;
+      case "goal": runGoalCommand(rest); return;
+      case "btw": void sideChat(rest); return;
+      case "stash": if (rest.length > 0) stashPrompt(rest); else openStash(); return;
+      case "usage": void openUsageDialog(); return;
     }
   }
 
@@ -2773,6 +3198,15 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     applyTrigger("");
     // Picked from the menu, an action never sends a draft: what else is in the composer stays.
     if (command.kind === "action") {
+      // These need words after them: put the command in the composer to finish.
+      if (command.id === "goal" || command.id === "btw") {
+        input.value = `/${command.id} ${input.value.trim()}`.trimEnd() + " ";
+        autogrowComposer();
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+        return;
+      }
+      if (command.id === "stash") { stashPrompt(); return; }
       runSlashAction(command.id);
       return;
     }
@@ -5367,6 +5801,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         streamingBubble = null;
         finishActivityFailed();
         setSendMode("send");
+        holdGoal("the last turn failed");
         const detail = String(event["detail"] ?? "unknown");
         // A capped task pauses: offer the ways forward as buttons.
         if (/token budget|token-limit/i.test(detail)) {
@@ -5418,8 +5853,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           const item = sendAfterCancel;
           sendAfterCancel = null;
           window.setTimeout(() => sendQueued(item), 250);
+          holdGoal("you sent a queued message");
           break;
         }
+        holdGoal("you stopped the turn");
         interruptedBanner();
         break;
 
@@ -5447,8 +5884,12 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           sponsorStrip.show({ ...nextSponsorExchange(), sessionId: eventSession ?? activeSessionId ?? launchSponsorSession });
         }
         void refreshHistory();
+        // /goal: a turn that made progress is followed by the next one, unless the person queued theirs.
+        if (!replaying) continueGoal(finished === null ? "" : messageSources.get(finished) ?? "");
         // A follow-up typed while this turn ran goes now.
         drainFollowUps();
+        // A chat that has run all day sets its oldest finished elements aside.
+        transcriptWindow.trim();
         break;
       }
     }
@@ -5527,7 +5968,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
      */
     const typed = parseSlashCommand(input.value);
     if (typed !== null && typed.command.kind === "action") {
-      input.value = typed.command.id === "new" || typed.command.id === "compact" ? "" : typed.rest;
+      // These read the words after them; the others leave them in the composer.
+      input.value = ["new", "compact", "goal", "btw", "stash"].includes(typed.command.id) ? "" : typed.rest;
       autogrowComposer();
       composerMenu.hide();
       runSlashAction(typed.command.id, typed.rest);
@@ -5639,6 +6081,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     }
 
     rememberSent(text);
+    forgetSentDraft(browserStore, text);
     input.value = "";
     autogrowComposer();
     clearAttachments();
@@ -5678,7 +6121,11 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   input.addEventListener("paste", (event) => {
     const files = event.clipboardData === null ? [] : [...event.clipboardData.files];
-    if (files.length === 0) return;
+    if (files.length === 0) {
+      // A log or a file's worth of text becomes an attachment instead of filling the box.
+      if (takeBigPaste(event.clipboardData?.getData("text/plain") ?? "")) event.preventDefault();
+      return;
+    }
     // Pasting a screenshot must attach it, not dump binary into the prompt.
     event.preventDefault();
     void addFiles(files);
@@ -5986,6 +6433,16 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         return;
       }
       void forkChat(activeSessionId);
+    },
+
+    startCommand(command): void {
+      api.open();
+      typeCommand(command);
+    },
+
+    openStash(): void {
+      api.open();
+      openStash(toolsLabel);
     },
 
     showConversations(): void {

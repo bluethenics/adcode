@@ -43,6 +43,15 @@ import { allowsAiCompletionForPath } from "./inlineCompletionContext.ts";
 // can be tested without launching a window.
 export { languageForFilename } from "./languageIds.ts";
 import { languageForFilename } from "./languageIds.ts";
+
+/**
+ * A file's text as highlighted HTML, for read-only views outside an editor (the Code tab).
+ * Monaco's colorize HTML-escapes the source before wrapping tokens, so the result is safe to
+ * assign as innerHTML.
+ */
+export function colorizeFile(text: string, path: string): Promise<string> {
+  return monaco.editor.colorize(text, languageForFilename(path.split(/[\\/]/).at(-1) ?? path), { tabSize: 2 });
+}
 import { markdownCodeReference } from "./codeReferences.ts";
 
 declare global {

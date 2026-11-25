@@ -173,6 +173,31 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("ai.showUsage", "Show usage")],
     keywords: ["usage", "tokens", "token count", "cost", "spend", "spending", "billing", "how much", "price", "per model", "budget", "activity", "streak", "heatmap", "calendar", "active days"],
   },
+  "workbench.codeFiles": {
+    added: "2026-11-24",
+    actions: [command("workspace.codeFiles", "Show code and files")],
+    keywords: ["code", "see the code", "view code", "file tree", "file structure", "files panel", "project files", "read file", "code viewer", "side panel", "beside the chat", "what did the ai write", "explorer", "vibe code"],
+  },
+  "ai.cliUsage": {
+    added: "2026-11-24",
+    actions: [command("ai.showCliUsage", "Show Claude Code and Codex usage")],
+    keywords: ["claude code usage", "codex usage", "cli usage", "coding agent usage", "subscription usage", "codex limits", "rate limits", "5-hour limit", "weekly limit", "plan limit", "api equivalent cost", "how much did claude cost", "tokens per model", "cache savings", "ccusage", "/usage"],
+  },
+  "ai.goal": {
+    added: "2026-11-24",
+    actions: [command("ai.setGoal", "Set a goal")],
+    keywords: ["/goal", "goal", "keep going", "keep working", "until done", "until tests pass", "autonomous", "auto continue", "don't stop", "finish the job", "walk away", "overnight", "loop until"],
+  },
+  "ai.sideChats": {
+    added: "2026-11-24",
+    actions: [command("ai.sideChat", "Ask on the side")],
+    keywords: ["/btw", "/side", "side chat", "side question", "by the way", "quick question", "ask without interrupting", "aside", "tangent", "don't add to the chat"],
+  },
+  "ai.composerMemory": {
+    added: "2026-11-24",
+    actions: [command("ai.stashedPrompts", "Stashed prompts")],
+    keywords: ["draft", "drafts", "lost my prompt", "reload", "autosave", "stash", "/stash", "save prompt for later", "paste large text", "big paste", "paste log", "paste as attachment", "ctrl+shift+v", "long conversation", "slow chat", "show earlier messages", "all day", "24 hours", "heavy use"],
+  },
   "ai.promptCaching": {
     actions: [command("ai.showCacheSavings", "Show cached tokens")],
     keywords: ["prompt caching", "prompt cache", "cache", "cached", "cached tokens", "cache hits", "cache_control", "cheaper", "save tokens", "save money", "repeated context", "long sessions", "faster replies", "cost less"],

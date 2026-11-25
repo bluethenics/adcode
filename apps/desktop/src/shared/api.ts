@@ -825,6 +825,7 @@ export const CHANNELS = {
   aiModelFeedback: "ai:model-feedback",
   aiAudience: "ai:audience",
   aiUsageClear: "ai:usage-clear",
+  aiCliUsageRead: "ai:cli-usage-read",
   aiUsageChanged: "ai:usage-changed",
   aiAutomationCreate: "ai-automation:create",
   aiAutomationList: "ai-automation:list",
@@ -2448,6 +2449,8 @@ export interface AdcodeApi {
     read(range: UsageRange, filter?: import("./usagePage.ts").UsageFilter): Promise<AnalysedUsageView>;
     clear(): Promise<void>;
     onChanged(listener: () => void): () => void;
+    /** Claude Code and Codex usage, read from the history they keep on this computer. `refresh` rescans now. */
+    cli(days: number, refresh?: boolean): Promise<import("./cliUsage.ts").CliUsageView>;
   };
   readonly aiAutomation: {
     create(input: AiAutomationCreateInputView): Promise<AiAutomationView>;

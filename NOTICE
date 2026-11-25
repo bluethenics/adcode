@@ -19,3 +19,9 @@ The desktop app bundles design guidance from taste-skill by Leonxlnx
 (https://github.com/Leonxlnx/taste-skill), licensed under the MIT licence. It
 lives in apps/desktop/src/main/builtinSkills/ with its licence, and its notice
 ships in THIRD-PARTY-NOTICES.txt.
+
+The coding CLI usage reader (apps/desktop/src/main/cliUsageModel.ts) ports the
+Claude Code and Codex transcript parsing rules from T3 Code by T3 Tools, Inc.
+(https://github.com/pingdotgg/t3code), licensed under the MIT licence. ADCode
+is not affiliated with or endorsed by T3 Tools, Inc. Its notice ships in
+THIRD-PARTY-NOTICES.txt.

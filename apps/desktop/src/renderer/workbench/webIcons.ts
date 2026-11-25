@@ -11,6 +11,7 @@ export const DISCORD_ICON: IconNode = [["path", { d: "M20.317 4.3698a19.7913 19.
 export const WEB_ICON = {
   newChat: MessageSquarePlus,
   changes: FileDiff,
+  code: CodeXml,
   preview: PanelsTopLeft,
   automations: CalendarClock,
   account: CircleUserRound,

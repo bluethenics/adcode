@@ -196,6 +196,7 @@ import { createConnectView } from "./ai/connectView.ts";
 import { ICON, createIcon, iconButton } from "./workbench/icons.ts";
 import { createSettingsView } from "./settings/settingsView.ts";
 import {
+  colorizeFile,
   languageForFilename,
 } from "./editor/editorHost.ts";
 import { createEditorWorkspace } from "./editor/editorWorkspace.ts";
@@ -6506,6 +6507,10 @@ function registerCommands(): void {
   add("phone.link", "Phone Link: Chat From Your Phone", () => void openPhoneLinkDialog());
   add("ai.showUsage", "AI: Show Usage", () => void openUsageDialog({ showConversations: () => chat.showConversations(), openChat: (id) => chat.openConversation(id) }));
   add("ai.showCredits", "AI: Show Free AI Credits", () => void openUsageDialog({ view: "limits" }));
+  add("ai.showCliUsage", "AI: Show Claude Code and Codex Usage", () => void openUsageDialog({ view: "clis" }));
+  add("ai.setGoal", "AI: Set a Goal (Keep Going Until Done)", () => chat.startCommand("goal"));
+  add("ai.sideChat", "AI: Ask on the Side", () => chat.startCommand("btw"));
+  add("ai.stashedPrompts", "AI: Stashed Prompts", () => chat.openStash());
   add("ai.buyTokens", "AI: Buy AI Credits", () => void window.open(BUY_TOKENS_URL, "_blank", "noopener"));
   add("ai.upgradePlan", "AI: Upgrade Plan", () => void window.open(BUY_TOKENS_URL, "_blank", "noopener"));
   add("ads.openNetworks", "Ads: Open Network Settings", () => void window.open("https://adcode.bluethenics.com/admin/ad-networks", "_blank", "noopener"));
@@ -6573,6 +6578,7 @@ function registerCommands(): void {
   });
   add("workspace.project", "Show Workspace Project", () => assistantDock?.showContext("project"));
   add("workspace.changes", "Show Workspace Changes", () => assistantDock?.showContext("changes"));
+  add("workspace.codeFiles", "Show Code and Files", () => assistantDock?.showContext("code"));
   // AI tasks (a Team's roles, Review mode's staged work) have no panel tab: they open as a list.
   // AI tasks live on the Agents board now, beside everything else agents are doing.
   add("workspace.tasks", "Show AI Tasks", () => commands.run("agents.open"));
@@ -7315,6 +7321,7 @@ projectContext = createProjectContext({
   reviewTask: task => chat.reviewTask(task),
   ask: prompt => chat.ask(prompt),
   run: command => commands.run(command),
+  colorize: (text, path) => colorizeFile(text, path),
 });
 assistantDock = createAssistantDock({
   chat, workbench: el("workbench"), sidebar: el("sidebar"), updateButton: titleUpdate,

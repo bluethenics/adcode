@@ -39,6 +39,7 @@ const PATH = {
   folder: "M2 4.5h4l1.5 2H14v7H2z",
   chevron: "M5 6.5 8 9.5l3-3",
   changes: "M3.5 2.5h6l3 3v8h-9zM6 7.5h4M8 5.5v4M6 11h4",
+  code: "M6 4.5 2.5 8 6 11.5M10 4.5l3.5 3.5L10 11.5",
   preview: "M2.5 3.5h11v8h-11zM5 14h6",
   automations: "M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zM8 5v3.2l2 1.3",
   chat: "M2.5 3.5h11v7.5h-6l-3 2.5V11h-2z",
@@ -217,6 +218,10 @@ export function createVibeSidebar(deps: VibeSidebarDeps): VibeSidebar {
 
   const changes = navItem("Changes", PATH.changes, "vibe-changes-button", () => { deps.toggleContext("changes"); closeDrawer(); });
   changes.control.setAttribute("aria-controls", "workspace-context-content");
+  // Code: the file tree and the code in it, in the column beside the chat (codeBrowser.ts).
+  const code = navItem("Code", PATH.code, "vibe-code-button", () => { deps.toggleContext("code"); closeDrawer(); });
+  code.control.setAttribute("aria-controls", "workspace-context-content");
+  code.control.title = "See the project's files and code beside the chat";
   const preview = navItem("Preview", PATH.preview, "vibe-preview-nav", () => { deps.togglePreview(); closeDrawer(); });
   preview.control.title = "Show the running app in a floating window";
   const automations = navItem("Automations", PATH.automations, "vibe-automations-button", () => { chat.openScheduleComposer(); closeDrawer(); });
@@ -254,7 +259,7 @@ export function createVibeSidebar(deps: VibeSidebarDeps): VibeSidebar {
   pages.append(...pageItems.values());
   const nav = document.createElement("div");
   nav.className = "vibe-nav";
-  nav.append(changes.control, preview.control, automations.control);
+  nav.append(changes.control, code.control, preview.control, automations.control);
 
   /* ── Conversations ───────────────────────────────────────────────────── */
 
@@ -755,6 +760,7 @@ export function createVibeSidebar(deps: VibeSidebarDeps): VibeSidebar {
     historyHost,
     setContextTab(tab): void {
       changes.control.setAttribute("aria-pressed", String(tab === "changes"));
+      code.control.setAttribute("aria-pressed", String(tab === "code"));
       webRail?.setPressed("changes", tab === "changes");
       topChanges.setAttribute("aria-pressed", String(tab === "changes"));
       webTabChanges?.setAttribute("aria-pressed", String(tab === "changes"));

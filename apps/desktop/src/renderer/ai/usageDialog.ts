@@ -26,8 +26,12 @@ import { allowanceSummary } from "./allowanceSummary.ts";
 import { BUY_TOKENS_URL, UNLIMITED_REQUESTS_PER_MINUTE, aiPlanName, isFairUsePlan, creditWindowSummary, percentLeft, untilText, type CreditsAllowance, type TagflowAllowanceView } from "../../shared/tagflow.ts";
 import { openAudienceProfile } from "./audienceProfile.ts";
 import { formatTokens } from "../../shared/aiUsage.ts";
+import { renderCliUsage } from "./cliUsageView.ts";
 
-export type UsageView = UsageMetric | "limits";
+export type UsageView = UsageMetric | "limits" | "clis";
+
+/** The dialog's ranges as days, for the Coding CLIs view. */
+const RANGE_DAYS: Readonly<Record<UsageRange, number>> = { today: 1, "7d": 7, "30d": 30, "90d": 90, all: 90 };
 
 export interface UsageDialogOptions {
   /** Which view to open on; the last one used otherwise. */
@@ -82,7 +86,7 @@ function stat(label: string, value: string, detail: string): HTMLElement {
 export function openUsageDialog(options: UsageDialogOptions = {}): Promise<void> {
   return new Promise((resolve) => {
     let range = saved<UsageRange>(RANGE_KEY, ["today", "7d", "30d", "90d"], "7d");
-    let view: UsageView = options.view ?? saved<UsageView>(VIEW_KEY, ["cost", "tokens", "limits"], "cost");
+    let view: UsageView = options.view ?? saved<UsageView>(VIEW_KEY, ["cost", "tokens", "limits", "clis"], "cost");
     const filter: { project: string | null; provider: string | null } = { project: null, provider: null };
     const state: UsagePageState = { breakdown: "model", whatIf: null, section: saved<UsageSection>(SECTION_KEY, USAGE_SECTIONS.map((option) => option.value), "overview"), expanded: new Set() };
     /** What the page last drew, so switching Cost and Tokens needs no new read. */
@@ -356,7 +360,7 @@ export function openUsageDialog(options: UsageDialogOptions = {}): Promise<void>
     const views = el("div", "ad-tabs usage-views");
     views.setAttribute("role", "radiogroup");
     views.setAttribute("aria-label", "Show");
-    const VIEWS: readonly (readonly [UsageView, string])[] = [["cost", "Cost"], ["tokens", "Tokens"], ["limits", "Limits"]];
+    const VIEWS: readonly (readonly [UsageView, string])[] = [["cost", "Cost"], ["tokens", "Tokens"], ["limits", "Limits"], ["clis", "Coding CLIs"]];
     const viewButtons = VIEWS.map(([value, label]) => {
       const item = button(label, "ad-tab usage-view", () => show(value));
       item.setAttribute("role", "radio");
@@ -396,8 +400,29 @@ export function openUsageDialog(options: UsageDialogOptions = {}): Promise<void>
      * One scrolling area for everything but the header and footer, so the page never scrolls
      * inside a strip (reported 2 November 2026). The range and view switch stay pinned.
      */
+    // Usage → Coding CLIs: Claude Code and Codex, from their own history (`cliUsageView.ts`).
+    const cliPanel = el("div", "usage-cli-panel");
+    cliPanel.setAttribute("aria-live", "polite");
+    let cliRequest = 0;
+    let cliReading = false;
+    async function refreshCli(force: boolean): Promise<void> {
+      const mine = ++cliRequest;
+      cliReading = true;
+      if (cliPanel.childElementCount === 0) cliPanel.replaceChildren(el("p", "usage-note", "Reading Claude Code and Codex history…"));
+      else cliPanel.querySelector<HTMLButtonElement>(".cli-usage-refresh")?.setAttribute("disabled", "");
+      try {
+        const reading = await window.adcode.aiUsage.cli(RANGE_DAYS[range], force);
+        if (mine !== cliRequest) return;
+        cliReading = false;
+        cliPanel.replaceChildren(renderCliUsage(reading, { refreshing: cliReading, onRefresh: () => void refreshCli(true) }));
+      } catch {
+        if (mine !== cliRequest) return;
+        cliReading = false;
+        cliPanel.replaceChildren(el("p", "usage-note", "The coding CLIs' history could not be read."), button("Try again", "ad-btn ad-btn-tertiary", () => void refreshCli(true)));
+      }
+    }
     const scroller = el("div", "usage-scroll");
-    scroller.append(toolbar, limits, body);
+    scroller.append(toolbar, limits, cliPanel, body);
     card.append(head, scroller, footer);
 
     function paintControls(): void {
@@ -416,8 +441,11 @@ export function openUsageDialog(options: UsageDialogOptions = {}): Promise<void>
         item.tabIndex = on ? 0 : -1;
       }
       limits.hidden = view !== "limits";
-      body.hidden = view === "limits";
+      cliPanel.hidden = view !== "clis";
+      body.hidden = view === "limits" || view === "clis";
       tabs.hidden = view === "limits";
+      // The project and provider filters narrow ADCode's own records; the CLIs keep theirs.
+      for (const node of crumbs.children) if (node !== title) (node as HTMLElement).hidden = view === "clis";
       slideRange();
       slideView();
     }
@@ -506,13 +534,15 @@ export function openUsageDialog(options: UsageDialogOptions = {}): Promise<void>
       remember(RANGE_KEY, next);
       paintControls();
       void refresh();
+      if (view === "clis") void refreshCli(false);
     }
 
     function show(next: UsageView): void {
       view = next;
       remember(VIEW_KEY, next);
       paintControls();
-      if (last !== null && next !== "limits") paint(last);
+      if (next === "clis") void refreshCli(false);
+      else if (last !== null && next !== "limits") paint(last);
     }
 
     /** Names, chat titles and prices make the page read better; it works without them. */
@@ -527,7 +557,7 @@ export function openUsageDialog(options: UsageDialogOptions = {}): Promise<void>
       prices = (status?.providers ?? []).flatMap((provider) => provider.models
         .filter((model) => typeof model.inputPrice === "number" && typeof model.outputPrice === "number" && model.free !== true && (model.inputPrice + model.outputPrice) > 0)
         .map((model) => ({ key: `${provider.id}\u0000${model.id}`, provider: provider.id, model: model.id, name: model.name, inputUsdPerMillion: model.inputPrice as number, outputUsdPerMillion: model.outputPrice as number })));
-      if (last !== null && view !== "limits") paint(last);
+      if (last !== null && view !== "limits" && view !== "clis") paint(last);
     }
 
     async function clearAll(): Promise<void> {
@@ -549,6 +579,7 @@ export function openUsageDialog(options: UsageDialogOptions = {}): Promise<void>
     requestAnimationFrame(() => { slideRange(); slideView(); });
     body.replaceChildren(el("p", "usage-note", "Loading…"));
     void refresh();
+    if (view === "clis") void refreshCli(false);
     void loadContext();
     (view === "limits" ? viewButtons.find((item) => item.dataset["view"] === view) : tabButtons.find((tab) => tab.dataset["range"] === range))?.focus();
   });

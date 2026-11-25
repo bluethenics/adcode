@@ -31,6 +31,12 @@ export const STOP_CHAT_NAME = "stop_chat";
 export interface ChatForkTask {
   readonly title: string;
   readonly prompt: string;
+  /**
+   * Start with nothing but the prompt instead of a copy of the conversation. Cheaper and
+   * faster when the conversation is long - a chat that has run all day - or the part is
+   * self-contained.
+   */
+  readonly fresh?: boolean;
 }
 
 /** The tasks a fork call asks for, or why they cannot run. */
@@ -44,7 +50,9 @@ export function parseChatForkTasks(input: unknown): readonly ChatForkTask[] | st
     const title = typeof fields["title"] === "string" ? fields["title"].trim() : "";
     const prompt = typeof fields["prompt"] === "string" ? fields["prompt"].trim() : "";
     if (title === "" || prompt === "") return `Task ${String(index + 1)} needs a title and a prompt.`;
-    tasks.push({ title: title.slice(0, 120), prompt: prompt.slice(0, 20_000) });
+    const context = fields["context"];
+    if (context !== undefined && context !== "fork" && context !== "fresh") return `Task ${String(index + 1)}: context is "fork" or "fresh".`;
+    tasks.push({ title: title.slice(0, 120), prompt: prompt.slice(0, 20_000), ...(context === "fresh" ? { fresh: true } : {}) });
   }
   return tasks;
 }
@@ -55,6 +63,8 @@ export interface ForkChatSessionInput {
   readonly title: string;
   readonly task?: string;
   readonly at: number;
+  /** Start empty rather than with the parent's transcript. */
+  readonly fresh?: boolean;
 }
 
 /**
@@ -76,8 +86,8 @@ export function forkChatSession(input: ForkChatSessionInput): ChatSession {
     renamed: true,
     createdAt: input.at,
     updatedAt: input.at,
-    messages: input.parent.messages.map((message) => ({ ...message })),
-    summary: input.parent.summary ?? null,
+    messages: input.fresh === true ? [] : input.parent.messages.map((message) => ({ ...message })),
+    summary: input.fresh === true ? null : input.parent.summary ?? null,
     parentId: input.parent.parentId ?? input.parent.id,
     forkedAt: input.at,
     ...(task.length === 0 ? {} : { forkTask: task.slice(0, 2_000) }),
@@ -105,6 +115,24 @@ export function chatForkBriefing(input: {
 }
 
 /**
+ * What wakes an idle main chat when its forks are done.
+ *
+ * Claude's nested sessions report back to the session that started them once it is idle; a
+ * fork family did not, so a main chat that finished its turn before its forks never heard
+ * from them unless the person asked. The note is labelled as ADCode's, not the person's,
+ * because it arrives in the main chat as the message that starts its next turn.
+ */
+export function chatForkReportNote(reports: readonly { readonly title: string; readonly id: string; readonly outcome: string; readonly report: string }[]): string {
+  const count = reports.length;
+  return [
+    `Automatic note from ADCode, not from the person: ${count === 1 ? "your fork chat has" : `all ${String(count)} of your fork chats have`} finished while you were idle.`,
+    "",
+    ...reports.flatMap((report) => [`## ${report.title} (${report.id}) - ${report.outcome}`, report.report.trim().length === 0 ? "(no report)" : report.report.trim(), ""]),
+    "Check what they changed, then tell the person in a few lines where the work stands. Start new work only if the original request still needs it.",
+  ].join("\n");
+}
+
+/**
  * What the main chat is told when it may fork without being asked. The tool's own description
  * says what forks are; this says when to reach for them, so a model splits a large independent
  * job by itself instead of grinding through it serially (owner's request, 3 November 2026).
@@ -119,6 +147,8 @@ export const FORK_CHATS: ToolDefinition = {
   description: [
     "Split a task into visible fork chats that work at the same time.",
     "A fork is a real conversation with its own tab, not a hidden helper: it starts with a copy of this conversation and its own task, and you can send it more instructions, read its report or stop it later.",
+    "Set context to fresh for a self-contained part, or whenever this conversation is long: the fork then starts with only its prompt, which is faster and much cheaper than copying the whole history.",
+    "If you finish your turn before the forks do, their reports come back to you automatically when they are all done.",
     "Use it when the parts can run independently - research several areas, build separate files or features, write tests while another part is built. Give each fork everything it needs in its prompt: it cannot see what happens here after the fork unless you message it.",
     "Fork chats can message you and each other with send_chat_message. Collect their reports with wait_for_chat_forks before you tell the user the work is done.",
     `Up to ${String(MAX_CHAT_FORKS)} forks per call. Do small or tightly connected work yourself instead.`,
@@ -135,6 +165,7 @@ export const FORK_CHATS: ToolDefinition = {
           properties: {
             title: { type: "string", description: "A few words naming the fork, shown as its chat title" },
             prompt: { type: "string", description: "Everything the fork needs: the goal, files or area, constraints, and what to report back" },
+            context: { type: "string", enum: ["fork", "fresh"], description: "fork (default) copies this conversation so it already knows the background; fresh starts with only the prompt - use it for self-contained parts and long conversations" },
           },
           required: ["title", "prompt"],
         },

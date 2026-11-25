@@ -746,6 +746,8 @@ export function cliEffort(request: ProviderRequest, levels: Readonly<Record<stri
 }
 
 export const SIGNED_OUT = /not logged in|please run \/login|not authenticated|unauthori[sz]ed|login required|sign in|api key/i;
+/** A resume the CLI refused because it no longer has that session. */
+export const STALE_SESSION = /no conversation found|session (?:id )?(?:\S+ )?not found|could not find (?:a |the )?session|no such session|unknown session|thread (?:\S+ )?not found|no rollout found/i;
 
 export function createCliProvider(options: CliProviderOptions): Provider {
   const { spec } = options;
@@ -844,12 +846,20 @@ export function createCliProvider(options: CliProviderOptions): Provider {
         remember();
         if (signal.aborted) { yield { kind: "stop", reason: "cancelled" }; return; }
         if (failure === null && code !== 0 && !wrote) failure = process.stderr().trim().split(/\r?\n/).slice(-3).join(" ") || `it exited with code ${String(code)}`;
+        // A remembered session the CLI no longer has (it cleans old ones up): forget it, so the
+        // next message starts a new session with the conversation so far instead of failing again.
+        if (failure !== null && resume && !wrote && STALE_SESSION.test(failure)) {
+          sessions.delete(key);
+          throw Object.assign(new Error(`${spec.name} no longer has this chat's earlier session - it removes old ones. Send your message again and it starts a new session with this conversation so far.`), { code: "cli-session-gone", retryable: false });
+        }
         if (failure !== null) {
           const hint = SIGNED_OUT.test(failure) ? ` Sign in by running \`${spec.signIn}\` in a terminal, then send your message again.` : "";
           throw Object.assign(new Error(`${spec.name}: ${failure}${hint}`), { code: SIGNED_OUT.test(failure) ? "cli-signed-out" : "cli-failed", retryable: false });
         }
         // A run that ended right after asking for tools stopped part way: say so, and why.
-        const note = answeredSinceTools ? null : unfinishedRunNote(spec.name, lastStep, denied, bypass);
+        // A refusal is worth saying even when the CLI answered afterwards ("I need permission to
+        // ..."): its answer does not say where the switch is.
+        const note = answeredSinceTools && denied.length === 0 ? null : unfinishedRunNote(spec.name, lastStep, denied, bypass);
         if (note !== null) yield { kind: "text", text: `${wrote && !lastText.endsWith("\n") ? "\n\n" : ""}${note}` };
         if (usage.input + usage.output > 0) yield { kind: "usage", inputTokens: usage.input, outputTokens: usage.output, cachedTokens: usage.cached };
         yield { kind: "stop", reason: "end-turn" };

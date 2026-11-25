@@ -36,7 +36,7 @@ interface AssistantDockDeps {
   readonly appMenu: AppMenu | null;
 }
 
-const contextTitle = (tab: ContextTab): string => tab === "changes" ? "Changes" : "Project overview";
+const contextTitle = (tab: ContextTab): string => tab === "changes" ? "Changes" : tab === "code" ? "Code" : "Project overview";
 
 /**
  * Reparent the live widget: streams, proposals and conversations keep one owner.
@@ -135,6 +135,7 @@ export function createAssistantDock(deps: AssistantDockDeps) {
     { kind: "heading", label: "Project" },
     ...ideRoutes(),
     { label: "Project overview", run: () => showContext("project") },
+    { label: "Code and files", run: () => showContext("code") },
     { kind: "heading", label: "Assistant" },
     { label: "Models & connections", run: () => deps.run("ai.connect") },
     { label: "Set up AI team", run: () => chat.openTeamSetup() },

@@ -7,7 +7,7 @@ Every feature in the catalogue (`packages/help`), and how the in-app chat reache
 finds features with `adcode_features`, runs their commands and changes their settings with
 `adcode_action`, and has dedicated tools where a feature needs more than a button.
 
-- 172 features: 26 with a dedicated tool, 134 through `adcode_action`, 10 only after the person confirms, 1 refused by design, 1 with nothing to run (explained by `adcode_features`).
+- 177 features: 26 with a dedicated tool, 139 through `adcode_action`, 10 only after the person confirms, 1 refused by design, 1 with nothing to run (explained by `adcode_features`).
 - Every command the window registers belongs to a feature (`featureCommandCoverage.test.ts`), so every command except `ai.fullAccess` and `app.quit` is runnable.
 - Guarded settings (ads, updates, edit approval, Full access, connector approvals, AI file tools, custom endpoint, provider, connections, agent profiles, language servers) and every text setting ask in the app's dialog first. Full access is refused outright.
 - Every change the chat makes through these tools is written to the debug log.
@@ -164,8 +164,13 @@ finds features with `adcode_features`, runs their commands and changes their set
 | Included AI without a key | `ai.tagflow` | adcode_action | adcode_action: commands `ai.tagflow` |
 | Status alerts by email | `ai.statusAlerts` | adcode_action | adcode_action: commands `help.statusAlerts` |
 | AI usage | `ai.usage` | adcode_action | adcode_action: commands `ai.showUsage` |
+| Claude Code and Codex usage | `ai.cliUsage` | adcode_action | adcode_action: commands `ai.showCliUsage` |
+| Goals: keep going until it is done | `ai.goal` | adcode_action | adcode_action: commands `ai.setGoal` |
+| Side chats | `ai.sideChats` | adcode_action | adcode_action: commands `ai.sideChat` |
+| All-day chat: drafts, stash, big pastes and long conversations | `ai.composerMemory` | adcode_action | adcode_action: commands `ai.stashedPrompts` |
 | This chat's usage | `ai.chatUsage` | adcode_action | adcode_action: commands `ai.chatUsage` |
 | Prompt caching | `ai.promptCaching` | adcode_action | adcode_action: commands `ai.showCacheSavings` |
+| Code and files beside the chat | `workbench.codeFiles` | adcode_action | adcode_action: commands `workspace.codeFiles` |
 | Browser | `workbench.browser` | dedicated tool | `adcode_browser` drives the Browser panel; passwords and card numbers stay with the person. Also adcode_action: commands `workspace.browser`, `browser.clearData` |
 | Vibe and Code modes | `workbench.modes` | adcode_action | adcode_action: commands `workspace.vibe`, `workspace.code`, `workspace.project`, `workspace.tasks`, `workspace.preview` |
 | Ask AI about your code | `workbench.aiContext` | adcode_action | adcode_action: commands `ai.addSelectionToChat`, `ai.askSelection`, `ai.explainSelection`, `ai.refactorSelection`, `ai.testSelection`, `ai.reviewSelection` |

@@ -19,6 +19,7 @@ import { GEMINI_KEY_PAGE, OLLAMA_DOWNLOAD_PAGE } from "../shared/quickConnect.ts
 import { BrowserWindow, app, clipboard, dialog, ipcMain, shell } from "electron";
 import { isInsideWorkspace } from "./pathSafety.ts";
 import { clearAiUsage, readAiUsage } from "./aiUsage.ts";
+import { readCliUsage } from "./cliUsage.ts";
 import { readTagflowAllowance, submitTagflowFeedback, tagflowAudience } from "./tagflowAi.ts";
 import {
   detectPreviewProject,
@@ -536,6 +537,7 @@ export function registerIpc(
   ipcMain.handle(CHANNELS.aiModelFeedback, (_event, input: unknown) => submitTagflowFeedback(input));
   ipcMain.handle(CHANNELS.aiAudience, (_event, input: unknown) => tagflowAudience(input));
   ipcMain.handle(CHANNELS.aiUsageClear, () => clearAiUsage());
+  ipcMain.handle(CHANNELS.aiCliUsageRead, (_event, days: unknown, refresh: unknown) => readCliUsage(days, refresh));
 
   ipcMain.handle(CHANNELS.windowOpenIde, (_event, file: unknown, view: unknown) => {
     const root = currentWorkspace()?.root ?? null;

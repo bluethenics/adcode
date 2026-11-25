@@ -106,7 +106,7 @@ export default function Home() {
         <details className="home-resource-details"><summary>Explore guides, comparisons, and source code <span className="home-details-toggle" aria-hidden="true">+</span></summary>
           <DocsShowcase />
           <div className="home-comparisons"><p>Compare your editor</p><nav aria-label="Editor comparisons">{comparisons().map((page) => <Link className="home-text-link" key={page.slug} href={landingPath(page)}>{page.comparison?.subject.replace(/ \(formerly .*\)$/, "")} <Icon node={ArrowUpRight} /></Link>)}</nav></div>
-          <div className="home-source-links"><Link className="home-text-link" href="/free-ai-code-editor">Explore the free editor <Icon node={ArrowUpRight} /></Link><a className="home-text-link" href={SOURCE.repo} target="_blank" rel="noopener noreferrer">View on GitHub <Icon node={ArrowUpRight} /></a></div>
+          <div className="home-source-links"><Link className="home-text-link" href="/free-ai-code-editor">Explore the free editor <Icon node={ArrowUpRight} /></Link><a className="home-text-link" href={SOURCE.repo} target="_blank" rel="noopener noreferrer">View on GitHub <Icon node={ArrowUpRight} /></a><Link className="home-text-link" href="/contribute">Contribute to ADCode <Icon node={ArrowUpRight} /></Link></div>
         </details>
       </section>
       <StickyInstall webFirst />

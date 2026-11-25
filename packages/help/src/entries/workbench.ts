@@ -10,6 +10,16 @@ import type { HelpEntry } from "../types.ts";
 
 export const WORKBENCH_ENTRIES: readonly HelpEntry[] = [
   {
+    id: "workbench.codeFiles",
+    title: "Code and files beside the chat",
+    plain: "See your project's files and the code in them in the column beside the chat, next to the preview and the browser, without switching to the IDE.",
+    why: "When the assistant builds something you want to see what it wrote and where it put it. Switching to the full editor breaks the flow of the conversation; this keeps the code one click away from it.",
+    how: "Choose Code in the Vibe sidebar, run Show Code and Files from the command palette, or open the ⋯ menu and choose Code and files. The panel opens in the column beside the chat with the project's files on the left: click a folder to open it, click a file to read it on the right with line numbers and colour. Arrow keys move through the tree, Right opens a folder and Left closes it. Type in Filter files to narrow the folders you have opened. The open file redraws as the assistant changes it, keeping your place. Copy copies the file, Ask asks the assistant about it, and Open in editor takes you to the IDE to change it. Large folders such as node_modules and .git are dimmed and stay closed until you open them. Images show as pictures; very large or binary files say so and offer the editor instead. The panel shares its tabs with Project and Changes, and on a narrow window the tree sits above the code.",
+    group: "workbench",
+    settingIds: [],
+    related: ["workbench.browser", "workbench.preview", "ai.composerMemory"],
+  },
+  {
     id: "workbench.browser",
     title: "Browser",
     plain: "A real web browser inside ADCode, with tabs, an address bar and your sign-ins, that you and your assistant can both use.",

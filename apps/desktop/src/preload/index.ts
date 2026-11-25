@@ -236,6 +236,7 @@ const api: AdcodeApi = {
     read: (range, filter) => ipcRenderer.invoke(CHANNELS.aiUsageRead, range, filter),
     clear: () => ipcRenderer.invoke(CHANNELS.aiUsageClear),
     onChanged: (listener) => subscribe(CHANNELS.aiUsageChanged, listener),
+    cli: (days, refresh) => ipcRenderer.invoke(CHANNELS.aiCliUsageRead, days, refresh ?? false),
   },
   aiAutomation: {
     create: (input) => ipcRenderer.invoke(CHANNELS.aiAutomationCreate, input),

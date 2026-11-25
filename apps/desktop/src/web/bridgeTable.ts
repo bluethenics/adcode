@@ -229,6 +229,7 @@ export const BRIDGE = [
   { path: "aiUsage.read", kind: "invoke", channel: CHANNELS.aiUsageRead },
   { path: "aiUsage.clear", kind: "invoke", channel: CHANNELS.aiUsageClear },
   { path: "aiUsage.onChanged", kind: "subscribe", channel: CHANNELS.aiUsageChanged },
+  { path: "aiUsage.cli", kind: "invoke", channel: CHANNELS.aiCliUsageRead },
 
   // aiAutomation
   { path: "aiAutomation.create", kind: "invoke", channel: CHANNELS.aiAutomationCreate },

@@ -32,6 +32,7 @@ export function Footer() {
           <Link href="/docs">Documentation</Link>
           <Link href="/status">Status</Link>
           <a href={SOURCE.repo}>Source code</a>
+          <Link href="/contribute">Contribute</Link>
           <Link href="/advertisers">Advertise</Link>
           <Link href="/providers">Model providers</Link>
           <Link href="/ai-models">AI models</Link>

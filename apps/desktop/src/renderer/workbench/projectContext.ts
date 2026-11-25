@@ -1,8 +1,9 @@
 import type { AiWorkspaceTaskView } from "../../shared/api.ts";
 import { createHelpPopover } from "../help/helpPopover.ts";
 import { createChangesView } from "./changesView.ts";
+import { createCodeBrowser } from "./codeBrowser.ts";
 
-export type ContextTab = "project" | "changes";
+export type ContextTab = "project" | "code" | "changes";
 interface ContextDeps {
   readonly root: () => string | null;
   readonly activeFile: () => string | null;
@@ -11,6 +12,8 @@ interface ContextDeps {
   readonly reviewTask: (task: AiWorkspaceTaskView) => void;
   readonly ask: (prompt: string) => void;
   readonly run: (command: string) => void;
+  /** Highlighted HTML for a file's text (Monaco's colorize); plain text without it. */
+  readonly colorize?: (text: string, path: string) => Promise<string>;
 }
 
 /** A read-through view over existing workspace services, with no second task store. */
@@ -39,8 +42,19 @@ export function createProjectContext(deps: ContextDeps) {
     // An action's result is news even when Git's state is not, so this redraws regardless.
     refresh: () => { lastSignature = ""; void refresh(); },
   });
+  // Code: the file tree and a reader, so the code is one tab away from the chat (codeBrowser.ts).
+  const code = createCodeBrowser({
+    root: deps.root,
+    list: (dir) => window.adcode.workspace.list(dir),
+    read: async (path) => (await window.adcode.files.read(path))?.text ?? null,
+    readImage: async (path) => (await window.adcode.files.readImage(path))?.dataUrl ?? null,
+    colorize: deps.colorize ?? (async (text) => text.replace(/[&<>]/g, (char) => (char === "&" ? "&amp;" : char === "<" ? "&lt;" : "&gt;"))),
+    openInEditor: deps.openFile,
+    ask: deps.ask,
+    activeFile: deps.activeFile,
+  });
   const tabs = new Map<ContextTab, HTMLButtonElement>();
-  for (const id of ["project", "changes"] as const) {
+  for (const id of ["project", "code", "changes"] as const) {
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = id[0]!.toUpperCase() + id.slice(1);
@@ -110,6 +124,13 @@ export function createProjectContext(deps: ContextDeps) {
     let signature = `${root}:${view}`;
     const fragment = document.createElement("div");
     const current = (): boolean => request === generation && root === deps.root() && view === selected;
+    // The Code tab keeps its own state - open folders, the file on screen - across redraws.
+    if (root && view === "code") {
+      if (content.firstElementChild !== code.element || content.childElementCount !== 1) content.replaceChildren(code.element);
+      code.refresh();
+      lastSignature = signature;
+      return;
+    }
     try {
       if (!root) {
         // Changes drops the content padding for its full-width bar; the empty state keeps its own.
