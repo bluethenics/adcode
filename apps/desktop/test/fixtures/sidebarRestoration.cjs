@@ -25,7 +25,7 @@ app.whenReady().then(async () => {
       await new Promise(r=>setTimeout(r,150));
       const visible=el=>el&&getComputedStyle(el).display!=='none'&&el.getBoundingClientRect().width>0;
       const texts=[...document.querySelectorAll('.web-sidebar-panel .vibe-nav-text')].filter(visible).map(n=>n.textContent);
-      return {labels:['New conversation','Included AI','Earnings','Invite friends, earn more','Keyboard shortcuts','Join Discord','Docs','All features'].every(t=>texts.includes(t)),footer:document.querySelectorAll('.web-link-row')[1].getBoundingClientRect().top>document.querySelectorAll('.web-link-row')[0].getBoundingClientRect().bottom,promo:visible(document.querySelector('.web-promo'))&&document.querySelector('.web-promo .vibe-ide-button')!==null,noSharedEntry:!document.querySelector('.web-rail #open-projects'),noPercentage:!document.querySelector('.web-credits-row').textContent.includes('%')};
+      return {labels:['New conversation','Usage','Earnings','Invite friends, earn more','Keyboard shortcuts','Join Discord','Docs','All features'].every(t=>texts.includes(t)),footer:document.querySelectorAll('.web-link-row')[1].getBoundingClientRect().top>document.querySelectorAll('.web-link-row')[0].getBoundingClientRect().bottom,promo:visible(document.querySelector('.web-promo'))&&document.querySelector('.web-promo .vibe-ide-button')!==null,noSharedEntry:!document.querySelector('.web-rail #open-projects'),noPercentage:!document.querySelector('.web-credits-row').textContent.includes('%')};
     })()`);
     fs.writeFileSync(resolve(__dirname,'../../../../output/sidebar-restored.png'),(await win.webContents.capturePage()).toPNG());
     // A laptop-height window: Chats keeps most of the panel; the footer links stay named but compact.

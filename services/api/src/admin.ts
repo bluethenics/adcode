@@ -112,7 +112,7 @@ export async function handleSetCreativeStatus(
     at: deps.clock.now(),
   });
 
-  const firstApproved = status === "approved" && creative.status !== "approved" && (await deps.store.creativesForCampaign(creative.campaignId)).length === 0;
+  const firstApproved = status === "approved" && creative.status === "pending" && (await deps.store.creativesForCampaign(creative.campaignId)).length === 0;
   const updated: CreativeRecord = { ...creative, status };
   await deps.store.putCreative(updated);
   // A campaign that was waiting on review for its first card goes live now, as it would have

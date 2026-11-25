@@ -715,7 +715,7 @@ export function registerIpc(
   ipcMain.handle(CHANNELS.aiImportScan, (_event, options: unknown) => scanChatImports(app.getPath("home"), typeof options === "object" && options !== null ? options as ChatImportScanOptions : undefined, currentWorkspace()?.root ?? null));
   ipcMain.handle(CHANNELS.aiImportFolder, async (event) => {
     const owner = BrowserWindow.fromWebContents(event.sender);
-    const options: Electron.OpenDialogOptions = { title: "Choose a folder of conversations to import", buttonLabel: "Scan this folder", properties: ["openDirectory"] };
+    const options: Electron.OpenDialogOptions = { title: "Choose a folder of conversations to scan", buttonLabel: "Scan this folder", properties: ["openDirectory"] };
     const picked = owner === null ? await dialog.showOpenDialog(options) : await dialog.showOpenDialog(owner, options);
     const path = picked.filePaths[0];
     return picked.canceled || path === undefined ? null : scanChatFolder(path, currentWorkspace()?.root ?? null);

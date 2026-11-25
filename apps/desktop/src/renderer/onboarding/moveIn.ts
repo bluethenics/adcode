@@ -245,7 +245,7 @@ export function openMoveIn(deps: MoveInDeps): void {
   const again = select("Already imported", [
     { value: "update", text: "Update them" },
     { value: "skip", text: "Leave them as they are" },
-  ], prefs.import.skipImported ? "skip" : "update", (value) => remember({ ...prefs, import: { ...prefs.import, skipImported: value === "skip" } }));
+  ], prefs.import.skipImported ? "skip" : "update", (value) => { remember({ ...prefs, import: { ...prefs.import, skipImported: value === "skip" } }); paintResults(); });
   const keepKey = (messages: number | null): string => messages === null ? "all" : String(messages);
   const keep = select("Keep", KEEP_CHOICES.map((choice) => ({ value: keepKey(choice.messages), text: choice.label })), keepKey(prefs.import.lastMessages), (value) => {
     remember({ ...prefs, import: { ...prefs.import, lastMessages: value === "all" ? null : Number(value) } });
