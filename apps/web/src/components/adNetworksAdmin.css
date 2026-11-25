@@ -60,6 +60,32 @@
 .partner-go-live-grid > .imprezia-go-live { margin: 0; }
 .imprezia-go-live input[aria-invalid="true"] { border-color: var(--warn, #f3c16c); }
 
+/* Pay by country (CountryPayEditor.tsx): what a card earns, what it pays, what ADCode keeps. */
+.country-pay { display: grid; gap: 16px; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--hairline); }
+.country-pay-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; font-size: 13.5px; color: var(--muted); }
+.country-pay-summary strong { color: var(--text); font-weight: 600; }
+.country-pay-default-earn { max-width: 420px; }
+.country-pay-scroll { max-height: 520px; overflow: auto; border: 1px solid var(--hairline); border-radius: 10px; }
+.country-pay-table thead th { position: sticky; top: 0; z-index: 1; background: var(--surface, var(--bg)); }
+.country-pay-table tbody th { font-size: 13px; font-weight: 550; letter-spacing: 0; color: var(--text); }
+.country-pay-table .input { width: 11ch; min-width: 0; padding: 5px 8px; font-variant-numeric: tabular-nums; }
+.country-pay-code { display: inline-block; min-width: 2.6ch; color: var(--muted); font-family: var(--font-mono, monospace); font-size: 12px; }
+.country-pay-margin { font-variant-numeric: tabular-nums; }
+.country-pay-table tr[data-state="loss"] { background: color-mix(in srgb, var(--danger, #e5484d) 9%, transparent); }
+.country-pay-flag { display: inline-flex; margin-left: 8px; padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 550; white-space: nowrap; background: color-mix(in srgb, var(--muted) 14%, transparent); color: var(--muted); }
+.country-pay-summary .country-pay-flag { margin-left: 0; }
+.country-pay-flag[data-state="loss"] { background: color-mix(in srgb, var(--danger, #e5484d) 16%, transparent); color: var(--danger, #e5484d); }
+.country-pay-flag[data-state="thin"] { background: color-mix(in srgb, var(--warn, #f3c16c) 16%, transparent); color: var(--warn, #f3c16c); }
+.country-pay-add { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; }
+.country-pay-add .tagflow-field { flex: 1 1 260px; max-width: 420px; }
+.country-pay-import summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.country-pay-import[open] { display: grid; gap: 12px; }
+.country-pay-import .notice p { margin: 4px 0; }
+.country-pay-add .country-pay-share { flex: 0 1 170px; }
+.country-pay-share-note { flex-basis: 100%; }
+.country-pay-share[data-tier="green"] span { color: var(--success, #3fb27f); }
+.country-pay-share[data-tier="red"] span { color: var(--danger, #e5484d); }
+
 /* Traffic split: each partner's share of the sponsored slots, where it shows, and what was seen. */
 .network-mix { container-type: inline-size; }
 .network-mix .admin-card-head { justify-content: space-between; }

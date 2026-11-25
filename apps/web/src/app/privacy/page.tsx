@@ -72,7 +72,7 @@ Imprezia may pass what it receives to the advertisers and ad exchanges that bid 
 
 Nothing else from your project is sent: no other files, file paths, or project names. The card is a separate page from adcode.bluethenics.com, shown inside the editor (or the Phone link page) but walled off from it, so no partner or anyone it works with can reach your files or the rest of the editor. The partner's own code loads inside that card to count views and clicks. Imprezia's requests go through our server, which adds ADCode's key and keeps no copy of the message or the reply.
 
-Each partner card you are shown credits your ADCode earnings at the rate shown in Earnings. To pay you, the app tells our server which card was shown (the partner's id for it) along with your anonymous account.
+Each partner card you are shown credits your ADCode earnings at a rate that can depend on the country your connection comes from (Earnings shows yours), up to a daily number of cards counted across all partners. To pay you, the app tells our server which card was shown (the partner's id for it) along with your anonymous account. Our server reads the country that request comes from, as Cloudflare reports it, only to choose the rate; the rate is recorded with the payment, the country is not.
 
 ### Sponsored notifications from our ad partners {#partner-notifications}
 

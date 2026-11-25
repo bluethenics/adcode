@@ -330,6 +330,11 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("ads.withdrawEarnings", "Withdraw on the website")],
     keywords: ["withdraw", "cash out", "payout", "get paid", "bank transfer", "withdraw earnings", "payouts page", "money out", "earnings review", "under review", "held"],
   },
+  "ads.payPerCard": {
+    added: "2026-11-25",
+    actions: [command("ads.payPerCard", "See my pay per card")],
+    keywords: ["pay per card", "how much per ad", "ad rate", "rate per card", "pay by country", "country rate", "earn per ad", "cpm", "how much do i earn", "zeekend pay", "0.002", "why is my rate different"],
+  },
   "account.invite": {
     actions: [command("invite.open", "Open")],
     keywords: ["invite", "referral", "refer a friend", "invite link", "share adcode", "earn more", "invite code", "bring an advertiser", "affiliate"],

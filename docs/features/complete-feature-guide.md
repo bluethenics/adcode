@@ -1998,6 +1998,17 @@ How to use it: Standard by default - at most one every 10 minutes and 24 a day. 
 
 Access: `All Features → Frequency`; `Settings`.
 
+<!-- feature:ads.payPerCard -->
+### Pay per sponsored card, by country
+
+Each sponsored card you are shown pays a small amount, and that amount depends on the country you are in. Earnings shows your own rate.
+
+Why use it: Advertisers pay very different amounts for a card seen in different countries, so one flat rate would have to be set for the cheapest of them. Paying by country lets ADCode pay more where cards are worth more, and the rate you see is the one you are actually paid.
+
+How to use it: Open Earnings (the Earnings row in the Vibe sidebar, or Earnings: Pay per Card Where I Am in the command palette). The Pay per card row says what one card pays you now and how many cards a day pay, for example "$0.0045 a card in United Kingdom, up to 300 a day". On the website and in the web version it is under your balance. The country is the one your internet connection comes from, as ADCode's server sees it: the app never sends it, and a country without its own rate pays the standard one. A rate applies to cards counted after it changes; cards already paid keep what they paid.
+
+Access: `All Features → Pay per sponsored card, by country`; `See my pay per card`.
+
 <!-- feature:adcode.ads.chatSponsored -->
 ### Sponsored cards under AI replies
 

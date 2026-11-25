@@ -14,6 +14,7 @@ import { StackedBars } from "@/components/charts/StackedBars";
 import { TimeChart } from "@/components/charts/TimeChart";
 import { seriesColor } from "@/components/charts/palette";
 import { calendar } from "@/components/earningsMath";
+import { cardRateLabel, type SponsoredCardRate } from "@/lib/cardRate";
 import {
   apiFetch,
   MESSAGES,
@@ -55,6 +56,7 @@ export function DashboardBody() {
   const [balance, setBalance] = useState<BalanceView | null>(null);
   const [activity, setActivity] = useState<ActivityView | null>(null);
   const [payouts, setPayouts] = useState<PayoutsView | null>(null);
+  const [cardRate, setCardRate] = useState<string | null>(null);
   const [rows, setRows] = useState<LedgerRowView[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -68,12 +70,14 @@ export function DashboardBody() {
 
     // Independent reads, so they go together. Sequentially this was a round trip each of
     // latency before anything painted.
-    const [bal, page, acts, pay] = await Promise.all([
+    const [bal, page, acts, pay, rate] = await Promise.all([
       apiFetch<BalanceView>({ path: "/balance", token: t }),
       apiFetch<LedgerPageView>({ path: `/ledger?limit=${LEDGER_PAGE}`, token: t }),
       apiFetch<ActivityView>({ path: "/activity?days=30", token: t }),
       // Only for the withdrawal meter under the balance; PayoutPanel reads its own.
       apiFetch<PayoutsView>({ path: "/payouts", token: t }),
+      // What a card pays this person where they are: pay depends on the country (2026-11-25).
+      apiFetch<SponsoredCardRate>({ path: "/sponsored/rate", token: t }),
     ]);
 
     if (!bal.ok) {
@@ -84,6 +88,7 @@ export function DashboardBody() {
 
     setBalance(bal.value);
     setPayouts(pay.ok ? pay.value : null);
+    setCardRate(rate.ok ? cardRateLabel(rate.value) : null);
     if (page.ok) {
       setRows(page.value.rows);
       setCursor(page.value.nextCursor);
@@ -150,7 +155,7 @@ export function DashboardBody() {
       )}
 
       {/* The hero figure: one per view, and this is the number people come for. */}
-      <EarningsHero balance={balance} rows={rows} coveredFrom={coveredFrom} payouts={payouts} />
+      <EarningsHero balance={balance} rows={rows} coveredFrom={coveredFrom} payouts={payouts} cardRate={cardRate} />
 
       <section className="workspace-section" id="earnings" aria-labelledby="earnings-title">
         <h2 className="workspace-section-title" id="earnings-title">Earnings</h2>

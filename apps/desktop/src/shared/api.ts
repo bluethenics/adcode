@@ -595,6 +595,12 @@ export interface EarningsSnapshot {
    */
   readonly suppressedReason: string | null;
   readonly presets: readonly EarningsPreset[];
+  /**
+   * What a sponsored card pays this person where they are now, already worded by main
+   * (main/cardRate.ts), e.g. "$0.0045 a card in United Kingdom, up to 300 a day". Pay depends on
+   * the country (2026-11-25). Null until the server has said; absent from older main processes.
+   */
+  readonly cardRateLabel?: string | null;
 }
 
 /* ── Live collaboration ────────────────────────────────────────────────────── */

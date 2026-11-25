@@ -280,8 +280,19 @@ const adNetworks = (data: AdminPreviewData): unknown => ({
   // Cards seen per partner, for the traffic split; null is a database a migration behind.
   shown: data === "worst" ? null : { imprezia: { last1d: 1840, last7d: 11_205 }, zeekend: { last1d: 0, last7d: 9_312 } },
   networks: data === "empty" ? [] : [
-    { id: "zeekend", name: "Zeekend", provider: "zeekend", enabled: false, priority: 5, viewPayoutMicros: "0", clickPayoutMicros: "0", zeekend: { placementId: "chat-main" }, keyConfigured: true, readiness: "disabled", keyMode: "live", mix: { share: 50, places: ["banner", "notification", "reply"] } },
-    { id: "imprezia", name: "Imprezia", provider: "imprezia", enabled: true, priority: 10, viewPayoutMicros: "2000", clickPayoutMicros: "0", imprezia: { kind: "chat", id: "editor_sponsored_card" }, keyConfigured: true, readiness: "ready", keyMode: "sandbox", mix: { share: 70, places: ["banner", "reply"] } },
+    // Pay by country (2026-11-25): a few of the owner's sheet rows, with what a card earns for the margin.
+    { id: "zeekend", name: "Zeekend", provider: "zeekend", enabled: true, priority: 5, viewPayoutMicros: "0", clickPayoutMicros: "0", keyConfigured: true, readiness: "ready", keyMode: "live", mix: { share: 40, places: ["banner", "notification", "reply"] },
+      zeekend: { placementId: "chat-main", payPerCardMicros: "2000", paidCardsPerDay: 300, defaultEarnPerCardMicros: "3000", countryPay: [
+        { country: "GB", payPerCardMicros: "4500", earnPerCardMicros: "10130" },
+        { country: "US", payPerCardMicros: "4300", earnPerCardMicros: "9600" },
+        { country: "DE", payPerCardMicros: "2000", earnPerCardMicros: "7090" },
+        { country: "AE", payPerCardMicros: data === "worst" ? "2800" : "2000", earnPerCardMicros: "3060" },
+        { country: "IN", payPerCardMicros: "1000", earnPerCardMicros: "3510", paidCardsPerDay: 200 },
+        { country: "LT", payPerCardMicros: "900", earnPerCardMicros: "3020" },
+        { country: "RU", payPerCardMicros: "0", earnPerCardMicros: "0" },
+        ...(data === "worst" ? [{ country: "BR", payPerCardMicros: "2000" }] : []),
+      ] } },
+    { id: "imprezia", name: "Imprezia", provider: "imprezia", enabled: true, priority: 10, viewPayoutMicros: "2000", clickPayoutMicros: "0", imprezia: { kind: "chat", id: "editor_sponsored_card" }, keyConfigured: true, readiness: "ready", keyMode: "sandbox", mix: { share: 60, places: ["banner", "reply"] } },
     { id: "northwind-ads", name: "Northwind Ads", provider: "http-json", enabled: false, priority: 50, viewPayoutMicros: "1500", clickPayoutMicros: "40000", keyConfigured: false, readiness: "key-required",
       http: { serveUrl: "https://ads.northwind.example/v1/serve", verifyUrl: "https://ads.northwind.example/v1/verify", method: "POST", authHeader: "authorization", authPrefix: "Bearer ", requestTemplate: { tags: "{{tags}}" }, creativePath: "ad", fields: { id: "id", advertiser: "brand", headline: "title", body: "text", clickUrl: "url", logoLight: "logo", logoDark: "" }, verifyTemplate: { id: "{{eventId}}" }, verifiedPath: "ok", eventIdPath: "event" } },
   ],

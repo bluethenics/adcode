@@ -482,7 +482,7 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
 
       // No box, no header, no drawn countdown: the card arrives on its own, as it does under a
       // chat reply, and its own "Ad" label is the disclosure. No earnings line either: partner
-      // cards credit $0.002 through the app (ads.ts notePartnerImpression), not a share. The close button sits outside the
+      // cards credit the country's rate through the app (ads.ts notePartnerImpression), not a share. The close button sits outside the
       // card's edge, so nothing of ours ever covers Zeekend's card.
       const close = iconButton("Dismiss", ICON.close, "toast-close");
       close.addEventListener("click", (event) => {

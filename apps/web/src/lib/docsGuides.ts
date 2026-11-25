@@ -924,7 +924,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "To turn it off or back on, open Settings, choose Ads, and switch Sponsored cards under AI replies. Sponsored messages must be on as well.",
       "Ask the assistant something, in the desktop app or the web version. When it finishes answering, ADCode offers that exchange to one of its ad partners, once. ADCode's administrators decide which partner is asked first; if it has no card, the next partner may fill the slot. Today the partner is Imprezia.",
       "The card sits in a box just above the message box. Imprezia's is a small banner, chosen without sending your message. It stays until the next finished reply brings a new card; the same exchange is never offered again, and nothing is ever asked in your name that you did not write. Clicking it opens your browser; the editor itself never navigates.",
-      "Every partner card you are shown credits your earnings at the rate ADCode sets for partner cards, once per card, at most three a minute, and up to a daily number counted across all partners. In the web version only the tab you are using earns; more tabs do not earn more.",
+      "Every partner card you are shown credits your earnings once, at the rate for the country you are in (Earnings shows yours), at most three a minute, and up to a daily number counted across all partners. In the web version only the tab you are using earns; more tabs do not earn more.",
       "On your phone, with Phone link on, a card can appear under the computer's reply in the same way.",
       "To stop, switch it off in the same place. The next reply sends nothing.",
     ],
@@ -2819,6 +2819,23 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     ],
     betterThan:
       "Many apps that pay you hide the payout behind support tickets or a settings maze. The editor shows your balance and puts the door to the payout next to it; the website lists every rule up front. Below the $50 minimum, converting to AI credits is the way to use what you earned.",
+  },
+
+  "ads-pay-per-card": {
+    steps: [
+      "Open Earnings: the Earnings row in the Vibe sidebar, or Earnings: Pay per Card Where I Am in the command palette. On the website and in the web version, open your dashboard.",
+      "Read the Pay per card line: what one sponsored card pays you now, in the country you are in, and how many cards a day pay - for example \"$0.0045 a card in United Kingdom, up to 300 a day\".",
+      "Keep working as usual. Each card you are shown pays that rate once Zeekend counts it as seen, and the balance above the line rises with it.",
+      "If you travel or your connection moves to another country, the rate follows within a few minutes. Cards already paid keep what they paid.",
+    ],
+    benefits: [
+      "You see the rate you are actually paid, not an average written for everyone.",
+      "Countries where advertisers pay more pay you more per card.",
+      "The country comes from where your connection reaches ADCode's server. The app never reports a location, and you never fill one in.",
+      "The daily limit is shown next to the rate, so you know when a day's cards are done paying.",
+    ],
+    betterThan:
+      "Most ad-funded apps either pay nothing or quote one flat figure that hides what you really get where you live. ADCode shows your own rate, in your own Earnings, before you earn a cent of it.",
   },
 
   "account-invite": {

@@ -30,6 +30,8 @@ export interface EarningsOverviewProps {
   coveredFrom: number | null;
   /** The withdrawal rules as the server sent them; null while unknown. */
   payouts: PayoutsView | null;
+  /** What a sponsored card pays this person where they are, worded; null while unknown. */
+  cardRate?: string | null;
 }
 
 const DAY_MS = 86_400_000;
@@ -120,7 +122,7 @@ const dollarsShort = (value: number): string =>
 const shortDate = (ms: number): string =>
   new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
-export function EarningsHero({ balance, rows, coveredFrom, payouts }: EarningsOverviewProps) {
+export function EarningsHero({ balance, rows, coveredFrom, payouts, cardRate = null }: EarningsOverviewProps) {
   const now = Date.now();
   const today = periodTotal(rows, startOfToday(), coveredFrom);
   const week = periodTotal(rows, now - 7 * DAY_MS, coveredFrom);
@@ -142,6 +144,7 @@ export function EarningsHero({ balance, rows, coveredFrom, payouts }: EarningsOv
         <Period label="Last 30 days" total={month} />
       </dl>
       {payouts !== null && <WithdrawMeter payouts={payouts} />}
+      {cardRate !== null && <p className="earnings-card-rate"><span>Pay per sponsored card</span> {cardRate}. It depends on the country you are in.</p>}
     </div>
   );
 }

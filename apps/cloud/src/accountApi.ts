@@ -44,7 +44,10 @@ export async function forwardAccountApi(request: Request, env: Env): Promise<Res
   headers.set("x-adcode-platform", "web");
   try {
     const forwarded = new Request(`https://adcode.bluethenics.com${url.pathname}${url.search}`, request);
-    const response = await env.ACCOUNT_API.fetch(new Request(forwarded, { headers, redirect: "manual" }));
+    // The person's own Cloudflare country rides along (2026-11-24): the API pays a sponsored card
+    // by the country the edge saw (services/api regions.ts edgeCountry), and through this binding
+    // it would otherwise see this Worker, not the person. It is the edge's object, never a header.
+    const response = await env.ACCOUNT_API.fetch(new Request(forwarded, { headers, redirect: "manual", ...(request.cf === undefined ? {} : { cf: request.cf as RequestInitCfProperties }) }));
     if (response.status >= 300 && response.status < 400) return Response.json({ error: "provider-unavailable" }, { status: 502 });
     const outgoing = new Headers({ "content-type": response.headers.get("content-type") ?? "application/json", "cache-control": "no-store", "x-content-type-options": "nosniff" });
     // `x-adcode-account` is how the web version's main process learns the account is banned.

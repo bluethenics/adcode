@@ -40,6 +40,7 @@ import { nextTickDelay, partnerEarnBody, partnerRetryDelay } from "./partnerNoti
 import { currentDebugState } from "./debug.ts";
 import { isAgentBrowserWindow } from "./agentBrowser.ts";
 import { announceAiUsageChanged } from "./aiUsage.ts";
+import { cardRateLabel, parseCardRate } from "./cardRate.ts";
 import {
   isConversionRequest,
   parseConversionQuote,
@@ -225,6 +226,9 @@ export function createAdRuntime(): AdRuntime {
   let liveCreativeId: string | null = null;
   let clickUrl: string | null = null;
   let lastBalance: Balance | null = null;
+  /** This person's pay per card where they are (cardRate.ts), asked at most every ten minutes. */
+  let cardRate: string | null = null;
+  let cardRateAskedAt = Number.NEGATIVE_INFINITY;
   let watchdog: NodeJS.Timeout | null = null;
   /** The window holding the live card, by id. See `toastTarget`. */
   let toastWindowId: number | null = null;
@@ -483,10 +487,38 @@ export function createAdRuntime(): AdRuntime {
         dailyCap: option.dailyCap,
         projectionLabel: option.projectionLabel,
       })),
+      cardRateLabel: cardRate,
     };
 
     broadcast(CHANNELS.earningsChanged, snapshot);
+    // The rate rides on the same broadcast; asked in the background, re-sent only if it changed.
+    void refreshCardRate().then((changed) => { if (changed) void pushEarnings(); });
     return snapshot;
+  }
+
+  /*
+   * What a card pays this person where they are (2026-11-25): pay depends on the country the
+   * server sees the request come from, so it is asked, not assumed. At most every ten minutes -
+   * a country changes with a trip or a VPN, not by the minute - and a failure keeps the last
+   * answer: §9, an ad failure costs a line in Earnings and nothing else.
+   */
+  async function refreshCardRate(): Promise<boolean> {
+    if (clock.now() - cardRateAskedAt < 10 * 60_000) return false;
+    cardRateAskedAt = clock.now();
+    try {
+      const token = await tokens.getToken();
+      if (!token.ok) return false;
+      const response = await fetch(`${apiBaseUrl()}/sponsored/rate`, { headers: { authorization: `Bearer ${token.value}` }, signal: AbortSignal.timeout(10_000) });
+      if (!response.ok) return false;
+      const rate = parseCardRate(await response.json().catch(() => null));
+      const label = rate === null ? cardRate : cardRateLabel(rate);
+      if (label === cardRate) return false;
+      cardRate = label;
+      return true;
+    } catch (error) {
+      debug("card rate failed", String(error));
+      return false;
+    }
   }
 
   /** The balance from the server, broadcast to every window. */

@@ -11,6 +11,7 @@ import {
   withdrawProgress,
 } from "../src/components/earningsMath";
 import type { LedgerRowView, PayoutsView } from "../src/lib/api";
+import { cardRateLabel } from "../src/lib/cardRate";
 
 const DAY = 86_400_000;
 const NOW = Date.UTC(2026, 10, 24, 15, 0, 0);
@@ -110,6 +111,16 @@ describe("earnings screen", () => {
     );
     expect(html).toContain("You can withdraw");
     expect(html).toContain('href="#payouts"');
+  });
+
+  it("shows this person's own pay per card, and nothing until the server has said", () => {
+    const rate = cardRateLabel({ country: "GB", countryRate: true, payPerCardMicros: "4500", paidCardsPerDay: 300, paying: true });
+    expect(rate).toBe("$0.0045 a card in United Kingdom, up to 300 a day");
+    const html = renderToStaticMarkup(<EarningsHero balance={{ availableMicros: "0", lifetimeMicros: "0" }} rows={[]} coveredFrom={null} payouts={null} cardRate={rate} />);
+    expect(html).toContain("Pay per sponsored card");
+    expect(html).toContain("$0.0045 a card in United Kingdom, up to 300 a day. It depends on the country you are in.");
+    expect(renderToStaticMarkup(<EarningsHero balance={{ availableMicros: "0", lifetimeMicros: "0" }} rows={[]} coveredFrom={null} payouts={null} />)).not.toContain("earnings-card-rate");
+    expect(cardRateLabel({ country: null, countryRate: false, payPerCardMicros: "0", paidCardsPerDay: 0, paying: false })).toBe("Cards are not paying right now");
   });
 
   it("folds cards in the user's ledger but not in the admin's", () => {

@@ -6483,6 +6483,8 @@ function registerCommands(): void {
   // The web keeps earnings in its account panel, which asks for the same card (web/accountPanel.tsx).
   document.addEventListener(OPEN_CREDIT_CONVERSION_EVENT, openCreditConversion);
   add("ads.withdrawEarnings", "Earnings: Withdraw on the Website", () => void window.open(WITHDRAW_URL, "_blank", "noopener,noreferrer"));
+  // Pay per card depends on the country (2026-11-25); the earnings card shows this person's own rate.
+  add("ads.payPerCard", "Earnings: Pay per Card Where I Am", () => openPrimaryPopup("earnings", earningsShell, earningsActivity, "keyboard"));
   add("invite.open", "Invite & Earn", () => openInvite("keyboard"));
   add(
     "collab.leave",

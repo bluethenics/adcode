@@ -785,3 +785,7 @@ body:has(.auth-screen) .website-consent { position: static; margin: 24px auto; b
 .earnings-chart-switch button { padding: 5px 11px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 560; cursor: pointer; }
 .earnings-chart-switch button[aria-pressed="true"] { background: var(--card); color: var(--text); box-shadow: var(--control-shadow); }
 @media (hover: hover) and (pointer: fine) { .earnings-chart-switch button[aria-pressed="false"]:hover { color: var(--text); } }
+
+/* Pay per sponsored card where this person is (EarningsOverview.tsx; 2026-11-25). */
+.earnings-card-rate { margin: 14px 0 0; font-size: 13.5px; line-height: 1.5; color: var(--muted); }
+.earnings-card-rate span { color: var(--text); font-weight: 550; }

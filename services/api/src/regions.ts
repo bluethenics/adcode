@@ -77,6 +77,23 @@ export function requestRegionTag(header: string | null | undefined): string | nu
   return isCountryCode(code) ? regionTag(code) : null;
 }
 
+/**
+ * Where a request comes from, as the edge saw it (2026-11-24): what decides a Zeekend card's pay.
+ *
+ * On the Worker, the fetch handler stamps each request with Cloudflare's own `request.cf.country`
+ * under this symbol - null when Cloudflare knew none - and then nothing else is consulted: no
+ * header can be trusted to have come from the edge rather than from the caller. Only a server
+ * with no edge in front (the local Node server and the tests) falls back to `cf-ipcountry`.
+ * Anything that is not a real ISO code (`XX`, Tor's `T1`) is null: no country, the default rate.
+ */
+export const EDGE_COUNTRY: unique symbol = Symbol.for("adcode.edgeCountry");
+export interface EdgeCountryCarrier { headers: Record<string, string | string[] | undefined>; [EDGE_COUNTRY]?: string | null }
+export function edgeCountry(req: EdgeCountryCarrier): string | null {
+  const raw = req[EDGE_COUNTRY] !== undefined ? req[EDGE_COUNTRY] : req.headers["cf-ipcountry"];
+  const code = (Array.isArray(raw) ? raw[0] ?? "" : raw ?? "").trim().toUpperCase();
+  return isCountryCode(code) ? code : null;
+}
+
 /** The countries a set of target tags names, in the order given. */
 export function regionsOf(tags: readonly string[]): string[] {
   return tags.filter(isRegionTag).map((tag) => tag.slice(REGION_PREFIX.length));

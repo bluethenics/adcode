@@ -106,7 +106,7 @@ export function withNetworkImpressions<T extends AdsShownFigures>(stats: T, netw
   };
 }
 
-import { CARD_DEFAULT_PAID_PER_DAY, CARD_DEFAULT_PAY_MICROS, cardPay, isChatNetwork, type AdNetworkConfig } from "./adNetworkConfig.ts";
+import { CARD_DEFAULT_PAID_PER_DAY, CARD_DEFAULT_PAY_MICROS, cardPay, isChatNetwork, networkMix, type AdNetworkConfig } from "./adNetworkConfig.ts";
 import { CUSTOM_DOMAIN_FAST_CARDS, HELD_MESSAGE, TOO_FAST_PER_DAY } from "./earningReview.ts";
 
 const DAY_MS = 86_400_000;
@@ -159,6 +159,12 @@ export function createMemoryNetworkImpressionStore(): NetworkImpressionStore {
  * no more cards a day than one network did; a card pays while that count is within its own
  * network's cap. The rate is copied onto the delivery, so a change applies to cards counted
  * after it.
+ *
+ * Since 2026-11-24 Zeekend's rate depends on the viewer's country - the one Cloudflare placed
+ * the earn request in (regions.ts edgeCountry), never one the app reports - because Zeekend
+ * pays ADCode by country. A country may also have its own daily cap; the count it is measured
+ * against is the same one per person per day, wherever the cards were seen. Imprezia's
+ * connection pays one rate everywhere.
  */
 export const ZEEKEND_VIEW_PAYOUT_MICROS = CARD_DEFAULT_PAY_MICROS;
 export const ZEEKEND_PAID_PER_DAY = CARD_DEFAULT_PAID_PER_DAY;
@@ -205,6 +211,8 @@ export async function creditNetworkImpression(
     readonly review?: CardReview;
     /** True when the paying connection holds a test or sandbox key (adNetworks.ts servesTestCards): its cards pay nobody. */
     readonly servesTestCards?: (config: AdNetworkConfig) => Promise<boolean>;
+    /** Where the edge placed this request; null or absent pays the default rate. */
+    readonly country?: string | null;
   },
   uid: string,
   raw: unknown,
@@ -213,7 +221,7 @@ export async function creditNetworkImpression(
   if (impression === null) return { credited: false, reason: "invalid" };
   const network = deps.adNetworks === undefined ? undefined : payingConnection(await deps.adNetworks.list(), impression.network);
   if (deps.adNetworks === undefined || network === undefined) return { credited: false, reason: "no-network" };
-  const { payMicros, perDay } = cardPay(network);
+  const { payMicros, perDay } = cardPay(network, deps.country);
   // Paying nothing: the card still counts on the dashboard, but no delivery is written, so the
   // slot is not used up and nobody's daily count moves.
   if (payMicros === 0 || perDay === 0) return { credited: false, reason: "unpaid" };
@@ -260,4 +268,34 @@ export async function creditNetworkImpression(
   const settled = await deps.adNetworks.settle(existing?.id ?? id, "impression", impression.slotId, deps.now);
   // The delivery's own rate is what settled: a delivery written before a rate change keeps the old one.
   return settled ? { credited: true, micros: existing?.viewPayoutMicros ?? String(payMicros) } : { credited: false, reason: "already" };
+}
+
+/**
+ * What one partner card pays the person asking, where they are now (2026-11-24): the rate and
+ * daily cap for the country the edge places them in, for Earnings to show. Deliberately only
+ * their own row - not the table, and never what ADCode earns per card.
+ */
+export interface SponsoredCardRate {
+  /** ISO code, or null when the edge knew no country (the default rate then applies). */
+  readonly country: string | null;
+  /** Whether the country has its own rate, rather than the default. */
+  readonly countryRate: boolean;
+  readonly payPerCardMicros: string;
+  readonly paidCardsPerDay: number;
+  /** False with no live partner connection, or a rate of $0: cards then pay nothing. */
+  readonly paying: boolean;
+}
+
+/**
+ * With more than one partner live (2026-11-25), the rate shown is the partner asked for the
+ * most slots - the largest share of the admin's split, then priority - since most cards a
+ * person sees come from it.
+ */
+export async function sponsoredCardRate(adNetworks: import("./adNetworkConfig.ts").AdNetworkStore | undefined, country: string | null): Promise<SponsoredCardRate> {
+  const network = adNetworks === undefined ? undefined : (await adNetworks.list())
+    .filter((config) => config.enabled && isChatNetwork(config))
+    .sort((a, b) => networkMix(b).share - networkMix(a).share || a.priority - b.priority)[0];
+  if (network === undefined) return { country, countryRate: false, payPerCardMicros: "0", paidCardsPerDay: 0, paying: false };
+  const rate = cardPay(network, country);
+  return { country: rate.country, countryRate: rate.listed, payPerCardMicros: String(rate.payMicros), paidCardsPerDay: rate.perDay, paying: rate.payMicros > 0 && rate.perDay > 0 };
 }

@@ -193,13 +193,15 @@ const ads: Report = {
   order: 30,
   related: ["how-you-get-paid-step-by-step", "how-targeting-works-without-reading-your-code", "adcode-vs-claude-code-codex-opencode-t3-code"],
   body: `
-Four changes to sponsored cards arrive together in ADCode 2.6.1. Every card now comes from one partner, Zeekend. An ad box above the message box keeps a fresh Zeekend card in view. Sponsored notifications follow each other at exactly the frequency you chose, with no dead time in between. And every Zeekend card you are shown pays you $0.002.
+Four changes to sponsored cards arrive together in ADCode 2.6.1. Every card now comes from one partner, Zeekend. An ad box above the message box keeps a fresh Zeekend card in view. Sponsored notifications follow each other at exactly the frequency you chose, with no dead time in between. And every Zeekend card you are shown pays you $0.002 (since 25 November, the rate depends on your country: see below).
 
 ## The ad box above the message box
 
 A single box sits just above where you type: the product's picture, its name with Zeekend's own Sponsored label, one line about it, and a button. It fills as soon as the chat is open and changes to a fresh card every 30 seconds while the window is on screen, and right after each reply with a card about what you just asked. Clicking it opens the product in your browser. It pauses while ADCode is minimised or hidden, because a card nobody can see earns nothing.
 
 ## You earn $0.002 for every Zeekend card
+
+**Update, 25 November:** pay per card now depends on the country you are in, and Earnings shows your own rate and daily limit. The table below is the rate at launch.
 
 Each Zeekend card you are shown - in the ad box or in a notification - credits $0.002 to your ADCode earnings once Zeekend has counted it as seen (half of it on screen for a second). Each card pays once, to the one person who saw it, up to 300 cards ($0.60) a day. You can watch it arrive in Earnings.
 

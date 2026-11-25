@@ -525,6 +525,8 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
     facts.replaceChildren(
       row("Lifetime earned", snapshot.hasServerBalance ? snapshot.lifetimeLabel : "—", { money: snapshot.hasServerBalance }),
       row("Ads", snapshot.enabled ? "On" : "Off", { tone: snapshot.enabled ? "good" : "off" }),
+      // Pay per card depends on the country the server sees (2026-11-25): this person's own rate.
+      ...(snapshot.cardRateLabel ? [row("Pay per card", snapshot.cardRateLabel)] : []),
       // Named for what it is. See the note at the top of this file on why this is not
       // presented as a count of ads seen.
       row(

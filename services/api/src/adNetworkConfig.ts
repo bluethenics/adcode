@@ -1,4 +1,5 @@
 /** Server-side ad network settings. Secrets never form part of this JSON. */
+import { isCountryCode } from "./regions.ts";
 export type AdNetworkProvider = "http-json" | "imprezia" | "beehiiv" | "zeekend";
 export interface HttpAdNetworkConfig {
   serveUrl: string;
@@ -25,7 +26,7 @@ export interface AdNetworkConfig {
   beehiiv?: { publicationId: string; offerId: string };
   /**
    * `chat` enables the browser SDK (publisher key; `id` is an optional placement label), on the
-   * sponsored page beside Zeekend (2026-11-25), paying people per card like Zeekend does.
+   * sponsored page beside Zeekend (2026-11-25), paying people per card at the flat rate set here.
    * `app` and `site` are its OpenRTB Exchange, preview only.
    */
   imprezia?: { kind: "app" | "site" | "chat"; id: string } & CardPayFields;
@@ -33,8 +34,10 @@ export interface AdNetworkConfig {
    * Zeekend's chat placements, through its browser SDK on the sponsored page: its publisher key
    * (public by design) and placement id. What a person is paid per card is set here too
    * (2026-11-21), from the admin's Zeekend connection; missing fields mean the defaults below.
+   * `countryPay` (2026-11-24) overrides the rate, and optionally the cap, for listed countries;
+   * `defaultEarnPerCardMicros` is what a card earns ADCode anywhere unlisted, for the margin.
    */
-  zeekend?: { placementId: string } & CardPayFields;
+  zeekend?: { placementId: string; countryPay?: CountryCardPay[]; defaultEarnPerCardMicros?: string } & CardPayFields;
   /**
    * A chat network's part of the sponsored cards (2026-11-25): its share of the slots and the
    * places its cards may appear. Missing means an equal share everywhere. See networkMix.
@@ -55,11 +58,12 @@ export type CardPlace = (typeof CARD_PLACES)[number];
 /*
  * Splitting sponsored cards between chat networks (2026-11-25).
  *
- * Each slot - a turn of the ad box, a notification - goes to one network, picked by these
- * shares: 60 and 40 send six slots in ten to one network and four to the other. A network
- * with no card for its slot hands it to the next, so people see a card as often as with one
- * network; the split only decides who is asked first. A share of 0 is a backup: asked only
- * when the network a slot went to had nothing. `places` keeps a network out of a place.
+ * Each slot - the ad box after a finished reply, a card under a reply - goes to one network,
+ * picked by these shares: 60 and 40 send six slots in ten to one network and four to the other.
+ * A network with no card for its slot hands it to the next, so splitting never shows fewer
+ * cards than one network would; the split only decides who is asked first. A share of 0 is a
+ * backup: asked only when the network a slot went to had nothing. `places` keeps a network out
+ * of a place.
  */
 export interface NetworkMix { share: number; places: CardPlace[] }
 export const DEFAULT_SHARE = 50;
@@ -72,6 +76,22 @@ export function networkMix(config: Pick<AdNetworkConfig, "mix">): NetworkMix {
 
 /** Whether a connection is one of the SDK networks that fill sponsored cards. */
 export const isChatNetwork = (config: Pick<AdNetworkConfig, "provider" | "imprezia">): boolean => config.provider === "zeekend" || config.provider === "imprezia" && config.imprezia?.kind === "chat";
+
+/**
+ * One country's pay for a Zeekend card (2026-11-24).
+ *
+ * Zeekend pays ADCode very different amounts for a card seen in the United States and one seen
+ * in India, so one flat rate either overpays the cheap countries or underpays the valuable ones.
+ * `earnPerCardMicros` is what ADCode itself makes from one card there (from the network's
+ * country report), kept for the admin's margin column and for the rule that no country is ever
+ * paid more than a card there earns. It is never sent to anybody but an administrator.
+ */
+export interface CountryCardPay {
+  country: string;
+  payPerCardMicros: string;
+  earnPerCardMicros?: string;
+  paidCardsPerDay?: number;
+}
 
 /*
  * What a person earns for each partner card they are shown, and how many cards a day pay.
@@ -92,18 +112,53 @@ export const ZEEKEND_DEFAULT_PAY_MICROS = CARD_DEFAULT_PAY_MICROS;
 export const ZEEKEND_DEFAULT_PAID_PER_DAY = CARD_DEFAULT_PAID_PER_DAY;
 export const ZEEKEND_MAX_PAY_MICROS = CARD_MAX_PAY_MICROS;
 export const ZEEKEND_MAX_PAID_PER_DAY = CARD_MAX_PAID_PER_DAY;
+/** Every ISO country fits; more rows than that is a paste gone wrong. */
+export const ZEEKEND_MAX_COUNTRY_ROWS = 260;
+/** The most a card can be recorded as earning ADCode: $1 a card is a $1,000 CPM, far past any real one. */
+export const ZEEKEND_MAX_EARN_MICROS = 1_000_000;
 
-/** The rate and daily cap a chat network's connection pays at. */
-export function cardPay(config: Pick<AdNetworkConfig, "zeekend" | "imprezia"> | undefined): { payMicros: number; perDay: number } {
+export interface ZeekendRate { payMicros: number; perDay: number; country: string | null; listed: boolean }
+
+/**
+ * The rate and daily cap a chat network's connection pays at, for a viewer in `country`.
+ *
+ * `country` is the one Cloudflare placed the connection in (regions.ts edgeCountry), never one
+ * the app sent. A country with its own row pays that row; anywhere else - an unlisted country,
+ * or none known at all (Tor, a missing header) - pays the connection's default. Only Zeekend's
+ * connection has country rows so far; Imprezia's pays its one rate everywhere (2026-11-25).
+ */
+export function cardPay(config: Pick<AdNetworkConfig, "zeekend" | "imprezia"> | undefined, country?: string | null): ZeekendRate {
   const fields: CardPayFields | undefined = config?.zeekend ?? config?.imprezia;
   const pay = fields?.payPerCardMicros;
-  return {
+  const base = {
     payMicros: pay === undefined ? CARD_DEFAULT_PAY_MICROS : Number(pay),
     perDay: fields?.paidCardsPerDay ?? CARD_DEFAULT_PAID_PER_DAY,
   };
+  const code = typeof country === "string" && isCountryCode(country) ? country : null;
+  const row = code === null ? undefined : config?.zeekend?.countryPay?.find((entry) => entry.country === code);
+  if (row === undefined) return { ...base, country: code, listed: false };
+  return { payMicros: Number(row.payPerCardMicros), perDay: row.paidCardsPerDay ?? base.perDay, country: code, listed: true };
 }
 /** The name cardPay had while Zeekend was the only partner. */
 export const zeekendPay = cardPay;
+
+/** Country rows, validated: real ISO codes, each once, and no row paying more than a card there earns. */
+export function parseCountryPay(raw: unknown): CountryCardPay[] | null {
+  if (!Array.isArray(raw) || raw.length > ZEEKEND_MAX_COUNTRY_ROWS) return null;
+  const seen = new Set<string>();
+  const rows: CountryCardPay[] = [];
+  for (const item of raw) {
+    if (!record(item)) return null;
+    const { country, payPerCardMicros: pay, earnPerCardMicros: earn, paidCardsPerDay: perDay } = item;
+    if (typeof country !== "string" || !isCountryCode(country) || seen.has(country)) return null;
+    if (!micros(pay) || BigInt(pay) > BigInt(ZEEKEND_MAX_PAY_MICROS)) return null;
+    if (earn !== undefined && (!micros(earn) || BigInt(earn) > BigInt(ZEEKEND_MAX_EARN_MICROS) || BigInt(pay) > BigInt(earn))) return null;
+    if (perDay !== undefined && !paidPerDay(perDay)) return null;
+    seen.add(country);
+    rows.push({ country, payPerCardMicros: pay, ...(earn === undefined ? {} : { earnPerCardMicros: earn }), ...(perDay === undefined ? {} : { paidCardsPerDay: perDay }) });
+  }
+  return rows.sort((a, b) => a.country.localeCompare(b.country));
+}
 export interface EncryptedAdNetworkKey { version: 1; nonce: string; ciphertext: string; tag: string }
 export interface AdNetworkDelivery {
   id: string;
@@ -146,12 +201,13 @@ export function publicHttpsUrl(raw: unknown): raw is string {
   } catch { return false; }
 }
 const micros = (raw: unknown): raw is string => typeof raw === "string" && /^(?:0|[1-9]\d{0,8})$/.test(raw) && BigInt(raw) <= 10_000_000n;
+const paidPerDay = (raw: unknown): raw is number => typeof raw === "number" && Number.isSafeInteger(raw) && raw >= 0 && raw <= ZEEKEND_MAX_PAID_PER_DAY;
 /** A chat network's pay fields, checked against the ceilings; null when one is out of bounds. */
 function parseCardPay(raw: Record<string, unknown>): CardPayFields | null {
   const pay = raw["payPerCardMicros"], perDay = raw["paidCardsPerDay"];
   if (pay !== undefined && (!micros(pay) || BigInt(pay) > BigInt(CARD_MAX_PAY_MICROS))) return null;
-  if (perDay !== undefined && (typeof perDay !== "number" || !Number.isSafeInteger(perDay) || perDay < 0 || perDay > CARD_MAX_PAID_PER_DAY)) return null;
-  return { ...(pay === undefined ? {} : { payPerCardMicros: pay as string }), ...(perDay === undefined ? {} : { paidCardsPerDay: perDay as number }) };
+  if (perDay !== undefined && !paidPerDay(perDay)) return null;
+  return { ...(pay === undefined ? {} : { payPerCardMicros: pay as string }), ...(perDay === undefined ? {} : { paidCardsPerDay: perDay }) };
 }
 /** A share from 0 to 100 and a list of distinct places; undefined when absent, null when malformed. */
 export function parseNetworkMix(raw: unknown): NetworkMix | null | undefined {
@@ -181,9 +237,15 @@ function parseConnection(raw: unknown): AdNetworkConfig | null {
     const placement = record(raw["zeekend"]) ? raw["zeekend"]["placementId"] : undefined;
     const placementId = placement === undefined || placement === "" ? "chat-main" : placement;
     if (typeof placementId !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(placementId)) return null;
-    const pay = parseCardPay(record(raw["zeekend"]) ? raw["zeekend"] : {});
-    if (pay === null) return null;
-    return { ...base, zeekend: { placementId, ...pay } };
+    const zeekend = record(raw["zeekend"]) ? raw["zeekend"] : {};
+    const pay = zeekend["payPerCardMicros"], perDay = zeekend["paidCardsPerDay"], defaultEarn = zeekend["defaultEarnPerCardMicros"];
+    if (pay !== undefined && (!micros(pay) || BigInt(pay) > BigInt(ZEEKEND_MAX_PAY_MICROS))) return null;
+    if (perDay !== undefined && !paidPerDay(perDay)) return null;
+    // The default rate is held to the same rule as a country's: never more than a card earns.
+    if (defaultEarn !== undefined && (!micros(defaultEarn) || BigInt(defaultEarn) > BigInt(ZEEKEND_MAX_EARN_MICROS) || BigInt(pay === undefined ? ZEEKEND_DEFAULT_PAY_MICROS : pay as string) > BigInt(defaultEarn))) return null;
+    const countryPay = zeekend["countryPay"] === undefined ? undefined : parseCountryPay(zeekend["countryPay"]);
+    if (countryPay === null) return null;
+    return { ...base, zeekend: { placementId, ...(pay === undefined ? {} : { payPerCardMicros: pay as string }), ...(perDay === undefined ? {} : { paidCardsPerDay: perDay }), ...(countryPay === undefined || countryPay.length === 0 ? {} : { countryPay }), ...(defaultEarn === undefined ? {} : { defaultEarnPerCardMicros: defaultEarn as string }) } };
   }
   if (provider === "beehiiv") {
     const bee = raw["beehiiv"];

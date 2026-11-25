@@ -22,11 +22,11 @@ import { readAdNetworkArtwork } from "./adNetworkArtwork.ts";
 import { relayImprezia } from "./impreziaProxy.ts";
 import { sponsoredNetworks } from "./sponsoredNetworks.ts";
 import { checkClaim, createMemoryAdIntegrityStore, parseConversationId, withoutPausedNetworks } from "./adIntegrity.ts";
-import { creditNetworkImpression, parseNetworkImpression, withNetworkImpressions } from "./networkImpressions.ts";
+import { creditNetworkImpression, parseNetworkImpression, sponsoredCardRate, withNetworkImpressions } from "./networkImpressions.ts";
 import { earningsHeld, isHeld, reviewAccount } from "./earningReview.ts";
 import { handleDecideEarningReview, handleListEarningReviews } from "./earningReviewRoutes.ts";
 import { handleServe } from "./serve.ts";
-import { requestRegionTag } from "./regions.ts";
+import { edgeCountry, requestRegionTag } from "./regions.ts";
 import { handleReceipts } from "./receipts.ts";
 import { handleBalance, handleLedger } from "./balance.ts";
 import { handleConversionQuote, handleConvertEarnings } from "./earningsConversionRoutes.ts";
@@ -2297,8 +2297,8 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       return;
     }
 
-    // A partner card (Zeekend or Imprezia) the signed-in app saw counted: the admin-set rate to
-    // this account, once per card, capped per day across partners (networkImpressions.ts).
+    // A partner card (Zeekend or Imprezia) the signed-in app saw counted: the admin-set rate (for
+    // the country the edge places this request in) to this account, once per card, capped per day across partners (networkImpressions.ts).
     if (path === "/v1/sponsored/earn" && req.method === "POST") {
       let raw: unknown = null;
       try { raw = JSON.parse(await readBody(req)); } catch { send(res, 400, { error: "invalid-body" }, cors); return; }
@@ -2330,8 +2330,16 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
         now,
         servesTestCards: (config) => servesTestCards({ store, ...options.adNetworks }, config),
         ...(review === undefined ? {} : { review }),
+        country: edgeCountry(req),
       }, auth.uid, raw);
       send(res, outcome.credited || outcome.reason !== "invalid" ? 200 : 400, outcome, { ...cors, "cache-control": "no-store" });
+      return;
+    }
+
+    // What a Zeekend card pays this person where they are now, for Earnings (networkImpressions.ts). Only
+    // their own country's rate and cap: never the table, and never what ADCode earns.
+    if (path === "/v1/sponsored/rate" && req.method === "GET") {
+      send(res, 200, await sponsoredCardRate(store.adNetworks, edgeCountry(req)), { ...cors, "cache-control": "no-store" });
       return;
     }
 

@@ -26,6 +26,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { createRequestHandler, type ApiOptions } from "./server.ts";
 import { createMemoryStore } from "./memoryStore.ts";
 import { createTagflowHandler } from "./tagflow.ts";
+import { EDGE_COUNTRY } from "./regions.ts";
 import { createAdminConsoleHandler } from "./adminConsole.ts";
 import { createAdminInsightsHandler } from "./adminInsights.ts";
 
@@ -144,6 +145,14 @@ export function createFetchHandler(
         : new Uint8Array(await request.arrayBuffer());
 
     const req = new ShimRequest(path, request.method, request.headers, body);
+    // The deployment says where Cloudflare placed this connection (request.cf.country); with that
+    // said, no header may say otherwise (regions.ts edgeCountry). A throw means "not known".
+    const country = options.tagflow?.country;
+    if (country !== undefined) {
+      let code: string | null = null;
+      try { code = country(request) ?? null; } catch { code = null; }
+      (req as unknown as { [EDGE_COUNTRY]?: string | null })[EDGE_COUNTRY] = code;
+    }
     const res = new ShimResponse();
 
     try {

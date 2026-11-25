@@ -5,6 +5,8 @@ import dynamic from "next/dynamic";
 import { useAuth } from "./AuthProvider";
 import { adNetworkReadiness, CARD_MAX_PAID_PER_DAY, CARD_MAX_PAY_MICROS, CARD_PLACES, cardPay, MAX_SHARE, networkMix, parseAdNetworkConfig, type AdNetworkConfig, type AdNetworkProvider, type CardPlace, type HttpAdNetworkConfig, type NetworkMix } from "@adcode/api/src/adNetworkConfig.ts";
 import type { ServedCreative } from "@adcode/api/src/contract.ts";
+import { CountryPayEditor } from "./CountryPayEditor";
+import { fromDrafts, toDraft, type CountryPayDraft } from "../lib/countryCardPay";
 import "./adNetworksAdmin.css";
 
 /** keyMode: which Imprezia or Zeekend environment the saved key belongs to, read on the server. The key itself never comes back. */
@@ -48,11 +50,13 @@ export function payoutSummary(config: Pick<AdNetworkConfig, "viewPayoutMicros" |
   return basis === "both" ? `${view} + ${click}` : basis === "click" ? click : view;
 }
 
-/** What one person earns from a partner's cards: the rate, the daily cap, and the most a day pays. */
+/** What one person earns from a partner's cards: the rate, the daily cap, the most a day pays, and how many countries have their own rate. */
 export function cardPaySummary(config: Pick<AdNetworkConfig, "zeekend" | "imprezia">): string {
   const { payMicros, perDay } = cardPay(config);
-  if (payMicros === 0 || perDay === 0) return "Nothing: paused";
-  return `$${usd(String(payMicros))} per card, up to ${perDay.toLocaleString("en-US")} a day ($${(payMicros * perDay / 1_000_000).toFixed(2)})`;
+  const countries = config.zeekend?.countryPay?.length ?? 0;
+  const byCountry = countries === 0 ? "" : `; ${countries} ${countries === 1 ? "country has its" : "countries have their"} own rate`;
+  if (payMicros === 0 || perDay === 0) return `Nothing: paused${countries === 0 ? "" : ` by default${byCountry}`}`;
+  return `$${usd(String(payMicros))} per card, up to ${perDay.toLocaleString("en-US")} a day ($${(payMicros * perDay / 1_000_000).toFixed(2)})${byCountry}`;
 }
 /** The name cardPaySummary had while Zeekend was the only partner. */
 export const zeekendPaySummary = cardPaySummary;
@@ -274,6 +278,8 @@ function NetworkEditor({ initial, saved, onSave, onCancel }: { initial: AdNetwor
   const [clickPay, setClickPay] = useState(usd(initial.clickPayoutMicros));
   const [cardUsd, setCardUsd] = useState(usd(String(cardPay(initial).payMicros)));
   const [cardsPerDay, setCardsPerDay] = useState(String(cardPay(initial).perDay));
+  const [countryRows, setCountryRows] = useState<CountryPayDraft[]>(() => (initial.zeekend?.countryPay ?? []).map(toDraft));
+  const [defaultEarn, setDefaultEarn] = useState(initial.zeekend?.defaultEarnPerCardMicros === undefined ? "" : usd(initial.zeekend.defaultEarnPerCardMicros));
   const [requestJson, setRequestJson] = useState(JSON.stringify(initial.http?.requestTemplate ?? {}, null, 2));
   const [verifyJson, setVerifyJson] = useState(JSON.stringify(initial.http?.verifyTemplate ?? {}, null, 2));
   const [busy, setBusy] = useState(false);
@@ -289,9 +295,14 @@ function NetworkEditor({ initial, saved, onSave, onCancel }: { initial: AdNetwor
     if (isChat(draft)) {
       const pay = cardPayFields(cardUsd, cardsPerDay);
       if (typeof pay === "string") { setNotice({ text: pay, error: true }); return; }
-      configured = draft.provider === "zeekend"
-        ? { ...configured, zeekend: { placementId: draft.zeekend?.placementId ?? "chat-main", ...pay } }
-        : { ...configured, imprezia: { kind: "chat", id: draft.imprezia?.id ?? "", ...pay } };
+      if (draft.provider === "zeekend") {
+        const countryPay = fromDrafts(countryRows);
+        if (typeof countryPay === "string") { setNotice({ text: countryPay, error: true }); return; }
+        const earn = defaultEarn.trim() === "" ? null : payoutMicros(defaultEarn.trim());
+        if (defaultEarn.trim() !== "" && (earn === null || Number(earn) > 1_000_000)) { setNotice({ text: "What a card earns elsewhere must be from $0 to $1, with at most six decimal places.", error: true }); return; }
+        if (earn !== null && Number(pay.payPerCardMicros) > Number(earn)) { setNotice({ text: `The default pay ($${usd(pay.payPerCardMicros)}) is more than a card earns elsewhere ($${usd(earn)}). Lower it: ADCode never pays more than a card earns.`, error: true }); return; }
+        configured = { ...configured, zeekend: { placementId: draft.zeekend?.placementId ?? "chat-main", ...pay, ...(countryPay.length === 0 ? {} : { countryPay }), ...(earn === null ? {} : { defaultEarnPerCardMicros: earn }) } };
+      } else configured = { ...configured, imprezia: { kind: "chat", id: draft.imprezia?.id ?? "", ...pay } };
     }
     if (draft.http) {
       try { configured = { ...configured, http: { ...draft.http, requestTemplate: JSON.parse(requestJson), verifyTemplate: JSON.parse(verifyJson) } }; }
@@ -340,9 +351,10 @@ function NetworkEditor({ initial, saved, onSave, onCancel }: { initial: AdNetwor
       </>}
       {draft.provider === "zeekend" && <fieldset disabled={busy}><legend>Zeekend Chat Ads</legend><div className="tagflow-fields"><TextField label="Placement ID" value={draft.zeekend?.placementId ?? "chat-main"} pattern="[A-Za-z0-9_-]{1,64}" hint="The placement Zeekend reports this slot under. chat-main is what its SDK uses for a chat answer." onChange={(placementId) => change({ zeekend: { ...draft.zeekend, placementId } })} /></div></fieldset>}
       {isChat(draft) && <fieldset disabled={busy}><legend>User pay</legend><div className="tagflow-fields">
-        <TextField label="Pay per card (USD)" type="number" value={cardUsd} onChange={setCardUsd} hint={`What a person earns for each ${providerName(draft.provider)} card they are shown. $0 pauses pay; at most $${usd(String(CARD_MAX_PAY_MICROS))}.`} />
+        <TextField label={draft.provider === "zeekend" ? "Default pay per card (USD)" : "Pay per card (USD)"} type="number" value={cardUsd} onChange={setCardUsd} hint={`What a person earns for each ${providerName(draft.provider)} card they are shown${draft.provider === "zeekend" ? ", in any country without its own rate below" : ", in every country"}. $0 pauses pay; at most $${usd(String(CARD_MAX_PAY_MICROS))}.`} />
         <TextField label="Paid cards a day, per person" pattern="[0-9]{1,4}" value={cardsPerDay} onChange={setCardsPerDay} hint={`Counted across every partner: once a person has been paid for this many cards in a UTC day, ${providerName(draft.provider)} cards still show but pay nothing. 0 to ${CARD_MAX_PAID_PER_DAY.toLocaleString("en-US")}.`} />
-      </div><p className="row-sub" role="status">{(() => { const pay = cardPayFields(cardUsd, cardsPerDay); return typeof pay === "string" ? pay : `Most one person can earn from ${providerName(draft.provider)} in a day: ${cardPaySummary({ zeekend: { placementId: "chat-main", ...pay } })}.`; })()} A new rate applies to cards counted after you save; cards already counted keep the rate they were paid at. {providerName(draft.provider)} pays ADCode separately, in its own reports.</p></fieldset>}
+      </div><p className="row-sub" role="status">{(() => { const pay = cardPayFields(cardUsd, cardsPerDay); return typeof pay === "string" ? pay : `Most one person can earn from ${providerName(draft.provider)} in a day: ${cardPaySummary({ zeekend: { placementId: "chat-main", ...pay } })}.`; })()} A new rate applies to cards counted after you save; cards already counted keep the rate they were paid at.{draft.provider === "zeekend" ? " The country is the one Cloudflare places the viewer in, never one the app reports." : ""} {providerName(draft.provider)} pays ADCode separately, in its own reports.</p>
+        {draft.provider === "zeekend" && <CountryPayEditor rows={countryRows} onChange={setCountryRows} defaultPay={cardUsd} defaultCap={cardsPerDay} defaultEarn={defaultEarn} onDefaultEarn={setDefaultEarn} />}</fieldset>}
       {draft.provider === "beehiiv" && <fieldset disabled={busy}><legend>Newsletter content preview</legend><div className="tagflow-fields"><TextField label="Publication ID" value={draft.beehiiv?.publicationId ?? ""} hint="The pub_ ID from beehiiv." onChange={(publicationId) => change({ beehiiv: { publicationId, offerId: draft.beehiiv?.offerId ?? "" } })} /><TextField label="Offer ID" value={draft.beehiiv?.offerId ?? ""} onChange={(offerId) => change({ beehiiv: { publicationId: draft.beehiiv?.publicationId ?? "", offerId } })} /></div></fieldset>}
       {draft.provider === "imprezia" && <fieldset disabled={busy}><legend>{isChat(draft) ? "Imprezia Chat Ads" : "Approved Exchange inventory"}</legend><div className="tagflow-fields"><label className="tagflow-field"><span>Integration</span><select className="select" value={draft.imprezia?.kind ?? "chat"} onChange={(event) => { const kind = event.target.value as "app" | "site" | "chat"; change({ imprezia: { kind, id: "" }, ...(kind === "chat" ? {} : { enabled: false }) }); }}><option value="chat">Chat Ads (publisher API key)</option><option value="app">Exchange preview: app bundle</option><option value="site">Exchange preview: website domain</option></select></label>{isChat(draft)
         ? <TextField label="Placement ID (optional)" value={draft.imprezia?.id ?? ""} required={false} pattern="[A-Za-z0-9_-]{1,64}" hint="A label Imprezia registered for this slot, such as editor_sponsored_card. Leave blank for the default." onChange={(id) => change({ imprezia: { kind: "chat", id } })} />

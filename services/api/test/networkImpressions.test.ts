@@ -181,6 +181,6 @@ describe("paying for a Zeekend card", () => {
     expect(parseAdNetworkConfig({ ...zeekendConfig, zeekend: { placementId: "chat-main", payPerCardMicros: "2.5" } })).toBeNull();
     const saved = parseAdNetworkConfig({ ...zeekendConfig, zeekend: { placementId: "chat-main", payPerCardMicros: "100000", paidCardsPerDay: 1000 } });
     expect(saved?.zeekend).toEqual({ placementId: "chat-main", payPerCardMicros: "100000", paidCardsPerDay: 1000 });
-    expect(zeekendPay(parseAdNetworkConfig(zeekendConfig) ?? undefined)).toEqual({ payMicros: 2000, perDay: 300 });
+    expect(zeekendPay(parseAdNetworkConfig(zeekendConfig) ?? undefined)).toMatchObject({ payMicros: 2000, perDay: 300 });
   });
 });
