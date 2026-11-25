@@ -91,7 +91,7 @@ import {
 } from "./chatMarkdown.ts";
 import { createResultImage, summarizeToolInput, toolHeaderLabel } from "./chatActivity.ts";
 import { createPixelSpinner, createTurnTimeline, outsideToolFrom, outsideToolRowName, type TurnTimeline } from "./chatTimeline.ts";
-import { workingWord, workingWordSeed, type WorkingPhase } from "./workingWords.ts";
+import { workingTone, workingWord, workingWordSeed, type WorkingPhase } from "./workingWords.ts";
 import { createFrameTask } from "../frameTask.ts";
 import { attachChatLayout } from "./chatLayout.ts";
 import {
@@ -3782,8 +3782,15 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const workingSeed = workingWordSeed();
   function paintWorkingWord(): void {
     if (workingPhase === null) return;
-    const word = workingWord(workingPhase, (Date.now() - workingPhaseSince) / 1_000, workingSeed);
-    if (workingText.textContent !== word) workingText.textContent = word;
+    const seconds = (Date.now() - workingPhaseSince) / 1_000;
+    const word = workingWord(workingPhase, seconds, workingSeed);
+    if (workingText.textContent === word) return;
+    workingText.textContent = word;
+    // Each word in its own colour, popping in as it arrives (ai.css .chat-working-text[data-tone]).
+    workingText.dataset["tone"] = String(workingTone(workingPhase, seconds, workingSeed));
+    workingText.classList.remove("is-new");
+    void workingText.offsetWidth;
+    workingText.classList.add("is-new");
   }
   function setWorkingPhase(phase: WorkingPhase): void {
     if (workingPhase !== phase) { workingPhase = phase; workingPhaseSince = Date.now(); }
@@ -3792,6 +3799,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   function setWorkingLabel(text: string): void {
     workingPhase = null;
     workingText.textContent = text;
+    // A plain label (a tool run, a limit pause) says something real: no colour show.
+    delete workingText.dataset["tone"];
+    workingText.classList.remove("is-new");
   }
 
   /* Faces and names on replies, and the reply layout, from Settings > Appearance. */

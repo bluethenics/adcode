@@ -58,6 +58,8 @@ const PATH = {
   // The web frame's rows (webShell.ts).
   search: "M7 2.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zM10.3 10.3l3.2 3.2",
   spark: "M8 2l1.5 4.5L14 8l-4.5 1.5L8 14 6.5 9.5 2 8l4.5-1.5z",
+  /** A gauge: the Usage row (what you have used, what is left). */
+  gauge: "M2.5 11.5a5.5 5.5 0 1 1 11 0M8 11.5l2.6-3.4M4.2 7.4l.8.6M8 5.5v1M11.8 7.4l-.8.6",
   gift: "M2.5 6h11v2.5h-11zM3.5 8.5V13.5h9V8.5M8 6v7.5M8 6C6.6 6 5 5.5 5 4.3 5 3 6.8 2.9 8 6zM8 6c1.4 0 3-.5 3-1.7C11 3 9.2 2.9 8 6z",
   chevronRight: "M6.5 4.5 10 8l-3.5 3.5",
   monitor: "M2 3h12v8H2zM6 14h4M8 11v3",
@@ -378,7 +380,7 @@ export function createVibeSidebar(deps: VibeSidebarDeps): VibeSidebar {
     brand.append(brandMark({ size: 24, plate: true, accent: true }), wordmark, ...(menuButton === null ? [] : [menuButton]), searchButton, dismiss);
     newConversation.control.querySelector("svg")?.replaceWith(createIcon(WEB_ICON.newChat));
 
-    const credits = navItem("Included AI", PATH.spark, "web-credits-row", () => { deps.run("ai.showCredits"); closeDrawer(); });
+    const credits = navItem("Usage", PATH.gauge, "web-credits-row", () => { deps.run("ai.showCredits"); closeDrawer(); });
     // On the web these rows open its account dialog, which is where a browser keeps earnings and
     // invites. The desktop has real panels for both, so they open those instead.
     const earningsRow = navItem("Earnings", ICON.earnings, "web-earnings-row", () => {
@@ -398,7 +400,7 @@ export function createVibeSidebar(deps: VibeSidebarDeps): VibeSidebar {
     const time = document.querySelector<HTMLElement>(".web-time");
     if (time !== null) usage.append(time);
     deps.onEarnings((label) => setBadge(earningsRow, "Earnings", label, false, label === "" ? "Your earnings" : `${label} available`));
-    credits.control.title = "Included AI — view usage and plans";
+    credits.control.title = "Usage - what you have used, what is left and when it refills";
 
     const projectLabel = document.createElement("h2");
     projectLabel.className = "vibe-nav-label";

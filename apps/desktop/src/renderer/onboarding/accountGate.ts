@@ -1,6 +1,9 @@
 import type { AccountMenu } from "../workbench/accountMenu.ts";
 import { createAccountBackdrop } from "./accountBackdrop.ts";
 
+/** How long an account check may take before the gate shows "Checking your account". */
+export const SLOW_CHECK_MS = 700;
+
 /** Authentication and server-side verification remain required, independently of the tour. */
 export function createAccountGate(menu: AccountMenu, ready: () => void, required: Promise<boolean> = Promise.resolve(true)) {
   const dialog = document.createElement("dialog");
@@ -29,7 +32,9 @@ export function createAccountGate(menu: AccountMenu, ready: () => void, required
   content.append(title, detail, addEmail, mount, status, retry, later);
   dialog.append(backdrop.element, brand, content);
   document.body.append(dialog);
-  let checking = false, queued = false, verified = false, version = 0, timer: number | undefined;
+  let checking = false, queued = false, verified = false, version = 0, timer: number | undefined, slow: number | undefined;
+  /** The person got into the editor this launch: a verified account, or "sign in later". */
+  let unlocked = false;
   const waiting: (() => void)[] = [];
   dialog.addEventListener("cancel", event => event.preventDefault());
   addEmail.addEventListener("submit", event => {
@@ -42,19 +47,45 @@ export function createAccountGate(menu: AccountMenu, ready: () => void, required
     }).finally(() => { addButton.disabled = false; });
   });
   function open(step: string) {
+    clearTimeout(slow);
     dialog.dataset["step"] = step;
     if (!dialog.open) { dialog.showModal(); backdrop.activate(); }
     if (step !== "checking") menu.attachTo(mount);
   }
-  function unlock() {
-    clearTimeout(timer); menu.attachTo(null); dialog.close(); backdrop.deactivate();
-    ready(); waiting.splice(0).forEach(resolve => resolve());
+  /*
+   * "Checking your account" only when the check is slow. A returning, verified account clears
+   * in well under a second, and putting a full-screen gate up for that blink - then taking it
+   * down, and on launch putting it up again when the verification answer itself announced an
+   * account change - was the flicker people reported. Under SLOW_CHECK_MS nothing is shown.
+   */
+  function checkingSoon() {
+    clearTimeout(slow);
+    if (dialog.open) return;
+    slow = window.setTimeout(() => {
+      if (!checking || dialog.open) return;
+      title.textContent = "Checking your account"; detail.textContent = ""; status.textContent = ""; retry.hidden = true;
+      open("checking");
+    }, SLOW_CHECK_MS);
   }
-  async function check() {
+  function unlock() {
+    clearTimeout(timer); clearTimeout(slow);
+    if (dialog.open) { menu.attachTo(null); dialog.close(); backdrop.deactivate(); }
+    const first = !unlocked;
+    unlocked = true;
+    if (first) ready();
+    waiting.splice(0).forEach(resolve => resolve());
+  }
+  /**
+   * `quiet`: the person is already in (an account change after unlocking). Only an answer that
+   * needs them - signed out, or an email still to confirm - puts the gate back up; a network
+   * blip or the same verified account changes nothing on screen.
+   */
+  async function check(quiet = false) {
     queued = true;
     if (checking) return;
     checking = true;
     clearTimeout(timer);
+    if (!quiet) checkingSoon();
     try {
       // Verification can broadcast an account change during this request. Queue a fresh
       // check rather than dropping the notification or unlocking from a stale result.
@@ -64,19 +95,25 @@ export function createAccountGate(menu: AccountMenu, ready: () => void, required
         try {
           const account = await window.adcode.account.status();
           if (request !== version) continue;
-          retry.hidden = true;
+          if (account.state === "unavailable" && quiet && unlocked) break;
           if (account.state !== "linked") {
-            verified = false; addEmail.hidden = true;
+            verified = false; addEmail.hidden = true; retry.hidden = account.state !== "unavailable";
             title.textContent = "Sign in to ADCode";
             detail.textContent = "Your account keeps your AI and conversations together.";
             status.textContent = account.state === "unavailable" ? "Could not connect. Check your connection and try again." : "";
-            retry.hidden = account.state !== "unavailable";
             open("signin"); continue;
           }
           const result = await window.adcode.account.verification(false);
           if (request !== version) continue;
-          verified = result.verified === true;
+          // No yes or no came back: the check itself failed (offline, a timeout). That is not
+          // "unverified", and must not ask somebody already verified to confirm their email.
+          if (typeof result.verified !== "boolean") {
+            if (quiet && unlocked) break;
+            throw new Error(result.message);
+          }
+          verified = result.verified;
           if (verified) { unlock(); continue; }
+          retry.hidden = true;
           addEmail.hidden = Boolean(account.email);
           title.textContent = addEmail.hidden ? "Confirm your email" : "Add an email to finish";
           detail.textContent = addEmail.hidden
@@ -86,6 +123,7 @@ export function createAccountGate(menu: AccountMenu, ready: () => void, required
           open("verify");
         } catch {
           if (request !== version) continue;
+          if (quiet && unlocked) break;
           verified = false;
           title.textContent = "Connect to your account";
           detail.textContent = "Check your connection, then try again.";
@@ -95,6 +133,7 @@ export function createAccountGate(menu: AccountMenu, ready: () => void, required
       } while (queued);
     } finally {
       checking = false;
+      clearTimeout(slow);
       if (dialog.open && !verified) timer = window.setTimeout(() => { void check(); }, 5000);
     }
   }
@@ -107,15 +146,14 @@ export function createAccountGate(menu: AccountMenu, ready: () => void, required
   let guarding = true;
   window.adcode.account.onChanged(() => {
     if (!guarding) return;
-    version++; verified = false;
-    title.textContent = "Checking your account"; status.textContent = "";
-    open("checking"); void check();
+    version++;
+    // An open gate updates in place; once the person is in, the change is checked quietly.
+    void check(!dialog.open && unlocked);
   });
-  // Avoid flashing the sign-in form for an already verified returning account.
   // A source checkout run for automation may switch the gate off (see PlatformInfo.accountGate).
   void required.catch(() => true).then((on) => {
-    if (on) { open("checking"); void check(); return; }
-    guarding = false; verified = true; ready(); waiting.splice(0).forEach(resolve => resolve());
+    if (on) { void check(); return; }
+    guarding = false; verified = true; unlock();
   });
   return { wait: () => verified && !dialog.open ? Promise.resolve() : new Promise<void>(resolve => waiting.push(resolve)), isOpen: () => dialog.open };
 }

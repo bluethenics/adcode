@@ -676,6 +676,56 @@
   to { background-position: -150% 0; }
 }
 
+/*
+ * Working words in colour (workingWords.ts): each word wears one of six tones - ember, sun,
+ * lime, sea, iris, rose - shimmering across it, and pops in when it changes. Deep tones on a
+ * light theme, bright ones on a dark one, both above 4.5:1 at their darkest stop.
+ */
+.chat-working-text[data-tone],
+.chat-card .chat-step.is-thinking[data-state="running"] .chat-step-label[data-tone] {
+  --wt-a: #c2410c; --wt-b: #ea580c;
+  background: linear-gradient(90deg, var(--wt-a) 0%, var(--wt-a) 30%, var(--wt-b) 50%, var(--wt-a) 70%, var(--wt-a) 100%) 0 0 / 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 600;
+  letter-spacing: .005em;
+  animation: chat-text-shimmer 2.2s linear infinite;
+}
+.chat-card .chat-working-text[data-tone] { overflow: visible; padding-right: 2px; }
+[data-tone="1"] { --wt-a: #a16207; --wt-b: #ca8a04; }
+[data-tone="2"] { --wt-a: #4d7c0f; --wt-b: #65a30d; }
+[data-tone="3"] { --wt-a: #0f766e; --wt-b: #0891b2; }
+[data-tone="4"] { --wt-a: #6d28d9; --wt-b: #8b5cf6; }
+[data-tone="5"] { --wt-a: #be185d; --wt-b: #db2777; }
+:root[data-theme="dark"] [data-tone="0"], :root[data-theme="midnight"] [data-tone="0"] { --wt-a: #fb923c; --wt-b: #fed7aa; }
+:root[data-theme="dark"] [data-tone="1"], :root[data-theme="midnight"] [data-tone="1"] { --wt-a: #facc15; --wt-b: #fef9c3; }
+:root[data-theme="dark"] [data-tone="2"], :root[data-theme="midnight"] [data-tone="2"] { --wt-a: #a3e635; --wt-b: #ecfccb; }
+:root[data-theme="dark"] [data-tone="3"], :root[data-theme="midnight"] [data-tone="3"] { --wt-a: #2dd4bf; --wt-b: #cffafe; }
+:root[data-theme="dark"] [data-tone="4"], :root[data-theme="midnight"] [data-tone="4"] { --wt-a: #a78bfa; --wt-b: #ede9fe; }
+:root[data-theme="dark"] [data-tone="5"], :root[data-theme="midnight"] [data-tone="5"] { --wt-a: #f472b6; --wt-b: #fce7f3; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) [data-tone="0"] { --wt-a: #fb923c; --wt-b: #fed7aa; }
+  :root:not([data-theme="light"]) [data-tone="1"] { --wt-a: #facc15; --wt-b: #fef9c3; }
+  :root:not([data-theme="light"]) [data-tone="2"] { --wt-a: #a3e635; --wt-b: #ecfccb; }
+  :root:not([data-theme="light"]) [data-tone="3"] { --wt-a: #2dd4bf; --wt-b: #cffafe; }
+  :root:not([data-theme="light"]) [data-tone="4"] { --wt-a: #a78bfa; --wt-b: #ede9fe; }
+  :root:not([data-theme="light"]) [data-tone="5"] { --wt-a: #f472b6; --wt-b: #fce7f3; }
+}
+.chat-working-text.is-new { animation: chat-word-pop 280ms cubic-bezier(.2, .9, .3, 1.4), chat-text-shimmer 2.2s linear infinite; }
+@keyframes chat-word-pop {
+  from { opacity: 0; transform: translateY(3px) scale(.94); }
+  to { opacity: 1; transform: none; }
+}
+.chat-working-text[data-tone] { display: inline-block; transform-origin: left center; }
+@media (prefers-reduced-motion: reduce) {
+  .chat-working-text[data-tone], .chat-working-text.is-new,
+  .chat-card .chat-step.is-thinking[data-state="running"] .chat-step-label[data-tone] { animation: none; background-position: 0 0; }
+}
+:root[data-reduced-motion="true"] .chat-working-text[data-tone],
+:root[data-reduced-motion="true"] .chat-working-text.is-new,
+:root[data-reduced-motion="true"] .chat-card .chat-step.is-thinking[data-state="running"] .chat-step-label[data-tone] { animation: none; background-position: 0 0; }
+
 /* Folding: grid rows from 1fr to 0fr, so the height animates without being measured. */
 .chat-card .chat-turn-collapse {
   display: grid;
