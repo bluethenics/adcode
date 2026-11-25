@@ -174,6 +174,8 @@ export const BRIDGE = [
   { path: "ai.scanChatImports", kind: "invoke", channel: CHANNELS.aiImportScan },
   { path: "ai.pickChatImportFile", kind: "invoke", channel: CHANNELS.aiImportFile },
   { path: "ai.importChats", kind: "invoke", channel: CHANNELS.aiImportChats },
+  { path: "ai.pickChatImportFolder", kind: "invoke", channel: CHANNELS.aiImportFolder },
+  { path: "ai.previewChatImport", kind: "invoke", channel: CHANNELS.aiImportPreview },
   { path: "ai.openKeyPage", kind: "invoke", channel: CHANNELS.aiOpenKeyPage },
   { path: "ai.send", kind: "invoke", channel: CHANNELS.aiSend },
   { path: "ai.complete", kind: "invoke", channel: CHANNELS.aiCompletion },

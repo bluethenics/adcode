@@ -1,6 +1,6 @@
 import { viewPage, readAgentBrowser, setAgentBrowserSink } from "./agentBrowser.ts";
 import { parseViewPageInput } from "./agentBrowserModel.ts";
-import { importChats, readChatExport, scanChatImports } from "./chatImport.ts";
+import { importChats, previewChatImport, readChatExport, scanChatFolder, scanChatImports } from "./chatImport.ts";
 import { regenerateToolBridgeToken, toolBridgeView } from "./toolBridge.ts";
 import { annotateLiveTab, annotatePreviewFrame, captureHostForAnnotate, captureLiveTabForAnnotate, clearLiveBrowserData, registerLiveTab, setLiveBrowserRequestSink, unregisterLiveTab } from "./liveBrowser.ts";
 import { parseAnnotateProbe, parseAnnotateTarget } from "./liveBrowserModel.ts";
@@ -74,7 +74,7 @@ import {
   toggleBreakpoint,
 } from "./debug.ts";
 import { partnerConversationId } from "./partnerNotification.ts";
-import { CHANNELS, IDE_VIEW_COMMANDS, type IdeView, type PreviewStatus, type RuntimeCheckView } from "../shared/api.ts";
+import { type ChatImportScanOptions, CHANNELS, IDE_VIEW_COMMANDS, type IdeView, type PreviewStatus, type RuntimeCheckView } from "../shared/api.ts";
 import { lightSession, sessionsDelta } from "../shared/sessionDelta.ts";
 import { downloadUrlFor, installCommandFor, runtimeById, runtimeFor } from "../shared/runtimes.ts";
 import {
@@ -712,17 +712,32 @@ export function registerIpc(
   // Only what changed since the window's copy: a day-long chat is not resent after every reply.
   ipcMain.handle(CHANNELS.aiSessionsDelta, async (_event, known: unknown) => sessionsDelta(await aiSessions(), known));
   // Other tools' conversations: found in three known folders, listed without their text, saved only when chosen.
-  ipcMain.handle(CHANNELS.aiImportScan, () => scanChatImports(app.getPath("home")));
+  ipcMain.handle(CHANNELS.aiImportScan, (_event, options: unknown) => scanChatImports(app.getPath("home"), typeof options === "object" && options !== null ? options as ChatImportScanOptions : undefined, currentWorkspace()?.root ?? null));
+  ipcMain.handle(CHANNELS.aiImportFolder, async (event) => {
+    const owner = BrowserWindow.fromWebContents(event.sender);
+    const options: Electron.OpenDialogOptions = { title: "Choose a folder of conversations to import", buttonLabel: "Scan this folder", properties: ["openDirectory"] };
+    const picked = owner === null ? await dialog.showOpenDialog(options) : await dialog.showOpenDialog(owner, options);
+    const path = picked.filePaths[0];
+    return picked.canceled || path === undefined ? null : scanChatFolder(path, currentWorkspace()?.root ?? null);
+  });
+  ipcMain.handle(CHANNELS.aiImportPreview, (_event, key: unknown) => {
+    if (typeof key !== "string" || key.length > 80) throw new Error("Invalid preview request");
+    return previewChatImport(key);
+  });
   ipcMain.handle(CHANNELS.aiImportFile, async (event) => {
     const owner = BrowserWindow.fromWebContents(event.sender);
     const options: Electron.OpenDialogOptions = { title: "Choose an exported conversations file", properties: ["openFile"], filters: [{ name: "Conversations", extensions: ["json"] }] };
     const picked = owner === null ? await dialog.showOpenDialog(options) : await dialog.showOpenDialog(owner, options);
     const path = picked.filePaths[0];
-    return picked.canceled || path === undefined ? null : readChatExport(path);
+    return picked.canceled || path === undefined ? null : readChatExport(path, currentWorkspace()?.root ?? null);
   });
-  ipcMain.handle(CHANNELS.aiImportChats, (_event, keys: unknown, target: unknown) => {
+  ipcMain.handle(CHANNELS.aiImportChats, (_event, keys: unknown, target: unknown, options: unknown) => {
     if (!Array.isArray(keys) || keys.length > 400 || keys.some((key) => typeof key !== "string" || key.length > 80)) throw new Error("Invalid import request");
-    return importChats(keys as string[], target === "current" ? "current" : "own-folder", currentWorkspace()?.root ?? null);
+    const chosen = typeof options === "object" && options !== null ? options as Record<string, unknown> : {};
+    return importChats(keys as string[], target === "current" ? "current" : "own-folder", currentWorkspace()?.root ?? null, {
+      skipImported: chosen["skipImported"] === true,
+      lastMessages: typeof chosen["lastMessages"] === "number" ? chosen["lastMessages"] : null,
+    });
   });
   // The latest messages and a count: its readers need the title, summary and size, not the history.
   ipcMain.handle(CHANNELS.aiSessionChanged, () => { const current = aiCurrentSession(); return current === null ? null : lightSession(current); });

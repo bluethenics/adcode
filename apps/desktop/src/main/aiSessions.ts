@@ -185,6 +185,15 @@ export async function writeSession(
   await enforceLimit(workspace);
 }
 
+/** Whether a conversation with this id is saved for the workspace, under any spelling of it. */
+export async function sessionExists(workspace: string | null, id: string): Promise<boolean> {
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) return false;
+  for (const where of directories(workspace)) {
+    if (await stat(join(where, `${id}.json`)).then((info) => info.isFile(), () => false)) return true;
+  }
+  return false;
+}
+
 export async function deleteSession(workspace: string | null, id: string): Promise<void> {
   // The id becomes a filename, so anything that is not a plain id is refused rather than
   // joined into a path - the renderer is treated as hostile (§1).

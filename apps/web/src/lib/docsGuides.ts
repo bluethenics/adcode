@@ -1386,9 +1386,12 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "On an empty conversation, press Import from other apps under the greeting; an empty conversation list has the same button. It opens Move in. You can also run Move In from the command palette or choose Import from other apps on the welcome screen.",
       "Under Your AI accounts, find the tools you already pay for: Claude Code, Codex (your ChatGPT account), OpenCode, Gemini CLI, Freebuff.",
       "Press Use in ADCode on an installed one. It becomes a model in ADCode's chat, answering with its own subscription. Press Sign in or Install to open a terminal with the right command if it is not ready; then Check again.",
-      "Under Your conversations, press Scan this computer. ADCode looks only in the folders Claude Code, Codex and OpenCode keep their sessions in.",
-      "Read the list: conversations grouped by project, with titles, dates and message counts. Everything starts ticked; untick what you do not want.",
-      "Press Import. Each conversation is filed under the project it happened in. Tick the box first to put them all in the project open now instead.",
+      "Under Your conversations, choose What to scan: which tools, how far back (any time down to the last 7 days), how many per tool, and whether only the project open now.",
+      "Press Scan this computer. ADCode looks only in the folders those tools keep their sessions in. To bring in somebody else's sessions - or another computer's - press Scan a folder and choose the folder they sent you.",
+      "Narrow the list: search titles and folders, press a tool's chip to see only its conversations, hide ones already imported, and sort by newest, oldest, most messages or title.",
+      "Press Preview on any conversation to read its first few messages before you decide. Everything not imported yet starts ticked; ones you imported before are marked Imported and start unticked.",
+      "Choose how they come in: each under its own project or all in the project open now, update or leave alone ones already imported, and keep every message or only the latest 200 or 50.",
+      "Press Import. A long import counts up as it goes, and what came in is marked Imported straight away.",
       "Open that project and its conversation list: the imported chats are there, ready to continue.",
       "For Claude Desktop or ChatGPT, export your data from that product, then press Import an exported file and choose the conversations.json it gave you."
     ],
@@ -1397,7 +1400,9 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Months of project context arrive with you instead of being typed out again.",
       "Only what was said is imported: no tool output, no system prompts.",
       "Nothing is uploaded, and the other tools' files are never changed.",
-      "Importing twice replaces a conversation instead of duplicating it."
+      "Importing twice replaces a conversation instead of duplicating it - or, if you choose, leaves the first copy alone.",
+      "You decide exactly what is read: which tools, how far back, how many, which project, and a preview before anything is copied.",
+      "A teammate's or another computer's sessions come in from a folder, not just your own."
     ],
     betterThan: "Switching AI editors normally means a second subscription and an empty history. ADCode reads the session files the other tools already leave on your disk and runs their own command-line apps as models, so neither your money nor your context is stranded. What it cannot do, it says: apps that keep conversations on their servers need their own export first.",
   },

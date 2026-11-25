@@ -3600,6 +3600,7 @@ function openMoveInDialog(): void {
     openFolder: (folder) => void openProjectFolder(folder),
     showConversations: () => chat.showConversations(),
     openApps: () => openPlugins("apps"),
+    currentProject: () => workspaceRoot,
   });
 }
 

@@ -821,6 +821,8 @@ export const CHANNELS = {
   aiImportScan: "ai:import-scan",
   aiImportFile: "ai:import-file",
   aiImportChats: "ai:import-chats",
+  aiImportFolder: "ai:import-folder",
+  aiImportPreview: "ai:import-preview",
   aiOpenKeyPage: "ai:open-key-page",
   aiCheckpoint: "ai:checkpoint",
   aiCheckpoints: "ai:checkpoints",
@@ -1407,6 +1409,38 @@ export interface ChatImportEntry {
   readonly folder: string | null;
   readonly updatedAt: number;
   readonly messages: number;
+  /** Already brought into ADCode once: importing it again updates that copy rather than adding one. */
+  readonly imported?: boolean;
+}
+
+/** The tools a scan of this computer can read. */
+export type ChatImportTool = "claude-code" | "codex" | "opencode";
+
+/** What to scan: which tools, how far back, how many, and optionally one project only. */
+export interface ChatImportScanOptions {
+  readonly tools?: readonly ChatImportTool[];
+  /** Only conversations touched in the last this many days; null or absent for any time. */
+  readonly sinceDays?: number | null;
+  /** Newest conversations read per tool, 10 to 1000 (150 when absent). */
+  readonly perTool?: number;
+  /** Only conversations that happened in the project open now. */
+  readonly onlyCurrentProject?: boolean;
+}
+
+/** How to import: what to do with ones already imported, and how much of each to keep. */
+export interface ChatImportOptions {
+  /** Leave conversations already imported as they are instead of updating them. */
+  readonly skipImported?: boolean;
+  /** Keep only each conversation's latest this many messages; null or absent keeps all. */
+  readonly lastMessages?: number | null;
+}
+
+/** The first few messages of one listed conversation, shown only when the person asks to look. */
+export interface ChatImportPreview {
+  readonly title: string;
+  readonly messages: readonly { readonly role: "user" | "assistant"; readonly text: string }[];
+  /** How many messages the whole conversation has. */
+  readonly total: number;
 }
 
 export interface ChatImportScan {
@@ -1450,6 +1484,8 @@ export interface ChatImportResult {
   readonly folders: readonly string[];
   /** Whether the project open now received any - its chat list has new entries. */
   readonly here: boolean;
+  /** Left as they were because they had been imported before and Skip was chosen. */
+  readonly skipped?: number;
 }
 
 export interface CliAgentView {
@@ -2390,11 +2426,15 @@ export interface AdcodeApi {
      * Look for conversations Claude Code, Codex and OpenCode keep on this computer. Returns
      * titles, folders, dates and counts - no message text.
      */
-    scanChatImports(): Promise<ChatImportScan>;
+    scanChatImports(options?: ChatImportScanOptions): Promise<ChatImportScan>;
+    /** Pick a folder of session files - another computer's, or ones a teammate sent - and list what is in it. */
+    pickChatImportFolder(): Promise<ChatImportScan | null>;
+    /** The first messages of one listed conversation, for a look before importing. */
+    previewChatImport(key: string): Promise<ChatImportPreview | null>;
     /** Pick an exported conversations file (Claude, ChatGPT, ADCode) and list what is in it. Null: cancelled. */
     pickChatImportFile(): Promise<ChatImportScan | null>;
     /** Save the chosen conversations into ADCode: each under its own project folder, or all in the open one. */
-    importChats(keys: readonly string[], target: "own-folder" | "current"): Promise<ChatImportResult>;
+    importChats(keys: readonly string[], target: "own-folder" | "current", options?: ChatImportOptions): Promise<ChatImportResult>;
     /** Open AI Studio's key page, or Ollama's download page, in the system browser. */
     openKeyPage(intent: "gemini" | "ollama"): Promise<void>;
     /**
