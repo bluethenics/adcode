@@ -1,10 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { NetworkImpressionStore, NetworkImpressionSummary } from "../src/networkImpressions.ts";
+import type { NetworkImpressionStore, NetworkImpressionSummary, NetworkShown } from "../src/networkImpressions.ts";
 
 /**
- * Zeekend impressions in Postgres: `network_impressions`, one row per slot, and the two
- * functions of migration 20261113200000 - an insert that ignores a slot already counted, and
- * the totals and 30-day series the admin's growth figures add in.
+ * Partner-card impressions in Postgres: `network_impressions`, one row per card, and the two
+ * functions of migration 20261113200000 - an insert that ignores a card already counted, and
+ * the totals and 30-day series the admin's growth figures add in. Migration 20261125120000 lets
+ * any network's cards in and adds each network's last day and week to the summary.
  */
 export function createNetworkImpressionStore(lazy: () => Promise<SupabaseClient>): NetworkImpressionStore {
   return {
@@ -29,7 +30,15 @@ export function createNetworkImpressionStore(lazy: () => Promise<SupabaseClient>
           if (typeof row.day === "string") daily[row.day] = count(row.count);
         }
       }
-      const summary: NetworkImpressionSummary = { total: count(raw.total), last1d: count(raw.last1d), last7d: count(raw.last7d), last30d: count(raw.last30d), daily };
+      // Each network's last day and week (migration 20261125120000); absent before it is applied.
+      const split = (raw as { byNetwork?: unknown }).byNetwork;
+      const byNetwork: Record<string, NetworkShown> = {};
+      if (typeof split === "object" && split !== null && !Array.isArray(split)) {
+        for (const [network, shown] of Object.entries(split as Record<string, { last1d?: unknown; last7d?: unknown } | null>)) {
+          if (shown !== null && typeof shown === "object") byNetwork[network] = { last1d: count(shown.last1d), last7d: count(shown.last7d) };
+        }
+      }
+      const summary: NetworkImpressionSummary = { total: count(raw.total), last1d: count(raw.last1d), last7d: count(raw.last7d), last30d: count(raw.last30d), daily, ...(split === undefined ? {} : { byNetwork }) };
       return summary;
     },
   };

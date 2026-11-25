@@ -73,6 +73,7 @@ import {
   stopDebug,
   toggleBreakpoint,
 } from "./debug.ts";
+import { partnerConversationId } from "./partnerNotification.ts";
 import { CHANNELS, IDE_VIEW_COMMANDS, type IdeView, type PreviewStatus, type RuntimeCheckView } from "../shared/api.ts";
 import { lightSession, sessionsDelta } from "../shared/sessionDelta.ts";
 import { downloadUrlFor, installCommandFor, runtimeById, runtimeFor } from "../shared/runtimes.ts";
@@ -1385,8 +1386,8 @@ export function registerIpc(
     if (isString(creativeId)) ads.notePainted(creativeId);
   });
 
-  ipcMain.on(CHANNELS.adPartnerImpression, (_event, slotId: unknown) => {
-    if (isString(slotId)) void ads.notePartnerImpression(slotId);
+  ipcMain.on(CHANNELS.adPartnerImpression, (_event, slotId: unknown, conversationId?: unknown) => {
+    if (isString(slotId)) void ads.notePartnerImpression(slotId, partnerConversationId(conversationId));
   });
 
   ipcMain.on(CHANNELS.adPartnerResult, (_event, id: unknown, outcome: unknown) => {

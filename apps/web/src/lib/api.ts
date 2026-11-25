@@ -273,7 +273,7 @@ export interface WithdrawalView {
  * changing its threshold does not need a matching edit in the browser.
  */
 export interface EligibilityRuleView {
-  id: "minimum" | "verified-email" | "account-age" | "payout-details" | "no-pending";
+  id: "minimum" | "verified-email" | "account-age" | "adult" | "payout-details" | "no-pending" | "earnings-review";
   ok: boolean;
   label: string;
   detail: string;

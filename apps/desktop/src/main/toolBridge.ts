@@ -27,6 +27,7 @@ import type { CliMcpServer, ToolDefinition, ToolRunner, ToolRunResult } from "@a
 import type { ToolBridgeView } from "../shared/api.ts";
 import {
   BRIDGE_CALL_CEILING_MS,
+  BRIDGE_INSTRUCTIONS,
   BRIDGE_PATH,
   BRIDGE_SERVER_NAME,
   bridgeConfigs,
@@ -86,7 +87,7 @@ function createSerialiser(): <T>(key: string, run: () => Promise<T>) => Promise<
 }
 
 function createMcpServer(options: ToolBridgeServerOptions, serial: ReturnType<typeof createSerialiser>): Server {
-  const server = new Server({ name: BRIDGE_SERVER_NAME, version: SERVER_VERSION }, { capabilities: { tools: {} } });
+  const server = new Server({ name: BRIDGE_SERVER_NAME, version: SERVER_VERSION }, { capabilities: { tools: {} }, instructions: BRIDGE_INSTRUCTIONS });
   const ceiling = options.ceilingMs ?? BRIDGE_CALL_CEILING_MS;
 
   server.setRequestHandler(ListToolsRequestSchema, () => ({

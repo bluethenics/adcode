@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { AdNetworkTable, NetworkTestPreview, impreziaStage, type AdNetworkView, ProviderReadiness, newAdNetwork, payoutBasis, payoutMicros, payoutRates, payoutSummary, zeekendPayFields, zeekendPaySummary } from "../src/components/AdNetworksAdmin";
+import { AdNetworkTable, NetworkMixPanel, NetworkTestPreview, cardPaySummary, impreziaStage, parseShare, slotPercents, type AdNetworkView, ProviderReadiness, newAdNetwork, payoutBasis, payoutMicros, payoutRates, payoutSummary, zeekendPayFields, zeekendPaySummary } from "../src/components/AdNetworksAdmin";
 
 describe("ad network administration", () => {
   it("converts dollars exactly and rejects precision or payout-limit mistakes", () => {
@@ -44,7 +44,8 @@ describe("ad network administration", () => {
     expect(chat).toContain("never pays users");
     expect(chat).toContain("message and reply");
     expect(chat).toContain("SDK handles ad requests");
-    expect(chat).toContain("do not automatically credit ADCode user balances");
+    // Since 2026-11-25 an Imprezia card pays the person like a Zeekend card, at the rate set under User pay.
+    expect(chat).toContain("credits their ADCode earnings at the rate you set under User pay");
     expect(renderToStaticMarkup(<NetworkTestPreview result={{ sandbox: true, creative: null }} />)).toContain("Sandbox deliveries never pay users");
   });
   it("renders an SDK preview without claiming that the API already returned an ad", () => {
@@ -88,5 +89,53 @@ describe("ad network administration", () => {
     expect(impreziaStage(chat)).toBe("live");
     const row = renderToStaticMarkup(<AdNetworkTable networks={[{ ...chat, keyMode: "sandbox" }]} selected={null} busy={null} onEdit={() => {}} onKey={() => {}} onToggle={() => {}} onTest={() => {}} />);
     expect(row).toContain("Sandbox key: test ads");
+  });
+});
+
+describe("the traffic split", () => {
+  const zeekend: AdNetworkView = { id: "zeekend", name: "Zeekend", provider: "zeekend", enabled: false, priority: 5, viewPayoutMicros: "0", clickPayoutMicros: "0", zeekend: { placementId: "chat-main" }, keyConfigured: true, readiness: "disabled", keyMode: "live" };
+  const imprezia: AdNetworkView = { id: "imprezia", name: "Imprezia", provider: "imprezia", enabled: true, priority: 10, viewPayoutMicros: "0", clickPayoutMicros: "0", imprezia: { kind: "chat", id: "" }, keyConfigured: true, readiness: "ready", keyMode: "live", mix: { share: 70, places: ["banner", "reply"] } };
+  const request = async <T,>(): Promise<T> => ({}) as T;
+
+  it("gives live partners their part of the slots and off partners none", () => {
+    expect(slotPercents([{ id: "a", live: true, share: 60 }, { id: "b", live: true, share: 40 }])).toEqual({ a: 60, b: 40 });
+    expect(slotPercents([{ id: "a", live: true, share: 1 }, { id: "b", live: true, share: 1 }])).toEqual({ a: 50, b: 50 });
+    expect(slotPercents([{ id: "a", live: false, share: 90 }, { id: "b", live: true, share: 10 }])).toEqual({ a: 0, b: 100 });
+    expect(slotPercents([{ id: "a", live: true, share: 0 }])).toEqual({ a: 0 });
+  });
+
+  it("takes a whole-number share from 0 to 100 only", () => {
+    expect(parseShare("0")).toBe(0);
+    expect(parseShare(" 100 ")).toBe(100);
+    for (const text of ["101", "-1", "12.5", "", "abc", "1e2"]) expect(parseShare(text), text).toBeNull();
+  });
+
+  it("shows each partner's state, share, places and cards seen, and says an off partner gets nothing", () => {
+    const html = renderToStaticMarkup(<NetworkMixPanel networks={[zeekend, imprezia]} shown={{ imprezia: { last1d: 120, last7d: 900 } }} request={request} onSaved={() => {}} />);
+    expect(html).toContain("Traffic split");
+    expect(html).toContain("1 live partner");
+    expect(html).toContain("Gets no slots until it is live.");
+    expect(html).toContain("Asked first for about 100% of slots.");
+    expect(html).toContain("120");
+    expect(html).toContain("900");
+    expect(html).toContain("100% of cards");
+    // Imprezia is kept out of notifications, which ask no partner anyway: no warning for them, a note instead.
+    expect(html).not.toContain("No live partner shows in");
+    expect(html).toContain("The app asks no partner for these since 25 Nov.");
+    const repliesUncovered = renderToStaticMarkup(<NetworkMixPanel networks={[{ ...imprezia, mix: { share: 70, places: ["banner"] } }]} shown={null} request={request} onSaved={() => {}} />);
+    expect(repliesUncovered).toContain("No live partner shows in: Under AI replies");
+    expect(html).not.toContain("exactly as often as before");
+  });
+
+  it("says when cards seen per partner cannot be read yet, and draws nothing without a chat partner", () => {
+    expect(renderToStaticMarkup(<NetworkMixPanel networks={[imprezia]} shown={null} request={request} onSaved={() => {}} />)).toContain("migration 20261125120000");
+    expect(renderToStaticMarkup(<NetworkMixPanel networks={[]} shown={null} request={request} onSaved={() => {}} />)).toBe("");
+  });
+
+  it("states Imprezia's user pay like Zeekend's", () => {
+    expect(cardPaySummary({ imprezia: { kind: "chat", id: "", payPerCardMicros: "3000", paidCardsPerDay: 100 } })).toBe("$0.003 per card, up to 100 a day ($0.30)");
+    const row = renderToStaticMarkup(<AdNetworkTable networks={[imprezia]} selected={null} busy={null} onEdit={() => {}} onKey={() => {}} onToggle={() => {}} onTest={() => {}} />);
+    expect(row).toContain("$0.002 per card, up to 300 a day");
+    expect(row).not.toContain("Provider reports only");
   });
 });

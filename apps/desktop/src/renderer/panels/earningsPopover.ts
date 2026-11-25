@@ -31,7 +31,8 @@
  *   chart, which would read as "you have earned nothing" rather than "this is not built".
  */
 import type { AccountState, EarningsSnapshot } from "../../shared/api.ts";
-import { ICON, iconButton } from "../workbench/icons.ts";
+import { createIcon, ICON, iconButton } from "../workbench/icons.ts";
+import { ArrowUpRight, ChevronRight, Gift, Sparkles } from "lucide";
 import { WITHDRAW_URL } from "../../shared/creditConversion.ts";
 import { createCreditConversionPanel } from "./creditConversionPanel.ts";
 
@@ -58,9 +59,15 @@ export interface EarningsPopover extends AnchoredTool {
   openConversion(): void;
 }
 
-function row(label: string, value: string): HTMLElement {
+/**
+ * One fact, drawn as a small tile: the label above, the value under it. `wide` spans both
+ * columns, for values that are sentences rather than figures. `tone` colours a status dot.
+ */
+function row(label: string, value: string, options: { wide?: boolean; tone?: "good" | "wait" | "off"; money?: boolean } = {}): HTMLElement {
   const line = document.createElement("div");
   line.className = "earnings-row";
+  if (options.wide === true) line.dataset["wide"] = "true";
+  if (options.money === true) line.dataset["money"] = "true";
 
   const name = document.createElement("span");
   name.className = "earnings-row-label";
@@ -68,10 +75,27 @@ function row(label: string, value: string): HTMLElement {
 
   const amount = document.createElement("span");
   amount.className = "earnings-row-value";
-  amount.textContent = value;
+  if (options.tone !== undefined) {
+    const dot = document.createElement("i");
+    dot.className = "earnings-dot";
+    dot.dataset["tone"] = options.tone;
+    dot.setAttribute("aria-hidden", "true");
+    amount.append(dot);
+  }
+  amount.append(document.createTextNode(value));
 
   line.append(name, amount);
   return line;
+}
+
+/**
+ * "$18.73" and "4": the ledger's own label, cut after the cents so the figure reads as dollars
+ * and cents first while every micro the server sent stays on screen - a single card seen still
+ * visibly moves the balance. Only the string is cut; nothing here does arithmetic on money.
+ */
+export function splitMoneyLabel(label: string): { main: string; tail: string } {
+  const match = /^(-?\$[\d,]+\.\d{2})(\d*)$/.exec(label);
+  return match === null ? { main: label, tail: "" } : { main: match[1]!, tail: match[2]! };
 }
 
 /**
@@ -85,6 +109,7 @@ function row(label: string, value: string): HTMLElement {
 function accountIdRow(uid: string): HTMLElement {
   const line = document.createElement("div");
   line.className = "earnings-row";
+  line.dataset["wide"] = "true";
 
   const name = document.createElement("span");
   name.className = "earnings-row-label";
@@ -153,7 +178,7 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
         const snapshot = await window.adcode.ads.refreshEarnings();
         api.update(snapshot);
         heroCaption.textContent = snapshot.hasServerBalance
-          ? "Available to withdraw · just now"
+          ? "Yours to convert or withdraw · updated just now"
           : "The server still has not reported a balance";
       } catch {
         // A failed refresh costs the refresh. §9: an ad failure is never allowed to be louder
@@ -188,11 +213,37 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
   heroCaption.setAttribute("role", "status");
   heroCaption.textContent = "Available to withdraw";
 
-  hero.append(heroValue, heroCaption);
+  /*
+   * Whether ads are running, as a chip beside the label: it is the first thing to check when
+   * the figure is not moving, and a setting rather than a number, so it is not drawn as one.
+   */
+  const heroTop = document.createElement("div");
+  heroTop.className = "earnings-hero-top";
   const balanceLabel = document.createElement("span");
   balanceLabel.className = "earnings-balance-label";
-  balanceLabel.textContent = "Your balance";
-  hero.prepend(balanceLabel);
+  balanceLabel.textContent = "Available balance";
+  const adsChip = document.createElement("span");
+  adsChip.className = "earnings-ads-chip";
+  adsChip.hidden = true;
+  heroTop.append(balanceLabel, adsChip);
+
+  hero.append(heroTop, heroValue, heroCaption);
+
+  /** Paints the figure: dollars and cents large, the rest of the server's label small. */
+  function paintFigure(label: string): void {
+    const { main, tail } = splitMoneyLabel(label);
+    const strong = document.createElement("span");
+    strong.className = "earnings-hero-main";
+    strong.textContent = main;
+    heroValue.replaceChildren(strong);
+    if (tail.length > 0) {
+      const small = document.createElement("span");
+      small.className = "earnings-hero-tail";
+      small.textContent = tail;
+      heroValue.append(small);
+    }
+    heroValue.setAttribute("aria-label", label);
+  }
 
   /* ── What to do with it ─────────────────────────────────────────────────── */
 
@@ -209,15 +260,16 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
 
   const convertButton = document.createElement("button");
   convertButton.type = "button";
-  convertButton.className = "ad-btn ad-btn-primary";
-  convertButton.textContent = "Convert to AI credits";
+  convertButton.className = "ad-btn ad-btn-primary earnings-convert-button";
+  convertButton.append(createIcon(Sparkles), document.createTextNode("Convert to AI credits"));
   convertButton.setAttribute("aria-expanded", "false");
   convertButton.setAttribute("aria-controls", "earnings-convert-panel");
 
   const withdrawButton = document.createElement("button");
   withdrawButton.type = "button";
-  withdrawButton.className = "ad-btn";
-  withdrawButton.textContent = "Withdraw on the website";
+  withdrawButton.className = "ad-btn earnings-withdraw-button";
+  // The arrow says "opens your browser" before the click does.
+  withdrawButton.append(document.createTextNode("Withdraw on the website"), createIcon(ArrowUpRight));
   withdrawButton.title = WITHDRAW_URL;
   withdrawButton.addEventListener("click", () => {
     window.open(WITHDRAW_URL, "_blank", "noopener,noreferrer");
@@ -392,13 +444,23 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
   const invite = document.createElement("button");
   invite.type = "button";
   invite.className = "earnings-invite";
+  const inviteIcon = document.createElement("span");
+  inviteIcon.className = "earnings-invite-icon";
+  inviteIcon.setAttribute("aria-hidden", "true");
+  inviteIcon.append(createIcon(Gift));
+  const inviteText = document.createElement("span");
+  inviteText.className = "earnings-invite-text";
   const inviteLabel = document.createElement("span");
+  inviteLabel.className = "earnings-invite-label";
   inviteLabel.textContent = "Invite & earn";
   const inviteHint = document.createElement("span");
   inviteHint.className = "earnings-invite-hint";
   // No rate here: the terms live on the server and the panel states them live.
-  inviteHint.textContent = "Earn from the people you bring →";
-  invite.append(inviteLabel, inviteHint);
+  inviteHint.textContent = "Earn from the people you bring";
+  inviteText.append(inviteLabel, inviteHint);
+  const inviteArrow = createIcon(ChevronRight);
+  inviteArrow.classList.add("earnings-invite-arrow");
+  invite.append(inviteIcon, inviteText, inviteArrow);
   invite.addEventListener("click", () => deps.openInvite());
 
   const body = document.createElement("div");
@@ -413,6 +475,8 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
   let accountUid: string | null = null;
   /** Guards against a second request while one is in flight, which would race the render. */
   let refreshing = false;
+  /** The balance label last painted, so a change can be marked as one. */
+  let shownLabel: string | null = null;
 
   function render(): void {
     const snapshot = latest;
@@ -421,22 +485,46 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
       // Before the first broadcast. Not "$0.00": the difference between "nothing yet" and
       // "we have not heard" is the whole reason `hasServerBalance` exists.
       heroValue.textContent = "—";
+      heroValue.removeAttribute("aria-label");
       heroValue.dataset["known"] = "false";
       heroCaption.textContent = "Waiting for the server";
+      adsChip.hidden = true;
       facts.replaceChildren();
       note.textContent = "";
       return;
     }
 
-    heroValue.textContent = snapshot.hasServerBalance ? snapshot.availableLabel : "—";
+    if (snapshot.hasServerBalance) {
+      paintFigure(snapshot.availableLabel);
+      // A new figure from the server lifts once, so a card that just paid is seen to pay.
+      // Only that it changed is shown; by how much is the ledger's to say, on the website.
+      if (shownLabel !== null && shownLabel !== snapshot.availableLabel) {
+        hero.classList.remove("is-ticked");
+        void hero.offsetWidth;
+        hero.classList.add("is-ticked");
+      }
+      shownLabel = snapshot.availableLabel;
+    } else {
+      heroValue.textContent = "—";
+      heroValue.removeAttribute("aria-label");
+    }
     heroValue.dataset["known"] = String(snapshot.hasServerBalance);
     heroCaption.textContent = snapshot.hasServerBalance
-      ? "Available to withdraw"
+      ? "Yours to convert or withdraw"
       : "The server has not reported a balance yet";
 
+    adsChip.hidden = false;
+    adsChip.dataset["on"] = String(snapshot.enabled);
+    adsChip.textContent = snapshot.enabled ? "Earning" : "Ads off";
+    adsChip.title = snapshot.enabled ? "Ads are on: sponsored cards add to this balance" : "Ads are off: nothing is being earned";
+
+    const next = nextCardLabel(snapshot.suppressedReason, snapshot.enabled);
+    const nextTone = !snapshot.enabled || snapshot.suppressedReason === "ads-disabled" || snapshot.suppressedReason === "frequency-off"
+      ? "off"
+      : snapshot.suppressedReason === null ? "good" : "wait";
     facts.replaceChildren(
-      row("Lifetime earned", snapshot.hasServerBalance ? snapshot.lifetimeLabel : "—"),
-      row("Ads", snapshot.enabled ? "On" : "Off"),
+      row("Lifetime earned", snapshot.hasServerBalance ? snapshot.lifetimeLabel : "—", { money: snapshot.hasServerBalance }),
+      row("Ads", snapshot.enabled ? "On" : "Off", { tone: snapshot.enabled ? "good" : "off" }),
       // Named for what it is. See the note at the top of this file on why this is not
       // presented as a count of ads seen.
       row(
@@ -445,7 +533,7 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
           ? "Nothing pending"
           : `${snapshot.pendingReceipts} receipt${snapshot.pendingReceipts === 1 ? "" : "s"}`,
       ),
-      row("Next card", nextCardLabel(snapshot.suppressedReason, snapshot.enabled)),
+      row("Next card", next, { tone: nextTone }),
       // Last, because it is a diagnostic rather than something to read every day - but
       // here rather than buried in settings, because this popover is where somebody
       // already is when they are wondering why no card has arrived.

@@ -277,8 +277,11 @@ const GROWTH_FIXTURES: Record<string, (data: AdminPreviewData) => unknown> = {
 /** Ad networks: Imprezia live on a sandbox key, one JSON API waiting on its key. */
 const adNetworks = (data: AdminPreviewData): unknown => ({
   credentialsManageable: data !== "worst",
+  // Cards seen per partner, for the traffic split; null is a database a migration behind.
+  shown: data === "worst" ? null : { imprezia: { last1d: 1840, last7d: 11_205 }, zeekend: { last1d: 0, last7d: 9_312 } },
   networks: data === "empty" ? [] : [
-    { id: "imprezia", name: "Imprezia", provider: "imprezia", enabled: true, priority: 10, viewPayoutMicros: "2000", clickPayoutMicros: "0", imprezia: { kind: "chat", id: "editor_sponsored_card" }, keyConfigured: true, readiness: "ready", keyMode: "sandbox" },
+    { id: "zeekend", name: "Zeekend", provider: "zeekend", enabled: false, priority: 5, viewPayoutMicros: "0", clickPayoutMicros: "0", zeekend: { placementId: "chat-main" }, keyConfigured: true, readiness: "disabled", keyMode: "live", mix: { share: 50, places: ["banner", "notification", "reply"] } },
+    { id: "imprezia", name: "Imprezia", provider: "imprezia", enabled: true, priority: 10, viewPayoutMicros: "2000", clickPayoutMicros: "0", imprezia: { kind: "chat", id: "editor_sponsored_card" }, keyConfigured: true, readiness: "ready", keyMode: "sandbox", mix: { share: 70, places: ["banner", "reply"] } },
     { id: "northwind-ads", name: "Northwind Ads", provider: "http-json", enabled: false, priority: 50, viewPayoutMicros: "1500", clickPayoutMicros: "40000", keyConfigured: false, readiness: "key-required",
       http: { serveUrl: "https://ads.northwind.example/v1/serve", verifyUrl: "https://ads.northwind.example/v1/verify", method: "POST", authHeader: "authorization", authPrefix: "Bearer ", requestTemplate: { tags: "{{tags}}" }, creativePath: "ad", fields: { id: "id", advertiser: "brand", headline: "title", body: "text", clickUrl: "url", logoLight: "logo", logoDark: "" }, verifyTemplate: { id: "{{eventId}}" }, verifiedPath: "ok", eventIdPath: "event" } },
   ],

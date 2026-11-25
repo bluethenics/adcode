@@ -1,13 +1,15 @@
 /**
- * Zeekend's sponsored notifications: what the card is chosen from, and when the next one is due.
+ * Partner sponsored notifications: what the card is chosen from, and when the next one is due.
+ * Zeekend or Imprezia fills each one, by the admin's split; the sponsored page asks the other
+ * when the first has no card (2026-11-25), so the cadence here is the same with two partners.
  *
  * Pure, so the pacing that people judge the product on is tested without Electron. `ads.ts`
  * wires it to the window and the timer.
  */
 
-/** Longer than a direct card's 8s: Zeekend's card loads in its frame first. */
+/** Longer than a direct card's 8s: the partner's card loads in its frame first. */
 export const PARTNER_DISMISS_MS = 12_000;
-/** After Zeekend had no card, ask again this soon rather than waiting out a whole tick. */
+/** After no partner had a card, ask again this soon rather than waiting out a whole tick. */
 export const PARTNER_RETRY_MS = 20_000;
 /** Never wake the tick sooner than this, however close the next slot is. */
 export const MIN_TICK_DELAY_MS = 1_000;
@@ -18,36 +20,6 @@ export const MIN_TICK_DELAY_MS = 1_000;
  */
 export function partnerRetryDelay(empties: number): number {
   return PARTNER_RETRY_MS * 2 ** Math.min(Math.max(0, Math.floor(empties)), 6);
-}
-
-export interface PartnerExchange {
-  readonly request: string;
-  readonly response: string;
-}
-
-/**
- * What Zeekend picks a notification's card from: the project's topic tags in plain words and
- * nothing else - no file names, paths, code or project name, the same tags ADCode's own ads
- * are targeted by.
- *
- * Zeekend matches a conversation to products, so the exchange reads as one about the
- * person's working day rather than a list of cloud services, which it has nothing for. The
- * wording turns with each notification so a session does not ask the same question twice.
- */
-export function partnerExchange(topics: readonly string[], turn: number): PartnerExchange {
-  const named = topics.length === 0 ? "software" : topics.slice(0, 6).join(", ");
-  const asks = [
-    `I spend long days building a ${named} project at my desk. What gear would make the work more comfortable?`,
-    `I'm a developer working on a ${named} project. What would help me focus and stay productive through the day?`,
-    `What's worth buying for a programmer who works on ${named} code for hours at a time?`,
-  ] as const;
-  const answers = [
-    `For long ${named} sessions: a comfortable keyboard and mouse, a good monitor, noise-cancelling headphones, a supportive chair, and something that reminds you to take breaks.`,
-    `For deep ${named} work: a quiet setup with good headphones, a second screen, a desk that fits you, a watch or timer for breaks, and tools that keep you organised.`,
-    `People who write ${named} all day get the most from ergonomic peripherals, a sharp display, good audio, a backpack for the laptop, and gadgets that keep their desk tidy.`,
-  ] as const;
-  const index = (Math.max(1, Math.floor(turn)) - 1) % asks.length;
-  return { request: asks[index]!, response: answers[index]! };
 }
 
 /**
@@ -63,4 +35,19 @@ export function nextTickDelay(now: number, nextSlotAt: number, tickMs: number, r
   const opening = nextSlotAt > now ? nextSlotAt : Number.POSITIVE_INFINITY;
   const due = Math.min(opening, retryAt ?? Number.POSITIVE_INFINITY, now + tickMs);
   return Math.max(MIN_TICK_DELAY_MS, Math.min(tickMs, due - now));
+}
+
+/**
+ * The one-way hashed session id the sponsored page sends with a counted card, or undefined for
+ * anything else (an older page, the phone page, a malformed value). Same rule as the server's
+ * parseConversationId (services/api adIntegrity.ts); it is never a chat's own id.
+ */
+export function partnerConversationId(value: unknown): string | undefined {
+  return typeof value === "string" && /^[A-Za-z0-9_.:-]{1,128}$/.test(value) ? value : undefined;
+}
+
+/** The body of the claim for one counted partner card; `conversationId` only when there is one. */
+export function partnerEarnBody(slotId: string, conversationId?: string): { network: "imprezia" | "zeekend"; slotId: string; conversationId?: string } {
+  const conversation = partnerConversationId(conversationId);
+  return { network: slotId.startsWith("slot_imp_") ? "imprezia" : "zeekend", slotId, ...(conversation === undefined ? {} : { conversationId: conversation }) };
 }

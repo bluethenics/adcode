@@ -20,7 +20,7 @@ const DIGITS = /^[0-9]{1,19}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Why nothing can be converted right now. */
-export type ConversionBlock = "verify-email" | "blocked" | "below-minimum" | "daily-cap" | "unavailable";
+export type ConversionBlock = "verify-email" | "blocked" | "review" | "below-minimum" | "daily-cap" | "unavailable";
 
 /** `GET /v1/earnings/convert`, as the main process hands it over. Micros stay decimal strings. */
 export interface CreditConversionQuote {
@@ -66,7 +66,7 @@ export type CreditConversionResult =
     };
 
 const isDigits = (value: unknown): value is string => typeof value === "string" && DIGITS.test(value);
-const BLOCKS: readonly ConversionBlock[] = ["verify-email", "blocked", "below-minimum", "daily-cap", "unavailable"];
+const BLOCKS: readonly ConversionBlock[] = ["verify-email", "blocked", "review", "below-minimum", "daily-cap", "unavailable"];
 
 /** The server's quote, or null if it is not one. The main process checks before it trusts. */
 export function parseConversionQuote(raw: unknown): CreditConversionQuote | null {
@@ -189,6 +189,9 @@ export function blockedMessage(block: ConversionBlock, quote?: CreditConversionQ
       return "Sign in with Google or GitHub, or confirm your email, to convert earnings to AI credits.";
     case "blocked":
       return "Paid models are turned off for this account, so earnings cannot be converted. Contact support.";
+    case "review":
+      // Held for an ad-farming review (services/api earningReview.ts). Nothing is lost.
+      return "Your ad earnings are being reviewed, which usually takes a day. Nothing is lost: once it is cleared you can convert them again.";
     case "below-minimum":
       return `You can convert once you have ${quote === undefined ? "a little more" : formatUsd(quote.minMicros)} available.`;
     case "daily-cap":
@@ -213,6 +216,8 @@ export function conversionErrorMessage(error: string): string {
       return blockedMessage("verify-email");
     case "blocked":
       return blockedMessage("blocked");
+    case "review":
+      return blockedMessage("review");
     case "signed-out":
       return "Sign in to convert earnings.";
     case "offline":

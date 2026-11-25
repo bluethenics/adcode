@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { CLI_AGENTS, acpMcpServers, acpModelRequest, acpPermission, acpUpdateEvents, createAcpProvider, isNewerCliVersion, cliUpdateCommand, parseAcpModels, type CliLiveEntry, type CliLiveProcess, type CliLiveSpawn, type CliSpawn } from "../src/index.ts";
+import { CLI_AGENTS, acpMcpServers, acpModelRequest, acpPermission, acpPermissionChoice, acpUpdateEvents, createAcpProvider, isNewerCliVersion, cliUpdateCommand, parseAcpModels, type CliLiveEntry, type CliLiveProcess, type CliLiveSpawn, type CliPermissionAsk, type CliSpawn } from "../src/index.ts";
 import type { ProviderEvent, ProviderRequest } from "../src/types.ts";
 
 // `session/new` as OpenCode 1.19.5 answers it over `opencode acp`, trimmed.
@@ -159,6 +159,45 @@ describe("ACP agents", () => {
     agent.started[0]!.killed = true;
   });
 
+  it("asks the person before running a command, and waits for the answer", async () => {
+    let prompt: { id: number; out: (message: unknown) => void } | null = null;
+    const agent = fakeAgent((method, params, out, id) => {
+      if (method === "session/prompt") {
+        prompt = { id, out };
+        out({ jsonrpc: "2.0", id: 900, method: "session/request_permission", params: { sessionId: params["sessionId"], toolCall: { toolCallId: "t", kind: "execute", title: "npm test", rawInput: { command: "npm test" } }, options: [{ optionId: "once", kind: "allow_once" }, { optionId: "always", kind: "allow_always" }, { optionId: "no", kind: "reject_once" }] } });
+        return undefined;
+      }
+      return replying([])(method, params, out, id);
+    });
+    const asked: CliPermissionAsk[] = [];
+    const provider = createAcpProvider({
+      spec: opencode, models: ["default"], spawn: noSpawn, live: agent.live, cwd: () => ".", heartbeatMs: 5,
+      askPermission: async (ask) => {
+        asked.push(ask);
+        // The person takes a while; the agent's turn ends only after the answer reached it.
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        setTimeout(() => prompt!.out({ jsonrpc: "2.0", id: prompt!.id, result: { stopReason: "end_turn" } }), 5);
+        return "session";
+      },
+    });
+    const events = await collect(provider.stream(request(["test it"]), new AbortController().signal));
+    expect(asked).toEqual([{ agent: "OpenCode", action: "run a command", tool: "execute", detail: "npm test" }]);
+    expect(agent.started[0]!.replies).toContainEqual({ outcome: { outcome: "selected", optionId: "always" } });
+    expect(events).toContainEqual({ kind: "status", text: "OpenCode asks to run a command: npm test - waiting for your answer" });
+    // Thirty quiet milliseconds were the person's, not the agent's: no "still pondering".
+    expect(events.some((event) => event.kind === "status" && event.text.includes("pondering"))).toBe(false);
+    expect(events).toContainEqual({ kind: "thinking", text: "› Allowed for this chat: execute (npm test)\n" });
+    expect(textOf(events)).not.toContain("Full access");
+    agent.started[0]!.killed = true;
+  });
+
+  it("maps the person's answer onto the options the agent offered", () => {
+    const options = [{ optionId: "once", kind: "allow_once" }, { optionId: "always", kind: "allow_always" }, { optionId: "no", kind: "reject_once" }];
+    expect(acpPermissionChoice({ options }, "allow")).toBe("once");
+    expect(acpPermissionChoice({ options }, "session")).toBe("always");
+    expect(acpPermissionChoice({ options }, "deny")).toBe("no");
+    expect(acpPermissionChoice({ options: [{ optionId: "once", kind: "allow_once" }] }, "session")).toBe("once");
+  });
   it("says how to sign in when the agent needs it", async () => {
     const agent = fakeAgent((method) => (method === "initialize" ? { protocolVersion: 1, agentCapabilities: {} } : method === "session/new" ? Object.assign(new Error("Authentication required"), { code: -32000 }) : undefined));
     await expect(collect(createAcpProvider({ spec: opencode, models: ["default"], spawn: noSpawn, live: agent.live, cwd: () => "." }).stream(request(["hi"]), new AbortController().signal))).rejects.toThrow("Sign in by running `opencode auth login`");

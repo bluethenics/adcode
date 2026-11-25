@@ -726,3 +726,62 @@ body:has(.auth-screen) .website-consent { position: static; margin: 24px auto; b
 .marketplace-nav .glass-portal-button.header-advertise { display: inline-flex; }
 .marketplace-nav .header-advertise > span { font-size: 12px; }
 .marketplace-nav .header-advertise > span::after { content: none; }
+
+/* ── Earnings: balance, withdrawal meter, the month, and the folded ledger ──
+   Shared by /dashboard and the web app's account panel (which loads this file too). The money
+   green is reserved for real figures; a lower bound carries a small "+", never a guess. */
+.earnings-hero { gap: 10px; padding: 26px 28px 24px; isolation: isolate; }
+.earnings-hero::before { content: ""; position: absolute; inset: -40% -10% auto auto; width: 70%; height: 140%; z-index: -1; pointer-events: none; background: radial-gradient(closest-side, color-mix(in srgb, var(--money) 14%, transparent), transparent); }
+.earnings-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.earnings-hero-lifetime { font-size: 12.5px; color: var(--muted); }
+.earnings-hero-lifetime .money { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.earnings-hero .hero-figure { display: flex; align-items: baseline; gap: 0; color: var(--money); margin: 2px 0 4px; }
+.earnings-hero .hero-figure-micro { margin-left: .04em; }
+.earnings-periods { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin: 4px 0 0; padding: 14px 0 0; border-top: 1px solid var(--hairline); }
+.earnings-period { display: grid; gap: 3px; min-width: 0; padding: 0 14px; }
+.earnings-period:first-child { padding-left: 0; }
+.earnings-period + .earnings-period { border-left: 1px solid var(--hairline); }
+.earnings-period dt { font-size: 12px; color: var(--muted); }
+.earnings-period dd { margin: 0; font-size: 19px; font-weight: 620; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--text); overflow-wrap: anywhere; }
+.earnings-at-least { margin-left: 1px; font-size: .72em; color: var(--muted); font-weight: 600; }
+.earnings-meter { display: flex; flex-direction: column; gap: 9px; margin-top: 8px; padding: 14px 16px; border: 1px solid var(--hairline); border-radius: 14px; background: color-mix(in srgb, var(--surface) 55%, var(--card)); }
+.earnings-meter[data-state="ready"], .earnings-meter[data-state="checks"] { flex-direction: row; align-items: center; justify-content: space-between; gap: 16px; }
+.earnings-meter[data-state="ready"] { border-color: color-mix(in srgb, var(--money) 45%, var(--hairline)); background: color-mix(in srgb, var(--money) 9%, var(--card)); }
+.earnings-meter-text { display: grid; gap: 2px; min-width: 0; }
+.earnings-meter-text strong { font-size: 14px; }
+.earnings-meter-text span, .earnings-meter-note { font-size: 12.5px; color: var(--muted); }
+.earnings-meter-note { margin: 0; }
+.earnings-meter-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 13.5px; }
+.earnings-meter-row strong { color: var(--money); font-variant-numeric: tabular-nums; }
+.earnings-meter-of { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.earnings-meter-track { position: relative; height: 8px; overflow: hidden; border-radius: 999px; background: var(--control); }
+.earnings-meter-track > span { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: linear-gradient(90deg, color-mix(in srgb, var(--money) 70%, transparent), var(--money)); transform-origin: left center; animation: earnings-meter-in 900ms cubic-bezier(.23, 1, .32, 1) both; }
+@keyframes earnings-meter-in { from { transform: scaleX(0); } }
+.earnings-chart-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.earnings-chart-total { display: grid; justify-items: end; gap: 2px; flex: none; }
+.earnings-chart-total span { font-size: 12px; color: var(--muted); }
+.earnings-chart-total strong { font-size: 22px; font-weight: 620; letter-spacing: -.02em; color: var(--money); font-variant-numeric: tabular-nums; }
+.earnings-coverage { margin: 12px 0 0; }
+.earnings-tiles .ios-tile-value.money { color: var(--money); }
+.row-group > summary { list-style: none; cursor: pointer; }
+.row-group > summary::-webkit-details-marker { display: none; }
+.row-group > summary .row-title::after { content: ""; display: inline-block; width: 6px; height: 6px; margin: 0 0 2px 10px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(-45deg); transition: transform 160ms var(--interaction-ease); }
+.row-group[open] > summary .row-title::after { transform: rotate(45deg); }
+@media (hover: hover) and (pointer: fine) { .row-group > summary:hover { background: var(--control); } }
+.row-group-body { border-top: 1px solid var(--hairline); background: color-mix(in srgb, var(--surface) 60%, var(--card)); max-height: 420px; overflow-y: auto; }
+.row-group-body .row { padding-left: 34px; font-size: 13.5px; }
+.rows > .row-group { border-top: 1px solid var(--hairline); }
+.rows > .row + .row-group, .rows > .row-group + .row { border-top: 1px solid var(--hairline); }
+@media (max-width: 640px) {
+  .earnings-hero { padding: 20px; }
+  .earnings-period { padding: 0 10px; }
+  .earnings-period dd { font-size: 16px; }
+  .earnings-meter[data-state="ready"], .earnings-meter[data-state="checks"] { flex-direction: column; align-items: stretch; }
+  .earnings-chart-head { flex-direction: column; }
+  .earnings-chart-total { justify-items: start; }
+}
+@media (prefers-reduced-motion: reduce) { .earnings-meter-track > span { animation: none; } }
+.earnings-chart-switch { display: inline-flex; gap: 2px; margin: -4px 0 14px; padding: 3px; border: 1px solid var(--hairline); border-radius: 10px; background: var(--control); }
+.earnings-chart-switch button { padding: 5px 11px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 560; cursor: pointer; }
+.earnings-chart-switch button[aria-pressed="true"] { background: var(--card); color: var(--text); box-shadow: var(--control-shadow); }
+@media (hover: hover) and (pointer: fine) { .earnings-chart-switch button[aria-pressed="false"]:hover { color: var(--text); } }

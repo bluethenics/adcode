@@ -11,6 +11,7 @@ import { installTooltips } from "./workbench/tooltip.ts";
 import "./styles/tokens.css";
 import { createAccountGate } from "./onboarding/accountGate.ts";
 import { showFirstOnboarding } from "./onboarding/welcomeJourney.ts";
+import { calmRemaining, holdUntilCalm, inCalmStart, markFirstWelcome } from "./onboarding/calmStart.ts";
 // The web look's type and tokens, shared by the web version and the desktop Vibe window
 // (surface.ts). Before everything else so a window wearing the frame has its fonts at once.
 import "./styles/webTheme.css";
@@ -240,11 +241,12 @@ import { isWebSurface, OPEN_CREDIT_CONVERSION_EVENT, OPEN_FROM_GITHUB_EVENT, use
 import { scaffoldFor, todoMarksIn } from "@adcode/structure";
 import { createAccountMenu } from "./workbench/accountMenu.ts";
 import { createOnboardingSheet } from "./onboarding/onboardingSheet.ts";
+import { takeGateIdea } from "./onboarding/starterIdeas.ts";
 import { firstBuildPrompt } from "../shared/firstBuild.ts";
 import { inviteLink } from "../shared/invite.ts";
 import { createPinPromptCard } from "./onboarding/pinPromptCard.ts";
 import { createAdPartnerNotice } from "./ads/adPartnerNotice.ts";
-import { createUsageSignalsNotice } from "./privacy/usageSignalsNotice.ts";
+import { createUsageSignalsNotice, USAGE_SIGNALS_NOTICE_KEY } from "./privacy/usageSignalsNotice.ts";
 import {
   createContextMenu,
   attachContextMenuDismissal,
@@ -3500,19 +3502,59 @@ const onboarding = createOnboardingSheet({
   openAllProviders: () => openIndependentConnect("pointer"),
   openAdSettings: () => openSetting("adcode.ads.frequency"),
   ...(isWebSurface() ? {} : { moveIn: () => commands.run("onboarding.moveIn") }),
-  complete: () => {
-    window.adcode.onboarding.complete().catch(() => undefined);
-    /*
-     * Every way out of the tour ends here - Skip, Escape, and Start coding - so this is
-     * the one place that knows the modal is gone and the taskbar is visible again. It
-     * fires twice on the Skip path, which is why `offer` is idempotent.
-     */
-    window.setTimeout(() => pinPromptCard.offer(), PIN_PROMPT_DELAY_MS);
-    window.setTimeout(() => adPartnerNotice.offer(), AD_PARTNER_NOTICE_DELAY_MS);
-    // After the sponsored-cards notice: it waits while any card holds the corner.
-    window.setTimeout(() => usageSignalsNotice.offer(), AD_PARTNER_NOTICE_DELAY_MS + 1_000);
-  },
+  complete: () => finishWelcome(),
 });
+
+/**
+ * The welcome is over, however it ended: recorded, and the cards that wait for it may come.
+ *
+ * Every way out of the tour ends here - Skip, Escape, and Start coding - so this is the one
+ * place that knows the modal is gone and the taskbar is visible again. It fires twice on the
+ * Skip path, which is why `offer` is idempotent.
+ */
+function finishWelcome(): void {
+  window.adcode.onboarding.complete().catch(() => undefined);
+  offerCornerCards();
+}
+
+/**
+ * The one-time corner cards: the pin card, the sponsored-cards notice, the usage-signals notice.
+ *
+ * Somebody new is in their calm start (onboarding/calmStart.ts) and gets none of them yet. The
+ * usage-signals card announces a 2.6.3 change, which is not news to them, so it is marked seen;
+ * the sponsored-cards notice comes once the quiet half hour is over, before any partner
+ * notification; the pin card waits for a later launch. Everybody else gets them as before, one
+ * after another - each waits while another holds the corner.
+ */
+function offerCornerCards(): void {
+  const left = calmRemaining(Date.now());
+  if (left > 0) {
+    try { localStorage.setItem(USAGE_SIGNALS_NOTICE_KEY, String(Date.now())); } catch { /* Told once more, later. */ }
+    window.setTimeout(() => adPartnerNotice.offer(), left + 1_000);
+    return;
+  }
+  window.setTimeout(() => pinPromptCard.offer(), PIN_PROMPT_DELAY_MS);
+  window.setTimeout(() => adPartnerNotice.offer(), AD_PARTNER_NOTICE_DELAY_MS);
+  // After the sponsored-cards notice: it waits while any card holds the corner.
+  window.setTimeout(() => usageSignalsNotice.offer(), AD_PARTNER_NOTICE_DELAY_MS + 1_000);
+}
+
+/*
+ * The web version's welcome is its sign-in screen (web/gate.ts): "What do you want to build?"
+ * is asked there, before signing in, and the answer is carried across in this tab. So the app
+ * opens building it - no sheet asking the same question again over a chat that asks it a third
+ * time. Without an idea, the empty chat is the welcome: it has the same box and the same ideas.
+ */
+const gateIdea = isWebSurface() ? takeGateIdea() : null;
+async function buildGateIdea(idea: string): Promise<void> {
+  const ready = await window.adcode.ai.status().then((status) => status.ready, () => false);
+  await buildFromIdea(idea, ready);
+}
+function welcomeOnWeb(): void {
+  window.adcode.milestones.record(gateIdea === null ? "welcome_skipped" : "welcome_done");
+  finishWelcome();
+  if (gateIdea !== null) void buildGateIdea(gateIdea);
+}
 
 /**
  * From an idea to a running first build.
@@ -3574,18 +3616,26 @@ function openWelcomeTour(returning: boolean, after: () => void): void {
 const tourFor = (): Promise<"new" | "returning" | "done"> => (isWebSurface() ? Promise.resolve("done" as const) : window.adcode.onboarding.tour().catch(() => "done" as const));
 void showFirstOnboarding(accountGate, {
   completed: () => window.adcode.onboarding.completed(),
-  // Somebody new sees the tour, then "What do you want to build?" - which is what records the welcome.
-  open: () => { void tourFor().then((who) => { if (who === "new") openWelcomeTour(false, () => onboarding.open()); else onboarding.open(); }); },
+  /*
+   * Somebody new: sign-in, then on the desktop the tour, then the app - and a quiet half hour
+   * (calmStart.ts). The "What do you want to build?" sheet no longer opens by itself: it asked
+   * what the empty chat right behind it asks too, and it was one modal too many on top of the
+   * tour (2026-11-24). It is still in the palette as Show Welcome.
+   */
+  open: () => {
+    markFirstWelcome(Date.now());
+    if (isWebSurface()) { welcomeOnWeb(); return; }
+    void tourFor().then((who) => { if (who === "new") openWelcomeTour(false, () => finishWelcome()); else finishWelcome(); });
+  },
 }).then((shown) => {
   if (!shown) {
+    // Welcomed in this browser before, signed out, and typed an idea on the way back in.
+    if (gateIdea !== null) void buildGateIdea(gateIdea);
     // Welcomed before 2.6: the tour once, for what did not exist then. Ending it records that.
     void tourFor().then((who) => { if (who === "returning") openWelcomeTour(true, () => { void window.adcode.onboarding.complete().catch(() => undefined); }); });
     // Already welcomed, so nothing is about to cover the corner. This is the path the
     // second ask arrives on; main decides whether this launch is one of the two.
-    window.setTimeout(() => pinPromptCard.offer(), PIN_PROMPT_DELAY_MS);
-    window.setTimeout(() => adPartnerNotice.offer(), AD_PARTNER_NOTICE_DELAY_MS);
-    // After the sponsored-cards notice: it waits while any card holds the corner.
-    window.setTimeout(() => usageSignalsNotice.offer(), AD_PARTNER_NOTICE_DELAY_MS + 1_000);
+    offerCornerCards();
     return;
   }
 
@@ -5468,7 +5518,11 @@ window.adcode.releases.onAnnouncement((announcement) =>
 window.adcode.ads.onShow((toast) => notifications.showSponsored(toast));
 // The ad partner fills a slot no direct campaign did. Its frame only answers the desktop app,
 // so the web version hands the slot straight back.
-window.adcode.ads.onPartnerShow((toast) => notifications.showPartner(toast));
+// Not during a new person's quiet first half hour (calmStart.ts): the slot goes back, uncounted.
+window.adcode.ads.onPartnerShow((toast) => {
+  if (inCalmStart(Date.now())) window.adcode.ads.partnerResult(toast.id, "empty");
+  else notifications.showPartner(toast);
+});
 
 /*
  * The kill switch and Frequency Off take down what is already on screen, not only the next
@@ -5530,7 +5584,15 @@ function reportAdSignals(): void {
  * act on or at least finish reading. The main process only ever sends each notice once
  * per machine, so leaving it on screen cannot become nagging.
  */
-window.adcode.notices.onShow((notices) => {
+window.adcode.notices.onShow((all) => {
+  // Somebody new hears warnings at once; everything else waits for the end of their quiet half
+  // hour and then arrives one at a time (calmStart.ts), not as a stack on their first screen.
+  const warnings = all.filter((notice) => notice.severity === "warning");
+  const held = holdUntilCalm(all.filter((notice) => notice.severity !== "warning"), (notice) => showNotices([notice]), Date.now());
+  showNotices(held ? warnings : all);
+});
+
+function showNotices(notices: Parameters<Parameters<typeof window.adcode.notices.onShow>[0]>[0]): void {
   for (const notice of notices) {
     notifications.show({
       title: notice.title,
@@ -5542,7 +5604,7 @@ window.adcode.notices.onShow((notices) => {
       }),
     });
   }
-});
+}
 
 /* ── When the assistant finishes, and Phone link ──────────────────────────── */
 

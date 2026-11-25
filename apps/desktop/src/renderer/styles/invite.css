@@ -171,32 +171,7 @@
   color: var(--text-secondary);
 }
 
-/* The earnings popover's way in. */
-.earnings-invite {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background: var(--surface-control);
-  color: var(--text-primary);
-  font: inherit;
-  font-size: var(--text-sm);
-  text-align: left;
-  cursor: pointer;
-}
-
-.earnings-invite:hover {
-  background: var(--surface-control-hover);
-}
-
-.earnings-invite-hint {
-  color: var(--success);
-  font-weight: 600;
-}
+/* The earnings popover's way in is styled with the earnings card (popups.css). */
 
 /* The welcome's first line, for someone who came with an invite. */
 .onboarding-invited {

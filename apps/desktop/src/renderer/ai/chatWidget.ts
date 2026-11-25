@@ -28,7 +28,7 @@ import { createAgentViewCard, createPlanCard, planStepsFrom, type AgentViewCard,
 import { createChatLiveRoom } from "../liveAgents/chatLiveRoom.ts";
 import { createTaskDetailsDialog } from "./taskDetailsDialog.ts";
 import { createTasksPopupDialog } from "./tasksPopupDialog.ts";
-import { OPENING_EXCHANGE, SPONSORED_SETTING, SPONSOR_ROTATE_MS, createSponsorStrip, type SponsoredExchange } from "./sponsoredReply.ts";
+import { SPONSORED_SETTING, SPONSOR_ROTATE_MS, createSponsorAsks, createSponsorStrip, type SponsoredExchange } from "./sponsoredReply.ts";
 import { exportConversationText } from "./chatExport.ts";
 import { DONE_SOUND_SETTING, playDoneSound, shouldChime } from "./doneSound.ts";
 import { createDotField } from "../onboarding/dotField.ts";
@@ -376,24 +376,31 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   let doneSound = false;
   const sponsorStrip = createSponsorStrip();
   /*
-   * The ad box above the message box (2026-11-13): Zeekend only, never stopping. It fills as
-   * soon as the chat is on screen and takes a fresh card every SPONSOR_ROTATE_MS, from the
-   * latest finished exchange - or a general developer's-day one before there is any - and at
-   * once after each reply. It keeps going while one of ADCode's own direct cards shows in the
-   * corner. The setting, or sponsored messages off, stops it and clears the box.
+   * The ad box above the message box (2026-11-13): never stopping, each card from Zeekend or
+   * Imprezia by the admin's split (2026-11-25; decided by the sponsored page). It fills as
+   * soon as a reply has finished: one card for each exchange a person actually had, asked
+   * about once (createSponsorAsks). Until 2.6.5 it re-asked every SPONSOR_ROTATE_MS about the
+   * same exchange, or about a sentence ADCode wrote when there was none, and counted each ask
+   * as a turn; neither happens now. It keeps going while one of ADCode's own direct cards shows
+   * in the corner. The setting, or sponsored messages off, stops it and clears the box.
    */
   let sponsorExchange: { request: string; response: string } | null = null;
-  let sponsorAsks = 0;
+  const sponsorAsks = createSponsorAsks();
   let stopSponsorLoop: (() => void) | null = null;
   const launchSponsorSession = `chat-${Date.now().toString(36)}`;
-  const nextSponsorExchange = (): SponsoredExchange => ({
-    ...(sponsorExchange ?? OPENING_EXCHANGE),
-    sessionId: activeSessionId ?? launchSponsorSession,
-    theme: document.documentElement.dataset["theme"] === "light" ? "light" : "dark",
-    // Every card asked for is a turn of its own for Zeekend's pacing, so a rotation is never refused as a repeat.
-    turn: Math.min(10_000, ++sponsorAsks),
-    layout: "banner",
-  });
+  /** The next card to ask for, or null when the person has sent nothing a partner has not already heard about. */
+  const nextSponsorExchange = (sessionId: string = activeSessionId ?? launchSponsorSession): SponsoredExchange | null => {
+    const turn = sponsorAsks.claim(sessionId, sponsorExchange);
+    if (turn === null || sponsorExchange === null) return null;
+    return {
+      ...sponsorExchange,
+      sessionId,
+      theme: document.documentElement.dataset["theme"] === "light" ? "light" : "dark",
+      // The conversation's own user turn, as Zeekend's REST documentation defines it.
+      turn,
+      layout: "banner",
+    };
+  };
   const sponsorOnScreen = (): boolean => document.visibilityState === "visible" && sponsorStrip.element.parentElement?.offsetParent !== null && sponsorStrip.element.isConnected;
   const readSponsored = (): void => {
     void window.adcode.settings.read().then((values) => {
@@ -5927,11 +5934,12 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           scrollToEnd();
         }
         // The sponsor strip (sponsoredReply.ts): a live finished reply only, never a replay.
-        // The box keeps rotating on its own (keepFilled); a finished reply asks at once, about it.
+        // A finished reply asks once, about that exchange; the box never asks again for the same one.
         if (finished && !replaying && sponsoredReplies) {
           const response = messageSources.get(finished) ?? "";
           if (lastUserPrompt.trim() !== "" && response.trim() !== "") sponsorExchange = { request: lastUserPrompt, response };
-          sponsorStrip.show({ ...nextSponsorExchange(), sessionId: eventSession ?? activeSessionId ?? launchSponsorSession });
+          const next = nextSponsorExchange(eventSession ?? activeSessionId ?? launchSponsorSession);
+          if (next !== null) sponsorStrip.show(next);
         }
         void refreshHistory();
         // /goal: a turn that made progress is followed by the next one, unless the person queued theirs.

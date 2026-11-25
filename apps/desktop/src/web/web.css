@@ -192,7 +192,9 @@ body[data-web-mode="browser"] > [data-web-desktop-root] { display: none !importa
   background: var(--text-primary);
   animation: web-caret 1s steps(1) infinite;
 }
-.web-gate-tick { width: 12px; color: var(--web-money); text-align: center; }
+/* Centred on its line: as an inline SVG on a baseline row it sat a line above its words. */
+.web-gate-tick { display: inline-grid; place-items: center; flex: none; align-self: center; width: 14px; height: 14px; color: var(--web-money); }
+.web-gate-tick svg { width: 13px; height: 13px; }
 .web-gate-line.is-done .web-gate-tick { animation: web-pulse 1.4s ease-in-out infinite; }
 @keyframes web-caret { 50% { opacity: 0; } }
 @keyframes web-line-in { from { opacity: 0; transform: translateY(5px); filter: blur(2px); } }
@@ -217,12 +219,18 @@ body[data-web-mode="browser"] > [data-web-desktop-root] { display: none !importa
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--web-money) 45%, transparent);
 }
 
-/* The card. */
+/* The card. Centred while it fits; taller than the window, it starts at its top and scrolls. */
 .web-gate-panel {
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: safe center;
   min-height: 100%;
   padding: 40px 20px;
+}
+@media (max-height: 820px) {
+  .web-gate-mark { height: 84px; }
+  .web-gate-card { gap: 18px; }
 }
 .web-gate-card {
   width: min(380px, 100%);
@@ -318,6 +326,76 @@ body[data-web-mode="browser"] > [data-web-desktop-root] { display: none !importa
   border-style: dashed;
   color: var(--text-secondary);
 }
+.web-gate-email[hidden], .web-gate-email-toggle[hidden] { display: none; }
+.web-gate-email-toggle { color: var(--text-secondary); }
+.web-gate-email-toggle svg { width: 17px; height: 17px; }
+
+/* Enter in the idea box lands here: one short lift says "this is the next step". */
+.web-gate-button.is-nudged { animation: web-nudge 520ms var(--web-ease-out); }
+@keyframes web-nudge {
+  30% { transform: translateY(-2px); border-color: color-mix(in srgb, var(--web-money) 60%, transparent); }
+}
+
+/* ── The idea box: what to build, typed before signing in ───────────────── */
+
+.web-gate-idea {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+  text-align: left;
+}
+.web-gate-idea-label {
+  color: var(--text-primary);
+  font: 600 13px var(--font-ui);
+}
+.web-gate-idea-input {
+  min-height: 74px;
+  max-height: 180px;
+  padding: 12px 14px;
+  resize: vertical;
+  border: 1px solid var(--border-hairline, #2d2b28);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--bg-app, #111110) 60%, transparent);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.18);
+  color: var(--text-primary);
+  font: 500 14px/1.5 var(--font-ui);
+  field-sizing: content;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.web-gate-idea-input::placeholder { color: var(--text-tertiary, #5f5d58); }
+.web-gate-idea-input:hover { border-color: color-mix(in srgb, var(--text-primary) 18%, transparent); }
+.web-gate-idea-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--web-money) 55%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--web-money) 14%, transparent);
+}
+.web-gate-ideas { display: flex; flex-wrap: wrap; gap: 6px; }
+.web-gate-chip {
+  min-height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--border-hairline, #2d2b28);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: 500 12px var(--font-ui);
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease, background-color 140ms ease, transform 140ms var(--web-ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .web-gate-chip:hover { color: var(--text-primary); border-color: color-mix(in srgb, var(--text-primary) 22%, transparent); background: color-mix(in srgb, var(--text-primary) 5%, transparent); }
+}
+.web-gate-chip:active { transform: scale(0.97); }
+.web-gate-chip:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-primary) 22%, transparent); }
+
+/* The step after the idea, said once: what signing in does. Turns green once there is an idea. */
+.web-gate-next {
+  margin: 2px 0 -6px;
+  color: var(--text-tertiary, #5f5d58);
+  font-size: 12.5px;
+  transition: color 200ms ease;
+}
+.web-gate-next[data-ready="true"] { color: var(--web-money); }
 
 .web-gate-divider {
   display: flex;
@@ -432,6 +510,7 @@ body[data-web-mode="browser"] > [data-web-desktop-root] { display: none !importa
   .web-gate, .web-gate-card, .web-gate-line, .web-gate-error { animation: none; transition: none; }
   .web-gate-grid, .web-gate-glow, .web-gate-terminal-bar span::before, .web-gate-line.is-done .web-gate-tick, .web-gate-progress::after { animation: none; }
   .web-gate-primary::after { display: none; }
+  .web-gate-button.is-nudged { animation: none; }
 }
 
 /* ── Project picker ──────────────────────────────────────────────────────── */

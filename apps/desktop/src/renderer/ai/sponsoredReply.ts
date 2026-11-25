@@ -1,17 +1,35 @@
+import { isWebSurface } from "../surface.ts";
+
 /**
- * Sponsored cards under an AI reply - Zeekend, ADCode's only ad partner. On by default from 2.5.1; one switch turns it off.
+ * Sponsored cards from ADCode's ad partners, Zeekend and Imprezia. On by default from 2.5.1; one switch turns it off.
  *
- * The SDK never runs in this window. It measures what it shows, and this window holds
- * `window.adcode`, which reads files and runs commands: no ad script may share it. So the
+ * The partners' SDKs never run in this window. They measure what they show, and this window
+ * holds `window.adcode`, which reads files and runs commands: no ad script may share it. So the
  * cards live on ADCode's own site, `/sponsored/chat`, in a cross-origin frame sandboxed away
- * from this page. This side only hands the frame the one exchange it may see and sizes it;
- * Zeekend's publisher key is public by design and comes from the site, so none is in the app.
+ * from this page. This side only hands the frame the one exchange it may see and sizes it.
+ * Which partner fills each card is the site's choice, by the shares set in Admin > Ad networks
+ * (2026-11-25), so the split changes with no release; no partner key is in the app.
  *
  * What leaves the machine, and only while `adcode.ads.chatSponsored` is on: the person's
- * message and the reply under which the card appears, and a one-way code made from the
- * conversation's id, so Zeekend can pace one conversation. Nothing else from the project.
+ * message and the reply under which the card appears, to the one partner asked, and a one-way
+ * code made from the conversation's id, so that partner can pace one conversation. Nothing else
+ * from the project.
  */
 export const SPONSORED_ORIGIN = "https://adcode.bluethenics.com";
+
+/**
+ * Whether this window may claim the pay for a card it shows (2026-11-24).
+ *
+ * Only while it is on screen, and on the web only in the tab the person is using: every web tab
+ * runs its own copy of the app, so ten open tabs used to claim ten cards for one pair of eyes.
+ * The card still shows and still counts for Zeekend; it just earns in one place. The server
+ * paces each account as well (services/api networkImpressions.ts), so this is the honest
+ * client keeping clear of that limit, not the only thing standing in the way.
+ */
+export function mayClaimCard(doc: Pick<Document, "visibilityState" | "hasFocus"> | undefined = typeof document === "undefined" ? undefined : document, web = isWebSurface()): boolean {
+  if (doc === undefined || doc.visibilityState !== "visible") return false;
+  return !web || doc.hasFocus();
+}
 export const SPONSORED_SETTING = "adcode.ads.chatSponsored";
 
 /** Longest exchange handed over; a reply full of code needs no more to be understood. */
@@ -27,8 +45,9 @@ export interface SponsoredExchange {
   readonly sessionId: string;
   readonly theme: "light" | "dark";
   /**
-   * `notification`: one card, drawn by Zeekend's SDK. `banner`: the one-line ad box above the
-   * message box - picture, headline, disclosure, a line of copy and a button - drawn by the page.
+   * `notification`: one card, drawn by its partner's SDK. `banner`: the one-line ad box above
+   * the message box - Zeekend's picture, headline, disclosure, a line of copy and a button,
+   * drawn by the page, or Imprezia's 320x50 banner, drawn by its SDK.
    */
   readonly layout?: "reply" | "notification" | "banner";
   /** Which user message of the conversation this reply answers, for the partner's pacing. A number only. */
@@ -46,17 +65,38 @@ export function sponsoredMessage(exchange: SponsoredExchange): { type: "adcode-s
   return { type: "adcode-sponsored", request, response, sessionId, theme: exchange.theme, ...(layout === undefined ? {} : { layout }), ...(turn === undefined ? {} : { turn }) };
 }
 
-/** How often the ad box asks Zeekend for a fresh card while the chat is on screen. */
+/** How often the ad box looks for a finished exchange it has not yet asked a partner about. It never repeats one. */
 export const SPONSOR_ROTATE_MS = 30_000;
 
 /**
- * What the ad box asks for before the conversation has a finished reply: a developer's working
- * day in general words. Nothing from the project or the person.
+ * Which exchanges a partner has already been asked about, so that a partner hears each message a
+ * person actually sent once, and the turn it reports is the person's own (2026-11-25).
+ *
+ * Until 2.6.5 the ad box re-asked every 30 seconds about the last exchange - or, before there was
+ * one, about a sentence ADCode wrote itself - and counted each ask as a turn. Zeekend's REST
+ * documentation defines the turn as the user turn, counting from 1, and a person had sent
+ * nothing new. Now a partner is asked only about a finished exchange it has not heard, the turn
+ * is how many different exchanges the conversation has had, and nothing is ever asked in a
+ * person's name that the person did not write.
  */
-export const OPENING_EXCHANGE = {
-  request: "I'm a software developer working in my code editor all day. What would make my work more comfortable and productive?",
-  response: "A comfortable keyboard and mouse, a good monitor, noise-cancelling headphones, a supportive chair, and tools that keep you focused through the day.",
-} as const;
+export function createSponsorAsks(maxConversations = 50): { claim(sessionId: string, exchange: { readonly request: string; readonly response: string } | null): number | null } {
+  const asked = new Map<string, Set<string>>();
+  return {
+    /** The conversation's user turn for this exchange the first time it is asked about; null for nothing, or a repeat. */
+    claim(sessionId, exchange) {
+      if (exchange === null || exchange.request.trim() === "" || exchange.response.trim() === "") return null;
+      const heard = asked.get(sessionId) ?? new Set<string>();
+      const key = `${exchange.request}\u0000${exchange.response}`;
+      if (heard.has(key)) return null;
+      heard.add(key);
+      asked.delete(sessionId);
+      asked.set(sessionId, heard);
+      const oldest = asked.keys().next().value;
+      if (asked.size > maxConversations && oldest !== undefined) asked.delete(oldest);
+      return Math.min(10_000, heard.size);
+    },
+  };
+}
 
 /**
  * Keeps a card in view as it arrives, for the frame's `onSize`.
@@ -127,11 +167,15 @@ export function sponsoredReplyFrame(
       onSize?.({ height: data.height, left: whole(measured.left), right: whole(measured.right), top: whole(measured.top) });
       if (data.height > 0) tell("shown");
     } else if (data?.type === "adcode-sponsored-impression") {
-      // Zeekend counted this card on screen: the app claims the person's $0.002 for it. Only the
-      // slot's id crosses; the phone page has no `window.adcode`, so there it does nothing.
+      // A partner counted this card on screen: the app claims the person's pay for it. Only the
+      // card's id crosses - Zeekend's slot id, or `slot_imp_` and Imprezia's impression uuid -
+      // and the phone page has no `window.adcode`, so there it does nothing.
       const slotId = (data as { slotId?: unknown }).slotId;
-      if (typeof slotId === "string" && /^slot_[A-Za-z0-9_-]{4,64}$/.test(slotId)) {
-        (globalThis as { adcode?: { ads?: { partnerImpression?: (slot: string) => void } } }).adcode?.ads?.partnerImpression?.(slotId);
+      if (typeof slotId === "string" && /^slot_[A-Za-z0-9_-]{4,64}$/.test(slotId) && mayClaimCard()) {
+        // The page's one-way hashed session id, when it sends one (older pages do not): the server's per-conversation guards read it.
+        const sent = (data as { conversationId?: unknown }).conversationId;
+        const conversationId = typeof sent === "string" && /^[A-Za-z0-9_.:-]{1,128}$/.test(sent) ? sent : undefined;
+        (globalThis as { adcode?: { ads?: { partnerImpression?: (slot: string, conversationId?: string) => void } } }).adcode?.ads?.partnerImpression?.(slotId, conversationId);
       }
     } else if (data?.type === "adcode-sponsored-empty") {
       window.removeEventListener("message", onMessage);

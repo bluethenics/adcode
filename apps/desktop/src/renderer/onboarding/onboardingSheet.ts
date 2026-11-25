@@ -25,6 +25,7 @@
  */
 import { createQuickConnect, type QuickConnect } from "../ai/quickConnect.ts";
 import { isWebSurface } from "../surface.ts";
+import { STARTER_IDEAS } from "./starterIdeas.ts";
 
 export interface OnboardingSheet {
   open(): void;
@@ -57,15 +58,8 @@ export interface OnboardingDeps {
   invite?: () => Promise<{ inviterName: string | null } | null>;
 }
 
-/** Ideas that build into something the preview shows straight away. */
-const IDEAS: readonly { readonly label: string; readonly prompt: string }[] = [
-  { label: "Landing page", prompt: "A landing page for my small business, with a hero section, services, testimonials and a contact form." },
-  { label: "Portfolio", prompt: "A personal portfolio site with an about section, my projects and a way to contact me." },
-  { label: "To-do app", prompt: "A to-do app where I can add, tick off and delete tasks, saved in the browser." },
-  { label: "Snake game", prompt: "A snake game in the browser with a score, a high score and a restart button." },
-  { label: "Budget tracker", prompt: "A budget tracker where I add income and expenses and see my balance and a chart by category." },
-  { label: "Quiz", prompt: "A quiz app with ten multiple-choice questions, a progress bar and a score at the end." },
-];
+/** Ideas that build into something the preview shows straight away (starterIdeas.ts). */
+const IDEAS = STARTER_IDEAS;
 
 export function createOnboardingSheet(deps: OnboardingDeps): OnboardingSheet {
   const dialog = document.createElement("dialog");

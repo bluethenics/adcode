@@ -9,6 +9,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { ToolDefinition, ToolRunner } from "@adcode/ai";
 import {
+  BRIDGE_INSTRUCTIONS,
   bearerMatches,
   bridgeConfigs,
   bridgeUrl,
@@ -122,6 +123,10 @@ describe("tool bridge server", () => {
     const listed = await client.listTools();
     expect(listed.tools.map((tool) => tool.name)).toEqual(["adcode_features", "adcode_action"]);
     expect(listed.tools[0]?.annotations?.readOnlyHint).toBe(true);
+    // Claude Code reads these into its system prompt: when to reach for ADCode's tools at all.
+    expect(client.getInstructions()).toBe(BRIDGE_INSTRUCTIONS);
+    expect(BRIDGE_INSTRUCTIONS).toContain("view_page");
+    expect(BRIDGE_INSTRUCTIONS.length).toBeLessThan(900);
     const [a, b] = await Promise.all([
       client.callTool({ name: "adcode_features", arguments: { query: "x" } }),
       client.callTool({ name: "adcode_features", arguments: { query: "y" } }),

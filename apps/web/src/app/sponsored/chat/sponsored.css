@@ -102,3 +102,16 @@ body:has(.sponsored-chat) main {
   .sponsored-banner-cta { padding: 8px 12px; font-size: 13px; }
 }
 @media (prefers-reduced-motion: reduce) { .sponsored-banner { transition: none; } }
+
+/*
+ * Imprezia's 320x50 banner in the ad box (2026-11-25), drawn by its SDK exactly as it sends it:
+ * nothing here restyles the creative. The SDK's own margin variable is set to nothing, so the
+ * frame is the banner's height, and the banner sits at the box's start like Zeekend's.
+ */
+.sponsored-imprezia-holder { --imprezia-card-margin-block: 0; }
+.sponsored-imprezia-holder:empty { display: none; }
+/*
+ * Imprezia's chat card in the ad box, when its banner had no ad: drawn by its SDK as sent; only
+ * the SDK's own margin variable is set, so the frame is the card's height and sits flush.
+ */
+.sponsored-chat[data-layout="banner"] { --imprezia-card-margin-block: 0; }

@@ -134,11 +134,48 @@ describe("the ad box above the message box", () => {
     expect(sponsoredMessage({ request: "q", response: "a", sessionId: "s", theme: "dark", layout: "reply" })).not.toHaveProperty("layout");
   });
 
-  it("opens with a general developer's-day exchange that names nothing of the project", async () => {
-    const { OPENING_EXCHANGE, SPONSOR_ROTATE_MS } = await import("../src/renderer/ai/sponsoredReply.ts");
-    expect(OPENING_EXCHANGE.request.length).toBeGreaterThan(20);
-    expect(OPENING_EXCHANGE.response.length).toBeGreaterThan(20);
-    expect(SPONSOR_ROTATE_MS).toBe(30_000);
+  it("invents no question of its own", async () => {
+    const mod = await import("../src/renderer/ai/sponsoredReply.ts");
+    expect(mod).not.toHaveProperty("OPENING_EXCHANGE");
+    expect(mod.SPONSOR_ROTATE_MS).toBe(30_000);
+  });
+});
+
+describe("asking a partner once for what a person sent", () => {
+  const one = { request: "How do I debounce a search box?", response: "Wait until typing stops." };
+
+  it("counts the conversation's own user turns, from 1", async () => {
+    const { createSponsorAsks } = await import("../src/renderer/ai/sponsoredReply.ts");
+    const asks = createSponsorAsks();
+    expect(asks.claim("chat-a", one)).toBe(1);
+    expect(asks.claim("chat-a", { request: "And throttle?", response: "Run at most every N ms." })).toBe(2);
+    // Another conversation starts again at 1.
+    expect(asks.claim("chat-b", one)).toBe(1);
+  });
+
+  it("never asks again about an exchange it has asked about, however often the box looks", async () => {
+    const { createSponsorAsks } = await import("../src/renderer/ai/sponsoredReply.ts");
+    const asks = createSponsorAsks();
+    expect(asks.claim("chat-a", one)).toBe(1);
+    // Zeekend suspended ADCode for re-asking the same question every 30 s with a rising turn.
+    for (let beat = 0; beat < 100; beat += 1) expect(asks.claim("chat-a", one)).toBeNull();
+  });
+
+  it("asks about nothing when there is no finished exchange", async () => {
+    const { createSponsorAsks } = await import("../src/renderer/ai/sponsoredReply.ts");
+    const asks = createSponsorAsks();
+    expect(asks.claim("chat-a", null)).toBeNull();
+    expect(asks.claim("chat-a", { request: " ", response: "x" })).toBeNull();
+    expect(asks.claim("chat-a", { request: "x", response: "" })).toBeNull();
+  });
+
+  it("forgets the oldest conversation rather than grow for ever", async () => {
+    const { createSponsorAsks } = await import("../src/renderer/ai/sponsoredReply.ts");
+    const asks = createSponsorAsks(2);
+    asks.claim("a", one);
+    asks.claim("b", one);
+    asks.claim("c", one);
+    expect(asks.claim("a", one)).toBe(1);
   });
 });
 
@@ -186,5 +223,39 @@ describe("the ad box keeps itself filled", () => {
       vi.useRealTimers();
       vi.unstubAllGlobals();
     }
+  });
+});
+
+describe("claiming a card's pay", () => {
+  it("claims only on screen, and on the web only in the tab being used", async () => {
+    const { mayClaimCard } = await import("../src/renderer/ai/sponsoredReply.ts");
+    const doc = (visibilityState: DocumentVisibilityState, focused: boolean) => ({ visibilityState, hasFocus: () => focused });
+    expect(mayClaimCard(doc("visible", false), false)).toBe(true);
+    expect(mayClaimCard(doc("hidden", true), false)).toBe(false);
+    expect(mayClaimCard(doc("visible", true), true)).toBe(true);
+    expect(mayClaimCard(doc("visible", false), true)).toBe(false);
+    expect(mayClaimCard(undefined, true)).toBe(false);
+  });
+});
+
+describe("the card a partner counted", () => {
+  it("hands the app the card and the page's hashed session id, and the id only when it is well formed", async () => {
+    const listeners: Array<(event: MessageEvent) => void> = [];
+    const contentWindow = { postMessage: () => undefined };
+    const frame = { contentWindow, style: { height: "" }, className: "", title: "", src: "", referrerPolicy: "", loading: "", setAttribute: () => undefined, remove: () => undefined };
+    const claims: unknown[][] = [];
+    Object.assign(globalThis, {
+      document: { createElement: () => frame, visibilityState: "visible", hasFocus: () => true, documentElement: { dataset: {} } },
+      window: { addEventListener: (_type: string, listener: (event: MessageEvent) => void) => listeners.push(listener), removeEventListener: () => undefined },
+      adcode: { ads: { partnerImpression: (...args: unknown[]) => claims.push(args) } },
+    });
+    const post = (data: unknown): void => { for (const listener of listeners) listener({ source: contentWindow, origin: "https://adcode.bluethenics.com", data } as unknown as MessageEvent); };
+    const { sponsoredReplyFrame } = await import("../src/renderer/ai/sponsoredReply.ts");
+    sponsoredReplyFrame({ request: "q", response: "a", sessionId: "s", theme: "dark" }, undefined, undefined);
+    post({ type: "adcode-sponsored-impression", slotId: "slot_abcd1234", conversationId: "adc_0123456789abcdef01234567" });
+    post({ type: "adcode-sponsored-impression", slotId: "slot_abcd1235" });
+    post({ type: "adcode-sponsored-impression", slotId: "slot_abcd1236", conversationId: "has space" });
+    expect(claims).toEqual([["slot_abcd1234", "adc_0123456789abcdef01234567"], ["slot_abcd1235", undefined], ["slot_abcd1236", undefined]]);
+    delete (globalThis as { adcode?: unknown }).adcode;
   });
 });

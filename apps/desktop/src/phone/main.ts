@@ -35,7 +35,7 @@ import {
   type PowerActionName,
 } from "../shared/phoneProtocol.ts";
 import { renderMarkdown } from "./markdown.ts";
-import { OPENING_EXCHANGE, SPONSOR_ROTATE_MS, createSponsorStrip, type SponsoredExchange } from "../renderer/ai/sponsoredReply.ts";
+import { SPONSOR_ROTATE_MS, createSponsorAsks, createSponsorStrip, type SponsoredExchange } from "../renderer/ai/sponsoredReply.ts";
 
 declare const __ADCODE_RELAY__: string;
 declare const __ADCODE_WEB_DEV__: boolean;
@@ -964,26 +964,31 @@ function paintSponsored(): void {
   const key = `${sessionId}:${String(exchange.turn)}:${String(exchange.response.length)}`;
   if (key === sponsoredFor) return;
   sponsoredFor = key;
-  strip.show(phoneSponsorExchange());
+  const next = phoneSponsorExchange();
+  if (next !== null) strip.show(next);
 }
 
-/** Every card asked for on this page, for Zeekend's pacing: each one is a turn of its own. */
-let phoneSponsorAsks = 0;
+/** Which exchanges Zeekend has been asked about, once each, and the user turn each one is. */
+const phoneSponsorAsks = createSponsorAsks();
 const phoneSponsorSession = `phone-${Date.now().toString(36)}`;
 
 /**
- * What the ad box asks Zeekend for: the chat's last finished exchange, or a general developer's
- * day before there is one. Never anything else from the project.
+ * What the ad box asks Zeekend for: the chat's last finished exchange, the first time only.
+ * Null when there is none or Zeekend has already heard it - nothing is ever invented, and
+ * nothing is asked again on a timer. Never anything else from the project.
  */
-function phoneSponsorExchange(): SponsoredExchange {
+function phoneSponsorExchange(): SponsoredExchange | null {
   const finished = phoneSponsoredExchange(state.timeline, true);
+  const sessionId = state.sessionId ?? phoneSponsorSession;
+  const turn = phoneSponsorAsks.claim(sessionId, finished);
+  if (finished === null || turn === null) return null;
   return {
-    request: finished?.request ?? OPENING_EXCHANGE.request,
-    response: finished?.response ?? OPENING_EXCHANGE.response,
-    sessionId: state.sessionId ?? phoneSponsorSession,
+    request: finished.request,
+    response: finished.response,
+    sessionId,
     // The phone page is dark only (phone.css).
     theme: "dark",
-    turn: Math.min(10_000, ++phoneSponsorAsks),
+    turn,
     layout: "banner",
   };
 }

@@ -26,6 +26,11 @@ export interface StackedBarsProps {
   height?: number;
   format?: (value: number) => string;
   summary: string;
+  /**
+   * The smallest top the scale may have. 1 suits counts; a chart of dollars where a day is a few
+   * cents needs a smaller floor, or every column draws as a hairline under an empty dollar.
+   */
+  minScale?: number;
 }
 
 const PAD = { top: 18, right: 8, bottom: 26, left: 8 };
@@ -53,6 +58,7 @@ export function StackedBars({
   height = 200,
   format = compact,
   summary,
+  minScale = 1,
 }: StackedBarsProps) {
   const [hover, setHover] = useState<number | null>(null);
 
@@ -72,7 +78,7 @@ export function StackedBars({
   const totals = days.map((_, index) =>
     series.reduce((sum, entry) => sum + (entry.values[index] ?? 0), 0),
   );
-  const max = Math.max(1, ...totals);
+  const max = Math.max(minScale, ...totals);
 
   return (
     <div className="chart">

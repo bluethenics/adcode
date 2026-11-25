@@ -9,13 +9,30 @@ const verifier: TokenVerifier = { async verify(token) { return { uid: token, cla
 const DAY = 86_400_000;
 const NOW = Date.parse("2026-11-13T12:00:00Z");
 
-describe("a Zeekend impression reported by the sponsored page", () => {
-  it("is taken only with Zeekend's slot id shape and a known network", () => {
+const IMPREZIA_CARD = "slot_imp_0f8e4f2c-6b1d-4c1e-9d55-3a2b1c0d9e8f";
+
+describe("a partner impression reported by the sponsored page", () => {
+  it("is taken only with a card id of a known shape, whose network it names", () => {
     expect(parseNetworkImpression({ network: "zeekend", slotId: "slot_p5b3lgsceh", layout: "banner" })).toEqual({ network: "zeekend", slotId: "slot_p5b3lgsceh", layout: "banner" });
     expect(parseNetworkImpression({ network: "zeekend", slotId: "slot_p5b3lgsceh" })?.layout).toBe("reply");
-    expect(parseNetworkImpression({ network: "imprezia", slotId: "slot_p5b3lgsceh" })).toBeNull();
+    expect(parseNetworkImpression({ network: "imprezia", slotId: IMPREZIA_CARD, layout: "notification" })).toEqual({ network: "imprezia", slotId: IMPREZIA_CARD, layout: "notification" });
+    // The 2.6.5 app calls every card Zeekend's: the id decides.
+    expect(parseNetworkImpression({ network: "zeekend", slotId: IMPREZIA_CARD })?.network).toBe("imprezia");
+    expect(parseNetworkImpression({ network: "imprezia", slotId: "slot_p5b3lgsceh" })?.network).toBe("zeekend");
+    expect(parseNetworkImpression({ network: "other", slotId: "slot_p5b3lgsceh" })).toBeNull();
+    expect(parseNetworkImpression({ network: "imprezia", slotId: "slot_imp_not-a-uuid!" })).toBeNull();
+    expect(parseNetworkImpression({ network: "imprezia", slotId: "slot_imp_zz" })).toBeNull();
     expect(parseNetworkImpression({ network: "zeekend", slotId: "<script>" })).toBeNull();
     expect(parseNetworkImpression("slot_x")).toBeNull();
+  });
+
+  it("names its network by the card id, Imprezia's within the 2.6.5 app's slot check", async () => {
+    const { cardNetwork } = await import("../src/networkImpressions.ts");
+    expect(cardNetwork("slot_p5b3lgsceh")).toBe("zeekend");
+    expect(cardNetwork(IMPREZIA_CARD)).toBe("imprezia");
+    expect(cardNetwork("imprezia")).toBeNull();
+    // What the 2.6.5 app checks before it claims a card.
+    expect(/^slot_[A-Za-z0-9_-]{4,64}$/.test(IMPREZIA_CARD)).toBe(true);
   });
 
   it("counts a slot once, however often it is reported", async () => {
@@ -65,7 +82,11 @@ describe("paying for a Zeekend card", () => {
   async function ready() {
     const store = createMemoryStore();
     await store.adNetworks!.put(zeekendConfig as never, "admin", NOW);
-    const api = createFetchHandler({ store, clock: { now: () => NOW }, verifier });
+    // A live key: a connection with a test key, or none, pays nobody (adNetworks.ts servesTestCards).
+    const encryption = Buffer.alloc(32, 9).toString("base64");
+    const { encryptAdNetworkKey } = await import("../src/adNetworkCrypto.ts");
+    await store.adNetworks!.putKey("zeekend", encryptAdNetworkKey("zeekend", "pub_live_abc123XYZ", encryption));
+    const api = createFetchHandler({ store, clock: { now: () => NOW }, verifier, adNetworks: { encryptionKeys: () => [encryption] } });
     const earn = (uid: string, slotId: string) => api(new Request("https://api.example.com/v1/sponsored/earn", { method: "POST", headers: { authorization: `Bearer ${uid}`, "content-type": "application/json" }, body: JSON.stringify({ network: "zeekend", slotId, layout: "banner" }) }));
     return { store, earn };
   }
@@ -90,8 +111,47 @@ describe("paying for a Zeekend card", () => {
     expect(await creditNetworkImpression({ adNetworks: store.adNetworks, bumpDailyCount: (key, day) => store.bumpRequestCount(key, day), now: NOW }, "dev-c", { network: "zeekend", slotId: "slot_cap00000" })).toEqual({ credited: false, reason: "no-network" });
     await store.adNetworks!.put(zeekendConfig as never, "admin", NOW);
     let count = ZEEKEND_PAID_PER_DAY;
-    const outcome = await creditNetworkImpression({ adNetworks: store.adNetworks, bumpDailyCount: async () => ++count, now: NOW }, "dev-c", { network: "zeekend", slotId: "slot_cap00001" });
+    const outcome = await creditNetworkImpression({ adNetworks: store.adNetworks, bumpDailyCount: async (key) => (key.startsWith("cards-paid:") ? ++count : 1), now: NOW }, "dev-c", { network: "zeekend", slotId: "slot_cap00001" });
     expect(outcome).toEqual({ credited: false, reason: "daily-cap" });
+  });
+
+  it("pays for an Imprezia card at Imprezia's own rate, even when the 2.6.5 app calls it Zeekend's", async () => {
+    const { creditNetworkImpression } = await import("../src/networkImpressions.ts");
+    const store = createMemoryStore();
+    const deps = { adNetworks: store.adNetworks, bumpDailyCount: (key: string, day: number) => store.bumpRequestCount(key, day), now: NOW };
+    await store.adNetworks!.put(zeekendConfig as never, "admin", NOW);
+    // Zeekend alone pays nothing for an Imprezia card.
+    expect(await creditNetworkImpression(deps, "dev-i", { network: "imprezia", slotId: IMPREZIA_CARD })).toEqual({ credited: false, reason: "no-network" });
+    await store.adNetworks!.put({ id: "imprezia", name: "Imprezia", provider: "imprezia", enabled: true, priority: 10, viewPayoutMicros: "0", clickPayoutMicros: "0", imprezia: { kind: "chat", id: "", payPerCardMicros: "3000" } }, "admin", NOW);
+    expect(await creditNetworkImpression(deps, "dev-i", { network: "zeekend", slotId: IMPREZIA_CARD })).toEqual({ credited: true, micros: "3000" });
+    expect(await creditNetworkImpression(deps, "dev-i", { network: "imprezia", slotId: IMPREZIA_CARD })).toEqual({ credited: false, reason: "already" });
+    expect((await store.adNetworks!.delivery("dev-i", IMPREZIA_CARD))?.networkId).toBe("imprezia");
+    expect((await store.getBalance("dev-i")).lifetimeMicros).toBe(3_000n);
+  });
+
+  it("counts one day's paid cards across every network, so a split pays no more cards than one network did", async () => {
+    const { creditNetworkImpression } = await import("../src/networkImpressions.ts");
+    const store = createMemoryStore();
+    await store.adNetworks!.put({ ...zeekendConfig, zeekend: { placementId: "chat-main", paidCardsPerDay: 2 } } as never, "admin", NOW);
+    await store.adNetworks!.put({ id: "imprezia", name: "Imprezia", provider: "imprezia", enabled: true, priority: 10, viewPayoutMicros: "0", clickPayoutMicros: "0", imprezia: { kind: "chat", id: "", paidCardsPerDay: 2 } }, "admin", NOW);
+    // A minute apart each, so the per-minute pace never decides.
+    const earn = (slotId: string, minute: number) => creditNetworkImpression({ adNetworks: store.adNetworks, bumpDailyCount: (key, day) => store.bumpRequestCount(key, day), now: NOW + minute * 60_000 }, "dev-s", { slotId });
+    expect((await earn("slot_split0001", 0)).credited).toBe(true);
+    expect((await earn(IMPREZIA_CARD, 1)).credited).toBe(true);
+    expect(await earn("slot_split0002", 2)).toEqual({ credited: false, reason: "daily-cap" });
+  });
+
+  it("paces paid cards per minute across every network", async () => {
+    const { creditNetworkImpression, CARDS_PAID_PER_MINUTE } = await import("../src/networkImpressions.ts");
+    const store = createMemoryStore();
+    await store.adNetworks!.put(zeekendConfig as never, "admin", NOW);
+    await store.adNetworks!.put({ id: "imprezia", name: "Imprezia", provider: "imprezia", enabled: true, priority: 10, viewPayoutMicros: "0", clickPayoutMicros: "0", imprezia: { kind: "chat", id: "" } }, "admin", NOW);
+    const deps = { adNetworks: store.adNetworks, bumpDailyCount: (key: string, day: number) => store.bumpRequestCount(key, day), now: NOW };
+    const ids = ["slot_pace0001", "slot_imp_1f8e4f2c-6b1d-4c1e-9d55-3a2b1c0d9e8f", "slot_pace0002", "slot_imp_2f8e4f2c-6b1d-4c1e-9d55-3a2b1c0d9e8f"];
+    const outcomes = [];
+    for (const slotId of ids) outcomes.push(await creditNetworkImpression(deps, "dev-p", { slotId }));
+    expect(outcomes.filter((one) => one.credited)).toHaveLength(CARDS_PAID_PER_MINUTE);
+    expect(outcomes.at(-1)).toEqual({ credited: false, reason: "too-fast" });
   });
 
   it("pays the rate the admin set on the Zeekend connection, up to its daily cap", async () => {

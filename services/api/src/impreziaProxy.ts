@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { AdNetworkConfig, AdNetworkStore } from "./adNetworkConfig.ts";
 import { adNetworkEncryptionKeys, decryptAdNetworkKey } from "./adNetworkCrypto.ts";
-import { impreziaBaseUrl } from "./impreziaChatAds.ts";
+import { impreziaBaseUrl, impreziaKeyMode } from "./impreziaChatAds.ts";
 import { validImpreziaSdkPreview } from "./impreziaSdkPreview.ts";
 
 /**
@@ -16,7 +16,7 @@ import { validImpreziaSdkPreview } from "./impreziaSdkPreview.ts";
  *   so Admin > Ad networks > Turn off stops live sponsored cards;
  * - an authenticated admin can issue a five-minute permit to preview one saved connection,
  *   including a disabled connection, using exactly the same SDK and relay;
- * - only the SDK's monetize and event paths are forwarded, so the key cannot be used to reach
+ * - only the SDK's monetize, display and event paths are forwarded, so the key cannot be used to reach
  *   anything else on Imprezia's API;
  * - each network address gets a request budget per minute, because these calls carry no
  *   sign-in (impression beacons are `navigator.sendBeacon`, which cannot send one).
@@ -32,6 +32,40 @@ export interface ImpreziaProxyDeps {
   /** Counts a request in a window and answers the new count. */
   readonly bump: (bucket: string, windowStart: number) => Promise<number>;
   readonly now: () => number;
+  /** Hears one line per ad answer (impreziaAnswerSummary), for the Worker's logs. */
+  readonly log?: (line: Record<string, unknown>) => void;
+}
+
+/**
+ * One line about an ad answer from Imprezia, for the Worker's logs (2026-11-25: its first live
+ * answers carried no ad, and the reason was nowhere to be seen). Only the answer's shape: its
+ * status, whether it filled, how many ads, its field names, any reason or error it gives, and
+ * which environment the saved key is for. Never the person's message or the reply (the monetize
+ * answer repeats it), their address, or the key itself.
+ */
+export function impreziaAnswerSummary(path: string, status: number, text: string, keyMode: string): Record<string, unknown> | null {
+  const kind = path.startsWith("/v1/display") ? "display" : path.startsWith("/v1/monetize/") ? "monetize" : null;
+  if (kind === null) return null;
+  let parsed: unknown = null;
+  try { parsed = JSON.parse(text); } catch { /* not JSON: noted below */ }
+  const record = (value: unknown): Record<string, unknown> => (typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {});
+  const body = record(parsed);
+  const metadata = record(body["metadata"]);
+  const links = Object.keys(record(body["linkData"]));
+  const reasonNames = ["error", "message", "reason", "noFillReason", "no_fill_reason", "skipReason"];
+  const said = [...reasonNames.map((name) => body[name]), ...reasonNames.map((name) => metadata[name])].find((value) => typeof value === "string") as string | undefined;
+  return {
+    imprezia: kind,
+    status,
+    keyMode,
+    ...(kind === "display" ? { noFill: body["no_fill"] === true } : {}),
+    ads: links.length,
+    cards: links.filter((name) => name.startsWith("card-")).length,
+    fields: Object.keys(body).slice(0, 15),
+    ...(Object.keys(metadata).length > 0 ? { metadataFields: Object.keys(metadata).slice(0, 15) } : {}),
+    ...(said === undefined ? {} : { said: said.slice(0, 160) }),
+    ...(parsed === null && text.length > 0 ? { notJson: text.slice(0, 80) } : {}),
+  };
 }
 
 export interface ImpreziaProxyRequest {
@@ -53,8 +87,11 @@ export interface ImpreziaProxyResponse {
   readonly body: string;
 }
 
-/** The SDK's own calls: monetizing a reply, and the events it reports about what it showed. */
-const FORWARDED = /^\/v1\/(?:monetize|events)\/[A-Za-z0-9/_-]{1,80}(?:\?[A-Za-z0-9=&%._-]{0,200})?$/;
+/**
+ * The SDK's own calls: monetizing a reply, its 320x50 banner for the ad box above the chat's
+ * message box (`/v1/display`, 2026-11-25), and the events it reports about what it showed.
+ */
+const FORWARDED = /^\/v1\/(?:(?:monetize|events)\/[A-Za-z0-9/_-]{1,80}|display)(?:\?[A-Za-z0-9=&%._-]{0,200})?$/;
 const PER_NETWORK_PER_MINUTE = 120;
 const MAX_BODY_CHARS = 64_000;
 
@@ -140,7 +177,14 @@ export async function relayImprezia(deps: ImpreziaProxyDeps, request: ImpreziaPr
       ...(request.method === "GET" ? {} : { body: JSON.stringify(body) }),
     });
     if (upstream.status >= 300 && upstream.status < 400) return json(502, "upstream-unavailable");
-    return { status: upstream.status, contentType: upstream.headers.get("content-type") ?? "application/json", body: await upstream.text() };
+    const text = await upstream.text();
+    if (deps.log !== undefined) {
+      try {
+        const line = impreziaAnswerSummary(path, upstream.status, text, impreziaKeyMode(key));
+        if (line !== null) deps.log(line);
+      } catch { /* a log line never breaks the card */ }
+    }
+    return { status: upstream.status, contentType: upstream.headers.get("content-type") ?? "application/json", body: text };
   } catch {
     return json(502, "upstream-unavailable");
   }

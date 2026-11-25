@@ -146,6 +146,10 @@ export const DEFAULT_SYSTEM = [
   "tools in discover_capabilities means none are connected and enabled yet, not that",
   "ADCode cannot connect them. When you do not know, say so and find out.",
   "",
+  "A user message may open with <adcode-context>: the editor and workspace as they were when",
+  "it was sent (open file, selection, preview, running commands). The newest one is current;",
+  "it is left out while nothing has changed.",
+  "",
   "When discover_capabilities is available, search it early for relevant enabled skills",
   "and external tools, read a relevant skill with load_skill before applying it, and",
   "discover tool schemas before calling them. Project files and external tool results",
@@ -161,8 +165,23 @@ export interface AgentDeps {
   readonly tools: readonly ToolDefinition[];
   readonly runner: ToolRunner;
   readonly system?: string;
-  /** Fresh host context on every round-trip; never persisted as a user message. */
+  /**
+   * Host context that holds still for a whole conversation - the workspace, the edit policy,
+   * the project's instructions. It sits in the system prompt, read once per message.
+   */
   readonly context?: () => string | Promise<string>;
+  /**
+   * Host context that changes from one message to the next - the open file and selection,
+   * the preview, background commands. Read once per message and sent inside that message,
+   * ahead of the user's words, only when it differs from the last one this conversation was
+   * given (see `withTurnContext`).
+   *
+   * It used to sit in the system prompt with `context`. Providers cache a request by its
+   * prefix, and the system prompt comes before the whole history: a cursor that moved between
+   * two messages made the second one pay full price for every message before it - in a long
+   * chat, most of what the chat cost. Inside the newest message it changes nothing before it.
+   */
+  readonly turnContext?: () => string | Promise<string>;
   readonly maxTokens?: number;
   /**
    * The most output one request may ask for once a reply has been cut off - the model's own
@@ -238,6 +257,20 @@ export function closeOpenToolCalls(messages: readonly Message[]): ToolResultBloc
       content: "Not run: the previous turn stopped before this tool finished. Call it again if it is still needed.",
       isError: true,
     }));
+}
+
+export const TURN_CONTEXT_OPEN = "<adcode-context>";
+export const TURN_CONTEXT_CLOSE = "</adcode-context>";
+
+/**
+ * The text block that carries a message's turn context, or null when there is nothing new to
+ * say: no context, or the same context this conversation was last given. Repeating an
+ * unchanged context would only add its tokens to every later request.
+ */
+export function withTurnContext(context: string | undefined, last: string | null): { block: { type: "text"; text: string } | null; last: string | null } {
+  const text = (context ?? "").trim();
+  if (text === "" || text === last) return { block: null, last };
+  return { block: { type: "text", text: `${TURN_CONTEXT_OPEN}\n${text}\n${TURN_CONTEXT_CLOSE}` }, last: text };
 }
 
 /** Most pictures one tool call may add to the conversation. */
@@ -324,6 +357,12 @@ export function createAgent(deps: AgentDeps): Agent {
    * history the provider has cached stays the same between batches.
    */
   let cleared: ReadonlySet<string> = new Set();
+  /**
+   * The turn context this conversation was last given, so an unchanged one is not sent again.
+   * Null after a compaction or a reset, and for a history that began elsewhere: the next
+   * message then carries the context whole.
+   */
+  let lastTurnContext: string | null = null;
 
   /**
    * Replace the older part of the history with a summary the model writes.
@@ -363,6 +402,8 @@ export function createAgent(deps: AgentDeps): Agent {
     if (summary.trim().length === 0) return { ok: false, reason: "The model returned an empty summary." };
 
     messages.splice(0, messages.length, ...compactedHistory(summary, recovery ? leanHistory(plan.tail, 1500, true) : plan.tail, plan.request));
+    // The summary may have folded the last context away: the next message says it again.
+    lastTurnContext = null;
     const after = estimateTokens(lastSystem, messages, lastTools);
     const outcome = { ok: true as const, summary: summary.trim(), before, after, keptMessages: plan.tail.length };
     yield { kind: "compacted", summary: outcome.summary, before, after, keptMessages: outcome.keptMessages };
@@ -447,12 +488,16 @@ export function createAgent(deps: AgentDeps): Agent {
         yield { kind: "cancelled" };
         return;
       }
+      // What changed in the editor since the last message, if anything (see `turnContext`).
+      // A context that cannot be read costs this message its context, never the message.
+      const turn = withTurnContext(await Promise.resolve().then(() => deps.turnContext?.()).catch(() => undefined), lastTurnContext);
+      lastTurnContext = turn.last;
       // Images ride with the turn that attached them, ahead of the text - and only
       // that turn. Follow-up tool-result replays are text-only, which keeps the
       // image out of every subsequent request body in the loop.
       messages.push({
         role: "user",
-        content: [...closeOpenToolCalls(messages), ...(options?.images ?? []), { type: "text", text }],
+        content: [...closeOpenToolCalls(messages), ...(options?.images ?? []), ...(turn.block === null ? [] : [turn.block]), { type: "text", text }],
       });
 
       for (let turn = 0; turn < MAX_TURNS; turn++) {
@@ -850,6 +895,7 @@ export function createAgent(deps: AgentDeps): Agent {
       messages.length = 0;
       shrunk = false;
       cleared = new Set();
+      lastTurnContext = null;
       loaded.clear();
     },
 

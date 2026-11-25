@@ -56,29 +56,27 @@ When no direct campaign fills the card, ADCode's server may ask an ad network ou
 
 **Settings → Ads → Sponsored cards under AI replies** is on by default since ADCode 2.5.1, which shows a one-time notice with a Turn off button when it turns it on. Turning it off stops everything in this section at once. If you switched sponsored messages off altogether, it stays off.
 
-When it is on, after the assistant answers in the desktop app, ADCode shows at most one sponsored card chosen for that exchange, just above the message box. Zeekend chooses it. With Phone link on, a card chosen the same way can appear under the computer's reply on your phone.
+When it is on, after the assistant finishes a reply in the desktop app or the web version, ADCode shows at most one sponsored card for that exchange, just above the message box. Each finished reply is offered to a partner once; nothing is resent, and nothing is ever asked in your name that you did not write. With Phone link on, a card chosen the same way can appear under the computer's reply on your phone.
 
-To choose its card, **Zeekend** receives:
+Each card comes from one of our ad partners, never more than one. Our administrators decide how cards are divided between partners. **Our ad partner today is Imprezia.** Zeekend, which chose cards until 25 November 2026, is switched off in our settings and receives nothing while it stays off; we will update this page before any partner is switched on.
 
-- **your message and the assistant's reply** under which the card appears, cut to the first 2,000 and 4,000 characters. A reply can contain code, and that code is included;
-- **which question of the conversation it is** (a number), and **an identifier for the conversation** that is a one-way code of ADCode's, not your account and not the conversation's own id;
-- **your language setting, your IP address and your browser's user-agent string.**
+For the card above the message box, **Imprezia** shows a small banner and receives:
 
-Zeekend matches products to the conversation with a language model from Anthropic, so your message and the reply are processed by Anthropic as Zeekend's sub-processor.
+- **an identifier for the conversation** that is a one-way code of ADCode's, not your account and not the conversation's own id, and the name of the place the banner goes;
+- **the size of the card's frame and the kind of device** (desktop, tablet or phone);
+- **your IP address and your browser's user-agent string**, which our server passes on so Imprezia can place the ad in your country and check it is shown to a person.
 
-Nothing else from your project is sent: no other files, file paths, or project names. The card is a separate page from adcode.bluethenics.com, shown inside the editor (or the Phone link page) but walled off from it, so neither Zeekend nor anyone it works with can reach your files or the rest of the editor. Zeekend's own code loads inside that card to count views and clicks. ADCode does not store the message or the reply for this.
+For a card under an AI reply, Imprezia also receives **your message and the assistant's reply**. A reply can contain code, and that code is included.
 
-### Sponsored notifications from our ad partner (on unless you turn them off) {#partner-notifications}
+Imprezia may pass what it receives to the advertisers and ad exchanges that bid to fill the card, under its own privacy policy. Its code does not run its advertising-identity sync on ADCode's card page, which has no consent banner, so no advertising ID is set there.
 
-**Settings → Ads → Sponsored notifications from ADCode's ad partner** is on by default since ADCode 2.5.1. Turning it off stops everything in this section at once. If you switched sponsored messages off altogether, it stays off.
+Nothing else from your project is sent: no other files, file paths, or project names. The card is a separate page from adcode.bluethenics.com, shown inside the editor (or the Phone link page) but walled off from it, so no partner or anyone it works with can reach your files or the rest of the editor. The partner's own code loads inside that card to count views and clicks. Imprezia's requests go through our server, which adds ADCode's key and keeps no copy of the message or the reply.
 
-When it is on and no ADCode advertiser has a sponsored message for you at a moment one may be shown, the desktop app can show a notification chosen by Zeekend instead. It follows the same schedule, daily limit and quiet times as every other sponsored message. To choose it, Zeekend receives:
+Each partner card you are shown credits your ADCode earnings at the rate shown in Earnings. To pay you, the app tells our server which card was shown (the partner's id for it) along with your anonymous account.
 
-- **a short question and answer naming the languages and frameworks you have open**, such as "typescript, react, docker" - the same tags described below, without their prefixes. Never file contents, file names, paths, code, prompts or project names;
-- **an identifier for that run of the app**, which changes every time ADCode starts and is not your account, and **which notification of that run it is** (a number);
-- **your language setting, your IP address and your browser's user-agent string.**
+### Sponsored notifications from our ad partners {#partner-notifications}
 
-The notification's card is the same walled-off page from adcode.bluethenics.com as a card under an AI reply, so Zeekend cannot reach your files or the editor. Each Zeekend card you are shown credits $0.002 to your ADCode earnings, up to 300 cards a day. To pay you, the desktop app tells our server which Zeekend card was shown (its slot id) along with your anonymous account.
+**Settings → Ads → Sponsored notifications from ADCode's ad partner** is still in Settings, but no partner is asked for a notification. ADCode 2.6.6 and later ask for none at all. Versions 2.6.1 to 2.6.5 still send a short question naming the languages you have open to ADCode's card page, which turns it away, so nothing reaches a partner. Notifications from ADCode's own advertisers are unchanged.
 
 Tags come from a closed vocabulary compiled into the editor — values like \`lang:rust\`, \`fw:react\`, \`tool:docker\`, \`platform:backend\`. There are 45 of them. The server cannot add to the list, and any tag the editor does not recognise is never sent.
 

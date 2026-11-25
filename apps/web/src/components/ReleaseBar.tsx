@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "@/components/IntentLink";
+import { firstVisitQuiet } from "@/lib/firstVisit";
 
 /**
  * A thin line at the top of the site saying a new version shipped.
@@ -29,7 +30,14 @@ export function ReleaseBar({ version, title }: ReleaseBarProps) {
     if (version === null) return;
 
     try {
-      if (window.localStorage.getItem(DISMISSED_KEY) !== version) setShow(true);
+      if (window.localStorage.getItem(DISMISSED_KEY) === version) return;
+      // A first visit: this release is not news to somebody who has never been here, so it is
+      // counted as seen and the bar waits for the next one (lib/firstVisit.ts).
+      if (window.localStorage.getItem(DISMISSED_KEY) === null && firstVisitQuiet()) {
+        window.localStorage.setItem(DISMISSED_KEY, version);
+        return;
+      }
+      setShow(true);
     } catch {
       // Private browsing, or storage switched off. Showing nothing is the safe side of
       // this: an undismissable bar on every page load is worse than no bar.

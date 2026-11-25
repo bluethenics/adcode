@@ -31,6 +31,7 @@ import type { ModelCatalogRecord } from "./modelCatalog.ts";
 import type { ModelOutcomeRow } from "./modelOutcomes.ts";
 import type { StatusIncidentRecord, StatusIncidentUpdateRecord } from "./status.ts";
 import { createMemoryNetworkImpressionStore } from "./networkImpressions.ts";
+import { createMemoryEarningReviewStore } from "./earningReview.ts";
 import type {
   ActivityDay,
   AdminRecord,
@@ -152,13 +153,17 @@ export function createMemoryStore(): Store & { reset(): void } {
     balances.set(entry.uid, applyEntry(balances.get(entry.uid) ?? EMPTY_BALANCE, entry));
   });
 
+  const earningReviews = createMemoryEarningReviewStore(() => users.values());
+
   return {
     ...tagflow,
     adNetworks,
     networkImpressions: createMemoryNetworkImpressionStore(),
+    earningReviews,
     reset() {
       tagflow.resetTagflow();
       adNetworks.reset();
+      earningReviews.reset();
       users = new Map();
       advertisers = new Map();
       campaigns = new Map();

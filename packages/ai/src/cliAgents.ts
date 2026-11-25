@@ -227,7 +227,14 @@ export function cliArgs(id: CliAgentId, options: { readonly model: string; reado
 export function cliLiveArgs(id: CliAgentId, options: Parameters<typeof cliArgs>[1]): string[] | null {
   if (id !== "claude") return null;
   const [print, ...rest] = cliArgs(id, options);
-  return [print!, "--input-format", "stream-json", "--include-partial-messages", ...rest];
+  // `--permission-prompt-tool stdio`: a tool call its permission mode does not settle comes to
+  // ADCode as a `can_use_tool` request on stdout and is answered on stdin, so the person is
+  // asked in the app. Without it Claude Code refused every such call by itself ("This command
+  // requires approval") and then told the person to approve a prompt nobody had shown them.
+  // Checked with Claude Code 2.1.284. Full access asks nothing, so it needs no asking.
+  const asks = options.bypassPermissions === true ? [] : ["--permission-prompt-tool", "stdio"];
+  const verbose = rest.indexOf("--verbose") + 1;
+  return [print!, "--input-format", "stream-json", "--include-partial-messages", ...rest.slice(0, verbose), ...asks, ...rest.slice(verbose)];
 }
 
 /** One user message on Claude Code's stream-json input. */
@@ -347,7 +354,6 @@ export function parseModelList(output: string): string[] {
 /* ── Turning a conversation into one prompt ─────────────────────────────── */
 
 const MAX_TRANSCRIPT = 60_000;
-const MAX_CONTEXT = 8_000;
 
 function messageText(message: Message): string {
   return message.content.map((block) => {
@@ -359,29 +365,22 @@ function messageText(message: Message): string {
 }
 
 /**
- * What ADCode adds that the CLI cannot know: the editor's live context (the open file, the
- * selection, the cursor line) - the part of the system prompt after its stable instructions.
- * ADCode's own tool instructions are left out: the CLI brings its own tools.
- */
-export function editorContext(request: ProviderRequest): string {
-  const stable = request.cache?.stableSystem;
-  if (stable === undefined || stable >= request.system.length) return "";
-  const context = request.system.slice(stable).trim();
-  return context.length > MAX_CONTEXT ? `${context.slice(0, MAX_CONTEXT)}\n[context shortened]` : context;
-}
-
-/**
  * The prompt for one turn. Resuming sends only the newest message: the CLI remembers the rest.
  * Starting fresh in the middle of a chat (it began with another model) sends the conversation
  * so far as a transcript, newest kept when it is long.
+ *
+ * What ADCode knows that the CLI cannot - the open file, the selection, the preview - arrives
+ * inside the newest message, as the agent's `<adcode-context>` block, and only when it changed.
+ * The system prompt is not passed on. It used to be, up to 8,000 characters on every turn: the
+ * project's instructions (which the CLI reads for itself), and ADCode's own tool advice, which
+ * told Claude Code to "change files with edit_file" - a tool it does not have. Each copy then
+ * stayed in the CLI's own history, paid for again on every later request.
  */
 export function cliPrompt(request: ProviderRequest, resume: boolean): string {
   const users = request.messages.filter((message) => message.role === "user" && messageText(message) !== "");
   const latest = users.at(-1);
   const ask = latest === undefined ? "" : messageText(latest);
-  const context = editorContext(request);
   const parts: string[] = [];
-  if (context !== "") parts.push(`Context from the ADCode editor:\n${context}`);
   const earlier = resume ? [] : request.messages.slice(0, latest === undefined ? 0 : request.messages.lastIndexOf(latest));
   const lines = earlier.map((message) => ({ role: message.role === "user" ? "User" : "Assistant", text: messageText(message) })).filter((line) => line.text !== "");
   if (lines.length > 0) {
@@ -414,7 +413,9 @@ export type CliEvent =
   /** The CLI turned down one of its own tool calls for want of permission (it asked nobody). */
   | { readonly kind: "denied"; readonly tool: string; readonly detail: string }
   /** One model step ended; `reason` is the CLI's word for why ("stop", "tool-calls"). */
-  | { readonly kind: "step"; readonly reason: string };
+  | { readonly kind: "step"; readonly reason: string }
+  /** A passing note for the chat's status line, such as "waiting for your answer". Never from a parser. */
+  | { readonly kind: "status"; readonly text: string };
 
 const record = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 const str = (value: unknown): string => (typeof value === "string" ? value : "");
@@ -422,8 +423,12 @@ const num = (value: unknown): number => (typeof value === "number" && Number.isF
 
 /** One line of a tool's activity, as a person would say it. */
 export function activity(verb: string, detail: string): CliEvent {
+  return { kind: "thinking", text: activityLine(verb, detail) };
+}
+
+export function activityLine(verb: string, detail: string): string {
   const line = detail.replace(/\s+/g, " ").trim();
-  return { kind: "thinking", text: `› ${verb}${line ? `: ${line.length > 160 ? `${line.slice(0, 157)}…` : line}` : ""}\n` };
+  return `› ${verb}${line ? `: ${line.length > 160 ? `${line.slice(0, 157)}…` : line}` : ""}\n`;
 }
 
 function toolDetail(input: unknown): string {
@@ -443,22 +448,82 @@ function errorText(raw: unknown): string {
 }
 
 /**
+ * Claude Code's tool names, as what it did. `Bash` and `TodoWrite` are its own words for its
+ * tools; "Ran" and "Updated its to-do list" are what the person reading the chat wants to know.
+ * An MCP tool (`mcp__adcode__read_file`) reads as the server and the tool.
+ */
+const CLAUDE_TOOL_VERB: Readonly<Record<string, string>> = {
+  Bash: "Ran", BashOutput: "Read the output of", KillShell: "Stopped", KillBash: "Stopped",
+  Read: "Read", Write: "Wrote", Edit: "Edited", MultiEdit: "Edited", NotebookEdit: "Edited",
+  Glob: "Looked for", Grep: "Searched for", LS: "Listed",
+  WebFetch: "Fetched", WebSearch: "Searched the web for",
+  Task: "Started a helper", Agent: "Started a helper", TodoWrite: "Updated its to-do list",
+  ExitPlanMode: "Finished its plan", Skill: "Used the skill",
+};
+
+export function claudeToolVerb(name: string): string {
+  const mcp = /^mcp__(.+?)__(.+)$/.exec(name);
+  if (mcp !== null) return `Used ${mcp[1]} ${mcp[2]!.replace(/_/g, " ")}`;
+  return CLAUDE_TOOL_VERB[name] ?? name;
+}
+
+/** "Claude requested permissions to use Bash, but you haven't granted it yet." and its relatives. */
+const CLAUDE_PERMISSION = /requested permissions? to|haven'?t granted|permission to use .* (?:was|has been) denied|not allowed to use|permission denied by|user (?:denied|rejected)/i;
+
+/**
+ * Claude Code's own failure words, as somebody can act on them. "Claude AI usage limit
+ * reached|1764000000" is its plan limit with the reset time as epoch seconds; the subtypes are
+ * what a result says when it carries no message of its own.
+ */
+export function claudeErrorText(raw: string, subtype: string, now: Date = new Date()): string {
+  const limit = /usage limit reached\|(\d{9,11})/i.exec(raw);
+  if (limit !== null) {
+    const at = new Date(Number(limit[1]) * 1000);
+    const day = at.toDateString() === now.toDateString() ? "" : ` on ${at.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}`;
+    const time = Number.isNaN(at.getTime()) ? "" : ` It resets at ${at.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}${day}.`;
+    return `your Claude plan's usage limit is reached.${time} Pick another model in the meantime, or wait for it to reset.`;
+  }
+  if (raw !== "") return raw;
+  if (subtype === "error_max_turns") return "it reached its limit of steps for one message. Say \"continue\" to let it carry on.";
+  if (subtype === "error_during_execution") return "it stopped with an error while working. Say \"continue\" to try again from where it stopped.";
+  return "";
+}
+
+/** A tool result's text: a string, or Claude Code's list of text blocks. */
+function toolResultText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) return content.map((part) => (record(part) && part["type"] === "text" ? str(part["text"]) : "")).join(" ");
+  return "";
+}
+
+/**
  * Claude Code's lines. With `--include-partial-messages` the words arrive as `stream_event`
  * deltas and the whole message follows; the deltas are shown and the whole message only
  * supplies what was not streamed (its tool calls, or text from a CLI that sent no deltas).
  */
-function createClaudeReader(): (event: Record<string, unknown>) => CliEvent[] {
+function createClaudeReader(declined: ReadonlySet<string> = new Set()): (event: Record<string, unknown>) => CliEvent[] {
   /** Words were streamed for the message in progress, so its whole text is not shown again. */
   let streamedText = false;
   let streamedThinking = false;
   /** The next text delta starts a new block: it is a new message, not more of the last one. */
   let newBlock = true;
+  /** Each tool call's name and what it was given, so a failed result can say which call failed. */
+  const calls = new Map<string, { name: string; detail: string }>();
+  /** Calls already reported as refused, so the result's own list of refusals does not repeat them. */
+  const refused = new Set<string>();
+  /** The streamed message already said why it ended, so the whole message that follows does not say it twice. */
+  let streamedStop = false;
+  const stepFor = (reason: string): CliEvent | null => (reason === "tool_use" ? { kind: "step", reason: "tool-calls" } : reason === "" ? null : { kind: "step", reason: reason === "end_turn" ? "stop" : reason });
   return (event) => {
     const out: CliEvent[] = [];
     if (typeof event["session_id"] === "string" && (event["type"] === "system" || event["type"] === "result")) out.push({ kind: "session", id: event["session_id"] });
     if (event["type"] === "stream_event" && record(event["event"])) {
       const inner = event["event"];
-      if (inner["type"] === "message_start") { streamedText = false; streamedThinking = false; }
+      if (inner["type"] === "message_start") { streamedText = false; streamedThinking = false; streamedStop = false; }
+      else if (inner["type"] === "message_delta" && record(inner["delta"])) {
+        const step = stepFor(str(inner["delta"]["stop_reason"]));
+        if (step !== null) { out.push(step); streamedStop = true; }
+      }
       else if (inner["type"] === "content_block_start") newBlock = true;
       else if (inner["type"] === "content_block_delta" && record(inner["delta"])) {
         const delta = inner["delta"];
@@ -482,10 +547,42 @@ function createClaudeReader(): (event: Record<string, unknown>) => CliEvent[] {
         if (!record(block)) continue;
         if (block["type"] === "text" && str(block["text"])) { if (!streamedText) out.push({ kind: "text", text: str(block["text"]) }); }
         else if (block["type"] === "thinking" && str(block["thinking"])) { if (!streamedThinking) out.push({ kind: "thinking", text: str(block["thinking"]) }); }
-        else if (block["type"] === "tool_use") out.push(activity(str(block["name"]) || "Tool", toolDetail(block["input"])));
+        else if (block["type"] === "tool_use") {
+          const name = str(block["name"]) || "Tool";
+          const detail = toolDetail(block["input"]);
+          if (typeof block["id"] === "string") calls.set(block["id"], { name, detail });
+          out.push(activity(claudeToolVerb(name), detail));
+        }
+      }
+      if (!streamedStop) { const step = stepFor(str(event["message"]["stop_reason"])); if (step !== null) out.push(step); }
+    }
+    // The results of its tool calls come back as a user message. A failed one used to read like a
+    // finished one, and a refused one - Claude Code in a chat cannot ask anybody - made the run
+    // stop with no word as to why.
+    if (event["type"] === "user" && record(event["message"]) && Array.isArray(event["message"]["content"])) {
+      for (const block of event["message"]["content"]) {
+        if (!record(block) || block["type"] !== "tool_result" || block["is_error"] !== true) continue;
+        const id = str(block["tool_use_id"]);
+        // The person said no in ADCode's own dialog, and the chat already says so.
+        if (declined.has(id)) continue;
+        const call = calls.get(id) ?? { name: "Tool", detail: "" };
+        const problem = toolResultText(block["content"]).replace(/<\/?tool_use_error>/g, "").replace(/\s+/g, " ").trim();
+        if (CLAUDE_PERMISSION.test(problem)) {
+          refused.add(id);
+          out.push(activity(`${claudeToolVerb(call.name)} was not allowed`, call.detail));
+          out.push({ kind: "denied", tool: call.name, detail: call.detail });
+        } else {
+          out.push(activity(`${call.name} failed`, `${call.detail}${call.detail && problem ? " - " : ""}${problem.slice(0, 200)}`));
+        }
       }
     }
-    if (event["type"] === "result") out.push(...claudeResult(event));
+    if (event["type"] === "result") {
+      for (const denial of Array.isArray(event["permission_denials"]) ? event["permission_denials"] : []) {
+        if (!record(denial) || refused.has(str(denial["tool_use_id"])) || declined.has(str(denial["tool_use_id"]))) continue;
+        out.push({ kind: "denied", tool: str(denial["tool_name"]) || "a tool", detail: toolDetail(denial["tool_input"]) });
+      }
+      out.push(...claudeResult(event));
+    }
     return out;
   };
 }
@@ -495,7 +592,7 @@ function claudeResult(event: Record<string, unknown>): CliEvent[] {
   if (event["type"] === "result") {
     const usage = record(event["usage"]) ? event["usage"] : {};
     out.push({ kind: "usage", input: num(usage["input_tokens"]) + num(usage["cache_read_input_tokens"]) + num(usage["cache_creation_input_tokens"]), output: num(usage["output_tokens"]), cached: num(usage["cache_read_input_tokens"]) });
-    if (event["is_error"] === true) out.push({ kind: "error", message: str(event["result"]) || str(event["terminal_reason"]) || "the request failed" });
+    if (event["is_error"] === true) out.push({ kind: "error", message: claudeErrorText(str(event["result"]), str(event["subtype"])) || str(event["terminal_reason"]) || "the request failed" });
   }
   return out;
 }
@@ -572,8 +669,8 @@ function geminiLine(event: Record<string, unknown>): CliEvent[] {
  * One CLI's stdout, line by line. Lines that are not JSON - a banner, a progress spinner, a
  * warning some versions print - are dropped rather than shown as the model's words.
  */
-export function createCliLineParser(id: CliAgentId): (line: string) => CliEvent[] {
-  const read = id === "claude" ? createClaudeReader() : id === "codex" ? codexLine : id === "opencode" ? openCodeLine : id === "gemini" ? geminiLine : () => [];
+export function createCliLineParser(id: CliAgentId, options: { readonly declined?: ReadonlySet<string> } = {}): (line: string) => CliEvent[] {
+  const read = id === "claude" ? createClaudeReader(options.declined) : id === "codex" ? codexLine : id === "opencode" ? openCodeLine : id === "gemini" ? geminiLine : () => [];
   return (line) => {
     const trimmed = line.trim();
     if (!trimmed.startsWith("{")) return [];
@@ -584,6 +681,115 @@ export function createCliLineParser(id: CliAgentId): (line: string) => CliEvent[
       return [];
     }
   };
+}
+
+/* ── Asking the person, part way through a turn ─────────────────────────── */
+
+/** A coding CLI asking, mid-turn, to use one of its own tools its settings do not already allow. */
+export interface CliPermissionAsk {
+  /** The CLI, as the person knows it: "Claude Code". */
+  readonly agent: string;
+  /** What it wants to do, as a person would say it: "run a command", "use WebFetch". */
+  readonly action: string;
+  /** Its tool, in its own words: Bash, execute. */
+  readonly tool: string;
+  /** The specifics, one line: the command, the path, the address. */
+  readonly detail: string;
+  /** Why the CLI could not decide by itself, when it says ("This command requires approval"). */
+  readonly reason?: string;
+}
+
+/**
+ * The person's answer. "session" also allows whatever the CLI counts as the same request
+ * (Claude Code's suggested rule, ACP's allow_always) for as long as this chat's process runs.
+ * Nothing is written to the CLI's settings files.
+ */
+export type CliPermissionAnswer = "allow" | "session" | "deny";
+
+/** Asks the person and resolves with the answer; a Stop resolves it as "deny". */
+export type CliPermissionAsker = (ask: CliPermissionAsk, signal: AbortSignal) => Promise<CliPermissionAnswer>;
+
+/** What a CLI is told when the person turns its request down. */
+export const DECLINED_IN_ADCODE = "The person declined this in ADCode's permission dialog.";
+
+const CLAUDE_TOOL_ACTION: Readonly<Record<string, string>> = {
+  Bash: "run a command", PowerShell: "run a command", KillShell: "stop a command", KillBash: "stop a command",
+  Write: "write a file", Edit: "change a file", MultiEdit: "change a file", NotebookEdit: "change a notebook",
+  WebFetch: "fetch a web page", WebSearch: "search the web", Read: "read a file", Glob: "list files", Grep: "search files",
+};
+
+/** A tool name as what the person is being asked to allow. */
+export function permissionAction(tool: string): string {
+  const mcp = /^mcp__(.+?)__(.+)$/.exec(tool);
+  if (mcp !== null) return `use ${mcp[1]}'s ${mcp[2]!.replace(/_/g, " ")} tool`;
+  return CLAUDE_TOOL_ACTION[tool] ?? `use ${tool || "a tool"}`;
+}
+
+/** A control request from Claude Code on its stream-JSON output: the CLI waits for the answer. */
+export interface ClaudeControlRequest {
+  readonly requestId: string;
+  readonly subtype: string;
+  readonly tool: string;
+  readonly input: Record<string, unknown>;
+  /** The rules Claude Code proposes for "always allow"; kept to this session when answered "session". */
+  readonly suggestions: readonly Record<string, unknown>[];
+  readonly reason: string;
+  readonly toolUseId: string;
+}
+
+/**
+ * One stdout line as a control request, or null. Claude Code 2.1.284 sends, for a Bash call
+ * acceptEdits does not cover:
+ * `{"type":"control_request","request_id":"7c32…","request":{"subtype":"can_use_tool","tool_name":"Bash","input":{"command":"node -e …"},"permission_suggestions":[{"type":"addRules",…,"destination":"localSettings"}],"decision_reason":"This command requires approval","tool_use_id":"toolu_…"}}`
+ */
+export function parseClaudeControlRequest(line: string): ClaudeControlRequest | null {
+  if (!line.includes("\"control_request\"")) return null;
+  let event: unknown;
+  try { event = JSON.parse(line.trim()); } catch { return null; }
+  if (!record(event) || event["type"] !== "control_request" || typeof event["request_id"] !== "string" || !record(event["request"])) return null;
+  const request = event["request"];
+  return {
+    requestId: event["request_id"],
+    subtype: str(request["subtype"]),
+    tool: str(request["tool_name"]) || str(request["display_name"]),
+    input: record(request["input"]) ? request["input"] : {},
+    suggestions: Array.isArray(request["permission_suggestions"]) ? request["permission_suggestions"].filter(record) : [],
+    reason: str(request["decision_reason"]),
+    toolUseId: str(request["tool_use_id"]),
+  };
+}
+
+/**
+ * The stdin line that answers a `can_use_tool` request. All three shapes were checked against
+ * Claude Code 2.1.284: "allow" runs the call; "session" runs it and the next identical one is not
+ * asked about again, with no settings file written; "deny" hands the model `DECLINED_IN_ADCODE`.
+ */
+export function claudePermissionReply(request: ClaudeControlRequest, answer: CliPermissionAnswer): string {
+  const response = answer === "deny"
+    ? { behavior: "deny", message: DECLINED_IN_ADCODE }
+    : {
+        behavior: "allow",
+        updatedInput: request.input,
+        ...(answer === "session" && request.suggestions.length > 0 ? { updatedPermissions: request.suggestions.map((suggestion) => ({ ...suggestion, destination: "session" })) } : {}),
+      };
+  return JSON.stringify({ type: "control_response", response: { subtype: "success", request_id: request.requestId, response } });
+}
+
+/** The answer to a control request ADCode does not handle, so the CLI is never left waiting on it. */
+export function claudeControlError(requestId: string, message: string): string {
+  return JSON.stringify({ type: "control_response", response: { subtype: "error", request_id: requestId, error: message } });
+}
+
+/** The chat's line for an answered request. */
+export function permissionOutcome(ask: CliPermissionAsk, answer: CliPermissionAnswer): string {
+  const verb = answer === "deny" ? "You declined" : answer === "session" ? "Allowed for this chat" : "You allowed";
+  return activityLine(verb, `${ask.tool}${ask.detail ? ` (${ask.detail})` : ""}`);
+}
+
+/** The status shown while the person decides. */
+export function permissionWaiting(ask: CliPermissionAsk): string {
+  const detail = ask.detail.replace(/\s+/g, " ").trim();
+  return `${ask.agent} asks to ${ask.action}${detail ? `: ${detail.length > 80 ? `${detail.slice(0, 77)}…` : detail}` : ""} - waiting for your answer`;
 }
 
 /* ── The provider ───────────────────────────────────────────────────────── */
@@ -675,6 +881,12 @@ export interface CliProviderOptions {
    * applies to the very next message.
    */
   readonly bypassPermissions?: () => boolean;
+  /**
+   * Asks the person about a tool call the CLI's own settings leave open - a shell command under
+   * Claude Code's acceptEdits, an ACP agent's `session/request_permission` for running or
+   * deleting. Without it such calls are refused, as before, and the chat says why the turn stopped.
+   */
+  readonly askPermission?: CliPermissionAsker;
   /**
    * The ADCode chat this provider answers, read per turn. The CLI's own session is remembered
    * per chat, so two chats that began with the same words ("hi", "continue") never resume each
@@ -803,7 +1015,9 @@ export function createCliProvider(options: CliProviderOptions): Provider {
       let turnEnded = false;
       const stop = (): void => process.kill();
       signal.addEventListener("abort", stop, { once: true });
-      const parse = createCliLineParser(spec.id);
+      /** Tool calls the person turned down in ADCode's dialog: the chat said so already. */
+      const declined = new Set<string>();
+      const parse = createCliLineParser(spec.id, { declined });
       let session: string | null = null;
       let failure: string | null = null;
       let wrote = false;
@@ -824,6 +1038,27 @@ export function createCliProvider(options: CliProviderOptions): Provider {
             continue;
           }
           if (entry !== null && isClaudeResultLine(beat.line)) turnEnded = true;
+          // A kept process asks before a tool its permission mode leaves open, and waits for the answer.
+          const control = entry === null ? null : parseClaudeControlRequest(beat.line);
+          if (control !== null && entry !== null) {
+            if (control.subtype !== "can_use_tool") {
+              entry.process.send(claudeControlError(control.requestId, `ADCode does not answer ${control.subtype || "this kind of"} request.`));
+              continue;
+            }
+            const ask: CliPermissionAsk = { agent: spec.name, action: permissionAction(control.tool), tool: control.tool || "a tool", detail: toolDetail(control.input), ...(control.reason === "" ? {} : { reason: control.reason }) };
+            let answer: CliPermissionAnswer = "deny";
+            if (options.askPermission !== undefined) {
+              yield { kind: "status", text: permissionWaiting(ask) };
+              answer = await options.askPermission(ask, signal).catch((): CliPermissionAnswer => "deny");
+              if (signal.aborted) break;
+              if (answer === "deny") declined.add(control.toolUseId);
+              yield { kind: "thinking", text: permissionOutcome(ask, answer) };
+            }
+            // Nobody to ask: refused as the CLI itself would have, and the result's list of
+            // refusals lets the chat say where the switch is.
+            entry.process.send(claudePermissionReply(control, answer));
+            continue;
+          }
           for (const event of parse(beat.line)) {
             if (event.kind === "session") session = event.id;
             else if (event.kind === "usage") { usage.input += event.input; usage.output += event.output; usage.cached += event.cached; }
@@ -836,7 +1071,8 @@ export function createCliProvider(options: CliProviderOptions): Provider {
               const text = event.joined !== true && wrote && !lastText.endsWith("\n") && !event.text.startsWith("\n") ? `\n\n${event.text}` : event.text;
               wrote = true; lastText = event.joined === true ? lastText + event.text : event.text; answeredSinceTools = true;
               yield { kind: "text", text };
-            } else yield { kind: "thinking", text: event.text };
+            } else if (event.kind === "status") yield { kind: "status", text: event.text };
+            else yield { kind: "thinking", text: event.text };
           }
         }
         // A kept process stays running after its turn: it exits only when it failed.

@@ -166,15 +166,23 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
   "ads-networks": {
     steps: [
       "Open Ad network settings from the Feature library, or visit /admin/ad-networks on the ADCode website. Sign in with an administrator account.",
-      "Choose Generic JSON API for a documented ad-serving API. Enter its HTTPS serve and event-verification URLs, authentication header and prefix, request templates, and response field mappings. Both endpoints must share an origin.",
-      "Choose the user's payout in dollars per verified view and click. Save the connection disabled, then save its API key separately. The saved key cannot be read back.",
-      "Use Test to check a preview. A preview creates no user delivery or payout. Enable a generic connection after its delivery and event-verification formats are correct. Lower priority numbers are tried first; direct campaigns take priority.",
-      "For beehiiv, supply the publication ID and offer ID, save the API key, and test the newsletter content preview. This endpoint supplies newsletter content, not desktop delivery or verified earnings.",
-      "When Zeekend sends the production key (pub_live_…), paste it into the Zeekend partner ads panel at the top of the page and press Save key and go live. ADCode creates the Zeekend connection if there is none, encrypts the key and turns delivery on at once. The panel then reads Live. Test keys (pub_test, pub_sandbox, pub_demo) are refused there, because their placements earn nothing.",
-      "Zeekend is ADCode's only ad partner: it fills the card under AI replies, sponsored notifications when no direct campaign has one, and the card under replies on Phone link. Zeekend's SDK handles requests, rendering, clicks and view measurement on adcode.bluethenics.com, never inside the editor. Its dashboard's pacing (first turn, turn gap, per-session cap) applies on top of each person's Frequency. Imprezia connections may stay saved, but ADCode no longer asks Imprezia for any card.",
+      "To go live with a chat partner, paste its production key into its panel at the top of the page (Zeekend's pub_live_ key, Imprezia's production publisher key) and press Save key and go live. ADCode creates the connection if there is none, encrypts the key and turns delivery on at once. Test and sandbox keys are refused there; a connection holding one serves test cards that pay nobody.",
+      "Under Traffic split, give each live partner a share from 0 to 100. The panel shows what part of the slots each one is asked first for: 60 and 40 send six slots in ten to the first partner and four to the second. A share of 0 keeps a partner as a backup that is asked only when the other has no card.",
+      "Tick where each partner's cards may appear: the ad box above the chat (Imprezia shows a 320x50 banner there), under AI replies, and sponsored notifications. Sponsored notifications ask no partner at the moment, so that box has no effect for now. Press Save split; new slots use it within a minute.",
+      "Read the Seen, 24 h and Seen, 7 days figures beside each partner: how many of its cards people actually saw, and that partner's part of the day's cards. If a partner's part is far below its share, it is not filling its slots and the other partner is covering them.",
+      "In each partner's Edit form, User pay sets what a person earns per card and how many cards a day pay. The daily count is shared by all partners, so splitting the traffic never pays more cards a day than one partner did.",
+      "For a documented ad-serving API, choose Generic JSON API: enter its HTTPS serve and event-verification URLs (same origin), authentication header and prefix, request templates and response field mappings, and the payout per verified view and click. Save it disabled, save its API key, Test the preview, then enable it. Direct campaigns always come first.",
+      "For beehiiv, supply the publication ID and offer ID, save the API key, and test the newsletter content preview. It supplies newsletter content, not desktop delivery or verified earnings.",
     ],
-    benefits: ["Provider credentials stay on the server and are encrypted in storage.", "Payout amounts are fixed when an ad is served, and duplicate provider events cannot pay twice.", "Existing sponsored-message preferences and direct campaigns still control delivery."],
-    betterThan: "A configurable JSON connection lets administrators integrate compatible providers without changing the app for each response format. It still requires the provider's real API contract; an arbitrary API key cannot make incompatible services work.",
+    benefits: [
+      "No dependence on one network: if a partner slows down, runs out of ads or is switched off, the other fills its slots straight away.",
+      "Dividing the traffic never costs a card: a slot the first partner cannot fill goes to the next one.",
+      "Adding the next network is a share and a few ticks in the same panel, with no app release: the split is decided on ADCode's server.",
+      "Provider credentials stay on the server and are encrypted in storage; payout amounts are fixed when a card is counted, and a card can pay only once.",
+      "Existing sponsored-message preferences and direct campaigns still control delivery.",
+    ],
+    betterThan:
+      "Most ad setups hard-wire one network, or send every slot to every network at once and keep whichever answers, which multiplies requests and lowers each network's fill rate. Here each slot asks one partner first, by the share you set, and falls back only when it has to, so each network sees its fair part of real traffic, and you can see the split working in the same panel.",
   },
   "workbench-annotate": {
     steps: [
@@ -218,6 +226,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Under the card, pick a model from the list. These are the models that CLI offers your account right now, with its own names and descriptions. Show all lists every one.",
       "Pick a reasoning level in the model picker if you want one (Auto, Low, Medium, High, Max). ADCode passes the nearest level that model has; Auto leaves it to the CLI.",
       "Type your message as usual. The CLI works in your open project, and what it ran or changed appears above its answer. Your next message continues the same CLI session.",
+      "When the CLI wants to run a command (or delete or move a file) that its own settings do not already allow, ADCode asks you in a dialog: Allow, Allow for this chat, or Deny. Deny tells the CLI you said no, and it carries on without it.",
     ],
     benefits: [
       "You use the subscription you already pay for. ADCode bills nothing and never sees a password or key.",
@@ -226,7 +235,8 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "One open standard, many agents: everything except Claude Code and Codex is connected through the Agent Client Protocol, so a new agent that speaks it works the same way - models, streaming, stopping and tools.",
       "The model picker opens at once even with several CLIs installed: it shows each CLI's last known models straight away and swaps in the live list a few seconds later.",
       "Claude Code, Codex, OpenCode and every ACP agent that accepts tool servers get ADCode's own tools on every message - the live preview, page viewer, page audit, skills, connectors and the Browser - so they can check what they built.",
-      "No silent stalls: a quiet CLI shows that it is still working, OpenCode streams its thinking, and a run that stops part way says why - a permission it turned down, with the switch that lets it through - instead of just ending.",
+      "No silent stalls: a quiet CLI shows that it is still working, and when it needs a permission it asks you in ADCode instead of refusing by itself and stopping part way. Before, Claude Code turned down every command its settings did not cover and then told you to approve a prompt that never appeared.",
+      "Fewer tokens per turn: your editor context goes with a message only when it changed, and ADCode no longer pastes its own instructions (up to 8,000 characters) into every message - text the CLI kept in its history and paid for again on every later request.",
       "Each chat keeps its own CLI session, in its own project, and continue after a failure resumes the CLI's session with everything it had done.",
     ],
     betterThan: "Running a CLI in a terminal gives you its model but none of your editor: no open file, no selection, no preview to check its work, and a model list you have to remember by name. Other editors that wrap a CLI usually hard-code a few model names. ADCode asks the CLI itself for its models - the same list its own picker shows - and gives the CLI ADCode's preview, page checks and connectors, so the agent you already pay for can see and test the app it is building.",
@@ -887,44 +897,37 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "ads-partner-notifications": {
     steps: [
-      "From ADCode 2.5.1 it is on, unless you switched sponsored messages off. The app says so once in a card at the bottom right, with a Turn off button.",
-      "To turn it off or back on, open Settings, choose Ads, and switch Sponsored notifications from ADCode's ad partner. Sponsored messages must be on as well.",
-      "Keep working. When a sponsored message is due and no ADCode advertiser has one for you, the desktop app asks Zeekend, ADCode's ad partner, telling it only the names of the languages and frameworks you have open.",
-      "If Zeekend has a card, it slides in at the top right like any sponsored message. Hover it to pause the countdown; close it with the X. Clicking the card opens your browser.",
-      "The next one follows as soon as your Frequency allows - every 5 minutes on Max, 10 on Standard, 30 on Light - with no extra wait in between. Change the pace in Settings > Ads > Frequency.",
-      "If Zeekend has nothing, nothing appears, that moment does not count toward your daily limit, and ADCode asks again about 20 seconds later.",
-      "To stop, switch it off in the same place. The next empty moment asks nobody.",
+      "No ad partner is asked for a sponsored notification. ADCode 2.6.6 and later ask for none at all; versions 2.6.1 to 2.6.5 still send ADCode's card page a short question naming your open languages, and the page turns it away, so nothing reaches a partner. The switch is still in Settings > Ads (Sponsored notifications from ADCode's ad partner); whichever way it is set, no partner hears anything.",
+      "Sponsored notifications from ADCode's own advertisers are unchanged: they follow your Frequency in Settings > Ads, every 5 minutes on Max, 10 on Standard, 30 on Light.",
+      "Partner cards still appear in the box above the message box after a finished AI reply. That is Sponsored cards under AI replies, with its own switch in Settings > Ads.",
     ],
     benefits: [
-      "Cards arrive back to back at the pace you picked, not whenever a timer happens to fire: the app wakes the moment the next slot opens.",
-      "No more interruptions than you chose: it uses the same schedule, daily limit and quiet times as every sponsored message, and only fills moments that would otherwise be empty.",
-      "ADCode advertisers always come first; Zeekend only fills what they leave.",
-      "Only language and framework names are sent - never file names, paths, code, prompts or project names.",
-      "The card is a separate, walled-off page from adcode.bluethenics.com, so the ad partner cannot reach your files or the editor.",
+      "A partner is only ever asked about a message you actually wrote. A notification has no conversation behind it, so no partner is asked.",
+      "Nothing about your project goes to an ad partner for a notification, not even the names of the languages you have open.",
+      "ADCode's own sponsored notifications keep the same schedule, daily limit and quiet times as before.",
     ],
     betterThan:
-      "Editors that show ad-network ads usually load the network's code into the app itself and decide on their own how often to interrupt. Here the partner's code never runs in the editor, one switch turns it off, and it is held to the limits you already set.",
+      "Editors that show ad-network ads usually let the network fill any moment they choose, with whatever the editor tells it. ADCode asks a partner only about an exchange you wrote, once, and asks nothing at all for a notification.",
   },
 
   "ads-chat-sponsored": {
     steps: [
-      "From ADCode 2.5.1 it is on, unless you switched sponsored messages off. The app says so once in a card at the bottom right that lists what is sent, with Turn off, Settings and OK.",
+      "From ADCode 2.5.1 it is on, unless you switched sponsored messages off. The app says so once in a card at the bottom right that says what is sent, with Turn off, Settings and OK.",
       "To turn it off or back on, open Settings, choose Ads, and switch Sponsored cards under AI replies. Sponsored messages must be on as well.",
-      "Ask the assistant something in the desktop app. When it finishes answering, ADCode asks Zeekend, its only ad partner, for one card. Zeekend receives your message and the reply to pick a sponsored card for that conversation, or none.",
-      "The card sits in a box just above the message box: picture, name, Zeekend's Sponsored label, one line and a button. It changes to a fresh card every 30 seconds while the window is on screen, and right after each reply. Clicking it opens your browser; the editor itself never navigates.",
-      "Every Zeekend card you are shown credits $0.002 to your earnings, once per card, up to 300 cards ($0.60) a day.",
+      "Ask the assistant something, in the desktop app or the web version. When it finishes answering, ADCode offers that exchange to one of its ad partners, once. ADCode's administrators decide which partner is asked first; if it has no card, the next partner may fill the slot. Today the partner is Imprezia.",
+      "The card sits in a box just above the message box. Imprezia's is a small banner, chosen without sending your message. It stays until the next finished reply brings a new card; the same exchange is never offered again, and nothing is ever asked in your name that you did not write. Clicking it opens your browser; the editor itself never navigates.",
+      "Every partner card you are shown credits your earnings at the rate ADCode sets for partner cards, once per card, at most three a minute, and up to a daily number counted across all partners. In the web version only the tab you are using earns; more tabs do not earn more.",
       "On your phone, with Phone link on, a card can appear under the computer's reply in the same way.",
       "To stop, switch it off in the same place. The next reply sends nothing.",
     ],
     benefits: [
-      "A card about what you are actually asking, rather than one picked from the language you have open.",
-      "Nothing else from your project is sent: no other files, file paths or project names, and only the start of your message and of the reply (Zeekend takes 2,000 and 4,000 characters).",
-      "One card per reply at most: never two ads stacked under an answer.",
+      "One card per finished reply at most, from one partner: never two ads stacked, never the same exchange offered twice.",
+      "Nothing else from your project is sent: no other files, file paths or project names. The privacy page lists each current partner and exactly what it receives.",
       "The card is a separate, walled-off page from adcode.bluethenics.com, so the ad partner and its measurement partners cannot reach your files or the editor.",
-      "No API key ships in the app: the administrator saves each partner's key on ADCode's server and can switch either partner off.",
+      "No API key ships in the app: the administrator saves each partner's key on ADCode's server and can switch any partner off at once.",
     ],
     betterThan:
-      "Ads in AI chat products usually arrive on by default, with the conversation already shared. Here it is off until you choose it, the privacy policy names exactly what is sent and to whom, and the ad code runs outside the editor, so turning it on never trades away access to your files.",
+      "Ads in AI chat products usually arrive on by default, with every message shared and re-sent as often as the product likes. Here one switch turns them off, each finished reply is offered to one partner once, the privacy page names exactly what is sent and to whom, and the ad code runs outside the editor, so a card never trades away access to your files.",
   },
 
   "ai-mcp-sign-in": {
@@ -1095,14 +1098,15 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "workbench-welcome": {
     steps: [
-      "On first launch, type what you want to build, or pick one of the ideas under the box.",
-      "Press Build it, or Enter.",
-      "If no AI is connected yet, the next step offers the free option - it takes about a minute and needs no card.",
+      "On first launch, sign in. On the desktop a short welcome tour follows - every step can be skipped.",
+      "ADCode then opens on an empty chat. Type what you want to build, or pick one of the ideas under the box, and press Enter.",
+      "If no AI is connected yet, the chat offers the free option - it takes about a minute and needs no card.",
       "ADCode makes the project, opens it and starts building your idea.",
-      "Skip or Escape closes the welcome at any time. Run Show Welcome from the command palette to see it again.",
+      "For your first half hour nothing else pops up: no corner cards, no sponsored notifications, no service notices except warnings. After that they arrive one at a time.",
+      "Want the old welcome sheet? Run Show Welcome from the command palette.",
     ],
     benefits: [
-      "The first thing you see ADCode do is build what you asked for.",
+      "The first thing you see ADCode do is build what you asked for, not a stack of pop-ups.",
       "Theme, ad frequency and account wait in Settings instead of standing between you and a first result.",
     ],
   },
@@ -2314,8 +2318,9 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
   "workbench-web-version": {
     steps: [
       "Go to web.bluethenics.com in a modern browser - Chrome, Edge, Safari or Firefox, on a laptop or a Chromebook.",
-      "Sign in with Google, GitHub or email. Use the account you linked in the desktop app and your earnings and included AI stay in one place.",
-      "Choose Open from GitHub, connect GitHub once by entering the code it shows, and pick a repository. Its text files are copied into your browser tab.",
+      "Type what you want to build into What do you want to build? on the sign-in screen, or pick one of the ideas under it. Press Enter when you are done describing it.",
+      "Sign in with Google, GitHub or email. Use the account you linked in the desktop app and your earnings and included AI stay in one place. The app opens already building your idea: a new project named after it, with the idea sent to the assistant.",
+      "To work on code you already have instead, choose Open from GitHub, connect GitHub once by entering the code it shows, and pick a repository. Its text files are copied into your browser tab.",
       "Ask the assistant about the code or for a change. It reads and edits the files itself, plans, and sends helpers to work alongside it, exactly as in the desktop app.",
       "Open Changes to read every edited file as a diff, and Discard anything you don't want.",
       "If the project is a website made of plain files - an index.html with CSS, JavaScript and images - press Preview. The page opens in a floating window and reloads by itself each time you or the assistant change a file.",
@@ -2323,6 +2328,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Close the tab whenever you like: chats, settings, your own API keys and opened projects are kept in this browser for next time.",
     ],
     benefits: [
+      "From an idea to a first build in one step: what you type before signing in is what the app starts building, with no welcome screens in between.",
       "Nothing to install and no cloud computer to wait for: the app runs inside your tab, so it opens as fast as a web page.",
       "The same assistant as the desktop app - models, helpers, plans, usage and slash commands - not a cut-down chat.",
       "Your code stays on GitHub, and every change arrives as a pull request you review with your normal checks.",
@@ -2750,14 +2756,19 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "account-earnings": {
     steps: [
-      "Click Earnings in the title bar.",
-      "Every row is a real event with the exact amount credited.",
-      "Your balance is those rows added up - so the number and the list can never disagree.",
-      "Rows cannot be edited or deleted; a correction is a new row that points at the one it corrects.",
+      "Open Earnings from the Earnings row in the Vibe sidebar, or run Earnings from the command palette.",
+      "Read your available balance at the top: dollars and cents large, the fractions of a cent a single sponsored card pays small beside them. The chip beside it says whether ads are earning right now.",
+      "Use the two buttons under it: Convert to AI credits spends the balance on paid models at once; Withdraw on the website opens the payout page.",
+      "Check the tiles for lifetime earned, whether ads are on, receipts still waiting to sync, and when the next card can appear.",
+      "On the web dashboard (or Your account in the web app), read today, the last 7 days and the last 30 days under the balance, and the bar that shows how far you are from the withdrawal minimum.",
+      "Look at Earnings, day by day for what sponsored cards paid each day; choose All earnings to add invite earnings and other credits to the chart.",
+      "Open the Ledger: each day's sponsored cards are folded into one line with their exact total. Open a line to see every card. Withdrawals, conversions, invites and corrections each keep a line of their own.",
     ],
     benefits: [
-      "The number is checkable arithmetic, not a claimed total.",
-      "The same rows appear on the web dashboard - the story is identical in both places.",
+      "The number is checkable arithmetic, not a claimed total: the balance is the ledger's rows added up, and rows cannot be edited or deleted - a correction is a new row that points at the one it corrects.",
+      "You see at a glance how far you are from a withdrawal, measured against the minimum the server actually applies.",
+      "A month of fraction-of-a-cent cards reads as a chart and thirty lines, not thousands of identical rows - and every row is still one click away.",
+      "When an account has more entries than the page loads at once, totals that reach further back carry a + to say they are at least that much, instead of quietly showing less.",
     ],
     betterThan:
       "A balance figure on any platform is only as trustworthy as the promise not to change it. An append-only ledger removes the need for trust entirely - the balance is the rows.",
@@ -2772,6 +2783,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Press the Convert button. A pop-up shows your earnings and your AI credits before and after the conversion. Press Convert in the pop-up to confirm, or Back to change the amount - nothing moves until you confirm.",
       "Watch the coins land in AI credits, and both figures count to their new values. Press Done. The earnings card, the status bar, and the paid-credit meter in the chat and AI usage all show the new balances. Pick a paid model and the credits pay for it straight away.",
       "If the connection drops, the pop-up says nothing was converted and offers Try again. It repeats the same request, so it can never convert twice.",
+      "If the card says your earnings are being reviewed, the account matched an ad-farming pattern (a throwaway inbox, one mailbox behind several accounts, a custom domain several accounts share). Nothing is lost: once an administrator clears it, usually within a day, you can convert again.",
     ],
     benefits: [
       "Works from $0.50 - you do not have to reach the $50 payout minimum before your earnings are useful.",
@@ -2790,6 +2802,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Your browser opens adcode.bluethenics.com/dashboard at Payouts. Sign in with the same account you use in the editor.",
       "Check the list of requirements: at least $50 available, a confirmed email, an account at least 7 days old, confirming you are 18 or older, payout details on file, and no other request in progress. Each one says what is missing.",
       "Add your payout details once, enter the amount, and send the request. It stays on the page with its status until it is paid.",
+      "If the list shows Earnings review finished, your account is held for an ad-farming review. Nothing is taken away; once it is cleared, usually within a day, the line goes and you can withdraw.",
     ],
     benefits: [
       "One click from the balance in the editor to the page that pays it out.",

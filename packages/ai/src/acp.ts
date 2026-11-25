@@ -13,7 +13,7 @@
  * One process serves a chat's every turn, as T3 Code runs them: only the first turn waits for
  * the agent to start. Pure apart from the injected `CliLiveSpawn`, so every rule is tested.
  */
-import { HEARTBEAT_MS, LIVE_IDLE_MS, LIVE_MAX, SIGNED_OUT, activity, cliEffort, cliPrompt, cliProviderId, conversationKey, dropLive, unfinishedRunNote, withHeartbeat, type CliEvent, type CliLiveEntry, type CliLiveProcess, type CliMcpServer, type CliModelInfo, type CliProviderOptions, isSafeCliToken } from "./cliAgents.ts";
+import { HEARTBEAT_MS, LIVE_IDLE_MS, LIVE_MAX, SIGNED_OUT, activity, cliEffort, cliPrompt, cliProviderId, conversationKey, dropLive, permissionOutcome, permissionWaiting, unfinishedRunNote, withHeartbeat, type CliEvent, type CliLiveEntry, type CliLiveProcess, type CliMcpServer, type CliModelInfo, type CliPermissionAnswer, type CliPermissionAsk, type CliProviderOptions, isSafeCliToken } from "./cliAgents.ts";
 import type { Provider, ProviderEvent, ProviderRequest } from "./types.ts";
 
 export const ACP_PROTOCOL_VERSION = 1;
@@ -97,18 +97,39 @@ const ALLOWED_KINDS = new Set(["read", "edit", "search", "think", "fetch", "swit
  */
 export function acpPermission(params: unknown, bypass: boolean): { optionId: string | null; denied: { tool: string; detail: string } | null } {
   const call = record(params) && record(params["toolCall"]) ? params["toolCall"] : {};
-  const options = record(params) && Array.isArray(params["options"]) ? params["options"].filter(record) : [];
   const kind = str(call["kind"]);
   const allow = bypass || ALLOWED_KINDS.has(kind);
-  const pick = (kinds: readonly string[]): string | null => {
-    for (const wanted of kinds) {
-      const option = options.find((item) => item["kind"] === wanted);
-      if (option !== undefined && str(option["optionId"]) !== "") return str(option["optionId"]);
-    }
-    return null;
-  };
-  if (allow) return { optionId: pick(["allow_once", "allow_always"]), denied: null };
-  return { optionId: pick(["reject_once", "reject_always"]), denied: { tool: kind || "tool", detail: str(call["title"]) } };
+  if (allow) return { optionId: pickPermissionOption(params, ["allow_once", "allow_always"]), denied: null };
+  return { optionId: pickPermissionOption(params, ["reject_once", "reject_always"]), denied: { tool: kind || "tool", detail: str(call["title"]) } };
+}
+
+/** The first of the agent's offered options of these kinds, in order of preference. */
+function pickPermissionOption(params: unknown, kinds: readonly string[]): string | null {
+  const options = record(params) && Array.isArray(params["options"]) ? params["options"].filter(record) : [];
+  for (const wanted of kinds) {
+    const option = options.find((item) => item["kind"] === wanted);
+    if (option !== undefined && str(option["optionId"]) !== "") return str(option["optionId"]);
+  }
+  return null;
+}
+
+const ACP_KIND_ACTION: Readonly<Record<string, string>> = {
+  execute: "run a command", delete: "delete a file", move: "move a file", edit: "change a file", fetch: "fetch a web page", read: "read a file", search: "search files",
+};
+
+/** A `session/request_permission` as the question put to the person. */
+export function acpPermissionAsk(agent: string, params: unknown): CliPermissionAsk {
+  const call = record(params) && record(params["toolCall"]) ? params["toolCall"] : {};
+  const raw = record(call["rawInput"]) ? call["rawInput"] : {};
+  const kind = str(call["kind"]);
+  const detail = str(raw["command"]) || str(call["title"]) || str(raw["path"]) || str(raw["filePath"]);
+  return { agent, action: ACP_KIND_ACTION[kind] ?? "use a tool", tool: kind || "tool", detail };
+}
+
+/** The person's answer as one of the options the agent offered. "session" prefers allow_always. */
+export function acpPermissionChoice(params: unknown, answer: CliPermissionAnswer): string | null {
+  if (answer === "deny") return pickPermissionOption(params, ["reject_once", "reject_always"]);
+  return pickPermissionOption(params, answer === "session" ? ["allow_always", "allow_once"] : ["allow_once", "allow_always"]);
 }
 
 /** One `session/update`, as the chat's events. `state` carries which kind came last, to join streamed words. */
@@ -189,7 +210,8 @@ export class AcpConnection {
   /** The session whose updates are wanted; updates for any other (a replayed history) are dropped. */
   listening: string | null = null;
   onUpdate: ((update: unknown) => void) | null = null;
-  onPermission: ((params: unknown) => string | null) | null = null;
+  /** Chooses the option for a `session/request_permission`; may take as long as the person does. */
+  onPermission: ((params: unknown) => string | null | Promise<string | null>) | null = null;
   /** What `initialize` returned. */
   agent: Record<string, unknown> = {};
 
@@ -243,8 +265,12 @@ export class AcpConnection {
     }
     if (id === undefined || id === null) return;
     if (method === "session/request_permission") {
-      const optionId = this.onPermission?.(message["params"]) ?? null;
-      this.reply(id, { outcome: optionId === null ? { outcome: "cancelled" } : { outcome: "selected", optionId } });
+      // The agent waits for this answer, so it is always sent - "cancelled" when nobody chose.
+      const handler = this.onPermission;
+      void Promise.resolve()
+        .then(() => handler?.(message["params"]) ?? null)
+        .catch(() => null)
+        .then((optionId) => { this.reply(id, { outcome: optionId === null ? { outcome: "cancelled" } : { outcome: "selected", optionId } }); });
       return;
     }
     // ADCode offered no file system or terminal, so anything else is not a method it has.
@@ -403,10 +429,28 @@ export function createAcpProvider(options: CliProviderOptions): Provider {
         const denied: { tool: string; detail: string }[] = [];
         connection.listening = sessionId;
         connection.onUpdate = (update) => { for (const event of acpUpdateEvents(update, state)) queue.push(event); };
+        /** Questions the person has not answered yet: the silence is theirs, not the agent's. */
+        let waitingOnPerson = 0;
         connection.onPermission = (params) => {
           const answer = acpPermission(params, bypass);
-          if (answer.denied !== null) { denied.push(answer.denied); queue.push({ kind: "thinking", text: `› Not allowed in a chat: ${answer.denied.tool}${answer.denied.detail ? ` (${answer.denied.detail.slice(0, 120)})` : ""}\n` }); }
-          return answer.optionId;
+          if (answer.denied === null) return answer.optionId;
+          const asker = options.askPermission;
+          if (asker === undefined || signal.aborted) {
+            denied.push(answer.denied);
+            queue.push({ kind: "thinking", text: `› Not allowed in a chat: ${answer.denied.tool}${answer.denied.detail ? ` (${answer.denied.detail.slice(0, 120)})` : ""}\n` });
+            return answer.optionId;
+          }
+          // Running a command or deleting a file: the person decides, in ADCode's own dialog.
+          const ask = acpPermissionAsk(spec.name, params);
+          waitingOnPerson += 1;
+          queue.push({ kind: "status", text: permissionWaiting(ask) });
+          return asker(ask, signal)
+            .catch((): CliPermissionAnswer => "deny")
+            .then((choice) => {
+              queue.push({ kind: "thinking", text: permissionOutcome(ask, choice) });
+              return acpPermissionChoice(params, choice);
+            })
+            .finally(() => { waitingOnPerson -= 1; });
         };
         // Stop shows at once: the turn ends here, while the agent winds its own turn down.
         const stop = (): void => { cancelled = true; connection.notify("session/cancel", { sessionId }); queue.push({ kind: "end" }); };
@@ -422,12 +466,13 @@ export function createAcpProvider(options: CliProviderOptions): Provider {
         try {
           for await (const beat of withHeartbeat(queue, options.heartbeatMs ?? HEARTBEAT_MS)) {
             if ("quietMs" in beat) {
-              if (!signal.aborted) yield { kind: "status", text: `${spec.name} is still pondering - ${Math.round(beat.quietMs / 1000)} s with nothing new. It may be thinking hard, or waiting on a slow tool.` };
+              if (!signal.aborted && waitingOnPerson === 0) yield { kind: "status", text: `${spec.name} is still pondering - ${Math.round(beat.quietMs / 1000)} s with nothing new. It may be thinking hard, or waiting on a slow tool.` };
               continue;
             }
             const event = beat.line;
             if (event.kind === "end") break;
             if (signal.aborted) continue;
+            if (event.kind === "status") { yield { kind: "status", text: event.text }; continue; }
             if (event.kind === "text") {
               const text = event.joined !== true && wrote && !lastText.endsWith("\n") && !event.text.startsWith("\n") ? `\n\n${event.text}` : event.text;
               wrote = true;

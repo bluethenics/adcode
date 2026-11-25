@@ -109,7 +109,7 @@ describe("CLI agents", () => {
     const claude = CLI_AGENTS.find((agent) => agent.id === "claude")!;
     const events = await collect(createCliProvider({ spec: claude, models: claude.models, spawn: fakeSpawn(CLAUDE_OK).spawn, cwd: () => "." }).stream(request(["run the tests"]), new AbortController().signal));
     expect(events.filter((event) => event.kind === "text").map((event) => event.kind === "text" && event.text).join("")).toBe("I'll check the tests.\n\nAll tests pass.");
-    expect(events).toContainEqual({ kind: "thinking", text: "› Bash: npm test\n" });
+    expect(events).toContainEqual({ kind: "thinking", text: "› Ran: npm test\n" });
     expect(events).toContainEqual({ kind: "usage", inputTokens: 920, outputTokens: 40, cachedTokens: 900 });
   });
 
@@ -119,11 +119,21 @@ describe("CLI agents", () => {
     await expect(collect(provider.stream(request(["hi"]), new AbortController().signal))).rejects.toThrow("OpenCode: Error: no providers configured");
   });
 
-  it("sends a transcript when a chat that began elsewhere moves to a CLI, with the editor's live context", () => {
-    const system = "ADCode instructions and tools.\nOpen file: src/app.ts, line 12";
+  it("sends a transcript when a chat that began elsewhere moves to a CLI, and never ADCode's system prompt", () => {
+    // The host context in the system prompt names ADCode's own tools (edit_file) and repeats the
+    // project's instructions, which the CLI reads for itself: none of it is passed on.
+    const system = "ADCode instructions and tools.\nChange files with edit_file. Project instructions: ...";
     const prompt = cliPrompt(request(["What does app.ts do?", "It starts the server.", "Add a health check"], { system, cache: { stableSystem: "ADCode instructions and tools.".length } }), false);
-    expect(prompt).toBe("Context from the ADCode editor:\nOpen file: src/app.ts, line 12\n\nThe conversation so far:\nUser: What does app.ts do?\n\nAssistant: It starts the server.\n\nNow:\nAdd a health check");
-    expect(prompt).not.toContain("ADCode instructions");
+    expect(prompt).toBe("The conversation so far:\nUser: What does app.ts do?\n\nAssistant: It starts the server.\n\nNow:\nAdd a health check");
+    expect(prompt).not.toContain("edit_file");
+  });
+
+  it("passes the editor's context along inside the newest message, as the agent sent it", () => {
+    const ask: ProviderRequest = {
+      model: "default", system: "ADCode instructions.\nChange files with edit_file.", cache: { stableSystem: 20 }, tools: [], maxTokens: 1000,
+      messages: [{ role: "user", content: [{ type: "text", text: "<adcode-context>\nThe user is looking at src/app.ts, cursor on line 12.\n</adcode-context>" }, { type: "text", text: "fix this" }] }],
+    };
+    expect(cliPrompt(ask, true)).toBe("<adcode-context>\nThe user is looking at src/app.ts, cursor on line 12.\n</adcode-context>\nfix this");
   });
 
   it("never puts anything a shell could read into an argument", () => {
@@ -247,5 +257,63 @@ describe("CLI agents", () => {
     for await (const beat of withHeartbeat(slow(), 20)) beats.push("line" in beat ? beat.line : "tick");
     expect(beats.filter((beat) => beat === "tick").length).toBeGreaterThanOrEqual(1);
     expect(beats.at(-1)).toBe("line");
+  });
+});
+
+describe("what Claude Code's chat says while it works (2026-11-24)", () => {
+  const claude = CLI_AGENTS.find((agent) => agent.id === "claude")!;
+  const line = (value: unknown): string => JSON.stringify(value);
+  const call = (id: string, name: string, input: unknown) => line({ type: "assistant", message: { model: "claude-opus-5-5", stop_reason: "tool_use", content: [{ type: "tool_use", id, name, input }] } });
+  const result = (id: string, content: string) => line({ type: "user", message: { role: "user", content: [{ type: "tool_result", tool_use_id: id, is_error: true, content }] } });
+  const thinking = (events: ProviderEvent[]) => events.filter((event) => event.kind === "thinking").map((event) => event.kind === "thinking" ? event.text : "");
+  const texts = (events: ProviderEvent[]) => events.filter((event) => event.kind === "text").map((event) => event.kind === "text" ? event.text : "").join("");
+
+  it("says what a tool did in words, not Claude Code's tool names", async () => {
+    const { claudeToolVerb } = await import("../src/cliAgents.ts");
+    expect(claudeToolVerb("Bash")).toBe("Ran");
+    expect(claudeToolVerb("TodoWrite")).toBe("Updated its to-do list");
+    expect(claudeToolVerb("mcp__adcode__read_file")).toBe("Used adcode read file");
+    expect(claudeToolVerb("SomethingNew")).toBe("SomethingNew");
+  });
+
+  it("says when a command was not allowed, and how to allow it, even after Claude Code answered", async () => {
+    const lines = [
+      line({ type: "system", subtype: "init", session_id: "s-9" }),
+      call("t1", "Bash", { command: "npm install" }),
+      result("t1", "Claude requested permissions to use Bash, but you haven't granted it yet."),
+      line({ type: "assistant", message: { model: "claude-opus-5-5", stop_reason: "end_turn", content: [{ type: "text", text: "I need permission to run npm install." }] } }),
+      line({ type: "result", subtype: "success", is_error: false, session_id: "s-9", permission_denials: [{ tool_name: "Bash", tool_use_id: "t1", tool_input: { command: "npm install" } }], usage: { input_tokens: 10, output_tokens: 5 } }),
+    ];
+    const events = await collect(createCliProvider({ spec: claude, models: claude.models, spawn: fakeSpawn(lines).spawn, cwd: () => "." }).stream(request(["set it up"]), new AbortController().signal));
+    expect(thinking(events)).toContain("› Ran was not allowed: npm install\n");
+    expect(texts(events)).toContain("I need permission to run npm install.");
+    // Said once, though both the tool result and the result line report it.
+    expect(texts(events).match(/Bash \(npm install\)/g)).toHaveLength(1);
+    expect(texts(events)).toContain("Turn on Full access for this chat");
+  });
+
+  it("shows a failed tool call as failed, with why", async () => {
+    const lines = [
+      call("t2", "Read", { file_path: "src/missing.ts" }),
+      result("t2", "<tool_use_error>File does not exist.</tool_use_error>"),
+      line({ type: "assistant", message: { model: "claude-opus-5-5", stop_reason: "end_turn", content: [{ type: "text", text: "That file is not there." }] } }),
+      line({ type: "result", subtype: "success", is_error: false, usage: {} }),
+    ];
+    const events = await collect(createCliProvider({ spec: claude, models: claude.models, spawn: fakeSpawn(lines).spawn, cwd: () => "." }).stream(request(["read it"]), new AbortController().signal));
+    expect(thinking(events)).toContain("› Read failed: src/missing.ts - File does not exist.\n");
+    expect(texts(events)).toBe("That file is not there.");
+  });
+
+  it("says when Claude Code stopped straight after a tool call", async () => {
+    const lines = [call("t3", "Edit", { file_path: "a.ts" }), line({ type: "result", subtype: "success", is_error: false, usage: {} })];
+    const events = await collect(createCliProvider({ spec: claude, models: claude.models, spawn: fakeSpawn(lines).spawn, cwd: () => "." }).stream(request(["edit"]), new AbortController().signal));
+    expect(texts(events)).toContain("ended its run straight after a tool call");
+  });
+
+  it("turns a plan limit and an empty failure into something a person can act on", async () => {
+    const { claudeErrorText } = await import("../src/cliAgents.ts");
+    expect(claudeErrorText("Claude AI usage limit reached|1764000000", "")).toMatch(/^your Claude plan's usage limit is reached\. It resets at .+ Pick another model/);
+    expect(claudeErrorText("", "error_max_turns")).toContain("continue");
+    expect(claudeErrorText("Prompt is too long", "error_during_execution")).toBe("Prompt is too long");
   });
 });

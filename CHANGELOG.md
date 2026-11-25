@@ -3,6 +3,13 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
+## Unreleased
+
+- **Coding CLIs ask you instead of giving up.** When Claude Code wanted to run a command its accept-edits mode does not cover, it refused by itself and then told you to approve a prompt ADCode never showed. OpenCode, Gemini CLI, Copilot and the other ACP agents did the same for commands, deletes and moves. Now ADCode asks you in its own dialog - Allow, Allow for this chat, or Deny - and the working line says it is waiting for your answer. Allow for this chat is kept to that chat's running agent; nothing is written to the CLI's settings files. Full access still asks nothing.
+- **Long chats cost far less.** The open file, cursor, selection, preview and running commands used to sit in the system prompt, ahead of the whole conversation. Providers cache a request by its beginning, so every message sent after the cursor moved paid full price for the entire history again. That context now travels inside the message, and only when it changed, so the history stays cached from one message to the next.
+- **Fewer tokens through coding CLIs.** ADCode no longer pastes its own instructions (up to 8,000 characters, including advice about tools the CLI does not have) into every message it sends to Claude Code, Codex or an ACP agent. Each copy stayed in the CLI's history and was paid for again on every later request.
+- **Outside agents know when to use ADCode's tools.** The tool bridge now tells Claude Code, Codex, OpenCode and other agents what its tools are for: look at a page with view_page before saying it works, show the app with open_preview, and use ADCode's feature and connector tools instead of telling you where to click.
+
 ## 2.6.5 — 2026-11-23
 
 - **Free DeepSeek for new accounts.** While the promotion runs, the first verified accounts get free usage of DeepSeek (direct), claimed by their first request to it or with Claim free usage on the AI credits page. It is spent before any paid credits and only on DeepSeek, and the meter beside the message box shows what is left. Keep sponsored cards on, and once your earnings reach the minimum, turn them into credits from Earnings to keep going.

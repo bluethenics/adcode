@@ -1,34 +1,54 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Imprezia, { MonetizedContentWithCards } from "@adimpress/imprezia-sdk";
+import { hasCards } from "@adimpress/imprezia-sdk/utils/cardHelpers";
 import { Zeekend, type ZeekendClient, type ZeekendSlot } from "@zeekend/sdk";
-import { networksFor, parseNetworks, reportNetworkImpression, SPONSORED_EMBEDDERS, withoutPrices, ZEEKEND_COLOURS, zeekendSessionId, zeekendTransport, type SponsoredNetwork } from "@/lib/sponsoredNetworks";
+import {
+  IMPREZIA_BANNER_PLACEMENT, IMPREZIA_BANNER_SIZE, IMPREZIA_IMPRESSION_PATH, impreziaCardId, networksFor, parseNetworks, partnerSessionId,
+  reportNetworkImpression, slotPosition, SPONSORED_EMBEDDERS, watchImpreziaImpressions, withDeadline, withoutPrices, ZEEKEND_COLOURS, zeekendTransport,
+  type Layout, type SponsoredNetwork,
+} from "@/lib/sponsoredNetworks";
+import { admitExchange } from "@/lib/sponsoredAsks";
 import "./sponsored.css";
 
 /**
- * One Zeekend card: under an AI reply, in a sponsored notification, or under a reply on the
- * phone.
+ * One partner card: in the ad box above the chat's message box, in a sponsored notification,
+ * under an AI reply, or on the phone.
  *
- * The desktop app (`renderer/ai/sponsoredReply.ts`) and Phone link's page embed this page in a
- * sandboxed frame and hand it one exchange by postMessage. Zeekend's SDK runs here, on ADCode's
- * own origin and never in the editor or the phone page, which hold the person's files and
- * sign-in. Zeekend is ADCode's only ad partner; its publisher key is public by design and comes
- * from `/v1/sponsored/networks`.
+ * The desktop app (`renderer/ai/sponsoredReply.ts`), the web version and Phone link's page
+ * embed this page in a sandboxed frame and hand it one exchange by postMessage. The partners'
+ * SDKs run here, on ADCode's own origin and never in the editor or the phone page, which hold
+ * the person's files and sign-in.
+ *
+ * Two partners fill the cards (2026-11-25): Zeekend and Imprezia, each slot going to one of
+ * them by the shares set in Admin > Ad networks (`/v1/sponsored/networks`). The one picked is
+ * asked first; with no card it hands the slot to the next, so a card shows as often as with
+ * one partner while the requests are divided between them. Each partner's own SDK draws and
+ * measures its card. Zeekend's publisher key is public by design; Imprezia's calls go through
+ * this site's `/v1/imprezia` relay, which adds its key.
  *
  * Only the embedders in SPONSORED_EMBEDDERS may talk to it: messages from any other origin are
  * ignored, and the `frame-ancestors` header keeps other sites from embedding it at all.
  */
 
-/**
- * Where the card appears: `reply` under an AI reply, `notification` in a sponsored
- * notification - both Zeekend's own unit, drawn by its SDK - or `banner`, the one-line ad box
- * above the message box, drawn here (see ZeekendBanner).
- */
-type Layout = "reply" | "notification" | "banner";
-/** `turn`: which user message of the conversation this is, for Zeekend's pacing; 1 when not sent. */
+/** `turn`: which card of the conversation this is, for the split and Zeekend's pacing; 1 when not sent. */
 type Exchange = { request: string; response: string; sessionId: string; theme: "light" | "dark"; layout: Layout; turn: number };
-/** The card this page found. */
-type Found = { slot: ZeekendSlot; client: ZeekendClient };
+/** The card this page found, from whichever partner had one. */
+type Found =
+  | { network: "zeekend"; slot: ZeekendSlot; client: ZeekendClient }
+  | { network: "imprezia"; monetized: Monetized }
+  /** Imprezia's 320x50 banner, already drawn by its SDK into `slot`. */
+  | { network: "imprezia"; banner: HTMLElement };
+type Monetized = Awaited<ReturnType<typeof Imprezia.monetize>>;
+
+/*
+ * How long each partner may take. A sponsored notification gives up on a card after 15 s
+ * (renderer notifications.ts), so the partner asked first gets most of the time and a backup
+ * still gets the rest; an answer that arrives after its time is dropped, never drawn.
+ */
+const ATTEMPT_MS = 8_000;
+const TOTAL_MS = 13_000;
 
 function readExchange(data: unknown): Exchange | null {
   const value = data as Partial<Exchange> & { type?: unknown } | null;
@@ -43,7 +63,7 @@ function readExchange(data: unknown): Exchange | null {
   return { request: request.slice(0, 4_000), response: response.slice(0, 4_000), sessionId, theme: theme === "light" ? "light" : "dark", layout, turn };
 }
 
-/** Which Zeekend connection to ask, from this site's API; none if the list cannot be read. */
+/** Which partners to ask, from this site's API; none if the list cannot be read. */
 async function loadNetworks(): Promise<SponsoredNetwork[]> {
   try {
     const response = await fetch("/v1/sponsored/networks", { cache: "no-store" });
@@ -53,56 +73,130 @@ async function loadNetworks(): Promise<SponsoredNetwork[]> {
   }
 }
 
+/**
+ * Outgoing messages say only that the frame is ready, that it found nothing, how tall the card
+ * is, or which card a partner counted: none of the exchange travels this way. So any embedder
+ * may hear them, and `*` keeps the page working in an ordinary browser, which cannot parse the
+ * editor's `app://` origin as a postMessage target. Incoming messages stay pinned to the embedders.
+ */
+const tell = (message: Record<string, unknown>): void => window.parent.postMessage(message, "*");
+
+/** A partner counted this card on screen: count it for the admin, and tell the app, which claims the person's pay with its own sign-in. */
+function counted(network: "zeekend" | "imprezia", slotId: string, layout: Layout, conversationId?: string): void {
+  reportNetworkImpression(slotId, layout, fetch, "", network);
+  // The one-way partner session id, never the chat's own id: the server counts a conversation's cards by it.
+  const conversation = conversationId !== undefined && /^[A-Za-z0-9_.:-]{1,128}$/.test(conversationId) ? { conversationId } : {};
+  tell({ type: "adcode-sponsored-impression", slotId, network, ...conversation });
+}
+
+/** Imprezia's hashed session id for this page's exchange; its impressions are heard before the SDK is asked, so it is read here when they arrive. */
+let impreziaSession: string | undefined;
+
 /** Zeekend's slot for this exchange through its SDK, or null. The answer is complete, so one pass. */
-async function askZeekend(network: SponsoredNetwork, exchange: Exchange): Promise<Found | null> {
-  const sessionId = await zeekendSessionId(exchange.sessionId);
-  const client = Zeekend.client({ publisherKey: network.publisherKey, sessionId, keepPinned: false, transport: zeekendTransport(exchange.turn, fetch, undefined, (slotId) => {
-    // Counted for the admin here, and told to the app, which claims the person's payout with its own sign-in.
-    reportNetworkImpression(slotId, exchange.layout);
-    tell({ type: "adcode-sponsored-impression", slotId });
-  }) });
+async function askZeekend(network: Extract<SponsoredNetwork, { id: "zeekend" }>, exchange: Exchange): Promise<Found | null> {
+  const sessionId = await partnerSessionId("zeekend", exchange.sessionId);
+  const client = Zeekend.client({ publisherKey: network.publisherKey, sessionId, keepPinned: false, transport: zeekendTransport(exchange.turn, fetch, undefined, (slotId) => counted("zeekend", slotId, exchange.layout, sessionId)) });
   const { slot } = await client.request({
     placementId: network.placementId,
     context: { type: "conversation", question: exchange.request, answer: exchange.response, conversationId: sessionId },
     dimensions: { maxWidth: 640 },
   });
-  return slot === null ? null : { slot, client };
+  return slot === null ? null : { network: "zeekend", slot, client };
+}
+
+/** Imprezia's SDK, set up once per page, pointed at this site's relay, with its billed impressions heard. */
+let impreziaReady = false;
+function startImprezia(layout: Layout): void {
+  if (impreziaReady) return;
+  impreziaReady = true;
+  const origin = window.location.origin;
+  // Heard before the SDK can send anything, so no impression goes by unclaimed.
+  watchImpreziaImpressions(window, `${origin}${IMPREZIA_IMPRESSION_PATH}`, (uuid) => {
+    const slotId = impreziaCardId(uuid);
+    if (slotId !== null) counted("imprezia", slotId, layout, impreziaSession);
+  });
+  Imprezia.init({
+    apiKey: "proxy", // the real key is added by the relay, never sent to the browser
+    endpoint: `${origin}/v1/imprezia`,
+    impressionEndpoint: `${origin}${IMPREZIA_IMPRESSION_PATH}`,
+  });
 }
 
 /**
- * Outgoing messages say only that the frame is ready, that it found nothing, or how tall
- * the card is: none of the exchange travels this way. So any embedder may hear them, and
- * `*` keeps the page working in an ordinary browser, which cannot parse the editor's
- * `app://` origin as a postMessage target. Incoming messages stay pinned to the embedders.
+ * Imprezia's card for this exchange, or null. In the ad box, its 320x50 banner - the unit
+ * Imprezia makes for a slot above a chat - drawn by its SDK into a holder of its own, which is
+ * thrown away if the banner comes too late or not at all, so a late banner never appears beside
+ * another partner's card and never counts. With no banner, or anywhere else, one chat card for
+ * the exchange.
  */
-const tell = (message: Record<string, unknown>): void => window.parent.postMessage(message, "*");
+async function askImprezia(network: Extract<SponsoredNetwork, { id: "imprezia" }>, exchange: Exchange, holder: HTMLElement | null, ms: number): Promise<Found | null> {
+  startImprezia(exchange.layout);
+  const sessionId = await partnerSessionId("imprezia", exchange.sessionId);
+  impreziaSession = sessionId;
+  const started = Date.now();
+  if (exchange.layout === "banner" && holder !== null) {
+    const slot = document.createElement("div");
+    slot.id = `imprezia-banner-${exchange.turn}-${Date.now().toString(36)}`;
+    slot.className = "sponsored-imprezia-banner";
+    holder.append(slot);
+    // Reported as the ad box, apart from the chat card's placement label, so Imprezia's reports keep the two units separate.
+    const shown = await withDeadline(Imprezia.display(slot.id, { banner_slot_size: IMPREZIA_BANNER_SIZE, placement: IMPREZIA_BANNER_PLACEMENT, sessionId }), Math.min(IMPREZIA_BANNER_MS, Math.floor(ms / 2)));
+    if (shown === true) return { network: "imprezia", banner: slot };
+    slot.remove();
+  }
+  /*
+   * A chat card for the same reply: the card under a reply, or - when the banner had no ad
+   * (2026-11-25: Imprezia's 320x50 unit filled none of the first live asks) - in the ad box,
+   * taller than the banner. Still one slot and one finished reply, never a second one.
+   */
+  const left = ms - (Date.now() - started);
+  if (left < 1_000) return null;
+  const monetized = await withDeadline(Imprezia.monetize({ request: exchange.request, response: exchange.response, sessionId, maxCards: 1, ...(network.placementId ? { placementId: network.placementId } : {}) }), left);
+  return monetized !== null && hasCards(monetized) ? { network: "imprezia", monetized } : null;
+}
+
+/** How long Imprezia's banner may take before its chat card is asked for instead. */
+const IMPREZIA_BANNER_MS = 4_000;
 
 export default function SponsoredChat() {
   const [exchange, setExchange] = useState<Exchange | null>(null);
   const [result, setResult] = useState<Found | null>(null);
   const box = useRef<HTMLDivElement>(null);
   const zeekendMount = useRef<HTMLDivElement>(null);
+  const impreziaHolder = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent): void => {
       if (!SPONSORED_EMBEDDERS.includes(event.origin) || event.source !== window.parent) return;
       const next = readExchange(event.data);
-      if (next !== null) setExchange((current) => current ?? next);
+      if (next === null || handled) return;
+      handled = true;
+      // A partner hears a message a person sent, once (lib/sponsoredAsks.ts). Installed versions
+      // 2.6.1 to 2.6.5 resend one every 30 s, and one sends sentences ADCode wrote; neither goes on.
+      const turn = admitExchange(next.sessionId, next.request, next.response);
+      if (turn === null) { tell({ type: "adcode-sponsored-empty" }); return; }
+      setExchange((current) => current ?? { ...next, turn });
     };
+    let handled = false;
     window.addEventListener("message", onMessage);
     tell({ type: "adcode-sponsored-ready" });
     return () => window.removeEventListener("message", onMessage);
   }, []);
 
-  // One card each time: the first Zeekend connection with a card wins.
+  // One card each time: the partner this slot went to first, then the others until one has a card.
   useEffect(() => {
     if (exchange === null) return;
     let live = true;
     void (async () => {
-      for (const network of networksFor(exchange.layout, await loadNetworks())) {
-        if (!live) return;
-        let found: Found | null = null;
-        try { found = await askZeekend(network, exchange); } catch { found = null; }
+      const started = Date.now();
+      const order = networksFor(exchange.layout, await loadNetworks(), slotPosition(exchange.sessionId, exchange.turn));
+      for (const network of order) {
+        const left = TOTAL_MS - (Date.now() - started);
+        if (!live || left <= 0) break;
+        const ms = Math.min(ATTEMPT_MS, left);
+        const found = network.id === "zeekend"
+          ? await withDeadline(askZeekend(network, exchange), ms)
+          : await askImprezia(network, exchange, impreziaHolder.current, ms).catch(() => null);
         if (found !== null) { if (live) setResult(found); return; }
       }
       if (live) tell({ type: "adcode-sponsored-empty" });
@@ -113,7 +207,7 @@ export default function SponsoredChat() {
   // Zeekend's own unit draws the placement and reports its viewable impression and click.
   useEffect(() => {
     const mount = zeekendMount.current;
-    if (mount === null || result === null || exchange === null || exchange.layout === "banner") return;
+    if (mount === null || result?.network !== "zeekend" || exchange === null || exchange.layout === "banner") return;
     // Drawn by Zeekend's own unit, minus the price (see withoutPrices): the card names the product, the page it opens prices it.
     const unit = result.client.render(withoutPrices(result.slot), mount, { theme: { ...ZEEKEND_COLOURS[exchange.theme] } });
     return () => { unit?.remove(); };
@@ -146,10 +240,22 @@ export default function SponsoredChat() {
     return () => observer.disconnect();
   }, [result]);
 
-  if (exchange === null || result === null) return null;
+  if (exchange === null) return null;
+  // Before a card is found the page is empty and its frame has no height: nothing can be seen,
+  // so nothing can be counted. Imprezia's banner holder is there from the start because its SDK
+  // draws into an element that must already be on the page.
   return (
-    <div ref={box} className="sponsored-chat" data-theme={exchange.theme}>
-      {exchange.layout === "banner" ? <ZeekendBanner found={result} /> : <div ref={zeekendMount} />}
+    <div ref={box} className="sponsored-chat" data-theme={exchange.theme} data-layout={exchange.layout} data-network={result?.network}>
+      {exchange.layout === "banner" && <div ref={impreziaHolder} className="sponsored-imprezia-holder" />}
+      {result?.network === "zeekend" && (exchange.layout === "banner" ? <ZeekendBanner found={result} /> : <div ref={zeekendMount} />)}
+      {result?.network === "imprezia" && "monetized" in result && (
+        <MonetizedContentWithCards
+          response={result.monetized}
+          theme={exchange.theme}
+          // The reply is already in the chat; only the sponsored card is drawn here.
+          hideResponseContainer
+        />
+      )}
     </div>
   );
 }
@@ -164,7 +270,7 @@ export default function SponsoredChat() {
  * visibility in the editor's window, which an observer here sees - and a click as it opens.
  * No price, as everywhere else (see withoutPrices).
  */
-function ZeekendBanner({ found }: { found: Found }) {
+function ZeekendBanner({ found }: { found: Extract<Found, { network: "zeekend" }> }) {
   const slot = withoutPrices(found.slot) as BannerSlot;
   const link = useRef<HTMLAnchorElement>(null);
   const [imageOk, setImageOk] = useState(true);

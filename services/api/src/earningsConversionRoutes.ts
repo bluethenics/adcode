@@ -25,28 +25,33 @@ import {
   utcDayStart,
 } from "./earningsConversion.ts";
 import type { Store } from "./store.ts";
+import { isHeld, reviewAccount } from "./earningReview.ts";
 
 export interface ConversionRouteResult {
   status: number;
   body: Record<string, unknown>;
 }
 
-type Refusal = "verify-email" | "blocked" | "unavailable";
+type Refusal = "verify-email" | "blocked" | "review" | "unavailable";
 
 /** Who may convert at all, before any amount is looked at. */
-async function eligibility(store: Store, uid: string): Promise<Refusal | null> {
+async function eligibility(store: Store, uid: string, now: number): Promise<Refusal | null> {
   if (store.convertEarningsToCredits === undefined || store.earningsConvertedSince === undefined) return "unavailable";
   const user = await store.getUser(uid);
   if (user?.emailVerified !== true) return "verify-email";
   if ((await store.getTagflowPolicy(uid))?.blocked === true) return "blocked";
+  // Held for an ad-farming review (earningReview.ts): looked at here too, so accounts that
+  // earned before the review existed are caught at the moment they try to cash in.
+  const review = await reviewAccount({ reviews: store.earningReviews, getUser: (id) => store.getUser(id), now }, uid);
+  if (isHeld(review)) return "review";
   return null;
 }
 
-const REFUSAL_STATUS: Record<Refusal, number> = { "verify-email": 403, blocked: 403, unavailable: 503 };
+const REFUSAL_STATUS: Record<Refusal, number> = { "verify-email": 403, blocked: 403, review: 403, unavailable: 503 };
 
 /** The quote. Always 200 for a signed-in caller: a refusal is a field, so the panel can say why. */
 export async function handleConversionQuote(store: Store, uid: string, now: number): Promise<ConversionRouteResult> {
-  const refusal = await eligibility(store, uid);
+  const refusal = await eligibility(store, uid, now);
   const [balance, wallet, convertedTodayMicros] = await Promise.all([
     store.getBalance(uid),
     store.getModelWallet(uid, now),
@@ -72,7 +77,7 @@ export async function handleConversionQuote(store: Store, uid: string, now: numb
 
 /** The move. Idempotent on the request id: a retry of a success answers with that success. */
 export async function handleConvertEarnings(store: Store, uid: string, raw: unknown, now: number): Promise<ConversionRouteResult> {
-  const refusal = await eligibility(store, uid);
+  const refusal = await eligibility(store, uid, now);
   if (refusal !== null) return { status: REFUSAL_STATUS[refusal], body: { error: refusal } };
 
   const parsed = parseConversionRequest(raw);

@@ -20,7 +20,6 @@ import {
   createAssetCache,
   createReceiptQueue,
   formatMicros,
-  tag,
   type AdService,
   type Balance,
   type FrequencyPreset,
@@ -31,12 +30,12 @@ import {
   type ThemeKind,
   type TokenProvider,
 } from "@adcode/ads";
-import { CHANNELS, type EarningsSnapshot, type PartnerToast, type SponsoredToast } from "../shared/api.ts";
+import { CHANNELS, type EarningsSnapshot, type SponsoredToast } from "../shared/api.ts";
 import { DiskFileStore, FetchHttpTransport, SystemClock, toDataUrl } from "./adPorts.ts";
 import { currentSettings, onSettingsChanged } from "./settings.ts";
 import { apiBaseUrl, apiOrigin, createBackendTokens } from "./backend.ts";
 import { adsHeldForNewcomer } from "./milestones.ts";
-import { PARTNER_DISMISS_MS, nextTickDelay, partnerExchange, partnerRetryDelay } from "./partnerNotification.ts";
+import { nextTickDelay, partnerEarnBody, partnerRetryDelay } from "./partnerNotification.ts";
 import { currentDebugState } from "./debug.ts";
 import { isAgentBrowserWindow } from "./agentBrowser.ts";
 import { announceAiUsageChanged } from "./aiUsage.ts";
@@ -50,6 +49,8 @@ import {
 
 /** §8.1: the 60s tick that asks the scheduler whether now is a moment to interrupt. */
 const DEFAULT_TICK_MS = 60_000;
+/** Partner cards this process claims in a minute, every network together: the server's CARDS_PAID_PER_MINUTE. */
+const PARTNER_CLAIMS_PER_MINUTE = 3;
 
 /**
  * How long a delivered toast may go unanswered before it is written off.
@@ -117,8 +118,8 @@ interface AdRuntime {
   notePainted(creativeId: string): void;
   /** The partner frame's answer for a slot it took: `empty` gives the slot back. */
   notePartnerResult(id: string, outcome: "shown" | "empty"): void;
-  /** Zeekend counted an impression of this slot on screen: claim its payout for this account. */
-  notePartnerImpression(slotId: string): Promise<void>;
+  /** A partner counted an impression of this card on screen: claim its payout for this account. */
+  notePartnerImpression(slotId: string, conversationId?: string): Promise<void>;
   noteDismissed(creativeId: string): void;
   noteClicked(creativeId: string): void;
   setSuppressed(suppressed: boolean): void;
@@ -318,42 +319,24 @@ export function createAdRuntime(): AdRuntime {
   });
 
   let partnerId: string | null = null;
-  /** One conversation id per launch, so Zeekend sees one session rather than many. */
-  const launchedAtId = clock.now().toString(36);
-  /** Which notification of this session the next one is: Zeekend paces placements by turn. */
-  let partnerTurn = 0;
   /** When to ask again after Zeekend left a slot empty; null when nothing is waiting. */
   let partnerRetryAt: number | null = null;
   /** Empty answers in a row, for the retry's back-off. */
   let partnerEmpties = 0;
+  /** When this process last claimed partner cards, for its own pace (notePartnerImpression). */
+  const partnerClaims: number[] = [];
 
   /**
-   * Zeekend, in a slot no direct campaign filled - only while the person leaves sponsored
-   * notifications on. What it is told is the project's topic tags in plain words, the same tags
-   * our own ads are targeted by: no file names, paths, code or project name (see
-   * `partnerExchange`). On the web as well since 2026-11-22: the sponsored frame answers
-   * web.bluethenics.com (apps/web sponsoredNetworks.ts SPONSORED_EMBEDDERS).
+   * No partner is asked for a notification (2026-11-25). Until 2.6.5 this asked Zeekend, in a
+   * slot no direct campaign filled, about a sentence ADCode wrote - "What's worth buying for a
+   * programmer who works on <the project's languages> code?" - one for every card, and Zeekend
+   * counted them as questions a person had asked. A partner is asked only about words a person
+   * sent (the strip above the message box, once per finished exchange), and a notification has
+   * none. The setting and the channel stay, so the notification can come back with a real
+   * message behind it rather than a made-up one.
    */
-  function presentPartner(theme: ThemeKind): boolean {
-    if (currentSettings()["adcode.ads.partnerNotifications"] !== true) return false;
-    const target = toastTarget();
-    if (target === null || target.isDestroyed()) return false;
-    // "lang:typescript" reads as "typescript": Zeekend matches on words, not our scheme.
-    const topics = tag({ languageIds, filenames }).map((one) => one.slice(one.indexOf(":") + 1)).slice(0, 6);
-    partnerTurn += 1;
-    const toast: PartnerToast = {
-      id: `partner-${clock.now().toString(36)}`,
-      ...partnerExchange(topics, partnerTurn),
-      sessionId: `partner-${launchedAtId}`,
-      theme,
-      autoDismissMs: PARTNER_DISMISS_MS,
-      turn: partnerTurn,
-    };
-    partnerId = toast.id;
-    partnerRetryAt = null;
-    debug("partner notification", { id: toast.id, topics, turn: partnerTurn });
-    target.webContents.send(CHANNELS.adPartnerShow, toast);
-    return true;
+  function presentPartner(): boolean {
+    return false;
   }
 
   const service: AdService = createAdService({
@@ -533,20 +516,29 @@ export function createAdRuntime(): AdRuntime {
     },
 
     /**
-     * $0.002 for a Zeekend card this person was shown (services/api networkImpressions.ts).
-     * The sponsored page says which slot Zeekend counted on screen; this process, which holds
-     * the account's token, claims it. The server pays a slot once, to one person, within a
-     * daily cap, so a repeat or a forged slot costs nothing. Sponsored messages off: nothing.
+     * The admin's rate for a partner card this person was shown (services/api
+     * networkImpressions.ts). The sponsored page says which card Zeekend or Imprezia counted on
+     * screen; this process, which holds the account's token, claims it. An Imprezia card's id
+     * starts `slot_imp_`, and the server reads the network from the id. It pays a card once,
+     * to one person, within a daily cap, so a repeat or a forged card costs nothing. Sponsored
+     * messages off: nothing.
      */
-    async notePartnerImpression(slotId: string): Promise<void> {
+    async notePartnerImpression(slotId: string, conversationId?: string): Promise<void> {
       if (!/^slot_[A-Za-z0-9_-]{4,64}$/.test(slotId) || currentSettings()["adcode.ads.enabled"] === false) return;
+      // The server pays three cards a minute per account and holds an account that keeps going
+      // past that (networkImpressions.ts ZEEKEND_PAID_PER_MINUTE). Several windows each showing a
+      // card can go past it honestly, so this process keeps its own claims under it.
+      const at = clock.now();
+      while (partnerClaims.length > 0 && at - partnerClaims[0]! >= 60_000) partnerClaims.shift();
+      if (partnerClaims.length >= PARTNER_CLAIMS_PER_MINUTE) { debug("partner impression skipped: pace", { slotId }); return; }
+      partnerClaims.push(at);
       try {
         const token = await tokens.getToken();
         if (!token.ok) return;
         const response = await fetch(`${apiBaseUrl()}/sponsored/earn`, {
           method: "POST",
           headers: { authorization: `Bearer ${token.value}`, "content-type": "application/json" },
-          body: JSON.stringify({ network: "zeekend", slotId }),
+          body: JSON.stringify(partnerEarnBody(slotId, conversationId)),
           signal: AbortSignal.timeout(10_000),
         });
         const outcome = (await response.json().catch(() => null)) as { credited?: unknown } | null;

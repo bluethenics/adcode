@@ -34,6 +34,7 @@ import type {
 } from "./store.ts";
 import { normalizeFields, validateDestination } from "./payoutCorridors.ts";
 import { maskDestination } from "./payoutCrypto.ts";
+import { HELD_MESSAGE, isHeld, reviewAccount } from "./earningReview.ts";
 
 /** Wise resolves an email recipient itself, so these need no corridor and no coordinates. */
 const PAYOUT_CURRENCY_SET: ReadonlySet<string> = new Set(PAYOUT_CURRENCIES);
@@ -125,7 +126,9 @@ export type RuleId =
   /** The terms require 18+ to earn or withdraw; this is where that stops being only prose. */
   | "adult"
   | "payout-details"
-  | "no-pending";
+  | "no-pending"
+  /** Held for an ad-farming review (earningReview.ts). Only listed while it fails. */
+  | "earnings-review";
 
 export interface EligibilityRule {
   id: RuleId;
@@ -194,6 +197,8 @@ export interface EligibilityInput {
   profile: PayoutProfileRecord | null;
   pending: WithdrawalRecord | null;
   corridorEligible?: boolean;
+  /** Held for an ad-farming review. Absent or false: the rule is not listed at all. */
+  underReview?: boolean;
   now: number;
 }
 
@@ -208,7 +213,7 @@ export function evaluateEligibility(input: EligibilityInput): {
   eligible: boolean;
   rules: EligibilityRule[];
 } {
-  const { user, balance, profile, pending, now, corridorEligible = profile !== null } = input;
+  const { user, balance, profile, pending, now, corridorEligible = profile !== null, underReview = false } = input;
   const min = PAYOUT_LIMITS.minWithdrawalMicros;
   const age = now - user.createdAt;
 
@@ -283,6 +288,12 @@ export function evaluateEligibility(input: EligibilityInput): {
     },
   ];
 
+  // Not a line on everybody's checklist: almost nobody is ever held, and a green "not under
+  // review" would make the rest wonder why it is there.
+  if (underReview) {
+    rules.push({ id: "earnings-review", ok: false, label: "Earnings review finished", detail: HELD_MESSAGE });
+  }
+
   return { eligible: rules.every((rule) => rule.ok), rules };
 }
 
@@ -326,6 +337,7 @@ export async function readPayouts(deps: PayoutDeps, uid: string): Promise<Payout
   const pending = history.find((row) => row.status === "requested" || row.status === "approved") ?? null;
 
   const corridorEligible = await destinationUsable(deps, profile);
+  const underReview = isHeld(await reviewAccount({ reviews: deps.store.earningReviews, getUser: (id) => deps.store.getUser(id), now: deps.clock.now() }, uid));
   const { eligible, rules } = evaluateEligibility({
     user: known,
     balance,
@@ -333,6 +345,7 @@ export async function readPayouts(deps: PayoutDeps, uid: string): Promise<Payout
     pending,
     now: deps.clock.now(),
     corridorEligible,
+    underReview,
   });
 
   return {
@@ -431,6 +444,7 @@ export async function requestWithdrawal(
   const now = deps.clock.now();
 
   const corridorEligible = await destinationUsable(deps, profile);
+  const underReview = isHeld(await reviewAccount({ reviews: deps.store.earningReviews, getUser: (id) => deps.store.getUser(id), now }, uid));
   const { eligible } = evaluateEligibility({
     user,
     balance,
@@ -438,6 +452,7 @@ export async function requestWithdrawal(
     pending,
     now,
     corridorEligible,
+    underReview,
   });
   if (!eligible || profile === null) return no("not-eligible");
 

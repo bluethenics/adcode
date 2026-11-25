@@ -127,6 +127,7 @@ describe("the admin rail", () => {
       "/admin/money?tab=advertisers",
       "/admin/tools",
       "/admin/money",
+      "/admin/money?tab=review",
       "/admin/money?tab=countries",
       "/admin/growth",
       "/admin/content",

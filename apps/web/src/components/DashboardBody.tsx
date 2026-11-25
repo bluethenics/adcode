@@ -6,13 +6,14 @@ import { useAuth } from "@/components/AuthContext";
 import { CopyField } from "@/components/CopyField";
 import { EmailPreferences } from "@/components/EmailPreferences";
 import { InvitePanel } from "@/components/InvitePanel";
+import { EarningsHero, EarningsMonth } from "@/components/EarningsOverview";
 import { LedgerRows } from "@/components/LedgerRows";
 import { PayoutPanel } from "@/components/PayoutPanel";
 import { Donut } from "@/components/charts/Donut";
 import { StackedBars } from "@/components/charts/StackedBars";
-import { Sparkline, TimeChart } from "@/components/charts/TimeChart";
-import { MONEY, seriesColor } from "@/components/charts/palette";
-import { moneyExact, moneyProgress } from "@/components/money";
+import { TimeChart } from "@/components/charts/TimeChart";
+import { seriesColor } from "@/components/charts/palette";
+import { calendar } from "@/components/earningsMath";
 import {
   apiFetch,
   MESSAGES,
@@ -20,28 +21,28 @@ import {
   type BalanceView,
   type LedgerPageView,
   type LedgerRowView,
+  type PayoutsView,
 } from "@/lib/api";
 
-/** What counts as earning: exactly the kinds `lifetimeMicros` folds. */
-const EARNING_KINDS: ReadonlySet<string> = new Set(["impression", "click", "reversal", "referral", "contribution"]);
+/*
+ * How much of the ledger the screen reads by itself. The API pages it 200 rows at a time and a
+ * card pays a fraction of a cent, so a busy account's month is thousands of rows: the first
+ * page paints at once, and further pages load behind it until the month is covered or this
+ * many rows are in. Past that, the screen says how far back it reaches ("Load older entries").
+ */
+const LEDGER_PAGE = 200;
+const LEDGER_BACKFILL_ROWS = 1_000;
+const MONTH_MS = 30 * 86_400_000;
 
 /** Manual and agent are two halves of one measure, so they take adjacent palette slots. */
 const MANUAL = seriesColor(0);
 const AGENT = seriesColor(1);
 
-/**
- * The last `count` UTC days, oldest first.
- *
- * Charts are drawn over a complete calendar, not over the days that happen to have data:
- * three entries on three scattered days would otherwise draw as three evenly spaced
- * points and read as a steady trickle.
+/*
+ * Charts are drawn over a complete calendar (`calendar` in earningsMath.ts), not over the days
+ * that happen to have data: three entries on three scattered days would otherwise draw as three
+ * evenly spaced points and read as a steady trickle.
  */
-function calendar(count: number): string[] {
-  const today = Date.now();
-  return Array.from({ length: count }, (_, index) =>
-    new Date(today - (count - 1 - index) * 86_400_000).toISOString().slice(0, 10),
-  );
-}
 
 const hours = (ms: number): string => {
   const total = Math.round(ms / 60_000);
@@ -53,6 +54,7 @@ export function DashboardBody() {
 
   const [balance, setBalance] = useState<BalanceView | null>(null);
   const [activity, setActivity] = useState<ActivityView | null>(null);
+  const [payouts, setPayouts] = useState<PayoutsView | null>(null);
   const [rows, setRows] = useState<LedgerRowView[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -64,12 +66,14 @@ export function DashboardBody() {
     setLoading(true);
     const t = await token().catch(() => null);
 
-    // Three independent reads, so they go together. Sequentially this was three round
-    // trips of latency before anything painted.
-    const [bal, page, acts] = await Promise.all([
+    // Independent reads, so they go together. Sequentially this was a round trip each of
+    // latency before anything painted.
+    const [bal, page, acts, pay] = await Promise.all([
       apiFetch<BalanceView>({ path: "/balance", token: t }),
-      apiFetch<LedgerPageView>({ path: "/ledger?limit=200", token: t }),
+      apiFetch<LedgerPageView>({ path: `/ledger?limit=${LEDGER_PAGE}`, token: t }),
       apiFetch<ActivityView>({ path: "/activity?days=30", token: t }),
+      // Only for the withdrawal meter under the balance; PayoutPanel reads its own.
+      apiFetch<PayoutsView>({ path: "/payouts", token: t }),
     ]);
 
     if (!bal.ok) {
@@ -79,6 +83,7 @@ export function DashboardBody() {
     }
 
     setBalance(bal.value);
+    setPayouts(pay.ok ? pay.value : null);
     if (page.ok) {
       setRows(page.value.rows);
       setCursor(page.value.nextCursor);
@@ -86,6 +91,24 @@ export function DashboardBody() {
     if (acts.ok) setActivity(acts.value);
     if (!page.ok || !acts.ok) setError("Some account details could not be loaded. Please refresh to try again.");
     setLoading(false);
+
+    // The rest of the month, behind the first paint. A failed page stops here quietly: the
+    // screen already says how far back it reaches, and "Load older entries" tries again.
+    if (!page.ok) return;
+    let loaded = page.value.rows;
+    let next = page.value.nextCursor;
+    const monthStart = Date.now() - MONTH_MS;
+    while (next !== null && loaded.length < LEDGER_BACKFILL_ROWS && (loaded.at(-1)?.createdAt ?? 0) > monthStart) {
+      const older = await apiFetch<LedgerPageView>({
+        path: `/ledger?limit=${LEDGER_PAGE}&cursor=${encodeURIComponent(next)}`,
+        token: await token().catch(() => t),
+      });
+      if (!older.ok) break;
+      loaded = [...loaded, ...older.value.rows];
+      next = older.value.nextCursor;
+      setRows(loaded);
+      setCursor(next);
+    }
   }, [token]);
 
   useEffect(() => {
@@ -94,25 +117,13 @@ export function DashboardBody() {
 
   const days = useMemo(() => calendar(30), []);
 
-  /**
-   * Earnings per day, folded out of the ledger the page already has.
-   *
-   * Only the kinds that move `lifetimeMicros` count. A withdrawal is an entry on this
-   * ledger too, and including it would draw the day somebody cashed out as a cliff in
-   * what they earned - which is a different fact, and the wrong one for this chart.
+  /*
+   * How far back the loaded rows reach: null when there is nothing older to load, otherwise
+   * the oldest row's time. Totals for a period that starts before it are shown as lower bounds.
+   * Only kinds that move `lifetimeMicros` count as earned (earningsMath.ts): a withdrawal is
+   * an entry on this ledger too, and counting it would draw a cash-out as a cliff in earnings.
    */
-  const earned = useMemo(() => {
-    const byDay = new Map<string, bigint>();
-    for (const row of rows) {
-      if (!EARNING_KINDS.has(row.kind)) continue;
-      const day = new Date(row.createdAt).toISOString().slice(0, 10);
-      byDay.set(day, (byDay.get(day) ?? 0n) + BigInt(row.micros || "0"));
-    }
-    // Micros to a float only for the plot. Every figure the reader is shown is still
-    // formatted from the exact integer - this is the one place an approximation is
-    // acceptable, because it decides a pixel rather than a payment.
-    return days.map((day) => Number(byDay.get(day) ?? 0n) / 1_000_000);
-  }, [rows, days]);
+  const coveredFrom = cursor === null ? null : (rows.at(-1)?.createdAt ?? Date.now());
 
   const activityByDay = useMemo(() => {
     const found = new Map(activity?.days.map((day) => [day.day, day]) ?? []);
@@ -129,7 +140,6 @@ export function DashboardBody() {
 
   const totals = activity?.totals;
   const written = (totals?.manualChars ?? 0) + (totals?.agentChars ?? 0);
-  const thisWeek = earned.slice(-7).reduce((sum, value) => sum + value, 0);
 
   return (
     <>
@@ -140,80 +150,12 @@ export function DashboardBody() {
       )}
 
       {/* The hero figure: one per view, and this is the number people come for. */}
-      <div className="ios-card hero-balance">
-        <span className="hero-balance-label">Available balance</span>
-        <strong className="hero-figure money">
-          <ExactFigure value={moneyExact(balance?.availableMicros ?? "0")} />
-        </strong>
-        <span className="hero-balance-sub">
-          {moneyExact(balance?.lifetimeMicros ?? "0")} earned all time ·{" "}
-          {moneyProgress((thisWeek * 1_000_000).toFixed(0))} in the last seven days
-        </span>
-        <div className="hero-balance-spark">
-          <Sparkline values={earned.slice(-12)} color={MONEY} />
-        </div>
-      </div>
+      <EarningsHero balance={balance} rows={rows} coveredFrom={coveredFrom} payouts={payouts} />
 
       <section className="workspace-section" id="earnings" aria-labelledby="earnings-title">
         <h2 className="workspace-section-title" id="earnings-title">Earnings</h2>
         <>
-          <section className="ios-card">
-            <header className="ios-card-head">
-              <h2>Earnings, day by day</h2>
-              <p>Every verified view credited to you over the last 30 days.</p>
-            </header>
-            <TimeChart
-              days={days}
-              area
-              height={230}
-              summary={`Daily earnings over 30 days, totalling ${moneyExact(balance?.lifetimeMicros ?? "0")}.`}
-              series={[
-                {
-                  label: "Earned",
-                  color: MONEY,
-                  values: earned,
-                  format: (value) => `$${value.toFixed(value < 1 ? 4 : 2)}`,
-                },
-              ]}
-            />
-          </section>
-
-          <div className="ios-tiles">
-            <Tile
-              label="Verified views"
-              value={rows.filter((row) => row.kind === "impression").length.toLocaleString("en-US")}
-              hint="Cards you actually saw"
-            />
-            {/*
-              * Zeekend, the only network serving since 13 Nov, pays for each card seen and
-              * reports no clicks to us, so a click never becomes a ledger row. A tile that
-              * read "Clicks 0" after somebody clicked looked like lost earnings (report
-              * rep-1-1795386014912). Paid clicks still show when an account has any.
-              */}
-            {rows.some((row) => row.kind === "click") ? (
-              <Tile
-                label="Paid clicks"
-                value={rows.filter((row) => row.kind === "click").length.toLocaleString("en-US")}
-                hint="Sponsors that paid for a click"
-              />
-            ) : (
-              <Tile
-                label="Clicks"
-                value="Not paid"
-                hint="You earn for each card you see; clicking adds nothing"
-              />
-            )}
-            <Tile
-              label="Corrections"
-              value={rows.filter((row) => row.kind === "reversal").length.toLocaleString("en-US")}
-              hint="Reversals, always visible"
-            />
-            <Tile
-              label="Time in the editor"
-              value={hours(totals?.activeMs ?? 0)}
-              hint="Last 30 days"
-            />
-          </div>
+          <EarningsMonth rows={rows} coveredFrom={coveredFrom} />
 
           <div className="ios-card">
             <header className="ios-card-head">
@@ -226,13 +168,16 @@ export function DashboardBody() {
             )}
           </div>
 
-          <div className="notice" data-tone="info">
-            Withdrawals are open once your balance reaches $50.{" "}
-            <a className="link-button" href="#payouts">
-              Check whether you&apos;re eligible
-            </a>
-            .
-          </div>
+          {/* The balance card shows the server's minimum when the rules loaded; this is the fallback. */}
+          {payouts === null && (
+            <div className="notice" data-tone="info">
+              Withdrawals open once your balance reaches the minimum.{" "}
+              <a className="link-button" href="#payouts">
+                Check whether you&apos;re eligible
+              </a>
+              .
+            </div>
+          )}
         </>
       </section>
 
@@ -307,14 +252,9 @@ export function DashboardBody() {
                       hint="Times you opened ADCode"
                     />
                     <Tile
-                      label="Busiest day"
-                      value={Math.max(
-                        0,
-                        ...activityByDay.manual.map(
-                          (value, index) => value + (activityByDay.agent[index] ?? 0),
-                        ),
-                      ).toLocaleString("en-US")}
-                      hint="Characters in one day"
+                      label="Time in the editor"
+                      value={hours(totals?.activeMs ?? 0)}
+                      hint="Last 30 days"
                     />
                   </div>
                 </section>
@@ -379,7 +319,7 @@ export function DashboardBody() {
             </div>
           ) : (
             <>
-              <LedgerRows rows={rows} />
+              <LedgerRows rows={rows} groupCards />
               {cursor !== null && (
                 <div className="actions">
                   <button
@@ -427,20 +367,5 @@ function Tile({ label, value, hint }: { label: string; value: string; hint: stri
       <span className="ios-tile-value">{value}</span>
       <span className="ios-tile-hint">{hint}</span>
     </div>
-  );
-}
-
-/**
- * "$1.44" at full size, then "1500" smaller: every micro is still on screen, so a single
- * view still visibly moves the balance, but the figure reads as dollars and cents first.
- */
-function ExactFigure({ value }: { value: string }) {
-  const cut = value.indexOf(".") + 3;
-  if (cut < 3) return <>{value}</>;
-  return (
-    <>
-      {value.slice(0, cut)}
-      <span className="hero-figure-micro">{value.slice(cut)}</span>
-    </>
   );
 }

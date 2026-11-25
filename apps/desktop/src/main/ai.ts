@@ -152,7 +152,7 @@ import { checkpointView, checkpointsForSession } from "./aiCheckpointView.ts";
 import { ASSISTANT_EXTENSION_TOOLS, bridgeAppTools, offeredAppTools, withAssistantExtensions } from "./assistantControls.ts";
 import { memoryForWorkspace } from "./memory.ts";
 import { currentSettings, writeSetting } from "./settings.ts";
-import { confirmInWindow } from "./themedConfirm.ts";
+import { chooseInWindow, confirmInWindow } from "./themedConfirm.ts";
 import { withFlowTool } from "./flowTool.ts";
 import { fullAccessApplies, isFullAccessOn, runAgentTurn } from "./fullAccess.ts";
 import { describeDebugContext, recordDebug } from "./debugLog.ts";
@@ -160,7 +160,7 @@ import { fileAgentsFor, refreshFileAgents } from "./agentFilesLoader.ts";
 import { agentPromptHooks, agentRulesContext, agentSessionStart, agentStopHooks, withAgentRules } from "./agentRules.ts";
 import { currentGroup, currentWorkspace, groupOfWindow } from "./workspace.ts";
 import { projectInstructions } from "./projectInstructions.ts";
-import { aiWorkspaceContext } from "./aiWorkspaceContext.ts";
+import { aiWorkspaceContext, editorContextLines } from "./aiWorkspaceContext.ts";
 import { liveRoomContext } from "./liveRoom.ts";
 import { base64ImageSize, tooSmallForModels } from "./imageSize.ts";
 import { aiPreviewUrl, describePreviewForAi, openAiPreview } from "./aiPreview.ts";
@@ -200,7 +200,7 @@ import { toAiAutomationView } from "./aiAutomationViews.ts";
 import { askOllama, localModels, startOllama } from "./localModels.ts";
 import { cliModels, cliModelsNow, cliModelsQuick, detectCliAgents, detectCliAgentsQuick, forgetCliModels, spawnCli, spawnCliLive, stopLiveClis } from "./cliAgents.ts";
 import { claudeToolBridge } from "./toolBridge.ts";
-import { AUDIT_PAGE, CLI_AGENTS, DEFERRED_TOOL_NAMES, OPEN_PREVIEW, VIEW_PAGE, cliAgentFor, cliProviderId, createAcpProvider, createCliProvider, type CliLiveEntry } from "@adcode/ai";
+import { AUDIT_PAGE, CLI_AGENTS, DEFERRED_TOOL_NAMES, OPEN_PREVIEW, VIEW_PAGE, cliAgentFor, cliProviderId, createAcpProvider, createCliProvider, type CliLiveEntry, type CliPermissionAnswer, type CliPermissionAsk } from "@adcode/ai";
 import { apiBaseUrl } from "./backend.ts";
 import { buildTagflowProvider, refreshTagflowModels, tagflowCatalogue, tagflowDefaultModel } from "./tagflowAi.ts";
 import { recordModelOutcome } from "./modelOutcomes.ts";
@@ -1146,6 +1146,28 @@ function outputBudget(providerId: string, model: string): { maxTokens: number; m
 }
 
 /**
+ * A coding CLI's mid-turn question - Claude Code wanting to run a command its acceptEdits mode
+ * does not cover, OpenCode asking to delete a file - put to the person in ADCode's own dialog.
+ * They used to be refused without a word to anyone, and the run stopped part way.
+ */
+async function askCliPermission(ask: CliPermissionAsk, signal: AbortSignal): Promise<CliPermissionAnswer> {
+  const window = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows().find((item) => !item.isDestroyed()) ?? null;
+  const choice = await chooseInWindow(window, {
+    title: `${ask.agent} asks to ${ask.action}`,
+    body: [
+      ask.detail === "" ? `It wants to use ${ask.tool}.` : ask.detail,
+      ask.reason === undefined ? "" : `${ask.agent}: ${ask.reason}.`,
+      "Allow for this chat lets it do the same again without asking while this chat stays open. Full access in the chat stops these questions.",
+    ].filter((line) => line !== "").join("\n\n"),
+    confirmLabel: "Allow",
+    alternateLabel: "Allow for this chat",
+    cancelLabel: "Deny",
+  }, signal);
+  recordDebug("info", "ai:cli-permission", `${ask.agent} ${ask.action} (${ask.detail.slice(0, 120)}): ${choice}`);
+  return choice === "confirm" ? "allow" : choice === "alternate" ? "session" : "deny";
+}
+
+/**
  * A client for whichever provider is selected.
  *
  * Two first-class clients - Anthropic and Google, which do not speak the OpenAI wire format
@@ -1177,7 +1199,7 @@ export async function buildProvider(
     const listedModels = await cliModelsQuick(cli, homedir());
     // ACP agents (OpenCode, Gemini CLI, Copilot, Cursor...) through one protocol client; Claude
     // Code and Codex through their own stream-JSON.
-    return (cli.protocol === "acp" ? createAcpProvider : createCliProvider)({ spec: cli, models: listedModels.map((model) => model.id), modelEfforts: Object.fromEntries(listedModels.filter((model) => model.efforts !== undefined).map((model) => [model.id, model.efforts!])), spawn: spawnCli, live: spawnCliLive, liveProcesses: cliLive, cwd: () => chat?.root() ?? currentWorkspace()?.root ?? homedir(), sessions, mcp: claudeToolBridge, bypassPermissions: () => fullAccessActive(), ...(chat === undefined ? {} : { conversation: chat.id }) });
+    return (cli.protocol === "acp" ? createAcpProvider : createCliProvider)({ spec: cli, models: listedModels.map((model) => model.id), modelEfforts: Object.fromEntries(listedModels.filter((model) => model.efforts !== undefined).map((model) => [model.id, model.efforts!])), spawn: spawnCli, live: spawnCliLive, liveProcesses: cliLive, cwd: () => chat?.root() ?? currentWorkspace()?.root ?? homedir(), sessions, mcp: claudeToolBridge, bypassPermissions: () => fullAccessActive(), askPermission: askCliPermission, ...(chat === undefined ? {} : { conversation: chat.id }) });
   }
   const key = offeredKey ?? (KEYLESS.has(id) ? "" : ((await keys.get(id)) ?? ""));
   const paced = (provider: Provider) => requestScheduler.wrap(provider, id, () => connections().find(item => item.id === id)?.rpm ?? 6000);
@@ -1949,33 +1971,47 @@ async function ensureChatAgent(thread: ChatThread, providerId: string, model: st
           blocker = `Save ${summarizeUnsavedDrafts(root, drafts)} before AI file edits, so nothing unsaved gets overwritten. Reading and answering work meanwhile.`;
         }
       }
+      // What holds still for the conversation, in the system prompt. The editor, the preview,
+      // background commands and the live room change between messages, so they travel in the
+      // message instead (`turnContext` below), where a change does not cost the cached history.
       return [
         collabIsJoined() ? "You are in a shared GitHub project. File tools run on the host workspace. Always use project-relative paths and read the current host file before editing. Other people and agents may edit concurrently. Commands, memory and external tools are unavailable to guests; ask the host to run checks and review commits." : null,
-        aiWorkspaceContext(root, blocker, thread.editorContext, configuredEditPolicy() === "review" ? "review" : "direct", fullAccessActive()),
-        // In a live room, every member's assistant works from the same picture of it.
-        ...(liveRoomContext() === "" ? [] : [liveRoomContext()]),
+        aiWorkspaceContext(root, blocker, null, configuredEditPolicy() === "review" ? "review" : "direct", fullAccessActive()),
         lean && root !== null ? await projectFilesHint(root) : null,
         root === null ? null : await projectInstructions(root, homedir(), lean),
-        ...(root === null ? [] : [describePreviewForAi()]),
-        describeBackgroundCommands(),
         // A lean request does not offer the guide's tool, so it is not told about the guide.
         lean ? null : builtinSkillGuidance(designTasteOn()),
         await agentRulesContext(root).catch(() => null),
         // The main chat splits independent multi-step work into forks by itself unless turned off.
         // Review mode runs one chat at a time, so forks could not start there.
         !isFork && currentSettings()["adcode.ai.autoFork"] !== false && configuredEditPolicy() !== "review" ? AUTO_FORK_GUIDANCE : null,
-        thread.startContext ?? null,
       ].filter((line): line is string => line !== null).join("\n");
   };
+  /**
+   * What changes from one message to the next. The agent sends it inside the message, and only
+   * when it differs from the last one it sent (agent.ts `turnContext`).
+   */
+  const turnContext = (): string => [
+    ...editorContextLines(thread.editorContext),
+    // In a live room, every member's assistant works from the same picture of it.
+    ...(liveRoomContext() === "" ? [] : [liveRoomContext()]),
+    ...(thread.root === null ? [] : [describePreviewForAi()]),
+    describeBackgroundCommands(),
+    // Session-start hook output: said once with the first message, like Claude Code's own.
+    thread.startContext ?? null,
+  ].filter((line): line is string => line !== null && line !== "").join("\n");
   // Only the lead hears about its task agents: helpers cannot delegate.
   const leadContext = async (): Promise<string> => {
-    const flow = lean || isFork ? null : flowFor(thread.session.id);
-    // With a flow, the flow's own briefing replaces the roster: it names the same agents and
-    // says which of them takes this message over.
-    const lastAsk = [...thread.session.messages].reverse().find((message) => message.role === "user")?.text ?? "";
-    const roster = lean || isFork ? null : flow !== null ? flowContext(flow, lastAsk) : rosterContext(taskAgents(thread.root), { provider: providerId, model });
+    const roster = lean || isFork || flowFor(thread.session.id) !== null ? null : rosterContext(taskAgents(thread.root), { provider: providerId, model });
     const base = await context();
     return roster === null ? base : `${base}\n${roster}`;
+  };
+  // With a flow, the flow's own briefing replaces the roster: it names the same agents and says
+  // which of them takes this message over - so it depends on the message, and travels with it.
+  const leadTurnContext = (): string => {
+    const flow = lean || isFork ? null : flowFor(thread.session.id);
+    const lastAsk = [...thread.session.messages].reverse().find((message) => message.role === "user")?.text ?? "";
+    return [turnContext(), flow === null ? "" : flowContext(flow, lastAsk)].filter((part) => part !== "").join("\n");
   };
   // Which model ran each helper, so its tokens are counted against that model, not the lead's.
   const ranBy = new WeakMap<SubagentTask, { readonly provider: string; readonly model: string }>();
@@ -1992,7 +2028,7 @@ async function ensureChatAgent(thread: ChatThread, providerId: string, model: st
       ranBy.set(task, { provider: providerId, model });
       return {
         agent: createAgent({
-          provider, model, tools, runner: helperRunner, context,
+          provider, model, tools, runner: helperRunner, context, turnContext,
           effort: configuredEffort(), ...outputBudget(providerId, model), compaction: compactionFor(providerId, model),
         }),
         ...(profile === null ? {} : { ranOn: `${model} as ${profile.name}`, instructions: profile.instructions }),
@@ -2006,7 +2042,7 @@ async function ensureChatAgent(thread: ChatThread, providerId: string, model: st
     ranBy.set(task, { provider: profile.provider, model: profile.model });
     return {
       agent: createAgent({
-        provider: own, model: profile.model, tools, runner: helperRunner, context,
+        provider: own, model: profile.model, tools, runner: helperRunner, context, turnContext,
         lean: () => profile.provider === "ollama",
         effort: configuredEffort(), ...outputBudget(profile.provider, profile.model), compaction: compactionFor(profile.provider, profile.model),
       }),
@@ -2026,6 +2062,7 @@ async function ensureChatAgent(thread: ChatThread, providerId: string, model: st
     compaction: compactionFor(providerId, model),
     initialMessages: carried ?? restoreHistory(thread.session),
     context: leadContext,
+    turnContext: leadTurnContext,
     runner: withAgentRules(withSubagents(withCreateAgent(withModTool(withFlowTool(forkRunner, {
       settings: currentSettings,
       writeSetting: (id, value) => writeSetting(id, value),

@@ -10,6 +10,22 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
 /** The MCP server's name, which is also the prefix Claude Code gives its tools (`mcp__adcode__…`). */
 export const BRIDGE_SERVER_NAME = "adcode";
+/**
+ * What the bridge tells an agent when it connects (MCP `instructions`). Claude Code puts a
+ * server's instructions in its system prompt; without them its model saw a list of tool names
+ * and reached for its own Read, Bash and curl instead - claiming a page worked without looking,
+ * telling the person where to click in ADCode instead of doing it. Short on purpose: it rides
+ * on every request the agent makes.
+ */
+export const BRIDGE_INSTRUCTIONS = [
+  "ADCode is the editor the person is using; these tools act inside it.",
+  "Keep using your own tools to read, edit and run code in the project.",
+  "Use view_page to look at a web page (the project's live preview or a URL) in a real browser before saying it works; it reports visible text, console errors, failed requests and a screenshot.",
+  "Use open_preview to show the person the running app inside ADCode.",
+  "When the person asks for something in ADCode itself - a setting, a feature, a connector - use adcode_features to find it and adcode_action or adcode_connectors to do it, instead of telling them where to click.",
+  "Guarded actions open a confirmation dialog in ADCode and wait for the person.",
+].join(" ");
+
 /** The one path the bridge answers on. */
 export const BRIDGE_PATH = "/mcp";
 /** The longest a single tool call may take, a confirmation dialog included. */

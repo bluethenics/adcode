@@ -3,13 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useAuth } from "./AuthProvider";
-import { adNetworkReadiness, parseAdNetworkConfig, zeekendPay, ZEEKEND_MAX_PAID_PER_DAY, ZEEKEND_MAX_PAY_MICROS, type AdNetworkConfig, type AdNetworkProvider, type HttpAdNetworkConfig } from "@adcode/api/src/adNetworkConfig.ts";
+import { adNetworkReadiness, CARD_MAX_PAID_PER_DAY, CARD_MAX_PAY_MICROS, CARD_PLACES, cardPay, MAX_SHARE, networkMix, parseAdNetworkConfig, type AdNetworkConfig, type AdNetworkProvider, type CardPlace, type HttpAdNetworkConfig, type NetworkMix } from "@adcode/api/src/adNetworkConfig.ts";
 import type { ServedCreative } from "@adcode/api/src/contract.ts";
 import "./adNetworksAdmin.css";
 
 /** keyMode: which Imprezia or Zeekend environment the saved key belongs to, read on the server. The key itself never comes back. */
 export interface AdNetworkView extends AdNetworkConfig { keyConfigured: boolean; readiness: string; keyMode?: "sandbox" | "beta" | "live" }
-interface NetworksView { networks: AdNetworkView[]; credentialsManageable: boolean }
+/** Each partner's cards counted in the last day and week, by network ("zeekend", "imprezia"); null when they cannot be read. */
+export type ShownByNetwork = Readonly<Record<string, { last1d: number; last7d: number }>> | null;
+interface NetworksView { networks: AdNetworkView[]; credentialsManageable: boolean; shown?: ShownByNetwork }
 interface TestView { sandbox?: boolean; sdk?: { endpoint: string; placementId: string }; zeekend?: { placementId: string; keyMode: "sandbox" | "live"; validKey: boolean }; creative?: ServedCreative | null; advertisements?: { id: string; name: string; headline: string; text: string; description: string }[] }
 const ImpreziaSdkPreview = dynamic(() => import("./ImpreziaSdkPreview"), { ssr: false, loading: () => <p role="status">Loading Imprezia&apos;s SDK…</p> });
 type Request = <T>(path: string, method?: "GET" | "PUT" | "POST", body?: unknown) => Promise<T>;
@@ -46,34 +48,61 @@ export function payoutSummary(config: Pick<AdNetworkConfig, "viewPayoutMicros" |
   return basis === "both" ? `${view} + ${click}` : basis === "click" ? click : view;
 }
 
-/** What one person earns from Zeekend cards: the rate, the daily cap, and the most a day pays. */
-export function zeekendPaySummary(config: Pick<AdNetworkConfig, "zeekend">): string {
-  const { payMicros, perDay } = zeekendPay(config);
+/** What one person earns from a partner's cards: the rate, the daily cap, and the most a day pays. */
+export function cardPaySummary(config: Pick<AdNetworkConfig, "zeekend" | "imprezia">): string {
+  const { payMicros, perDay } = cardPay(config);
   if (payMicros === 0 || perDay === 0) return "Nothing: paused";
   return `$${usd(String(payMicros))} per card, up to ${perDay.toLocaleString("en-US")} a day ($${(payMicros * perDay / 1_000_000).toFixed(2)})`;
 }
+/** The name cardPaySummary had while Zeekend was the only partner. */
+export const zeekendPaySummary = cardPaySummary;
 
-/** The admin's rate and daily cap as the stored Zeekend fields, or an error to show. */
-export function zeekendPayFields(cardUsd: string, cardsPerDay: string): { payPerCardMicros: string; paidCardsPerDay: number } | string {
+/** The admin's rate and daily cap as the stored pay fields, or an error to show. */
+export function cardPayFields(cardUsd: string, cardsPerDay: string): { payPerCardMicros: string; paidCardsPerDay: number } | string {
   const pay = payoutMicros(cardUsd.trim());
-  if (pay === null || Number(pay) > ZEEKEND_MAX_PAY_MICROS) return `Pay per card must be from $0 to $${usd(String(ZEEKEND_MAX_PAY_MICROS))}, with at most six decimal places.`;
+  if (pay === null || Number(pay) > CARD_MAX_PAY_MICROS) return `Pay per card must be from $0 to $${usd(String(CARD_MAX_PAY_MICROS))}, with at most six decimal places.`;
   const perDay = Number(cardsPerDay.trim());
-  if (!/^\d{1,4}$/.test(cardsPerDay.trim()) || perDay > ZEEKEND_MAX_PAID_PER_DAY) return `Paid cards a day must be a whole number from 0 to ${ZEEKEND_MAX_PAID_PER_DAY.toLocaleString("en-US")}.`;
+  if (!/^\d{1,4}$/.test(cardsPerDay.trim()) || perDay > CARD_MAX_PAID_PER_DAY) return `Paid cards a day must be a whole number from 0 to ${CARD_MAX_PAID_PER_DAY.toLocaleString("en-US")}.`;
   return { payPerCardMicros: pay, paidCardsPerDay: perDay };
+}
+/** The name cardPayFields had while Zeekend was the only partner. */
+export const zeekendPayFields = cardPayFields;
+
+/** Where a partner's cards can appear, in the words the desktop app uses for them. */
+export const PLACE_LABELS: Record<CardPlace, string> = { banner: "Ad box above the chat", notification: "Sponsored notifications", reply: "Under AI replies" };
+/**
+ * Places the app does not ask partners for at the moment (2026-11-25: notifications ask none).
+ * Their box stays, so a partner's choice survives if they come back, but no warning counts them.
+ */
+const PAUSED_PLACES: Partial<Record<CardPlace, string>> = { notification: "The app asks no partner for these since 25 Nov." };
+
+/**
+ * What share of the slots each network is asked first for: its share over the live networks'
+ * total, rounded to whole percents. Off networks get none; if every live share is 0, none.
+ */
+export function slotPercents(rows: readonly { id: string; live: boolean; share: number }[]): Record<string, number> {
+  const total = rows.reduce((sum, row) => sum + (row.live ? row.share : 0), 0);
+  return Object.fromEntries(rows.map((row) => [row.id, total === 0 || !row.live ? 0 : Math.round((row.share / total) * 100)]));
+}
+
+/** A share as typed: a whole number from 0 to 100, or null. */
+export function parseShare(text: string): number | null {
+  const value = Number(text.trim());
+  return /^\d{1,3}$/.test(text.trim()) && value <= MAX_SHARE ? value : null;
 }
 
 export function newAdNetwork(provider: AdNetworkProvider): AdNetworkConfig {
   const config: AdNetworkConfig = { id: "", name: provider === "http-json" ? "" : providerName(provider), provider, enabled: false, priority: 50, viewPayoutMicros: "0", clickPayoutMicros: "0" };
   if (provider === "beehiiv") return { ...config, beehiiv: { publicationId: "", offerId: "" } };
   if (provider === "imprezia") return { ...config, imprezia: { kind: "chat", id: "" } };
-  // Zeekend is asked first under every reply, so it is the network an empty table most needs.
+  // The id the go-live panel and the server's defaults use for Zeekend.
   if (provider === "zeekend") return { ...config, id: "zeekend", priority: 5, zeekend: { placementId: "chat-main" } };
   return { ...config, http: { serveUrl: "", verifyUrl: "", method: "POST", authHeader: "authorization", authPrefix: "Bearer ", requestTemplate: {}, creativePath: "", fields: { id: "", advertiser: "", headline: "", body: "", clickUrl: "", logoLight: "", logoDark: "" }, verifyTemplate: {}, verifiedPath: "", eventIdPath: "" } };
 }
 
 export function ProviderReadiness({ provider, chat = false }: { provider: AdNetworkProvider; chat?: boolean }) {
-  if (provider === "zeekend") return <p className="notice">Zeekend&apos;s SDK shows sponsored product placements under AI replies, and is asked before Imprezia for every reply; Imprezia fills what Zeekend leaves. People must switch sponsored cards on in Settings. Zeekend&apos;s publisher key is public by design (its SDK sends it from the browser), but it is still saved encrypted here. Paste the <code>pub_live_…</code> key Zeekend sent you; <code>pub_test</code> serves test placements that earn nothing. Ask Zeekend to allow <code>adcode.bluethenics.com</code> as the key&apos;s origin. How often placements appear (first turn, turns between, per conversation) is set in Zeekend&apos;s dashboard. Each card a signed-in person is shown in the desktop app credits their ADCode earnings at the rate you set under User pay, once per card, up to the daily cap.</p>;
-  if (provider === "imprezia" && chat) return <p className="notice">Imprezia&apos;s SDK displays sponsored cards under AI replies. People must switch them on in Settings; their message and reply then go through this site&apos;s relay. The publisher key stays encrypted on the server. The SDK handles ad requests, rendering, clicks and view measurement. Test previews the selected saved connection through the same SDK, even while delivery is off. A sandbox key (<code>api_pub_sandbox_…</code>) delivers test ads and never pays users. Imprezia&apos;s reports record provider revenue; these SDK cards do not automatically credit ADCode user balances.</p>;
+  if (provider === "zeekend") return <p className="notice">Zeekend&apos;s SDK shows sponsored product placements in the ad box above the chat and under AI replies. It gets the share of slots you set under Traffic split, and fills any slot Imprezia has no card for. People must switch sponsored cards on in Settings. Zeekend&apos;s publisher key is public by design (its SDK sends it from the browser), but it is still saved encrypted here. Paste the <code>pub_live_…</code> key Zeekend sent you; <code>pub_test</code> serves test placements that earn nothing. Ask Zeekend to allow <code>adcode.bluethenics.com</code> as the key&apos;s origin. How often placements appear (first turn, turns between, per conversation) is set in Zeekend&apos;s dashboard. Each card a signed-in person is shown credits their ADCode earnings at the rate you set under User pay, once per card, up to the daily cap.</p>;
+  if (provider === "imprezia" && chat) return <p className="notice">Imprezia&apos;s SDK shows a 320x50 banner in the ad box above the chat, and a chat card under AI replies. It gets the share of slots you set under Traffic split, and fills any slot Zeekend has no card for. People must switch sponsored cards on in Settings; their message and reply then go through this site&apos;s relay. The publisher key stays encrypted on the server. The SDK handles ad requests, rendering, clicks and view measurement. Test previews the selected saved connection through the same SDK, even while delivery is off. A sandbox key (<code>api_pub_sandbox_…</code>) delivers test ads and never pays users. Each card a signed-in person is shown credits their ADCode earnings at the rate you set under User pay, once per card, up to the daily cap; Imprezia pays ADCode separately, in its own reports.</p>;
   if (provider === "imprezia") return <p className="notice">Use an Exchange-enabled serving key and the app bundle or domain provisioned by Imprezia. Test requests a non-billable Native ad preview. No win, billing or tracking notices are sent. Delivery stays disabled. Live desktop delivery requires approved inventory, privacy and tracking support, and an agreed billing and reconciliation process; a notice acknowledgement does not confirm revenue.</p>;
   if (provider === "beehiiv") return <p className="notice">beehiiv provides newsletter advertisement content. Test fetches a content preview for your publication and offer. These creatives aren&apos;t delivered to the desktop, and this connection can&apos;t be enabled for desktop payouts.</p>;
   return <p className="row-sub">Connect a documented JSON ad API. Serve and event verification URLs must share an HTTPS origin. User payouts are credited only after the provider verifies each view or click.</p>;
@@ -90,14 +119,14 @@ export function configOf(network: AdNetworkView): AdNetworkConfig {
  * row itself: change its key, turn it on or off, and test it. Everything else is in Edit.
  */
 export function AdNetworkTable({ networks, selected, busy, onEdit, onKey, onToggle, onTest }: { networks: readonly AdNetworkView[]; selected: string | null; busy: string | null; onEdit: (network: AdNetworkView) => void; onKey: (network: AdNetworkView) => void; onToggle: (network: AdNetworkView) => void; onTest: (network: AdNetworkView) => void }) {
-  if (networks.length === 0) return <div className="ad-network-empty"><h4>No ad networks yet</h4><p className="row-sub">Add Zeekend and Imprezia Chat Ads for sponsored cards under AI replies, or connect a documented JSON ad API.</p></div>;
+  if (networks.length === 0) return <div className="ad-network-empty"><h4>No ad networks yet</h4><p className="row-sub">Add Zeekend and Imprezia Chat Ads for sponsored cards, or connect a documented JSON ad API.</p></div>;
   return <div className="admin-models-scroll" role="region" aria-label="Ad network connections" tabIndex={0}><table className="admin-models-table ad-network-table">
     <thead><tr><th scope="col">Network</th><th scope="col">Status</th><th scope="col">API key</th><th scope="col">Users paid</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
     <tbody>{networks.map((network) => <tr key={network.id} aria-selected={selected === network.id}>
       <td><strong>{network.name}</strong><small>{providerName(network.provider)}{isChat(network) ? " Chat Ads" : ""} / {network.id}</small></td>
       <td><span className="ad-network-state" data-state={network.readiness}>{readinessLabel[network.readiness] ?? "Unknown"}</span>{network.keyMode !== undefined && <small className="ad-network-mode" data-mode={network.keyMode}>{network.keyMode === "live" ? "Production key" : network.keyMode === "sandbox" ? "Sandbox key: test ads" : "Beta key"}</small>}</td>
       <td><button type="button" className="ad-network-key" data-set={network.keyConfigured} onClick={() => onKey(network)} aria-label={`${network.keyConfigured ? "Change" : "Add"} the API key for ${network.name}`}>{network.keyConfigured ? "Set · Change" : "Add key"}</button></td>
-      <td>{pays(network) ? payoutSummary(network) : network.provider === "zeekend" ? zeekendPaySummary(network) : isChat(network) ? "Provider reports only" : "Preview only"}</td>
+      <td>{pays(network) ? payoutSummary(network) : isChat(network) ? cardPaySummary(network) : "Preview only"}</td>
       <td><div className="ad-network-actions">
         {canDeliver(network) && <button type="button" className="btn btn-small" data-on={network.enabled} disabled={busy !== null || (!network.enabled && !network.keyConfigured)} title={!network.enabled && !network.keyConfigured ? "Add an API key first" : undefined} onClick={() => onToggle(network)}>{busy === `toggle:${network.id}` ? "Saving…" : network.enabled ? "Turn off" : "Turn on"}</button>}
         <button type="button" className="btn btn-small" disabled={busy !== null || !network.keyConfigured || ["documentation-required", "inventory-required"].includes(network.readiness)} onClick={() => onTest(network)}>{busy === network.id ? "Testing…" : "Test"}</button>
@@ -138,13 +167,13 @@ const IMPREZIA_PARTNER: Partner = {
     sandbox: { label: "Sandbox: test ads", text: "The saved key is a sandbox key. Its cards are Imprezia's test ads and earn nothing. Paste the production key to replace it and go live.", action: "Replace key and go live" },
     beta: { label: "Beta key", text: "The saved key is for Imprezia's beta environment. Paste the production key to replace it and go live.", action: "Replace key and go live" },
     off: { label: "Production key, off", text: "A production key is saved but delivery is off, so nobody sees Imprezia ads. Turn it on, or paste a new key to rotate it and go live.", action: "Replace key and go live" },
-    live: { label: "Live", text: "Imprezia's real ads fill the sponsored slots Zeekend and ADCode advertisers leave empty. Paste a new key here only to rotate it.", action: "Rotate key" },
+    live: { label: "Live", text: "Imprezia's real ads take their share of the sponsored slots, set under Traffic split, and fill the ones Zeekend has no card for. Paste a new key here only to rotate it.", action: "Rotate key" },
   },
-  liveNotice: "Imprezia is live. People who have partner ads on in Settings start seeing its cards with the next ad.",
+  liveNotice: "Imprezia is live. People with sponsored cards on start seeing its cards in their share of the slots with the next card.",
   reach: [
-    { lead: "Cards under AI replies", rest: " when Zeekend has none, for people who turned on Sponsored cards under AI replies in Settings." },
-    { lead: "Partner notifications", rest: " for people on desktop 2.5 or later who turned on Sponsored notifications from ADCode's ad partner." },
-    { lead: "Both are off for each person", rest: " until they switch them on. Turning Imprezia off in the table below stops every new card at once." },
+    { lead: "The ad box above the chat", rest: " on desktop, the web version and Phone link: Imprezia's 320x50 banner, once per finished reply, in its share of those slots." },
+    { lead: "Cards under replies", rest: ": one Imprezia chat card, in its share of those slots. Sponsored notifications ask no partner." },
+    { lead: "Turning Imprezia off", rest: " in the table below hands every slot to Zeekend at once; a share of 0 under Traffic split keeps it as a backup only." },
   ],
 };
 const ZEEKEND_PARTNER: Partner = {
@@ -152,18 +181,18 @@ const ZEEKEND_PARTNER: Partner = {
   isTestKey: (key) => ["pub_test", "pub_sandbox", "pub_demo"].includes(key),
   testKeyWarning: "That is a test key: its placements are tests that earn nothing. Use the pub_live_ key Zeekend sent you.",
   copy: {
-    "not-set-up": { label: "Not set up", text: "Paste the pub_live_ publisher key Zeekend sent you. ADCode creates the connection, encrypts the key and turns delivery on in one step. Zeekend is asked first under every AI reply.", action: "Save key and go live" },
+    "not-set-up": { label: "Not set up", text: "Paste the pub_live_ publisher key Zeekend sent you. ADCode creates the connection, encrypts the key and turns delivery on in one step.", action: "Save key and go live" },
     "no-key": { label: "No key", text: "The Zeekend connection exists but has no key. Paste the pub_live_ key to start serving.", action: "Save key and go live" },
     sandbox: { label: "Test key: test placements", text: "The saved key is a test key (pub_test). Its placements are tests and earn nothing. Paste the pub_live_ key to replace it and go live.", action: "Replace key and go live" },
     beta: { label: "Test key", text: "The saved key is not a live key. Paste the pub_live_ key to replace it and go live.", action: "Replace key and go live" },
     off: { label: "Live key, off", text: "A pub_live_ key is saved but delivery is off, so nobody sees Zeekend ads. Turn it on, or paste a new key to rotate it and go live.", action: "Replace key and go live" },
-    live: { label: "Live", text: "Zeekend's real placements appear under AI replies, asked before Imprezia. Paste a new key here only to rotate it.", action: "Rotate key" },
+    live: { label: "Live", text: "Zeekend's real placements take their share of the sponsored slots, set under Traffic split, and fill the ones Imprezia has no card for. Paste a new key here only to rotate it.", action: "Rotate key" },
   },
-  liveNotice: "Zeekend is live. People who have sponsored cards under AI replies on start seeing its placements with their next answer.",
+  liveNotice: "Zeekend is live. People with sponsored cards on start seeing its placements in their share of the slots with the next card.",
   reach: [
-    { lead: "Cards under AI replies", rest: " for people on desktop 2.5 or later who turned on Sponsored cards under AI replies in Settings: one card per reply, never above the answer." },
+    { lead: "The ad box above the chat", rest: " and cards under replies, for people with sponsored cards on in Settings, in Zeekend's share of the slots." },
     { lead: "In Zeekend's dashboard", rest: ", allow adcode.bluethenics.com as the key's origin and set pacing (first turn, gap, per-session limit). ADCode does not set pacing in code." },
-    { lead: "Turning Zeekend off", rest: " in the table below hands every reply to Imprezia at once." },
+    { lead: "Turning Zeekend off", rest: " in the table below hands every slot to Imprezia at once." },
   ],
 };
 
@@ -243,8 +272,8 @@ function NetworkEditor({ initial, saved, onSave, onCancel }: { initial: AdNetwor
   const [basis, setBasis] = useState<PayoutBasis>(payoutBasis(initial));
   const [viewPay, setViewPay] = useState(usd(initial.viewPayoutMicros));
   const [clickPay, setClickPay] = useState(usd(initial.clickPayoutMicros));
-  const [cardPay, setCardPay] = useState(usd(String(zeekendPay(initial).payMicros)));
-  const [cardsPerDay, setCardsPerDay] = useState(String(zeekendPay(initial).perDay));
+  const [cardUsd, setCardUsd] = useState(usd(String(cardPay(initial).payMicros)));
+  const [cardsPerDay, setCardsPerDay] = useState(String(cardPay(initial).perDay));
   const [requestJson, setRequestJson] = useState(JSON.stringify(initial.http?.requestTemplate ?? {}, null, 2));
   const [verifyJson, setVerifyJson] = useState(JSON.stringify(initial.http?.verifyTemplate ?? {}, null, 2));
   const [busy, setBusy] = useState(false);
@@ -257,10 +286,12 @@ function NetworkEditor({ initial, saved, onSave, onCancel }: { initial: AdNetwor
     const rates = pays(draft) ? payoutRates(basis, viewPay, clickPay) : isChat(draft) ? { viewPayoutMicros: initial.viewPayoutMicros, clickPayoutMicros: initial.clickPayoutMicros } : { viewPayoutMicros: "0", clickPayoutMicros: "0" };
     if (rates === null) { setNotice({ text: "Use a payout from $0 to $10, with at most six decimal places.", error: true }); return; }
     let configured = { ...draft, id: draft.id.trim(), name: draft.name.trim(), ...rates };
-    if (draft.provider === "zeekend") {
-      const pay = zeekendPayFields(cardPay, cardsPerDay);
+    if (isChat(draft)) {
+      const pay = cardPayFields(cardUsd, cardsPerDay);
       if (typeof pay === "string") { setNotice({ text: pay, error: true }); return; }
-      configured = { ...configured, zeekend: { placementId: draft.zeekend?.placementId ?? "chat-main", ...pay } };
+      configured = draft.provider === "zeekend"
+        ? { ...configured, zeekend: { placementId: draft.zeekend?.placementId ?? "chat-main", ...pay } }
+        : { ...configured, imprezia: { kind: "chat", id: draft.imprezia?.id ?? "", ...pay } };
     }
     if (draft.http) {
       try { configured = { ...configured, http: { ...draft.http, requestTemplate: JSON.parse(requestJson), verifyTemplate: JSON.parse(verifyJson) } }; }
@@ -308,10 +339,10 @@ function NetworkEditor({ initial, saved, onSave, onCancel }: { initial: AdNetwor
         </div></fieldset>
       </>}
       {draft.provider === "zeekend" && <fieldset disabled={busy}><legend>Zeekend Chat Ads</legend><div className="tagflow-fields"><TextField label="Placement ID" value={draft.zeekend?.placementId ?? "chat-main"} pattern="[A-Za-z0-9_-]{1,64}" hint="The placement Zeekend reports this slot under. chat-main is what its SDK uses for a chat answer." onChange={(placementId) => change({ zeekend: { ...draft.zeekend, placementId } })} /></div></fieldset>}
-      {draft.provider === "zeekend" && <fieldset disabled={busy}><legend>User pay</legend><div className="tagflow-fields">
-        <TextField label="Pay per card (USD)" type="number" value={cardPay} onChange={setCardPay} hint={`What a person earns for each Zeekend card they are shown. $0 pauses pay; at most $${usd(String(ZEEKEND_MAX_PAY_MICROS))}.`} />
-        <TextField label="Paid cards a day, per person" pattern="[0-9]{1,4}" value={cardsPerDay} onChange={setCardsPerDay} hint={`Cards past this many in a UTC day still show but pay nothing. 0 to ${ZEEKEND_MAX_PAID_PER_DAY.toLocaleString("en-US")}.`} />
-      </div><p className="row-sub" role="status">{(() => { const pay = zeekendPayFields(cardPay, cardsPerDay); return typeof pay === "string" ? pay : `Most one person can earn from Zeekend in a day: ${zeekendPaySummary({ zeekend: { placementId: "chat-main", ...pay } })}.`; })()} A new rate applies to cards counted after you save; cards already counted keep the rate they were paid at. Zeekend pays ADCode separately, in its own reports.</p></fieldset>}
+      {isChat(draft) && <fieldset disabled={busy}><legend>User pay</legend><div className="tagflow-fields">
+        <TextField label="Pay per card (USD)" type="number" value={cardUsd} onChange={setCardUsd} hint={`What a person earns for each ${providerName(draft.provider)} card they are shown. $0 pauses pay; at most $${usd(String(CARD_MAX_PAY_MICROS))}.`} />
+        <TextField label="Paid cards a day, per person" pattern="[0-9]{1,4}" value={cardsPerDay} onChange={setCardsPerDay} hint={`Counted across every partner: once a person has been paid for this many cards in a UTC day, ${providerName(draft.provider)} cards still show but pay nothing. 0 to ${CARD_MAX_PAID_PER_DAY.toLocaleString("en-US")}.`} />
+      </div><p className="row-sub" role="status">{(() => { const pay = cardPayFields(cardUsd, cardsPerDay); return typeof pay === "string" ? pay : `Most one person can earn from ${providerName(draft.provider)} in a day: ${cardPaySummary({ zeekend: { placementId: "chat-main", ...pay } })}.`; })()} A new rate applies to cards counted after you save; cards already counted keep the rate they were paid at. {providerName(draft.provider)} pays ADCode separately, in its own reports.</p></fieldset>}
       {draft.provider === "beehiiv" && <fieldset disabled={busy}><legend>Newsletter content preview</legend><div className="tagflow-fields"><TextField label="Publication ID" value={draft.beehiiv?.publicationId ?? ""} hint="The pub_ ID from beehiiv." onChange={(publicationId) => change({ beehiiv: { publicationId, offerId: draft.beehiiv?.offerId ?? "" } })} /><TextField label="Offer ID" value={draft.beehiiv?.offerId ?? ""} onChange={(offerId) => change({ beehiiv: { publicationId: draft.beehiiv?.publicationId ?? "", offerId } })} /></div></fieldset>}
       {draft.provider === "imprezia" && <fieldset disabled={busy}><legend>{isChat(draft) ? "Imprezia Chat Ads" : "Approved Exchange inventory"}</legend><div className="tagflow-fields"><label className="tagflow-field"><span>Integration</span><select className="select" value={draft.imprezia?.kind ?? "chat"} onChange={(event) => { const kind = event.target.value as "app" | "site" | "chat"; change({ imprezia: { kind, id: "" }, ...(kind === "chat" ? {} : { enabled: false }) }); }}><option value="chat">Chat Ads (publisher API key)</option><option value="app">Exchange preview: app bundle</option><option value="site">Exchange preview: website domain</option></select></label>{isChat(draft)
         ? <TextField label="Placement ID (optional)" value={draft.imprezia?.id ?? ""} required={false} pattern="[A-Za-z0-9_-]{1,64}" hint="A label Imprezia registered for this slot, such as editor_sponsored_card. Leave blank for the default." onChange={(id) => change({ imprezia: { kind: "chat", id } })} />
@@ -328,11 +359,112 @@ function NetworkEditor({ initial, saved, onSave, onCancel }: { initial: AdNetwor
 }
 
 export function NetworkTestPreview({ result }: { result: TestView }) {
-  if (result.zeekend) return <div className="ad-network-preview"><h4>Zeekend key check</h4>{!result.zeekend.validKey ? <p className="notice" data-tone="error">The saved key isn&apos;t a Zeekend publisher key. Paste the pub_live_… key again.</p> : result.zeekend.keyMode === "sandbox" ? <p className="notice">Sandbox key: Zeekend serves test placements that earn nothing. Paste the pub_live_… key to earn.</p> : <p className="notice" data-tone="success">Live key saved. With delivery on, Zeekend is asked first under every AI reply for people who switched sponsored cards on.</p>}<p className="row-sub">Placement {result.zeekend.placementId}. Zeekend&apos;s SDK runs only on the sponsored page, so placements are checked in the desktop app; most turns return none by Zeekend&apos;s design.</p></div>;
+  if (result.zeekend) return <div className="ad-network-preview"><h4>Zeekend key check</h4>{!result.zeekend.validKey ? <p className="notice" data-tone="error">The saved key isn&apos;t a Zeekend publisher key. Paste the pub_live_… key again.</p> : result.zeekend.keyMode === "sandbox" ? <p className="notice">Sandbox key: Zeekend serves test placements that earn nothing. Paste the pub_live_… key to earn.</p> : <p className="notice" data-tone="success">Live key saved. With delivery on, Zeekend gets its share of the sponsored slots for people who switched sponsored cards on.</p>}<p className="row-sub">Placement {result.zeekend.placementId}. Zeekend&apos;s SDK runs only on the sponsored page, so placements are checked in the desktop app; most turns return none by Zeekend&apos;s design.</p></div>;
   if (result.sdk) return <div className="ad-network-preview"><h4>SDK connection test</h4>{result.sandbox && <p className="notice">Sandbox key: this is an Imprezia test ad. Sandbox deliveries never pay users.</p>}<ImpreziaSdkPreview key={result.sdk.endpoint} endpoint={result.sdk.endpoint} placementId={result.sdk.placementId} /><p className="row-sub">This preview uses a sample conversation and creates no ADCode user payout. Imprezia&apos;s SDK handles its view measurement.</p></div>;
   if (result.advertisements) return <div className="ad-network-preview"><h4>Newsletter content preview</h4><p className="row-sub">Preview only. These advertisements haven&apos;t been delivered to desktop users.</p>{result.advertisements.length === 0 ? <p>No advertisements returned for this offer.</p> : result.advertisements.map((ad) => <article key={ad.id}><h5>{ad.headline || ad.name || "Untitled advertisement"}</h5><p>{ad.text || ad.description}</p></article>)}</div>;
   return <div className="ad-network-preview"><h4>Connection test</h4>{result.sandbox && <p className="notice">Sandbox key: this is an Imprezia test ad. Sandbox deliveries never pay users.</p>}{result.creative ? <article><p className="row-sub">{result.creative.advertiser}</p><h5>{result.creative.headline}</h5>{result.creative.body && <p>{result.creative.body}</p>}<p className="row-sub">{result.creative.clickUrl}</p></article> : <p>The provider connected, but returned no ad for this test.</p>}<p className="row-sub">This preview creates no user delivery or payout.</p></div>;
 }
+
+/** A partner as the split shows it: live means switched on with a key, so it can fill a slot. */
+const isLive = (network: AdNetworkView): boolean => network.enabled && network.keyConfigured;
+const stateLabel = (network: AdNetworkView): string => isLive(network) ? "Live" : !network.keyConfigured ? "No key" : "Off";
+const count = (value: number | undefined): string => value === undefined ? "-" : value.toLocaleString("en-US");
+
+/**
+ * Traffic split (2026-11-25): how the sponsored slots are divided between the partners.
+ *
+ * Each slot goes to one partner by these shares, and a partner with no card hands it to the
+ * next, so people see as many cards as with one partner. The admin sets each partner's share
+ * and the places it may appear, and sees, beside each, how many of its cards were actually seen
+ * in the last day and week, so a split that is not landing shows at a glance.
+ */
+export function NetworkMixPanel({ networks, shown, request, onSaved }: { networks: readonly AdNetworkView[]; shown: ShownByNetwork | undefined; request: Request; onSaved: (mix: readonly ({ id: string } & NetworkMix)[]) => void }) {
+  const chat = networks.filter(isChat);
+  const initial = (): Record<string, { share: string; places: CardPlace[] }> => Object.fromEntries(chat.map((network) => [network.id, { share: String(networkMix(network).share), places: networkMix(network).places }]));
+  const [drafts, setDrafts] = useState(initial);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null);
+  // A network added or removed elsewhere on the page joins the split as saved; edits to the others stay.
+  const saved = useRef(initial);
+  saved.current = initial;
+  const ids = chat.map((network) => network.id).join(",");
+  useEffect(() => {
+    const present = ids.split(",");
+    setDrafts((current) => ({ ...saved.current(), ...Object.fromEntries(Object.entries(current).filter(([id]) => present.includes(id))) }));
+  }, [ids]);
+  if (chat.length === 0) return null;
+
+  const rows = chat.map((network) => {
+    const draft = drafts[network.id] ?? { share: String(networkMix(network).share), places: networkMix(network).places };
+    return { network, draft, share: parseShare(draft.share), live: isLive(network) };
+  });
+  const percents = slotPercents(rows.map((row) => ({ id: row.network.id, live: row.live, share: row.share ?? 0 })));
+  const live = rows.filter((row) => row.live);
+  const shownTotal = live.reduce((sum, row) => sum + (shown?.[row.network.provider]?.last1d ?? 0), 0);
+  const uncovered = CARD_PLACES.filter((place) => PAUSED_PLACES[place] === undefined && live.length > 0 && !live.some((row) => row.draft.places.includes(place)));
+  const changed = rows.some((row) => row.share !== networkMix(row.network).share || row.draft.places.join() !== networkMix(row.network).places.join());
+  const invalid = rows.find((row) => row.share === null);
+  const set = (id: string, patch: Partial<{ share: string; places: CardPlace[] }>): void => {
+    setNotice(null);
+    setDrafts((current) => ({ ...current, [id]: { ...(current[id] ?? { share: "50", places: [...CARD_PLACES] }), ...patch } }));
+  };
+  const toggle = (id: string, place: CardPlace, on: boolean, places: readonly CardPlace[]): void => set(id, { places: CARD_PLACES.filter((one) => one === place ? on : places.includes(one)) });
+  async function save(): Promise<void> {
+    if (busy || invalid) return;
+    setBusy(true); setNotice(null);
+    try {
+      const sent = rows.map((row) => ({ id: row.network.id, share: row.share ?? 0, places: row.draft.places }));
+      const result = await request<{ mix?: ({ id: string } & NetworkMix)[] }>("/admin/ad-networks/mix", "PUT", { networks: sent });
+      // The server's answer is what was stored; without one (the dev preview), what was sent.
+      onSaved(Array.isArray(result.mix) ? result.mix : sent);
+      setNotice({ text: "Split saved. New slots use it within a minute; cards already on screen finish as they are.", error: false });
+    } catch (error) { setNotice({ text: error instanceof Error ? error.message : "The split wasn't saved. Try again.", error: true }); }
+    finally { setBusy(false); }
+  }
+
+  return <section className="admin-models-provider network-mix" aria-labelledby="network-mix-title" aria-busy={busy}>
+    <header className="admin-card-head"><h3 id="network-mix-title">Traffic split</h3><span className="ad-network-state" data-state={live.length > 0 ? "ready" : "key-required"}>{live.length === 1 ? "1 live partner" : `${live.length} live partners`}</span></header>
+    <p className="row-sub">Each sponsored slot (the ad box after a finished reply, a card under a reply) goes to one partner by these shares. When that partner has no card, the next one fills the slot, so splitting never shows fewer cards than one partner would; the split only decides who is asked first. A share of 0 keeps a partner as a backup. Each finished reply is offered once, to one partner at a time.</p>
+    {live.length > 1 && <div className="network-mix-bar" role="img" aria-label={live.map((row) => `${row.network.name} ${percents[row.network.id]}%`).join(", ")}>
+      {live.filter((row) => (percents[row.network.id] ?? 0) > 0).map((row) => <span key={row.network.id} data-network={row.network.provider} style={{ flexGrow: percents[row.network.id] }}>{row.network.name} {percents[row.network.id]}%</span>)}
+    </div>}
+    <form onSubmit={(event) => { event.preventDefault(); void save(); }} aria-label="Traffic split">
+      <div className="network-mix-rows">
+        {rows.map(({ network, draft, share, live: on }) => <fieldset key={network.id} className="network-mix-row" data-live={on} disabled={busy}>
+          <legend className="sr-only">{network.name}</legend>
+          <div className="network-mix-name"><strong>{network.name}</strong><span className="ad-network-state" data-state={on ? "ready" : network.keyConfigured ? "disabled" : "key-required"}>{stateLabel(network)}</span></div>
+          <label className="tagflow-field network-mix-share"><span>Share</span>
+            <span className="network-mix-share-input">
+              <input type="range" min={0} max={MAX_SHARE} step={1} value={share ?? 0} aria-label={`${network.name} share`} onChange={(event) => set(network.id, { share: event.target.value })} />
+              <input className="input" inputMode="numeric" value={draft.share} aria-label={`${network.name} share, 0 to ${MAX_SHARE}`} aria-invalid={share === null} onChange={(event) => set(network.id, { share: event.target.value })} />
+            </span>
+            <small>{share === null ? `Enter a whole number from 0 to ${MAX_SHARE}.` : !on ? "Gets no slots until it is live." : share === 0 ? "Backup only: asked when the other has no card." : `Asked first for about ${percents[network.id]}% of slots.`}</small>
+          </label>
+          <div className="network-mix-places" role="group" aria-label={`Where ${network.name} shows`}>
+            {CARD_PLACES.map((place) => <label key={place} className="admin-models-check"><input type="checkbox" checked={draft.places.includes(place)} onChange={(event) => toggle(network.id, place, event.target.checked, draft.places)} /> <span>{PLACE_LABELS[place]}{PAUSED_PLACES[place] !== undefined && <small>{PAUSED_PLACES[place]}</small>}</span></label>)}
+          </div>
+          <dl className="network-mix-shown">
+            <div><dt>Seen, 24 h</dt><dd>{count(shown?.[network.provider]?.last1d)}{on && shownTotal > 0 ? <small>{Math.round(((shown?.[network.provider]?.last1d ?? 0) / shownTotal) * 100)}% of cards</small> : null}</dd></div>
+            <div><dt>Seen, 7 days</dt><dd>{count(shown?.[network.provider]?.last7d)}</dd></div>
+          </dl>
+        </fieldset>)}
+      </div>
+      {shown === null && <p className="row-sub">Cards seen per partner appear once the database has migration 20261125120000.</p>}
+      {live.length === 0 && <p className="notice" role="status">No partner is live, so no partner cards show. Turn one on in the table below.</p>}
+      {live.length > 0 && live.every((row) => row.share === 0) && <p className="notice" role="status">Every live partner is a backup, so slots go to them in priority order.</p>}
+      {uncovered.length > 0 && <p className="notice" role="status">No live partner shows in: {uncovered.map((place) => PLACE_LABELS[place]).join(", ")}. Those slots stay empty.</p>}
+      {invalid && <p className="notice" data-tone="error" role="alert">Give {invalid.network.name} a whole-number share from 0 to {MAX_SHARE}.</p>}
+      <div className="ad-network-actions">
+        <button className="btn btn-primary" data-loading={busy} disabled={busy || !changed || invalid !== undefined}>{busy && <span className="btn-spinner" aria-hidden="true" />}{busy ? "Saving…" : "Save split"}</button>
+        <button type="button" className="btn" disabled={busy} onClick={() => { for (const row of rows) set(row.network.id, { share: String(row.live ? DEFAULT_EVEN_SHARE : row.draft.share) }); }}>Split evenly</button>
+        {changed && <button type="button" className="btn" disabled={busy} onClick={() => { setDrafts(initial()); setNotice(null); }}>Undo changes</button>}
+      </div>
+    </form>
+    {notice && <p className="notice" data-tone={notice.error ? "error" : "success"} role={notice.error ? "alert" : "status"}>{notice.text}</p>}
+  </section>;
+}
+/** Every live partner at the same share is an even split, whatever the number. */
+const DEFAULT_EVEN_SHARE = "50";
 
 export function AdNetworksAdmin() {
   const { token } = useAuth();
@@ -402,8 +534,9 @@ export function AdNetworksAdmin() {
       <PartnerGoLive partner={ZEEKEND_PARTNER} network={zeekend} manageable={view.credentialsManageable} request={request} busy={toggling !== null} onToggle={(network) => void toggle(network)} onLive={load} />
       <PartnerGoLive partner={IMPREZIA_PARTNER} network={imprezia} manageable={view.credentialsManageable} request={request} busy={toggling !== null} onToggle={(network) => void toggle(network)} onLive={load} />
     </div>}
+    {view !== null && <NetworkMixPanel networks={view.networks} shown={view.shown} request={request} onSaved={(mix) => setView((previous) => previous === null ? previous : { ...previous, networks: previous.networks.map((network) => { const saved = mix.find((one) => one.id === network.id); return saved === undefined ? network : { ...network, mix: { share: saved.share, places: saved.places } }; }) })} />}
     <section className="admin-models-provider"><header className="admin-card-head"><h3>Ad network connections</h3><button type="button" className="btn" disabled={loading} onClick={() => void load()}>{loading ? "Loading…" : "Refresh"}</button></header>
-      <p className="row-sub">Connect ad providers with encrypted API keys. Generic JSON APIs can pay users per view or click. Zeekend and Imprezia use their own SDKs for sponsored cards under AI replies: Zeekend is asked first, Imprezia fills what it leaves.</p>
+      <p className="row-sub">Connect ad providers with encrypted API keys. Generic JSON APIs can pay users per view or click. Zeekend and Imprezia use their own SDKs for sponsored cards, dividing the slots by the traffic split above and filling each other&apos;s gaps.</p>
       {error && <p className="notice" data-tone="error" role="alert">{error} Use Refresh to retry.</p>}
       {loading && view === null ? <p role="status">Loading ad networks…</p> : view !== null && <AdNetworkTable networks={view.networks} selected={selected} busy={toggling !== null ? `toggle:${toggling}` : testing} onEdit={(network) => { setSelected(network.id); setNewNetwork(null); setKeyFocus(0); }} onKey={(network) => { setSelected(network.id); setNewNetwork(null); setKeyFocus((count) => count + 1); }} onToggle={(network) => void toggle(network)} onTest={(network) => void testNetwork(network)} />}
       {view !== null && <div className="ad-network-actions ad-network-add" aria-label="Add ad provider"><button type="button" className="btn" onClick={() => { setSelected(null); setNewNetwork(newAdNetwork("http-json")); }}>Add generic JSON API</button><button type="button" className="btn" onClick={() => { setSelected(null); setNewNetwork(newAdNetwork("zeekend")); }}>Add Zeekend Chat Ads</button><button type="button" className="btn" onClick={() => { setSelected(null); setNewNetwork(newAdNetwork("imprezia")); }}>Add Imprezia Chat Ads</button><button type="button" className="btn" onClick={() => { setSelected(null); setNewNetwork(newAdNetwork("beehiiv")); }}>Add beehiiv preview</button></div>}

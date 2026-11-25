@@ -442,13 +442,13 @@ export interface PinResult {
  * connection to an advertiser, and there is no request that could carry the user's IP.
  */
 /**
- * A notification whose card comes from Zeekend, ADCode's ad partner, filling a slot no direct
- * campaign could. The window hands `request`/`response` to the sandboxed /sponsored/chat
- * frame and reports whether a card came back.
+ * A notification whose card comes from one of ADCode's ad partners (Zeekend or Imprezia, by the
+ * admin's split), filling a slot no direct campaign could. The window hands `request`/`response`
+ * to the sandboxed /sponsored/chat frame and reports whether a card came back.
  */
 export interface PartnerToast {
   readonly id: string;
-  /** What Zeekend picks a card for: the project's topic tags in words, nothing more. */
+  /** What the partner picks a card for: the project's topic tags in words, nothing more. */
   readonly request: string;
   readonly response: string;
   readonly sessionId: string;
@@ -2823,8 +2823,8 @@ export interface AdcodeApi {
     onPartnerShow(listener: (toast: PartnerToast) => void): () => void;
     /** Whether the partner's frame came back with a card; "empty" hands the slot back. */
     partnerResult(id: string, outcome: "shown" | "empty"): void;
-    /** Zeekend counted an impression of this slot on screen: the main process claims its payout ($0.002). */
-    partnerImpression(slotId: string): void;
+    /** A partner counted an impression of this card on screen: the main process claims its payout. */
+    partnerImpression(slotId: string, conversationId?: string): void;
     onEarnings(listener: (earnings: EarningsSnapshot) => void): () => void;
     /**
      * The toast actually painted. One of the three conditions §1 requires before an

@@ -65,9 +65,16 @@ describe("the Imprezia SDK relay", () => {
     expect(JSON.parse(String(fetchImpl.mock.calls[0]![1]!.body))).toEqual({ impressionUuid: "i" });
   });
 
+  it("forwards the SDK's 320x50 banner request for the ad box above the message box", async () => {
+    await connect();
+    const result = await relayImprezia(deps(), call({ path: "/v1/display", body: JSON.stringify({ slotId: "imprezia-banner", banner_slot_size: "mw_display_320x50_postchat" }) }));
+    expect(result.status).toBe(200);
+    expect(fetchImpl.mock.calls[0]![0]).toBe("https://api.imprezia.ai/v1/display");
+  });
+
   it("forwards only the SDK's own paths, so the key reaches nothing else", async () => {
     await connect();
-    for (const path of ["/v1/ads/chat", "/v1/admin/keys", "/v1/monetize/../keys", "//evil.example/v1/monetize/x"]) {
+    for (const path of ["/v1/ads/chat", "/v1/admin/keys", "/v1/monetize/../keys", "//evil.example/v1/monetize/x", "/v1/display/../admin", "/v1/displayx"]) {
       expect((await relayImprezia(deps(), call({ path }))).status, path).toBe(404);
     }
     expect(fetchImpl).not.toHaveBeenCalled();
@@ -147,5 +154,37 @@ describe("the Imprezia SDK relay", () => {
     expect(forwardableIp("203.0.113.9")).toBe("203.0.113.9");
     expect(forwardableIp("2001:db8::1")).toBe("2001:db8::1");
     for (const value of ["10.0.0.4", "192.168.1.2", "127.0.0.1", "172.20.1.1", "::1", "fd00::1", "unknown", "", undefined]) expect(forwardableIp(value), String(value)).toBeUndefined();
+  });
+});
+
+describe("the relay's log line about each ad answer", () => {
+  it("says whether a banner or card filled and why not, never the person's words, address or the key", async () => {
+    await connect();
+    const lines: Record<string, unknown>[] = [];
+    const logged = { ...deps(), log: (line: Record<string, unknown>) => lines.push(line) };
+    fetchImpl.mockResolvedValueOnce(Response.json({ no_fill: true, reason: "no eligible campaigns", metadata: { requestId: "r1" } }));
+    await relayImprezia(logged, call({ path: "/v1/display", body: JSON.stringify({ slotId: "s", banner_slot_size: "mw_display_320x50_postchat" }) }));
+    fetchImpl.mockResolvedValueOnce(Response.json({ monetizedResponse: "the private reply text", originalResponse: "the private reply text", linkData: { "card-1": { trackingId: "t" }, "link-2": {} }, metadata: { requestId: "r2" } }));
+    await relayImprezia(logged, call({ body: JSON.stringify({ request: "my private question", response: "the private reply text", sessionId: "chat-1" }) }));
+    // Events (impression beacons) are not ad answers and log nothing.
+    await relayImprezia(logged, call({ path: "/v1/events/sdk-impression", body: "{}" }));
+    expect(lines).toEqual([
+      { imprezia: "display", status: 200, keyMode: "live", noFill: true, ads: 0, cards: 0, fields: ["no_fill", "reason", "metadata"], metadataFields: ["requestId"], said: "no eligible campaigns" },
+      { imprezia: "monetize", status: 200, keyMode: "live", ads: 2, cards: 1, fields: ["monetizedResponse", "originalResponse", "linkData", "metadata"], metadataFields: ["requestId"] },
+    ]);
+    const text = JSON.stringify(lines);
+    for (const secret of ["private", KEY, "203.0.113.9"]) expect(text).not.toContain(secret);
+  });
+
+  it("names the key's environment, and never breaks the answer when logging fails", async () => {
+    await store.adNetworks!.put(chat, "admin", 0);
+    await store.adNetworks!.putKey(chat.id, encryptAdNetworkKey(chat.id, "api_pub_sandbox_test", encryption));
+    const lines: Record<string, unknown>[] = [];
+    await relayImprezia({ ...deps(), log: (line) => lines.push(line) }, call({ path: "/v1/display", body: "{}" }));
+    expect(lines[0]).toMatchObject({ imprezia: "display", keyMode: "sandbox" });
+    fetchImpl.mockResolvedValueOnce(new Response("<html>bad gateway</html>", { status: 502 }));
+    const broken = await relayImprezia({ ...deps(), log: () => { throw new Error("log down"); } }, call({ path: "/v1/display", body: "{}" }));
+    expect(broken.status).toBe(502);
+    expect(broken.body).toBe("<html>bad gateway</html>");
   });
 });

@@ -1,4 +1,5 @@
 import { createProviderContextSync } from "./providerContext.ts";
+import { isHeld, reviewAccount } from "./earningReview.ts";
 /** Streaming relay to approved providers, with atomic account allowances. */
 import { randomUUID } from "node:crypto";
 import { Buffer } from "node:buffer";
@@ -619,6 +620,9 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
         const user = await deps.store.getUser(auth.uid);
         if (!user?.email || user.emailVerified !== true) { const refusal = await verificationRefusal(user, auth.uid, bearerFrom(request.headers.get("authorization") ?? undefined)); if (refusal) return refusal; }
         if ((await deps.store.getTagflowPolicy(auth.uid))?.blocked) return fail(403, "blocked", "Paid models are disabled for this account.");
+        // Farm accounts (throwaway inboxes, catch-all domains, one mailbox many times) are held
+        // for review and take no free grant either (earningReview.ts).
+        if (isHeld(await reviewAccount({ reviews: deps.store.earningReviews, getUser: (id) => deps.store.getUser(id), now: deps.clock.now() }, auth.uid))) return fail(403, "review", "This account is being reviewed, which usually takes a day. Questions: adcode.bluethenics.com/support.");
         const result = await deps.store.claimModelPromo(promo.id, auth.uid, promo.perUserMicros, promo.maxUsers, deps.clock.now());
         return json(result === "full" ? 410 : 200, { result, promo: await promoForAccount(deps.store, config, auth.uid, deps.clock.now()) });
       }
@@ -1128,6 +1132,7 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
         if (promoHeld === 0 && deps.store.claimModelPromo !== undefined && await deps.store.getModelPromoClaim?.(promo.id, auth.uid, deps.clock.now()) === null) {
           const user = await deps.store.getUser(auth.uid);
           if (user?.email && user.emailVerified === true && !(await deps.store.getTagflowPolicy(auth.uid))?.blocked
+            && !isHeld(await reviewAccount({ reviews: deps.store.earningReviews, getUser: (id) => deps.store.getUser(id), now: deps.clock.now() }, auth.uid))
             && await deps.store.claimModelPromo(promo.id, auth.uid, promo.perUserMicros, promo.maxUsers, deps.clock.now()) === "granted") {
             promoHeld = await deps.store.reserveModelPromo(reservation.id, promo.id, auth.uid, parsed.model.id, walletMaximum, deps.clock.now());
           }

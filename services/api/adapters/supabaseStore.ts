@@ -127,6 +127,8 @@ import {
 import { DEFAULT_REFERRAL_CONFIG, type AttributionRecord } from "../src/store.ts";
 import { createAdNetworkStore } from "./adNetworkStore.ts";
 import { createNetworkImpressionStore } from "./networkImpressionStore.ts";
+import { createEarningReviewStore } from "./earningReviewStore.ts";
+import { createAdIntegrityStore } from "./adIntegrityStore.ts";
 import { createTagflowStore } from "./tagflowStore.ts";
 import { createAiPlanCache } from "./aiPlanCache.ts";
 import { cached, cachedBy, createBreaker } from "./dbGuard.ts";
@@ -1351,6 +1353,8 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
     ...createTagflowStore(lazy),
     adNetworks: createAdNetworkStore(lazy),
     networkImpressions: createNetworkImpressionStore(lazy),
+    earningReviews: createEarningReviewStore(lazy),
+    adIntegrity: createAdIntegrityStore(lazy),
     async getModelCatalog() {
       const row = await maybe<{ overrides: unknown; updated_at: number | string; updated_by: string }>("getModelCatalog", (db) =>
         db.from("model_catalog").select("overrides, updated_at, updated_by").eq("id", 1).maybeSingle(),

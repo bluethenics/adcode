@@ -1,5 +1,5 @@
 import type { ServeRequestBody, ServeResponseBody, SubmittedReceipt } from "./contract.ts";
-import { AD_NETWORK_ID, adNetworkReadiness, parseAdNetworkConfig } from "./adNetworkConfig.ts";
+import { AD_NETWORK_ID, adNetworkReadiness, isChatNetwork, MAX_SHARE, networkMix, parseAdNetworkConfig, parseNetworkMix } from "./adNetworkConfig.ts";
 import { adNetworkEncryptionKeys, decryptAdNetworkKey, encryptAdNetworkKey } from "./adNetworkCrypto.ts";
 import { AdNetworkProviderError, previewBeehiiv, requestNetworkCreative, verifyNetworkEvent } from "./adNetworkHttp.ts";
 import { checkReceipt, CLOCK_SKEW_MS } from "./plausibility.ts";
@@ -21,6 +21,18 @@ function keyModeOf(deps: AdNetworkRuntime, config: AdNetworkConfig, encrypted: P
     return config.provider === "zeekend" ? zeekendKeyMode(key) : impreziaKeyMode(key);
   } catch { return undefined; }
 }
+/**
+ * Whether a chat network's connection serves only test cards - a Zeekend `pub_test` key, an
+ * Imprezia `api_pub_sandbox_` or beta key - or has no key that can be read. Its cards then pay
+ * nobody (networkImpressions.ts): a test ad earns ADCode nothing, so it must not earn a person
+ * anything either, and an admin trying a sandbox key in the real app pays out no money.
+ */
+export async function servesTestCards(deps: AdNetworkRuntime & { store: Pick<Store, "adNetworks"> }, config: AdNetworkConfig): Promise<boolean> {
+  const encrypted = await deps.store.adNetworks?.key(config.id) ?? null;
+  const mode = keyModeOf(deps, config, encrypted);
+  return mode === undefined || mode !== "live";
+}
+
 /** The one Imprezia Chat Ads connection "Go live" creates when none exists yet. */
 const IMPREZIA_DEFAULT: AdNetworkConfig = { id: "imprezia", name: "Imprezia", provider: "imprezia", enabled: false, priority: 10, viewPayoutMicros: "0", clickPayoutMicros: "0", imprezia: { kind: "chat", id: "" } };
 /** The Zeekend Chat Ads connection "Go live" creates when none exists yet: asked before Imprezia. */
@@ -99,7 +111,10 @@ export async function handleAdNetworkAdmin(deps: AdNetworkDeps, adminUid: string
         const keyConfigured = encrypted !== null, keyMode = keyModeOf(deps, config, encrypted);
         return { ...config, keyConfigured, readiness: adNetworkReadiness(config, keyConfigured), ...(keyMode === undefined ? {} : { keyMode }) };
       }));
-      return response(200, { networks, credentialsManageable: keysFor(deps).length > 0 });
+      // Each network's cards in the last day and week, beside the shares the admin set. Null
+      // when they cannot be read (no impressions store, or the database is a migration behind).
+      const summary = await deps.store.networkImpressions?.summary(deps.clock.now()).catch(() => null) ?? null;
+      return response(200, { networks, credentialsManageable: keysFor(deps).length > 0, shown: summary?.byNetwork ?? null });
     }
     if (method === "PUT") {
       const config = parseAdNetworkConfig(raw);
@@ -110,6 +125,27 @@ export async function handleAdNetworkAdmin(deps: AdNetworkDeps, adminUid: string
       return response(200, { ok: true });
     }
     return response(405, { error: "method-not-allowed" });
+  }
+  // The traffic split in one save: each chat network's share of the slots and where its cards
+  // may appear (adNetworkConfig.ts NetworkMix). Everything is checked before anything is saved,
+  // so a split is never left half applied.
+  if (path === "/v1/admin/ad-networks/mix" && method === "PUT") {
+    const list = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>)["networks"] : undefined;
+    if (!Array.isArray(list) || list.length === 0 || list.length > 20) return response(400, { error: "invalid-mix", message: "Send each network's share and places." });
+    const updates: AdNetworkConfig[] = [];
+    for (const entry of list) {
+      const id = typeof entry === "object" && entry !== null ? (entry as Record<string, unknown>)["id"] : undefined;
+      if (typeof id !== "string" || !AD_NETWORK_ID.test(id) || updates.some((one) => one.id === id)) return response(400, { error: "invalid-mix", message: "Each network may appear once." });
+      const config = await port.get(id);
+      if (!config || !isChatNetwork(config)) return response(404, { error: "not-found", message: `${id} is not a sponsored-card network.` });
+      const mix = parseNetworkMix({ share: (entry as Record<string, unknown>)["share"], places: (entry as Record<string, unknown>)["places"] });
+      if (!mix) return response(400, { error: "invalid-mix", message: `Give ${config.name} a whole-number share from 0 to ${MAX_SHARE} and pick its places from the ad box, notifications and under replies.` });
+      updates.push({ ...config, mix });
+    }
+    const now = deps.clock.now();
+    for (const config of updates) await port.put(config, adminUid, now);
+    await deps.store.writeAudit({ adminUid, action: "ad-network-mix-save", subjectUid: updates.map((config) => config.id).join(","), at: now });
+    return response(200, { ok: true, mix: updates.map((config) => ({ id: config.id, ...networkMix(config) })) });
   }
   // Going live with Imprezia in one step: save the production key, then turn delivery on. A
   // sandbox key is refused here, because "live" with test ads would earn nothing and look done.

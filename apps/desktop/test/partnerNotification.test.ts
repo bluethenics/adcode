@@ -1,29 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { MIN_TICK_DELAY_MS, PARTNER_RETRY_MS, nextTickDelay, partnerExchange, partnerRetryDelay } from "../src/main/partnerNotification.ts";
+import { readFileSync } from "node:fs";
+import { MIN_TICK_DELAY_MS, PARTNER_RETRY_MS, nextTickDelay, partnerRetryDelay } from "../src/main/partnerNotification.ts";
 
 const TICK = 60_000;
 
-describe("what Zeekend picks a notification from", () => {
-  it("names only the project's topics, in a question about the working day", () => {
-    const exchange = partnerExchange(["typescript", "react"], 1);
-    expect(exchange.request).toContain("typescript, react");
-    expect(exchange.response).toContain("typescript, react");
-    expect(exchange.request.endsWith("?")).toBe(true);
-  });
-
-  it("says software when nothing is open, and keeps at most six topics", () => {
-    expect(partnerExchange([], 1).request).toContain("software");
-    const many = partnerExchange(["a", "b", "c", "d", "e", "f", "g", "h"], 1).request;
-    expect(many).toContain("a, b, c, d, e, f");
-    expect(many).not.toContain(", g");
-  });
-
-  it("turns the wording with each notification, and comes back round", () => {
-    const first = partnerExchange(["rust"], 1).request;
-    expect(partnerExchange(["rust"], 2).request).not.toBe(first);
-    expect(partnerExchange(["rust"], 4).request).toBe(first);
-    // A turn below one is read as the first.
-    expect(partnerExchange(["rust"], 0).request).toBe(first);
+describe("what a partner is asked about", () => {
+  // Zeekend suspended ADCode on 2026-11-25 for questions "no user wrote". ADCode never writes a
+  // message in a person's name: a partner hears only what a person sent.
+  it("never writes a question for a notification", () => {
+    const source = readFileSync(new URL("../src/main/partnerNotification.ts", import.meta.url), "utf8");
+    expect(source).not.toMatch(/partnerExchange|What's worth buying|software developer working/);
+    const ads = readFileSync(new URL("../src/main/ads.ts", import.meta.url), "utf8");
+    expect(ads).not.toContain("partnerExchange");
   });
 });
 
@@ -55,5 +43,21 @@ describe("asking again after an empty answer", () => {
     expect(partnerRetryDelay(1)).toBe(2 * PARTNER_RETRY_MS);
     expect(partnerRetryDelay(2)).toBeGreaterThan(TICK);
     expect(nextTickDelay(0, -1, TICK, partnerRetryDelay(5))).toBe(TICK);
+  });
+});
+
+describe("the conversation id a counted card carries to the earn claim", () => {
+  it("accepts only the server's plain-id shape, and drops anything else", async () => {
+    const { partnerConversationId } = await import("../src/main/partnerNotification.ts");
+    expect(partnerConversationId("adc_0123456789abcdef01234567")).toBe("adc_0123456789abcdef01234567");
+    expect(partnerConversationId("a:b.c-d_e")).toBe("a:b.c-d_e");
+    for (const bad of [undefined, null, 42, "", "a b", "x".repeat(129), "../etc", "é"]) expect(partnerConversationId(bad)).toBeUndefined();
+  });
+
+  it("puts it in the claim body only when there is one", async () => {
+    const { partnerEarnBody } = await import("../src/main/partnerNotification.ts");
+    expect(partnerEarnBody("slot_abcd1234", "adc_1")).toEqual({ network: "zeekend", slotId: "slot_abcd1234", conversationId: "adc_1" });
+    expect(partnerEarnBody("slot_imp_abcd1234", "bad id")).toEqual({ network: "imprezia", slotId: "slot_imp_abcd1234" });
+    expect(partnerEarnBody("slot_abcd1234")).toEqual({ network: "zeekend", slotId: "slot_abcd1234" });
   });
 });

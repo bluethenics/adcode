@@ -87,7 +87,7 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   "ads.networks": {
     added: "2026-10-25",
     actions: [command("ads.openNetworks", "Open ad network settings")],
-    keywords: ["ad networks", "provider api key", "imprezia", "beehiiv", "click payout", "view payout", "advertising inventory"],
+    keywords: ["ad networks", "provider api key", "imprezia", "zeekend", "traffic split", "network mix", "divide ad traffic", "share of slots", "beehiiv", "click payout", "view payout", "advertising inventory"],
   },
   "workbench.modes": {
     actions: [command("workspace.vibe", "Vibe"), command("workspace.code", "Code"), command("workspace.project", "Project"), command("workspace.tasks", "AI tasks"), command("workspace.preview", "Preview")],
@@ -323,12 +323,12 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   "ads.convertEarnings": {
     added: "2026-11-19",
     actions: [command("ads.convertEarnings", "Convert earnings to AI credits")],
-    keywords: ["convert earnings", "earnings to credits", "spend earnings", "use earnings", "ai credits", "buy credits with earnings", "pay for ai with ads", "credits from ads", "top up", "wallet", "paid models", "free deepseek", "free usage", "free credits", "promotion", "starter credit"],
+    keywords: ["convert earnings", "earnings to credits", "spend earnings", "use earnings", "ai credits", "buy credits with earnings", "pay for ai with ads", "credits from ads", "top up", "wallet", "paid models", "free deepseek", "free usage", "free credits", "promotion", "starter credit", "earnings review", "under review", "held", "account held", "cannot convert"],
   },
   "ads.withdrawEarnings": {
     added: "2026-11-19",
     actions: [command("ads.withdrawEarnings", "Withdraw on the website")],
-    keywords: ["withdraw", "cash out", "payout", "get paid", "bank transfer", "withdraw earnings", "payouts page", "money out"],
+    keywords: ["withdraw", "cash out", "payout", "get paid", "bank transfer", "withdraw earnings", "payouts page", "money out", "earnings review", "under review", "held"],
   },
   "account.invite": {
     actions: [command("invite.open", "Open")],
@@ -378,7 +378,7 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   },
   "workbench.welcome": {
     actions: [command("onboarding.open", "Show welcome")],
-    keywords: ["welcome", "onboarding", "first launch", "getting started", "tour", "what do you want to build", "start here"],
+    keywords: ["welcome", "onboarding", "first launch", "getting started", "tour", "what do you want to build", "start here", "too many pop-ups", "quiet start"],
   },
   "ai.sessions": {
     actions: [command("ai.toggle", "Open Assistant"), command("ai.newConversation", "New conversation")],
@@ -585,11 +585,11 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   },
   "adcode.ads.partnerNotifications": {
     added: "2026-11-04",
-    keywords: ["zeekend", "partner ads", "partner notifications", "sponsored notification", "ad network notification", "fill empty ad slot", "more ads", "back to back ads", "turn off partner ads"],
+    keywords: ["partner ads", "partner notifications", "sponsored notification", "ad network notification", "partner notifications paused", "turn off partner ads"],
   },
   "adcode.ads.chatSponsored": {
     added: "2026-10-28",
-    keywords: ["zeekend", "ads in chat", "sponsored reply", "ad under answer", "chat ads", "phone ads", "send my prompt to advertisers", "ad partner", "turn off chat ads"],
+    keywords: ["imprezia", "zeekend", "ads in chat", "sponsored reply", "ad box above chat", "ad under answer", "chat ads", "phone ads", "send my prompt to advertisers", "ad partner", "which ad partner", "turn off chat ads"],
   },
   "ai.toolBridge": {
     added: "2026-11-11",

@@ -57,7 +57,7 @@ export interface AdminNavGroup {
 }
 
 /*
- * Six groups, sixteen doors - down from seven groups and twenty. A page with tabs of its own
+ * Six groups, seventeen doors - down from seven groups and twenty. A page with tabs of its own
  * (Growth, Content) is one entry here and lit on every tab, because its tabs are one click away
  * on the page itself; two rail rows for the same page was the clutter.
  */
@@ -108,6 +108,7 @@ export const ADMIN_NAV: AdminNavGroup[] = [
     label: "Money",
     items: [
       { href: "/admin/money", label: "Payouts", hint: "Withdrawals to review and pay", tab: "payouts", icon: "card", badge: (c) => c.withdrawalsPending },
+      { href: "/admin/money?tab=review", label: "Earnings review", hint: "Accounts held for looking like ad farming", tab: "review", icon: "shield" },
       { href: "/admin/money?tab=countries", label: "Payout countries", hint: "Where payouts can go", tab: "countries", icon: "globe" },
     ],
   },

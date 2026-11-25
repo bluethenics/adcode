@@ -59,3 +59,35 @@
 .partner-go-live-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 16px; margin-bottom: 16px; }
 .partner-go-live-grid > .imprezia-go-live { margin: 0; }
 .imprezia-go-live input[aria-invalid="true"] { border-color: var(--warn, #f3c16c); }
+
+/* Traffic split: each partner's share of the sponsored slots, where it shows, and what was seen. */
+.network-mix { container-type: inline-size; }
+.network-mix .admin-card-head { justify-content: space-between; }
+.network-mix form { display: grid; gap: 14px; }
+.network-mix-bar { display: flex; gap: 2px; height: 30px; margin: 4px 0 18px; border-radius: 8px; overflow: hidden; font-size: 12.5px; font-weight: 550; }
+.network-mix-bar > span { display: flex; align-items: center; min-width: 0; padding: 0 10px; flex-basis: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--text); transition: flex-grow 240ms ease; }
+.network-mix-bar > span[data-network="zeekend"] { background: color-mix(in srgb, var(--success, #3fb27f) 24%, transparent); }
+.network-mix-rows { display: grid; gap: 0; }
+.network-mix-row { display: grid; grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.4fr) minmax(0, 1.3fr) minmax(0, 0.9fr); gap: 14px 20px; align-items: start; margin: 0; padding: 16px 0; border: 0; border-top: 1px solid var(--hairline); min-width: 0; }
+.network-mix-row:first-child { border-top: 0; padding-top: 4px; }
+.network-mix-row[data-live="false"] .network-mix-share, .network-mix-row[data-live="false"] .network-mix-shown { opacity: 0.6; }
+.network-mix-name { display: grid; gap: 6px; justify-items: start; }
+.network-mix-share-input { display: flex; align-items: center; gap: 10px; }
+.network-mix-share-input input[type="range"] { flex: 1 1 auto; min-width: 0; accent-color: var(--accent); }
+/* Above .tagflow-field .input, which would stretch the box over the slider. */
+.network-mix .network-mix-share-input .input { width: 4.5em; flex: none; text-align: right; font-variant-numeric: tabular-nums; }
+.network-mix .network-mix-share-input .input[aria-invalid="true"] { border-color: var(--danger, #e5484d); }
+.network-mix-places { display: grid; gap: 6px; font-size: 13.5px; }
+.network-mix-shown { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0; }
+.network-mix-shown dt { color: var(--muted); font-size: 12px; }
+.network-mix-shown dd { margin: 2px 0 0; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.network-mix-shown dd small { font-size: 12px; font-weight: 400; }
+/* The card's own width decides, not the window's: the admin sidebar takes part of the window. */
+@container (max-width: 820px) {
+  .network-mix-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+@container (max-width: 480px) {
+  .network-mix-row { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { .network-mix-bar > span { transition: none; } }
+.network-mix-places .admin-models-check > span small { margin-top: 2px; font-size: 12px; }

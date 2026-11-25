@@ -15,6 +15,7 @@ import { currentUser, firebaseConfigured, idToken, resetPassword, signInWith, si
 import { firebaseErrorText } from "./gateText.ts";
 import { WEB_APP_GUIDE_URL, WEB_APP_HEADING, WEB_APP_INTRO } from "./seo.ts";
 import { createIcon } from "../renderer/workbench/icons.ts";
+import { GATE_IDEA_MAX, peekGateIdea, saveGateIdea, STARTER_IDEAS } from "../renderer/onboarding/starterIdeas.ts";
 import { Check, CircleCheck } from "lucide";
 
 declare const __ADCODE_WEB_DEV__: boolean;
@@ -50,6 +51,7 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, className?: stri
 }
 
 const GOOGLE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.6 12.3c0-.8-.1-1.5-.2-2.3H12v4.3h6a5.1 5.1 0 0 1-2.2 3.4v2.8h3.6c2.1-2 3.2-4.9 3.2-8.2z"/><path fill="#34A853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.6-2.8c-1 .7-2.2 1.1-3.7 1.1-2.9 0-5.3-1.9-6.2-4.5H2.1v2.9A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.8 14.1a6.6 6.6 0 0 1 0-4.2V7H2.1a11 11 0 0 0 0 10l3.7-2.9z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.7l3.2-3.2A11 11 0 0 0 2.1 7l3.7 2.9C6.7 7.3 9.1 5.4 12 5.4z"/></svg>';
+const MAIL_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m4 7 8 6 8-6"/></svg>';
 const GITHUB_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 1.5a10.5 10.5 0 0 0-3.3 20.5c.5.1.7-.2.7-.5v-1.8c-2.9.6-3.5-1.4-3.5-1.4-.5-1.2-1.2-1.5-1.2-1.5-1-.7 0-.6 0-.6 1 .1 1.6 1.1 1.6 1.1.9 1.6 2.5 1.2 3.1.9.1-.7.4-1.2.7-1.4-2.3-.3-4.8-1.2-4.8-5.2 0-1.1.4-2.1 1.1-2.8-.1-.3-.5-1.4.1-2.8 0 0 .9-.3 2.9 1.1a9.9 9.9 0 0 1 5.3 0c2-1.4 2.9-1.1 2.9-1.1.6 1.4.2 2.5.1 2.8.7.7 1.1 1.7 1.1 2.8 0 4-2.5 4.9-4.8 5.2.4.3.7 1 .7 2v2.9c0 .3.2.6.7.5A10.5 10.5 0 0 0 12 1.5z"/></svg>';
 
 /*
@@ -58,7 +60,8 @@ const GITHUB_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="cur
  * passes, the preview that opens. Decoration only (aria-hidden); with reduced motion it is the
  * finished run, still.
  */
-const RUN: readonly { readonly kind: "ask" | "step" | "done"; readonly text: string; readonly detail?: string }[] = [
+type RunStep = { readonly kind: "ask" | "step" | "done"; readonly text: string; readonly detail?: string };
+const RUN: readonly RunStep[] = [
   { kind: "ask", text: "build a booking page for my barber shop" },
   { kind: "step", text: "Read", detail: "package.json · src/App.tsx" },
   { kind: "step", text: "Helpers", detail: "3 working at once" },
@@ -66,6 +69,24 @@ const RUN: readonly { readonly kind: "ask" | "step" | "done"; readonly text: str
   { kind: "step", text: "Changes", detail: "2 files · ready to review" },
   { kind: "done", text: "Pull request opened", detail: "barber-shop #12" },
 ];
+/**
+ * The same run for whatever the visitor has typed into the card: their idea is what the stage
+ * types out, so the picture beside the sign-in buttons is of the thing they asked for.
+ */
+function runFor(idea: string): readonly RunStep[] {
+  const ask = idea.replace(/\s+/g, " ").trim();
+  if (ask.length === 0) return RUN;
+  return [
+    { kind: "ask", text: ask.length > 64 ? `${ask.slice(0, 63).trimEnd()}…` : ask },
+    { kind: "step", text: "Planned", detail: "a new project · 4 files" },
+    { kind: "step", text: "Wrote", detail: "index.html · app.js · style.css" },
+    { kind: "step", text: "Preview", detail: "running in this tab" },
+    { kind: "done", text: "Ready to try", detail: "change anything by asking" },
+  ];
+}
+/** What the stage is playing now; the card swaps it as the visitor types. */
+let currentRun: readonly RunStep[] = RUN;
+let stageLines: HTMLElement | null = null;
 let stageTimer: number | undefined;
 /** The current card's mark animation; a screen change takes the old one down with its card. */
 let stopMark: (() => void) | null = null;
@@ -91,11 +112,13 @@ function stage(): HTMLElement {
   const proof = element("ul", "web-gate-proof");
   for (const fact of ["Included AI, no subscription needed", "GitHub projects, with changes you review", "Half of the ad revenue is yours"]) proof.append(element("li", undefined, fact));
   root.append(grid, glow, brand, pitch, terminal, proof);
+  stageLines = lines;
+  currentRun = RUN;
   play(lines);
   return root;
 }
 
-function line(step: typeof RUN[number]): HTMLLIElement {
+function line(step: RunStep): HTMLLIElement {
   const item = element("li", `web-gate-line is-${step.kind}`);
   if (step.kind === "ask") {
     item.append(element("span", "web-gate-prompt", "›"), element("span", "web-gate-typed", ""));
@@ -109,32 +132,45 @@ function line(step: typeof RUN[number]): HTMLLIElement {
 /** Type the request, then let each step land after the one before, and start again. */
 function play(lines: HTMLElement): void {
   window.clearTimeout(stageTimer);
+  const run = currentRun;
   if (reducedMotion()) {
-    lines.replaceChildren(...RUN.map(line));
+    lines.replaceChildren(...run.map(line));
     const typed = lines.querySelector(".web-gate-typed");
-    if (typed !== null) typed.textContent = RUN[0]!.text;
+    if (typed !== null) typed.textContent = run[0]!.text;
     return;
   }
   lines.replaceChildren();
-  const ask = line(RUN[0]!);
+  const ask = line(run[0]!);
   lines.append(ask);
   const typed = ask.querySelector(".web-gate-typed")!;
   typed.classList.add("is-typing");
   let at = 0;
   const type = (): void => {
     if (!lines.isConnected) return;
-    typed.textContent = RUN[0]!.text.slice(0, ++at);
-    if (at < RUN[0]!.text.length) { stageTimer = window.setTimeout(type, 34 + Math.random() * 40); return; }
+    typed.textContent = run[0]!.text.slice(0, ++at);
+    if (at < run[0]!.text.length) { stageTimer = window.setTimeout(type, 28 + Math.random() * 34); return; }
     typed.classList.remove("is-typing");
     let step = 1;
     const next = (): void => {
       if (!lines.isConnected) return;
-      if (step < RUN.length) { lines.append(line(RUN[step++]!)); stageTimer = window.setTimeout(next, 620); return; }
+      if (step < run.length) { lines.append(line(run[step++]!)); stageTimer = window.setTimeout(next, 620); return; }
       stageTimer = window.setTimeout(() => play(lines), 4200);
     };
     stageTimer = window.setTimeout(next, 480);
   };
   stageTimer = window.setTimeout(type, 500);
+}
+
+/** Replays the stage with the visitor's idea, once they pause typing. */
+let restageTimer: number | undefined;
+function restage(idea: string): void {
+  window.clearTimeout(restageTimer);
+  restageTimer = window.setTimeout(() => {
+    const next = runFor(idea);
+    if (stageLines === null || !stageLines.isConnected || next[0]!.text === currentRun[0]!.text) return;
+    currentRun = next;
+    play(stageLines);
+  }, 650);
 }
 
 function shell(): { card: HTMLElement; body: HTMLElement } {
@@ -193,15 +229,48 @@ function signInCard(): Promise<"signed-in" | "dev"> {
       return button;
     };
 
+    /*
+     * "What do you want to build?", before signing in. The web version is where people try
+     * ADCode, and an idea typed here is the reason to finish signing in: it is kept across the
+     * sign-in (starterIdeas.ts) and the app starts building it the moment it opens, instead of
+     * asking the same question again behind a welcome sheet.
+     */
+    const idea = ideaBox(() => {
+      const first = actions.querySelector<HTMLButtonElement>(".web-gate-provider, .web-gate-dev");
+      first?.focus({ preventScroll: true });
+      first?.classList.remove("is-nudged");
+      void first?.offsetWidth;
+      first?.classList.add("is-nudged");
+    });
+    const next = element("p", "web-gate-next", "Sign in free to start. Nothing to install.");
+    next.setAttribute("aria-live", "polite");
+    idea.onChange((text) => {
+      next.textContent = text.length > 0
+        ? "Sign in and ADCode starts building it right away."
+        : "Sign in free to start. Nothing to install.";
+      next.dataset["ready"] = String(text.length > 0);
+    });
+
     const available = firebaseConfigured();
     if (available) {
       actions.append(provider("Continue with Google", GOOGLE_ICON, "google"), provider("Continue with GitHub", GITHUB_ICON, "github"));
 
-      const divider = element("div", "web-gate-divider");
-      divider.append(element("span", undefined, "or"));
+      // Email is the third way in, folded until chosen: three equal buttons read faster than a form.
+      const reveal = element("button", "web-gate-button web-gate-email-toggle");
+      reveal.type = "button";
+      reveal.innerHTML = MAIL_ICON;
+      reveal.append(element("span", undefined, "Continue with email"));
+      reveal.setAttribute("aria-expanded", "false");
 
       const form = element("form", "web-gate-email");
       form.noValidate = true;
+      form.hidden = true;
+      reveal.addEventListener("click", () => {
+        reveal.hidden = true;
+        reveal.setAttribute("aria-expanded", "true");
+        form.hidden = false;
+        email.focus();
+      });
       const email = element("input", "web-gate-input");
       email.type = "email";
       email.autocomplete = "email";
@@ -255,7 +324,7 @@ function signInCard(): Promise<"signed-in" | "dev"> {
             submit.disabled = false;
           });
       });
-      actions.append(divider, form);
+      actions.append(reveal, form);
     } else {
       const unavailable = element("p", "web-gate-lead", "Sign-in isn't configured for this build.");
       actions.append(unavailable);
@@ -278,9 +347,61 @@ function signInCard(): Promise<"signed-in" | "dev"> {
       Object.assign(element("a", undefined, "Privacy"), { href: `${SITE}/privacy`, target: "_blank", rel: "noopener" }),
     );
 
-    body.append(title, lead, actions, error, fine);
-    body.querySelector<HTMLButtonElement>(".web-gate-provider")?.focus();
+    body.append(title, lead, idea.element, next, actions, error, fine);
+    // The idea box on a laptop; never on a phone, where focus would throw up the keyboard over
+    // the page before anyone has read it. Without scrolling, so the card opens at its top.
+    if (window.matchMedia("(pointer: fine)").matches) idea.input.focus({ preventScroll: true });
   });
+}
+
+/** The idea box: a two-line prompt and a few ideas to start from. */
+function ideaBox(submit: () => void): { element: HTMLElement; input: HTMLTextAreaElement; onChange(listener: (text: string) => void): void } {
+  const box = element("div", "web-gate-idea");
+  const label = element("label", "web-gate-idea-label", "What do you want to build?");
+  const input = element("textarea", "web-gate-idea-input");
+  input.id = "web-gate-idea";
+  label.htmlFor = input.id;
+  input.rows = 2;
+  input.maxLength = GATE_IDEA_MAX;
+  input.placeholder = "A booking page for my barber shop, with prices and opening hours";
+  input.autocomplete = "off";
+  const listeners: ((text: string) => void)[] = [];
+  const changed = (): void => {
+    const text = input.value.trim();
+    saveGateIdea(text);
+    restage(text);
+    box.dataset["filled"] = String(text.length > 0);
+    for (const listener of listeners) listener(text);
+  };
+  input.addEventListener("input", changed);
+  // Enter is "done describing it": on to signing in. Shift+Enter is a new line, as in the chat.
+  input.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+    event.preventDefault();
+    if (input.value.trim().length > 0) submit();
+  });
+
+  const chips = element("div", "web-gate-ideas");
+  chips.setAttribute("role", "group");
+  chips.setAttribute("aria-label", "Ideas to start from");
+  for (const starter of STARTER_IDEAS.slice(0, 5)) {
+    const chip = element("button", "web-gate-chip", starter.label);
+    chip.type = "button";
+    chip.addEventListener("click", () => {
+      input.value = starter.prompt;
+      changed();
+      input.focus({ preventScroll: true });
+      input.setSelectionRange(input.value.length, input.value.length);
+    });
+    chips.append(chip);
+  }
+  box.append(label, input, chips);
+
+  // An idea already typed in this tab - a failed sign-in, a reload - is still there.
+  const kept = peekGateIdea();
+  if (kept !== null) { input.value = kept; queueMicrotask(changed); }
+
+  return { element: box, input, onChange: (listener) => { listeners.push(listener); } };
 }
 
 /** Signs the person in (or reuses a saved session) and returns what the socket needs. */

@@ -14,7 +14,13 @@
 import { reveal } from "../motion.ts";
 import { ICON, iconButton } from "../workbench/icons.ts";
 
-export const AD_PARTNER_NOTICE_KEY = "adcode.notice.adPartners.v1";
+/**
+ * v2 (2026-11-25): who receives a card's exchange changed. Imprezia fills cards again, more
+ * partners may follow, and partner notifications no longer ask any partner. Everybody told
+ * "Zeekend, our only ad partner" under v1 is told once more. The notice names no partner: the
+ * list changes with no release, so it lives on the privacy page the notice links to.
+ */
+export const AD_PARTNER_NOTICE_KEY = "adcode.notice.adPartners.v2";
 export const AD_PARTNER_SETTINGS = ["adcode.ads.chatSponsored", "adcode.ads.partnerNotifications"] as const;
 export const AD_PARTNER_PRIVACY_URL = "https://adcode.bluethenics.com/privacy#sponsored-cards";
 
@@ -32,11 +38,11 @@ export const AD_PARTNER_NOTICE = {
   badge: "Ads",
   title: "Sponsored cards that match your chats",
   body:
-    "ADCode now shows one sponsored card under some AI replies, picked for that conversation, and lets our ad partner fill a sponsored message when no ADCode advertiser has one. " +
-    "Cards send your message and the reply to Zeekend, our only ad partner. Partner messages send only the names of the languages you have open. Nothing else from your project.",
+    "ADCode shows one sponsored card above the message box after an AI reply, picked for that conversation. " +
+    "Each card sends your message and that reply to the one ad partner that fills it, and our partners are named under What is sent. Nothing else from your project.",
   /** A phone has a third of the room: the same disclosure - who, and exactly what is sent - in fewer words. */
   bodyCompact:
-    "Sponsored cards under AI replies send your message and the reply to Zeekend, our only ad partner; partner messages send only the names of the languages you have open. Nothing else from your project.",
+    "A card sends your message and that reply to one ad partner, named under What is sent. Nothing else from your project.",
   link: "What is sent",
   turnOff: "Turn off",
   settings: "Settings",

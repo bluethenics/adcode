@@ -16,11 +16,14 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { once } from "node:events";
 import { createTagflowHandler, isTagflowPath } from "./tagflow.ts";
 import { authenticate, type TokenVerifier } from "./auth.ts";
-import { handleAdNetworkAdmin, type AdNetworkRuntime } from "./adNetworks.ts";
+import { handleAdNetworkAdmin, servesTestCards, type AdNetworkRuntime } from "./adNetworks.ts";
 import { readAdNetworkArtwork } from "./adNetworkArtwork.ts";
 import { relayImprezia } from "./impreziaProxy.ts";
 import { sponsoredNetworks } from "./sponsoredNetworks.ts";
+import { checkClaim, createMemoryAdIntegrityStore, parseConversationId, withoutPausedNetworks } from "./adIntegrity.ts";
 import { creditNetworkImpression, parseNetworkImpression, withNetworkImpressions } from "./networkImpressions.ts";
+import { earningsHeld, isHeld, reviewAccount } from "./earningReview.ts";
+import { handleDecideEarningReview, handleListEarningReviews } from "./earningReviewRoutes.ts";
 import { handleServe } from "./serve.ts";
 import { requestRegionTag } from "./regions.ts";
 import { handleReceipts } from "./receipts.ts";
@@ -334,6 +337,8 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
   if (verifier === undefined) throw new Error("a TokenVerifier is required");
 
   const store = options.store ?? createMemoryStore();
+  // Claim guards and the circuit breaker (adIntegrity.ts); the in-memory one serves tests and the local server.
+  const adIntegrity = store.adIntegrity ?? createMemoryAdIntegrityStore();
   const clock = options.clock ?? { now: () => Date.now() };
   const tagflow = createTagflowHandler({ store, verifier, clock,
     ...(options.payments === undefined ? {} : { payments: options.payments }), ...(options.siteOrigin === undefined ? {} : { siteOrigin: options.siteOrigin }), ...options.tagflow });
@@ -637,18 +642,20 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
      * scanners open every link in an email, and would otherwise confirm or unsubscribe people.
      * The one exception is the RFC 8058 one-click POST that mail apps send for List-Unsubscribe.
      */
-    // Which ad partners the sponsored-card page asks, in order (sponsoredNetworks.ts). Public:
-    // the page has no sign-in, and Zeekend's publisher key is public by design.
+    // Which ad partners the sponsored-card page asks, with their shares (sponsoredNetworks.ts).
+    // Public: the page has no sign-in, Zeekend's publisher key is public by design, and
+    // Imprezia's never appears (its relay adds it).
     if (path === "/v1/sponsored/networks" && req.method === "GET") {
-      const networks = await sponsoredNetworks({
+      // A network whose breaker is open (adIntegrity.ts) is not listed; a corrupt breaker row hides every network.
+      const networks = await withoutPausedNetworks(adIntegrity, await sponsoredNetworks({
         adNetworks: store.adNetworks,
         ...(options.adNetworks?.encryptionKeys === undefined ? {} : { encryptionKeys: options.adNetworks.encryptionKeys }),
-      });
+      }));
       send(res, 200, { networks }, { ...cors, "cache-control": "public, max-age=60" });
       return;
     }
-    // A Zeekend card the sponsored page saw counted (networkImpressions.ts), for the admin's
-    // "Ads shown". No sign-in, as above: rate limited per address, one count per slot.
+    // A partner card the sponsored page saw counted (networkImpressions.ts), for the admin's
+    // "Ads shown" and traffic split. No sign-in, as above: rate limited per address, one count per card.
     if (path === "/v1/sponsored/impression" && req.method === "POST") {
       const impressions = store.networkImpressions;
       if (impressions === undefined) { send(res, 204, null, cors); return; }
@@ -677,6 +684,8 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
         ...(options.adNetworks?.encryptionKeys === undefined ? {} : { encryptionKeys: options.adNetworks.encryptionKeys }),
         bump: (bucket, windowStart) => store.bumpRequestCount(bucket, windowStart),
         now: () => clock.now(),
+        // One line per ad answer, its shape only (impreziaAnswerSummary), readable with `wrangler tail`.
+        log: (line) => console.log(`[imprezia] ${JSON.stringify(line)}`),
       }, {
         method: req.method ?? "GET",
         path: path.slice("/v1/imprezia".length) + url.search,
@@ -1548,6 +1557,35 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       return;
     }
 
+    // Ad integrity alerts and the network circuit breakers (adIntegrity.ts); a breaker only closes by hand, here.
+    if (path === "/v1/admin/ad-integrity" && req.method === "GET") {
+      await store.writeAudit({ adminUid: auth.uid, action: "read-ad-integrity", subjectUid: "*", at: clock.now() });
+      const [alerts, breakers] = await Promise.all([adIntegrity.listAlerts(100), adIntegrity.breakers()]);
+      send(res, 200, { alerts, breakers }, { ...cors, "cache-control": "no-store" });
+      return;
+    }
+    const adBreakerReset = /^\/v1\/admin\/ad-integrity\/([a-z0-9_-]{1,40})\/reset$/.exec(path);
+    if (adBreakerReset !== null && req.method === "POST") {
+      const closed = await adIntegrity.closeBreaker({ network: adBreakerReset[1] ?? "", adminUid: auth.uid, now: clock.now() });
+      send(res, closed ? 200 : 404, { closed }, { ...cors, "cache-control": "no-store" });
+      return;
+    }
+
+    // Accounts held for ad-farming review, and the decision on each (earningReviewRoutes.ts).
+    if (path === "/v1/admin/earning-reviews" && req.method === "GET") {
+      const result = await handleListEarningReviews({ store, clock }, auth.uid, url.searchParams.get("status"));
+      send(res, result.status, result.body, { ...cors, "cache-control": "no-store" });
+      return;
+    }
+    const earningReviewDecision = /^\/v1\/admin\/earning-reviews\/([^/]+)$/.exec(path);
+    if (earningReviewDecision !== null && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const result = await handleDecideEarningReview({ store, clock }, auth.uid, decodeURIComponent(earningReviewDecision[1] ?? ""), raw);
+      send(res, result.status, result.body, { ...cors, "cache-control": "no-store" });
+      return;
+    }
+
     const userStatus = /^\/v1\/admin\/users\/([^/]+)\/status$/.exec(path);
     if (userStatus !== null && req.method === "POST") {
       const raw = await jsonBodyOr400();
@@ -2251,12 +2289,40 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       return;
     }
 
-    // A Zeekend card the signed-in app saw counted: the admin-set rate to this account, once per slot,
-    // capped per day (networkImpressions.ts).
+    // A partner card (Zeekend or Imprezia) the signed-in app saw counted: the admin-set rate to
+    // this account, once per card, capped per day across partners (networkImpressions.ts).
     if (path === "/v1/sponsored/earn" && req.method === "POST") {
       let raw: unknown = null;
       try { raw = JSON.parse(await readBody(req)); } catch { send(res, 400, { error: "invalid-body" }, cors); return; }
-      const outcome = await creditNetworkImpression({ adNetworks: store.adNetworks, bumpDailyCount: (key, dayStart) => store.bumpRequestCount(key, dayStart), now: clock.now() }, auth.uid, raw);
+      const now = clock.now();
+      // Integrity guards (adIntegrity.ts): per-conversation volume, the 25-35 s timer signature, a per-account
+      // daily ceiling, and a network whose breaker is open. Fails open on database errors, never on a corrupt breaker.
+      const claimed = parseNetworkImpression(raw);
+      if (claimed !== null) {
+        const decision = await checkClaim(adIntegrity, {
+          uid: auth.uid, network: claimed.network, conversation: parseConversationId(raw),
+          country: firstHeader(req.headers["cf-ipcountry"]) ?? null, now,
+        });
+        if (!decision.allow) { send(res, 200, { credited: false, reason: decision.reason, message: decision.message }, { ...cors, "cache-control": "no-store" }); return; }
+      }
+      const reviews = store.earningReviews;
+      // Held accounts earn nothing new; the day's first card (and the one past the custom-domain
+      // threshold, and a day of cards sent too fast) is when an account is looked at (earningReview.ts).
+      const review = reviews === undefined ? undefined : {
+        held: () => earningsHeld(reviews, auth.uid),
+        assess: async ({ cardsToday, tooFast }: { cardsToday?: number; tooFast?: boolean }) => isHeld(await reviewAccount(
+          { reviews, getUser: (id) => store.getUser(id), now },
+          auth.uid,
+          { ...(cardsToday === undefined ? {} : { cardsToday }), ...(tooFast === true ? { reasons: ["too-fast" as const] } : {}) },
+        )),
+      };
+      const outcome = await creditNetworkImpression({
+        adNetworks: store.adNetworks,
+        bumpDailyCount: (key, dayStart) => store.bumpRequestCount(key, dayStart),
+        now,
+        servesTestCards: (config) => servesTestCards({ store, ...options.adNetworks }, config),
+        ...(review === undefined ? {} : { review }),
+      }, auth.uid, raw);
       send(res, outcome.credited || outcome.reason !== "invalid" ? 200 : 400, outcome, { ...cors, "cache-control": "no-store" });
       return;
     }

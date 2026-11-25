@@ -6,9 +6,11 @@ import { AdminShell, AdminTabs } from "@/components/AdminShell";
 import { Withdrawals } from "../_sections/Withdrawals";
 import { AdvertisersBody } from "../_sections/Advertisers";
 import { PayoutCorridors } from "../_sections/PayoutCorridors";
+import { EarningReviews } from "../_sections/EarningReviews";
 
 const TABS = [
   { id: "payouts", label: "Payouts" },
+  { id: "review", label: "Earnings review" },
   { id: "advertisers", label: "Advertisers" },
   { id: "countries", label: "Countries" },
 ] as const;
@@ -19,6 +21,10 @@ const HEADS: Record<TabId, { title: string; subtitle: string }> = {
   payouts: {
     title: "Payouts",
     subtitle: "Review the request, send it through Wise, record the evidence.",
+  },
+  review: {
+    title: "Earnings review",
+    subtitle: "Accounts held for looking like ad farming. Clear, trust their domain, or block.",
   },
   advertisers: {
     title: "Advertisers",
@@ -48,6 +54,7 @@ function MoneyBody() {
       <AdminTabs base="/admin/money" active={tab} tabs={[...TABS]} />
       {/* `key` re-reads a fresh jump-box query rather than keeping a stale search. */}
       {tab === "payouts" && <Withdrawals key={q} initialQuery={q} />}
+      {tab === "review" && <EarningReviews />}
       {tab === "advertisers" && <AdvertisersBody key={q} initialQuery={q} />}
       {tab === "countries" && <PayoutCorridors />}
     </AdminShell>

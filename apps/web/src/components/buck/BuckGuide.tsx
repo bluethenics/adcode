@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { firstVisitQuiet } from "@/lib/firstVisit";
 import Link from "@/components/IntentLink";
 import { Buck } from "./Buck";
 import type { AdcodeMascot } from "./adcodeMascot";
@@ -124,7 +125,9 @@ export function BuckGuide() {
   // Arrives a moment after the page, so the first thing a reader sees is the page itself.
   useEffect(() => {
     if (quiet) { setState("hidden"); return; }
-    const timer = window.setTimeout(() => setState(remember.get() === "tucked" ? "tucked" : "shown"), 1400);
+    // A first visit: Buck waits tucked in his corner rather than sliding in and talking before a
+    // line of the page has been read (lib/firstVisit.ts). One click brings him out.
+    const timer = window.setTimeout(() => setState(remember.get() === "tucked" || (remember.get() === null && firstVisitQuiet()) ? "tucked" : "shown"), 1400);
     return () => window.clearTimeout(timer);
   }, [quiet]);
 

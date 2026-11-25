@@ -714,6 +714,10 @@ export interface Store extends TagflowStore {
   adNetworks?: import("./adNetworkConfig.ts").AdNetworkStore;
   /** Zeekend cards seen on the sponsored page, for the admin's "Ads shown" (networkImpressions.ts). */
   networkImpressions?: import("./networkImpressions.ts").NetworkImpressionStore;
+  /** Accounts held for ad-farming review (earningReview.ts). Absent: nobody is held. */
+  earningReviews?: import("./earningReview.ts").EarningReviewStore;
+  /** Claim guards and the per-network circuit breaker (adIntegrity.ts). */
+  adIntegrity?: import("./adIntegrity.ts").AdIntegrityStore;
   /**
    * Anonymous lifetime totals, plus accounts created in the seven days before `now`.
    * Excludes zero-cost test receipts; counts active users only; no account data.

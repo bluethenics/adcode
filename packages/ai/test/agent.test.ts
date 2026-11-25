@@ -829,3 +829,57 @@ describe("a turn that fails mid tool call", () => {
     expect(last.content).toEqual([{ type: "text", text: "again" }]);
   });
 });
+
+describe("turn context (what changes between messages)", () => {
+  /** Records each request's system prompt and messages. */
+  function recordingProvider(): Provider & { seen: { system: string; messages: Message[] }[] } {
+    const seen: { system: string; messages: Message[] }[] = [];
+    return {
+      id: "anthropic", displayName: "Recording", models: ["test-model"], seen,
+      async *stream(request) {
+        seen.push({ system: request.system, messages: request.messages.map((message) => ({ ...message, content: [...message.content] })) });
+        yield { kind: "text", text: "ok" };
+        yield { kind: "stop", reason: "end-turn" };
+      },
+    };
+  }
+
+  it("rides in the message, not the system prompt, so the cached history before it holds", async () => {
+    const provider = recordingProvider();
+    let cursor = 10;
+    const agent = createAgent({ provider, model: "test-model", tools: [], runner: runner(), context: () => "Workspace: /p", turnContext: () => `Looking at a.ts, line ${cursor}` });
+    await collect(agent.send("first"));
+    cursor = 42;
+    await collect(agent.send("second"));
+    expect(provider.seen[0]!.system).toBe(provider.seen[1]!.system);
+    expect(provider.seen[0]!.system).not.toContain("Looking at");
+    const second = provider.seen[1]!.messages;
+    // Everything the first request sent is sent again unchanged: a prefix the provider has cached.
+    expect(second.slice(0, provider.seen[0]!.messages.length)).toEqual(provider.seen[0]!.messages);
+    expect(second.at(-1)!.content).toEqual([
+      { type: "text", text: "<adcode-context>\nLooking at a.ts, line 42\n</adcode-context>" },
+      { type: "text", text: "second" },
+    ]);
+  });
+
+  it("is left out while nothing changed, and said again after a reset", async () => {
+    const provider = recordingProvider();
+    const agent = createAgent({ provider, model: "test-model", tools: [], runner: runner(), turnContext: () => "Looking at a.ts" });
+    await collect(agent.send("one"));
+    await collect(agent.send("two"));
+    const users = agent.history().filter((message) => message.role === "user");
+    expect(users[0]!.content).toHaveLength(2);
+    expect(users[1]!.content).toEqual([{ type: "text", text: "two" }]);
+    agent.reset();
+    await collect(agent.send("three"));
+    expect(agent.history()[0]!.content).toHaveLength(2);
+  });
+
+  it("costs the message nothing when it cannot be read", async () => {
+    const provider = recordingProvider();
+    const agent = createAgent({ provider, model: "test-model", tools: [], runner: runner(), turnContext: () => { throw new Error("editor gone"); } });
+    const events = await collect(agent.send("hi"));
+    expect(events.some((event) => event.kind === "error")).toBe(false);
+    expect(agent.history()[0]!.content).toEqual([{ type: "text", text: "hi" }]);
+  });
+});

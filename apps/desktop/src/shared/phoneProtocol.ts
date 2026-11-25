@@ -125,7 +125,7 @@ export interface PhoneDevice {
   readonly model: string | null;
   /**
    * Whether this computer shows sponsored cards under AI replies (Settings > Ads, with
-   * sponsored messages on). The phone shows a Zeekend card under a finished reply only when it
+   * sponsored messages on). The phone shows a partner card under a finished reply only when it
    * is true, so one switch on the computer decides for both. Absent from older computers: off.
    */
   readonly sponsored?: boolean;
