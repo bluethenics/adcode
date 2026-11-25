@@ -106,7 +106,11 @@ describe("the earn and rate routes", () => {
   async function api(country: (request: Request) => string | undefined) {
     const store = createMemoryStore();
     await store.adNetworks!.put(zeekend(), "admin", NOW);
-    return createFetchHandler({ store, clock: { now: () => NOW }, verifier, tagflow: { country } });
+    // A live key: a connection with a test key, or none, pays nobody (adNetworks.ts servesTestCards).
+    const encryption = Buffer.alloc(32, 9).toString("base64");
+    const { encryptAdNetworkKey } = await import("../src/adNetworkCrypto.ts");
+    await store.adNetworks!.putKey("zeekend", encryptAdNetworkKey("zeekend", "pub_live_abc123XYZ", encryption));
+    return createFetchHandler({ store, clock: { now: () => NOW }, verifier, tagflow: { country }, adNetworks: { encryptionKeys: () => [encryption] } });
   }
   const earn = (slotId: string, headers: Record<string, string> = {}) => new Request("https://api.example.com/v1/sponsored/earn", { method: "POST", headers: { authorization: "Bearer u9", "content-type": "application/json", ...headers }, body: JSON.stringify({ network: "zeekend", slotId }) });
   const rate = (headers: Record<string, string> = {}) => new Request("https://api.example.com/v1/sponsored/rate", { headers: { authorization: "Bearer u9", ...headers } });
