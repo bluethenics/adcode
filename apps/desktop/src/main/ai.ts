@@ -44,6 +44,8 @@ import {
   AUTO_FORK_GUIDANCE,
   chatForkBriefing,
   forkChatSession,
+  latestPictures,
+  sideChatNote,
   isChatForkTool,
   DEFAULT_ANTHROPIC_MODEL,
   SNAPSHOT_TAKEN_ON,
@@ -150,6 +152,7 @@ import { createChatForkService, MAX_FORKS_PER_CHAT, withChatForks, type ChatFork
 import { CONTINUE_PROMPT } from "../shared/continuePrompt.ts";
 import { lightSession } from "../shared/sessionDelta.ts";
 import { checkpointView, checkpointsForSession } from "./aiCheckpointView.ts";
+import { createTurnProgress, describeToolCall, type TurnProgress } from "./turnProgress.ts";
 import { ASSISTANT_EXTENSION_TOOLS, bridgeAppTools, offeredAppTools, withAssistantExtensions } from "./assistantControls.ts";
 import { memoryForWorkspace } from "./memory.ts";
 import { currentSettings, loadSettings, writeSetting } from "./settings.ts";
@@ -967,23 +970,37 @@ export function aiCurrentSession(): ChatSession | null {
  * The manual counterpart of the `fork_chats` tool: same record, same family, no task to run.
  * It is refused for a fork and once the family is full, so the sidebar cannot grow a tree.
  */
-export async function aiForkSession(id: string): Promise<ChatSession | null> {
+export async function aiForkSession(id: string, options: { readonly side?: boolean } = {}): Promise<ChatSession | null> {
   const all = await aiSessions();
   const parent = threads.get(id)?.session ?? all.find((one) => one.id === id) ?? null;
   if (parent === null || parent.parentId !== undefined) return null;
   if (all.filter((one) => one.parentId === parent.id).length >= MAX_FORKS_PER_CHAT) return null;
   const at = Date.now();
-  const suffix = " (fork)";
+  const suffix = options.side === true ? " (side)" : " (fork)";
   const child = forkChatSession({
     parent,
     id: `s${randomUUID()}`,
     title: `${parent.title.slice(0, 120 - suffix.length)}${suffix}`,
     at,
+    ...(options.side === true ? { side: true } : {}),
   });
+  // A saved transcript keeps only "[Attached: shot.png]", never the picture. A side chat asks
+  // about what the person was looking at, so it takes the main chat's latest pictures from the
+  // live conversation and shows them to the model with its first question.
+  if (options.side === true) {
+    const live = threads.get(id)?.agent?.history() ?? [];
+    const pictures = latestPictures(live, SIDE_CHAT_PICTURES).filter((block): block is ImageBlock => block.type === "image");
+    if (pictures.length > 0) sideChatPictures.set(child.id, pictures);
+  }
   const root = threads.get(id)?.root ?? currentWorkspace()?.root ?? null;
   await writeSession(root, child);
   return child;
 }
+
+/** How many of the main chat's latest pictures a side chat is shown. */
+const SIDE_CHAT_PICTURES = 4;
+/** Pictures waiting for a side chat's first question, by chat id. */
+const sideChatPictures = new Map<string, ImageBlock[]>();
 
 /** The conversations working right now. */
 export function aiRuns(): AiRunView[] {
@@ -1285,7 +1302,7 @@ export async function buildProvider(
     const listedModels = await cliModelsQuick(cli, homedir());
     // ACP agents (OpenCode, Gemini CLI, Copilot, Cursor...) through one protocol client, Codex
     // through its app-server, Claude Code through its own stream-JSON.
-    return (cli.protocol === "acp" ? createAcpProvider : cli.protocol === "codex-app-server" ? createCodexProvider : createCliProvider)({ spec: cli, models: listedModels.map((model) => model.id), modelEfforts: Object.fromEntries(listedModels.filter((model) => model.efforts !== undefined).map((model) => [model.id, model.efforts!])), spawn: spawnCli, live: spawnCliLive, liveProcesses: cliLive, cwd: () => chat?.root() ?? currentWorkspace()?.root ?? homedir(), sessions, mcp: claudeToolBridge, bypassPermissions: () => fullAccessActive(), askPermission: askCliPermission, ...(chat === undefined ? {} : { conversation: chat.id }) });
+    return (cli.protocol === "acp" ? createAcpProvider : cli.protocol === "codex-app-server" ? createCodexProvider : createCliProvider)({ spec: cli, models: listedModels.map((model) => model.id), modelEfforts: Object.fromEntries(listedModels.filter((model) => model.efforts !== undefined).map((model) => [model.id, model.efforts!])), spawn: spawnCli, live: spawnCliLive, liveProcesses: cliLive, cwd: () => chat?.root() ?? currentWorkspace()?.root ?? homedir(), sessions, mcp: claudeToolBridge, bypassPermissions: () => fullAccessActive(), readOnly: () => chat !== undefined && threads.get(chat.id())?.session.side === true, askPermission: askCliPermission, ...(chat === undefined ? {} : { conversation: chat.id }) });
   }
   const key = offeredKey ?? (KEYLESS.has(id) ? "" : ((await keys.get(id)) ?? ""));
   const paced = (provider: Provider) => requestScheduler.wrap(provider, id, () => connections().find(item => item.id === id)?.rpm ?? 6000);
@@ -1524,7 +1541,8 @@ export async function aiStatus(): Promise<AiStatus> {
     const models = usable ? cliModelsNow(spec, homedir(), () => broadcast(CHANNELS.aiProvidersChanged, null)) : [];
     providers.push({
       id: cliProviderId(spec.id),
-      displayName: spec.headless ? `${spec.name} (CLI)` : `${spec.name} (terminal)`,
+      // "Codex CLI" already says it: not "Codex CLI (CLI)" in the picker and on the Usage page.
+      displayName: spec.headless ? (/\bCLI$/.test(spec.name) ? spec.name : `${spec.name} (CLI)`) : `${spec.name} (terminal)`,
       // Live: what the CLI reports for this account, named and described as it describes them.
       models: models.map((model) => ({ id: model.id, name: model.name, toolCall: true, reasoning: false, recommended: model.id === "default", ...(model.description === undefined ? {} : { note: model.description }), ...(model.efforts === undefined ? {} : { efforts: model.efforts }) })),
       hasKey: usable,
@@ -2045,11 +2063,15 @@ async function ensureChatAgent(thread: ChatThread, providerId: string, model: st
     service: chatForks(),
     session: () => thread.session,
   });
-  const tools = [
-    ...chatTools(),
-    ...(isFork ? CHAT_FORK_PARTICIPANT_TOOLS : CHAT_FORK_TOOLS),
-    ...(lean || isFork ? [] : [DELEGATE_TASK, CREATE_AGENT, MANAGE_AGENT_FLOW, modToolDefinition(builtInSlashCommands())]),
-  ];
+  // A side chat (/btw) looks and answers: read-only tools, and none that message the main
+  // chat or start work. The note it reads says so; this makes it true.
+  const tools = thread.session.side === true
+    ? filterToolsByAccess(chatTools(), "read-only").tools
+    : [
+      ...chatTools(),
+      ...(isFork ? CHAT_FORK_PARTICIPANT_TOOLS : CHAT_FORK_TOOLS),
+      ...(lean || isFork ? [] : [DELEGATE_TASK, CREATE_AGENT, MANAGE_AGENT_FLOW, modToolDefinition(builtInSlashCommands())]),
+    ];
   const context = async (): Promise<string> => {
       const root = thread.root;
       let blocker: string | null = null;
@@ -2523,6 +2545,8 @@ async function runTurn(
     });
     if (changed.length > 0) announceProjectFiles(changed);
   };
+  /** The turn's progress, saved as it works (turnProgress.ts); stopped before the final save. */
+  let progress: TurnProgress | null = null;
   try {
     // This chat's own model. A chat that has none yet takes the one chosen last and keeps it,
     // so a model chosen in another chat later - even mid-task, between two of this chat's
@@ -2573,9 +2597,18 @@ async function runTurn(
       }
       if (prompted.context !== null) turnText = `${turnText}\n\nContext from this project's userPromptSubmit hooks:\n${prompted.context}`;
     }
-    // A fork's first request explains the family it belongs to. The task itself is the
-    // message, so this is context rather than another bubble in the transcript.
-    if (!thread.forkBriefed && thread.session.parentId !== undefined) {
+    // A side chat (/btw) answers about the copy and never carries on its work: told so with
+    // every message, and shown the main chat's latest pictures with the first one. It never
+    // gets the fork briefing, which tells a fork to do its part and report back.
+    if (thread.session.side === true) {
+      const carried = sideChatPictures.get(sessionId) ?? [];
+      sideChatPictures.delete(sessionId);
+      images.unshift(...carried);
+      const parent = (await aiSessions().catch(() => [])).find((session) => session.id === thread.session.parentId);
+      turnText = `${sideChatNote({ parentTitle: parent?.title ?? "the main chat", pictures: carried.length })}\n\n${turnText}`;
+    } else if (!thread.forkBriefed && thread.session.parentId !== undefined) {
+      // A fork's first request explains the family it belongs to. The task itself is the
+      // message, so this is context rather than another bubble in the transcript.
       thread.forkBriefed = true;
       const briefing = await forkBriefingFor(thread).catch(() => null);
       if (briefing !== null) turnText = `${briefing}\n\n${turnText}`;
@@ -2601,6 +2634,12 @@ async function runTurn(
     /** When the model first showed anything - the wait a person actually sits through. */
     let firstOutputAt: number | null = null;
     let toolCalls = 0;
+    // Closing ADCode mid-task used to leave only the prompt, and people sent it again. The words
+    // so far and the steps taken are saved as the turn works; the finished answer replaces them.
+    progress = createTurnProgress({
+      answer: () => answer,
+      save: (saved) => writeSession(thread.root, withMessage(thread.session, { role: "assistant", text: saved, at: Date.now(), interrupted: true })),
+    });
     let keepGoing = false;
     // Automatic mode writes as it goes; this turn's writes become one undoable checkpoint.
     const turnRoot = thread.root;
@@ -2625,6 +2664,7 @@ async function runTurn(
       // workspace names them.
       let event: AgentEvent = raw;
       if (raw.kind === "agent-tool") {
+        progress.step(describeToolCall(raw.tool.name, { command: raw.tool.detail }));
         cliSnapshot?.touch(raw.tool.paths ?? []);
         if (writesUnnamed(raw.tool.kind)) cliSnapshot?.noteUnnamedWrites();
         if (turnRoot !== null) event = { kind: "agent-tool", tool: outsideToolForChat(raw.tool, turnRoot) };
@@ -2684,10 +2724,12 @@ async function runTurn(
       // Text on either side of tool work is two paragraphs, not one run-on sentence
       // ("…files first.Seven scripts…") when the conversation is reopened.
       if (event.kind === "tool-call" && answer.trim().length > 0) paragraphBreak = true;
+      if (event.kind === "tool-call") progress.step(describeToolCall(event.call.name, event.call.input));
       if (event.kind === "text") {
         if (paragraphBreak && !answer.endsWith("\n\n")) answer = `${answer.trimEnd()}\n\n`;
         paragraphBreak = false;
         answer += event.text;
+        progress.wrote();
       }
       if (event.kind === "error" || event.kind === "refusal" || event.kind === "cancelled") {
         turnSucceeded = false;
@@ -2753,6 +2795,8 @@ async function runTurn(
      * leave a conversation whose last line is blank, which reads as the assistant having
      * nothing to say rather than as something having gone wrong.
      */
+    // Any progress save still landing goes first, so this - the finished turn - is what stays.
+    await progress.stop();
     if (answer.length > 0) {
       turnSession = withMessage(thread.session, { role: "assistant", text: answer, at: Date.now(),...(thread.includedRequestId === undefined ? {} : { includedRequestId: thread.includedRequestId }) });
     } else {
@@ -2806,6 +2850,11 @@ async function runTurn(
     }
     const detail = error instanceof Error ? error.message : "the assistant failed";
     recordDebug("error", "ai", `Turn failed: ${detail}`);
+    // A turn that failed was not interrupted by a close: take back any progress it saved.
+    if (progress !== null) {
+      await progress.stop();
+      await writeSession(thread.root, thread.session).catch(() => undefined);
+    }
     // Whatever the turn wrote before failing is still undoable - a coding CLI's writes included.
     await recordCliChanges();
     const checkpoint = await (thread.checkpoint?.finish() ?? Promise.resolve(null)).catch(() => null);

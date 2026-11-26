@@ -21,7 +21,8 @@
  *   calls", with each call a click away. Anything in between - thinking, text - starts a
  *   new row, because the timeline reads in order.
  * - **One face at work.** The mascot sits in the heading while the turn runs and leaves
- *   when it ends; live rows carry the small pixel spinner instead of a face of their own.
+ *   when it ends - and steps aside while the chat's working row, with its own Buck, shows
+ *   under the turn. Live rows carry the small pixel spinner instead of a face of their own.
  * - **Helpers are their own rows.** A `delegate_task` call opens one row per sub-agent -
  *   title, mode, what it is doing right now - and each helper's report sits a click away
  *   when it ends.

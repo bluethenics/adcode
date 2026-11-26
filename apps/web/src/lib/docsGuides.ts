@@ -1140,7 +1140,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     steps: [
       "Open Assistant from the workbench or command palette.",
       "Ask about the code in front of you - the assistant can see the open project.",
-      "While it works, the answer builds as a timeline in the order it happens, as in Claude: under a Working for Ns heading come Thinking rows (a one-line summary - open one to read the whole thought), the steps it takes, and the text it writes between them. A run of the same tool is one row, such as Search project · 11 calls; open it to see each call with a tick. The blue mascot sits in the heading - hover it and its white eyes follow you, click it for a morale-boosting quip - and a small pixel mosaic marks whatever is still running.",
+      "While it works, the answer builds as a timeline in the order it happens, as in Claude: under a Working for Ns heading come Thinking rows (a one-line summary - open one to read the whole thought), the steps it takes, and the text it writes between them. A run of the same tool is one row, such as Search project · 11 calls; open it to see each call with a tick. Buck, the ADCode mascot, works at the foot of the conversation while the turn runs - thinking, peering about, typing, now and then flipping his coin - beside a word that changes every few seconds, such as Marinating or Untangling; a small pixel mosaic marks each step still running.",
       "When the turn ends, the timeline folds to Worked for Ns with the answer below it - select the heading to unfold the whole process again.",
       "Scroll up mid-stream and the view stays pinned while a Jump to latest pill appears with a count of new messages - select it to return to the tail.",
       "If you stop a turn, the interrupted banner offers Edit prompt (your last message back in the composer) and Try again.",
@@ -1911,17 +1911,35 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
   "ai-side-chats": {
     steps: [
       "In a main conversation, type /btw and your question - for example /btw why did it choose SQLite? - and press Enter. You can also run AI: Ask on the Side, or choose Side chat from the composer's Tools menu.",
-      "ADCode copies the conversation into a new chat titled Side: and your question, opens it and sends the question there. The side chat already knows everything the conversation does.",
+      "ADCode copies the conversation into a new chat titled Side: and your question, opens it and sends the question there. The side chat already knows everything the conversation does. Pictures or files you attach with /btw go with the question, and it also sees the main chat's latest pictures.",
+      "The side chat only answers. It can read the project to do that, but it cannot edit files or run commands, and it never picks up the main chat's task - with ADCode's assistant, Claude Code, Codex or OpenCode alike.",
       "The main conversation keeps working while you read the answer.",
       "Go back with the link at the top of the side chat. Both stay in History, so you can return to the side chat later.",
     ],
     benefits: [
       "Ask about the work without adding a detour to the conversation doing it.",
       "No need to re-explain the project: the side chat starts with the whole conversation.",
-      "The main chat's work is never interrupted or steered off course by your question.",
+      "The main chat's work is never interrupted or steered off course by your question, and the side chat cannot change files under it.",
     ],
     betterThan:
       "Asking in the same chat puts the question in its history and can change what it does next. Asking in a new chat means explaining everything again. A side chat has the full context and none of the side effects.",
+  },
+
+  "ai-attachments": {
+    steps: [
+      "Press Attach under the message box and pick one or more files. You can also drag files onto the chat, or run AI: Attach Files to the Chat from the command palette.",
+      "Or paste: press Ctrl+V (Cmd+V on a Mac), or right-click in the message box and choose Paste. A copied screenshot, or a file copied in File Explorer, is attached; a long log becomes an attachment too.",
+      "Each file shows as a chip under the box. A document's chip says what was read, such as PDF · 12 pages or Excel · 3 sheets. While a big document is being read the box says Reading, and Send waits for it.",
+      "Type what you want done with the files and send. Remove a chip with its × before sending if you change your mind.",
+    ],
+    benefits: [
+      "PDFs, Word documents, Excel workbooks and PowerPoint decks are read into text on your computer, so any model can use them - including Claude Code, Codex and OpenCode, which cannot open them on their own.",
+      "Spreadsheets keep their shape: every sheet becomes rows of cells, with dates shown as dates rather than serial numbers.",
+      "Right-click works in the message box: Cut, Copy, Paste, Paste as plain text, Select all and Attach files, with Paste behaving exactly like Ctrl+V.",
+      "Code and config with unusual names - Dockerfile, .env, .vue - are read as text, and anything that can't be read says what to do instead.",
+    ],
+    betterThan:
+      "Copying a PDF or a spreadsheet into a chat by hand loses its tables and takes minutes, and many AI tools refuse the file outright or only accept it with one provider. Here the file is read the same way whatever model you use, and the chip tells you exactly what the model received. Pictures and charts inside a document are not read, and a scanned PDF has no text to read - attach screenshots of its pages for those.",
   },
 
   "ai-composer-memory": {
@@ -2772,7 +2790,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Open Earnings from the Earnings row in the Vibe sidebar, or run Earnings from the command palette.",
       "Read your available balance at the top: dollars and cents large, the fractions of a cent a single sponsored card pays small beside them. The chip beside it says whether ads are earning right now.",
       "Use the two buttons under it: Convert to AI credits spends the balance on paid models at once; Withdraw on the website opens the payout page.",
-      "Check the tiles for lifetime earned, whether ads are on, receipts still waiting to sync, and when the next card can appear.",
+      "Read the list under them: lifetime earned, your pay per card, when the next card can appear while ads are on, receipts still waiting to sync, and the account ID (click it to copy). If ads are off, the button at the bottom says Turn on ads.",
       "On the web dashboard (or Your account in the web app), read today, the last 7 days and the last 30 days under the balance, and the bar that shows how far you are from the withdrawal minimum.",
       "Look at Earnings, day by day for what sponsored cards paid each day; choose All earnings to add invite earnings and other credits to the chart.",
       "Open the Ledger: each day's sponsored cards are folded into one line with their exact total. Open a line to see every card. Withdrawals, conversions, invites and corrections each keep a line of their own.",

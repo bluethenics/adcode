@@ -80,7 +80,7 @@ const api: AdcodeApi = {
     sessions: () => ipcRenderer.invoke(CHANNELS.aiSessions),
     sessionsDelta: (known) => ipcRenderer.invoke(CHANNELS.aiSessionsDelta, known),
     resume: (id) => ipcRenderer.invoke(CHANNELS.aiResumeSession, id),
-    fork: (id) => ipcRenderer.invoke(CHANNELS.aiForkSession, id),
+    fork: (id, options) => ipcRenderer.invoke(CHANNELS.aiForkSession, id, options),
     rename: (id, title) => ipcRenderer.invoke(CHANNELS.aiRenameSession, id, title),
     remove: (id) => ipcRenderer.invoke(CHANNELS.aiDeleteSession, id),
     clear: () => ipcRenderer.invoke(CHANNELS.aiClearSessions),
@@ -90,6 +90,7 @@ const api: AdcodeApi = {
   clipboard: {
     writeText: (text) => ipcRenderer.invoke(CHANNELS.clipboardWrite, text),
     readText: () => ipcRenderer.invoke(CHANNELS.clipboardRead),
+    edit: (command) => ipcRenderer.invoke(CHANNELS.clipboardEdit, command),
   },
   terminal: {
     profiles: () => ipcRenderer.invoke(CHANNELS.terminalProfiles),

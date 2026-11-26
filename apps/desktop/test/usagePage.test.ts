@@ -93,6 +93,8 @@ describe("the usage page", () => {
     expect(page.days).toHaveLength(7);
     expect(page.days.at(-1)).toMatchObject({ day: day(0), tokens: 12_000, tokensBy: [12_000, 0, 0], costBy: [40_000, 0, 0] });
     expect(page.days.at(-2)!.tokensBy).toEqual([0, 0, 4000]);
+    // Each day says how much of it was re-read from cache, for the chart tooltip.
+    expect(page.days.reduce((total, one) => total + one.cachedTokens, 0)).toBe(page.totals.cachedTokens);
   });
 
   it("compares with the period before, per request too", () => {

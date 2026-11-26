@@ -41,11 +41,13 @@ export function codexAppServerArgs(mcp: CliMcpServer | null | undefined): string
  * (the network, a path outside the project). Full access is `--dangerously-bypass-approvals-and-sandbox`
  * as thread settings: no sandbox, and no questions.
  */
-export function codexThreadParams(options: { readonly cwd: string; readonly model: string; readonly bypass: boolean }): Record<string, unknown> {
+export function codexThreadParams(options: { readonly cwd: string; readonly model: string; readonly bypass: boolean; readonly readOnly?: boolean }): Record<string, unknown> {
+  // A side chat (/btw) reads and answers: a read-only sandbox, whatever Full access says.
+  const readOnly = options.readOnly === true;
   return {
     cwd: options.cwd,
-    approvalPolicy: options.bypass ? "never" : "on-request",
-    sandbox: options.bypass ? "danger-full-access" : "workspace-write",
+    approvalPolicy: options.bypass && !readOnly ? "never" : "on-request",
+    sandbox: readOnly ? "read-only" : options.bypass ? "danger-full-access" : "workspace-write",
     ...(options.model !== "default" && isSafeCliToken(options.model) ? { model: options.model } : {}),
   };
 }
@@ -431,7 +433,8 @@ export function createCodexProvider(options: CliProviderOptions): Provider {
       const key = chat !== undefined && chat !== "" ? `${spec.id}:${request.model}:chat:${chat}` : conversationKey(spec.id, request.model, request);
       const prior = sessions.get(key);
       const resume = prior !== undefined && request.messages.length > prior.messages;
-      const bypass = options.bypassPermissions?.() === true;
+      const readOnly = options.readOnly?.() === true;
+      const bypass = !readOnly && options.bypassPermissions?.() === true;
       const mcp = options.mcp?.() ?? null;
       const cwd = options.cwd();
       const effort = cliEffort(request, options.modelEfforts).effort;
@@ -439,7 +442,7 @@ export function createCodexProvider(options: CliProviderOptions): Provider {
       const env = cliEnv(spec.id, mcp);
       // Model, access and tools are settled per thread and process; a change to any starts afresh
       // (and resumes the thread). The reasoning level goes with each turn.
-      const signature = JSON.stringify([cwd, env, args, request.model, bypass]);
+      const signature = JSON.stringify([cwd, env, args, request.model, bypass, readOnly]);
       const fail = (error: unknown): never => {
         const message = error instanceof Error ? error.message : String(error);
         const out = SIGNED_OUT.test(message);
@@ -477,7 +480,7 @@ export function createCodexProvider(options: CliProviderOptions): Provider {
             await connection.request("initialize", { clientInfo: { name: "adcode", title: "ADCode", version: "1" } });
             connection.notify("initialized");
           } catch (error) { fail(error); }
-          const thread = codexThreadParams({ cwd, model: request.model, bypass });
+          const thread = codexThreadParams({ cwd, model: request.model, bypass, readOnly });
           let threadId = "";
           if (resume) {
             // A thread Codex has cleaned up fails here; the conversation then starts afresh with its transcript.
@@ -532,21 +535,23 @@ export function createCodexProvider(options: CliProviderOptions): Provider {
           const plan = codexRequestPlan(spec.name, method, params, state, mcp?.server ?? null);
           if ("error" in plan) throw new CodexError(-32601, plan.error);
           if ("reply" in plan) return plan.reply;
-          if ("allow" in plan || bypass) return codexApprovalReply(method, params, "allow");
+          if (("allow" in plan || bypass) && !readOnly) return codexApprovalReply(method, params, "allow");
+          // In a side chat even what is normally allowed is refused: it looks, and changes nothing.
+          const ask: CliPermissionAsk = "ask" in plan ? plan.ask : { agent: spec.name, action: "use a tool", tool: method, detail: "" };
           const asker = options.askPermission;
-          if (asker === undefined || signal.aborted) {
-            denied.push({ tool: plan.ask.tool, detail: plan.ask.detail });
+          if (asker === undefined || signal.aborted || readOnly) {
+            denied.push({ tool: ask.tool, detail: ask.detail });
             answeredSinceDenied = false;
-            queue.push({ kind: "thinking", text: `› Not allowed in a chat: ${plan.ask.tool}${plan.ask.detail ? ` (${plan.ask.detail.slice(0, 120)})` : ""}\n` });
+            queue.push({ kind: "thinking", text: `› ${readOnly ? "Not in a side chat" : "Not allowed in a chat"}: ${ask.tool}${ask.detail ? ` (${ask.detail.slice(0, 120)})` : ""}\n` });
             state.declined.add(str(params["itemId"]));
             return codexApprovalReply(method, params, "deny");
           }
           waitingOnPerson += 1;
-          queue.push({ kind: "status", text: permissionWaiting(plan.ask) });
+          queue.push({ kind: "status", text: permissionWaiting(ask) });
           try {
-            const answer = await asker(plan.ask, signal).catch((): CliPermissionAnswer => "deny");
+            const answer = await asker(ask, signal).catch((): CliPermissionAnswer => "deny");
             if (answer === "deny") state.declined.add(str(params["itemId"]));
-            queue.push({ kind: "thinking", text: permissionOutcome(plan.ask, answer) });
+            queue.push({ kind: "thinking", text: permissionOutcome(ask, answer) });
             return codexApprovalReply(method, params, answer);
           } finally {
             waitingOnPerson -= 1;

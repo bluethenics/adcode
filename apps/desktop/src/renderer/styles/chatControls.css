@@ -145,10 +145,18 @@ body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-row {
   white-space: nowrap;
 }
 
-/* The open timeline above already names the step and keeps the time: this row is the spinner and Stop. */
-.chat-card .chat-working[data-activity="open"] :is(.chat-working-text, .chat-working-elapsed) { display: none; }
+/*
+ * The open timeline above names each step and keeps the time, so this row drops its clock -
+ * but keeps Buck and the changing word ("Marinating", "Untangling"): the turn's foot is where
+ * the eye rests while it works, and a lone spinner there said nothing.
+ */
+.chat-card .chat-working[data-activity="open"] .chat-working-elapsed { display: none; }
 
 .chat-working-spinner { flex: none; }
+.chat-working-mascot { flex: none; margin: -6px 0 -6px -4px; }
+
+/* One face at work: while Buck is at the foot of the turn, the heading's copy steps aside. */
+.chat-card:has(.chat-working:not([hidden]) .chat-working-mascot) .chat-turn[data-state="running"] .chat-turn-face { display: none; }
 
 .chat-working-elapsed {
   flex: none;

@@ -1,7 +1,7 @@
 /**
  * The Usage page's charts, drawn as SVG and plain HTML by hand.
  *
- *   - the provider area: each provider's daily tokens or cost, stacked and smoothed, with a
+ *   - the provider bars: each provider's daily tokens or cost, one stacked bar a day, with a
  *     tooltip that follows the pointer or the arrow keys;
  *   - the type bar: one bar split into fresh input, cache reads and output;
  *   - the hour map: requests by weekday and hour of day.
@@ -12,7 +12,7 @@
  * readable by eye. Motion is one draw-in on arrival, gated in CSS.
  */
 import { formatTokens, formatUsageCost, type UsageModelView } from "../../shared/aiUsage.ts";
-import { hourLabel, smoothLine, WEEKDAY_NAMES, type UsagePageDay } from "../../shared/usagePage.ts";
+import { hourLabel, WEEKDAY_NAMES, type UsagePageDay } from "../../shared/usagePage.ts";
 
 const NS = "http://www.w3.org/2000/svg";
 
@@ -65,12 +65,6 @@ export function ringSlices(models: readonly UsageModelView[], limit = 5): { read
   });
 }
 
-/** A smoothed band between `top` and `base`, both already in chart coordinates. */
-function bandPath(top: readonly (readonly [number, number])[], base: readonly (readonly [number, number])[]): string {
-  const back = smoothLine([...base].reverse());
-  return `${smoothLine(top)} L${back.slice(1)} Z`;
-}
-
 export interface ProviderChartInput {
   readonly days: readonly UsagePageDay[];
   /** Provider ids in the order of `days[].tokensBy`. */
@@ -81,7 +75,13 @@ export interface ProviderChartInput {
   readonly colourOf: (provider: string) => string;
 }
 
-/** Each provider's day, stacked and smoothed, with a tooltip for the day under the pointer. */
+/**
+ * Each provider's day as one stacked bar, with a tooltip for the day under the pointer.
+ *
+ * Bars, not a smoothed area: a day's use is one number. The curve drawn through the days spread
+ * a 274M-token day over its neighbours - the day before looked busy on 4M - and sloped through
+ * days when nothing was used at all. A bar is that day and no other, and its height is exact.
+ */
 export function providerChart(input: ProviderChartInput): HTMLElement {
   const { days, series, metric } = input;
   const width = 640;
@@ -90,7 +90,10 @@ export function providerChart(input: ProviderChartInput): HTMLElement {
   const totalOf = (day: UsagePageDay): number => valuesOf(day).reduce((sum, value) => sum + value, 0);
   const format = (value: number): string => (metric === "cost" ? formatUsageCost(value) : formatTokens(value));
   const max = Math.max(1, ...days.map(totalOf)) * 1.08;
-  const x = (index: number): number => (days.length === 1 ? width / 2 : (index / (days.length - 1)) * width);
+  const slot = width / Math.max(1, days.length);
+  const barWidth = Math.max(1, Math.min(slot * 0.68, 28));
+  /** The middle of a day's slot, in chart units. */
+  const centre = (index: number): number => (index + 0.5) * slot;
   const y = (value: number): number => height - (value / max) * height;
 
   const chart = svg("svg", { viewBox: `0 0 ${width.toString()} ${height.toString()}`, preserveAspectRatio: "none", class: "usage-area", role: "img",
@@ -99,17 +102,20 @@ export function providerChart(input: ProviderChartInput): HTMLElement {
   chart.append(svg("line", { x1: 0, x2: width, y1: height, y2: height, class: "usage-area-base" }));
 
   // Stack from the biggest provider at the bottom; a filter that hides one keeps the others' colours.
-  let below = days.map(() => 0);
+  const below = days.map(() => 0);
   series.forEach((provider, at) => {
-    const above = days.map((day, index) => below[index]! + (valuesOf(day)[at] ?? 0));
-    if (above.every((value, index) => value === below[index])) { below = above; return; }
-    const top = above.map((value, index) => [x(index), y(value)] as const);
-    const base = below.map((value, index) => [x(index), y(value)] as const);
     const layer = svg("g", { class: `usage-area-layer ${input.colourOf(provider)}`, "data-provider": provider });
     layer.style.setProperty("--layer", at.toString());
-    layer.append(svg("path", { d: bandPath(top, base), class: "usage-area-fill" }), svg("path", { d: smoothLine(top), class: "usage-area-line" }));
-    chart.append(layer);
-    below = above;
+    days.forEach((day, index) => {
+      const value = valuesOf(day)[at] ?? 0;
+      if (value <= 0) return;
+      const bottom = y(below[index]!);
+      below[index]! += value;
+      // A day that used anything is never invisible next to a big one: at least a hairline.
+      const tall = Math.max(bottom - y(below[index]!), 0.8);
+      layer.append(svg("rect", { x: (centre(index) - barWidth / 2).toFixed(2), y: (bottom - tall).toFixed(2), width: barWidth.toFixed(2), height: tall.toFixed(2), class: "usage-bar" }));
+    });
+    if (layer.childElementCount > 0) chart.append(layer);
   });
 
   const yAxis = html("div", "usage-area-y");
@@ -135,7 +141,7 @@ export function providerChart(input: ProviderChartInput): HTMLElement {
   const show = (index: number, visible: boolean): void => {
     at = Math.max(0, Math.min(days.length - 1, index));
     const day = days[at]!;
-    const left = days.length === 1 ? 50 : (at / (days.length - 1)) * 100;
+    const left = (centre(at) / width) * 100;
     const px = (left / 100) * wrap.clientWidth;
     cursor.style.transform = `translateX(${px.toFixed(1)}px)`;
     wrap.dataset["active"] = String(visible);
@@ -152,12 +158,20 @@ export function providerChart(input: ProviderChartInput): HTMLElement {
       list.append(item);
     });
     if (list.childElementCount === 0) list.append(html("li", "usage-tip-none", "Nothing used"));
+    // Agents re-read the same context on every step; on a busy day most "tokens" are those
+    // cheap re-reads. Said here, so a huge bar explains itself.
+    if (metric === "tokens" && day.cachedTokens > 0) {
+      const cached = html("li", "usage-tip-cache");
+      cached.append(html("span", "usage-tip-name", "Of which re-read from cache"), html("b", "", formatTokens(day.cachedTokens)));
+      list.append(cached);
+    }
     tip.replaceChildren(head, list);
     tip.style.setProperty("--tip-x", `${(side === "left" ? px - 10 - tip.offsetWidth : px + 10).toFixed(1)}px`);
   };
   wrap.addEventListener("pointermove", (event) => {
     const box = chart.getBoundingClientRect();
-    show(Math.round(((event.clientX - box.left) / Math.max(1, box.width)) * (days.length - 1)), true);
+    // The day whose slot is under the pointer, not the nearest point on a line.
+    show(Math.floor(((event.clientX - box.left) / Math.max(1, box.width)) * days.length), true);
   });
   wrap.addEventListener("pointerleave", () => show(at, false));
   wrap.addEventListener("keydown", (event) => {
@@ -172,6 +186,8 @@ export function providerChart(input: ProviderChartInput): HTMLElement {
 
   const axis = html("div", "usage-area-axis");
   axis.setAttribute("aria-hidden", "true");
+  // Half a slot in from each side: the first and last dates start and end under their bars.
+  axis.style.paddingInline = `${((0.5 / Math.max(1, days.length)) * 100).toFixed(2)}%`;
   const middle = days[Math.floor((days.length - 1) / 2)]!;
   axis.append(html("span", "", shortDay(days[0]!.day)), html("span", "", days.length > 2 ? shortDay(middle.day) : ""), html("span", "", shortDay(days[days.length - 1]!.day)));
 

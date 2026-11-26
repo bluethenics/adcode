@@ -188,13 +188,15 @@ export function codexBridgeOverrides(mcp: CliMcpServer | null | undefined): stri
 }
 
 /** The arguments for one headless turn. `session` resumes the CLI's own conversation. */
-export function cliArgs(id: CliAgentId, options: { readonly model: string; readonly session?: string; readonly mcp?: CliMcpServer | null; readonly effort?: string; readonly bypassPermissions?: boolean }): string[] {
+export function cliArgs(id: CliAgentId, options: { readonly model: string; readonly session?: string; readonly mcp?: CliMcpServer | null; readonly effort?: string; readonly bypassPermissions?: boolean; readonly readOnly?: boolean }): string[] {
   // A level is one lowercase word from the model's own list (effortFor); anything else is dropped.
   const effort = options.effort !== undefined && EFFORT_WORD.test(options.effort) ? options.effort : null;
   const model = options.model !== "default" && isSafeCliToken(options.model) ? options.model : null;
   const session = options.session !== undefined && isSafeCliToken(options.session) ? options.session : null;
   const mcp = options.mcp !== undefined && options.mcp !== null && isSafeCliToken(options.mcp.configPath) && /^[a-z][a-z0-9-]{0,40}$/.test(options.mcp.server) ? options.mcp : null;
-  const bypass = options.bypassPermissions === true;
+  // Read-only (a side chat) wins over Full access: it looks, and changes nothing.
+  const readOnly = options.readOnly === true;
+  const bypass = !readOnly && options.bypassPermissions === true;
   const codexBridge = codexBridgeOverrides(mcp);
   switch (id) {
     case "claude":
@@ -207,12 +209,12 @@ export function cliArgs(id: CliAgentId, options: { readonly model: string; reado
       // Full access is the one exception: the person switched it on for this turn, so the CLI
       // runs with its own permission questions off. That is a real bypass: the turn has the
       // CLI's full machine access, not merely ADCode's dialogs skipped.
-      return ["-p", "--output-format", "stream-json", "--verbose", ...(bypass ? ["--dangerously-skip-permissions"] : ["--permission-mode", "acceptEdits"]), ...(model ? ["--model", model] : []), ...(effort ? ["--effort", effort] : []), ...(session ? ["--resume", session] : []), ...(mcp ? ["--mcp-config", mcp.configPath, "--allowedTools", `mcp__${mcp.server}`] : [])];
+      return ["-p", "--output-format", "stream-json", "--verbose", ...(readOnly ? ["--permission-mode", "plan"] : bypass ? ["--dangerously-skip-permissions"] : ["--permission-mode", "acceptEdits"]), ...(model ? ["--model", model] : []), ...(effort ? ["--effort", effort] : []), ...(session ? ["--resume", session] : []), ...(mcp ? ["--mcp-config", mcp.configPath, "--allowedTools", `mcp__${mcp.server}`] : [])];
     case "codex":
       // `-` reads the prompt from stdin. workspace-write: edits inside the project, no network.
       // Full access drops both the sandbox and the approval prompts for this turn.
       // Only for a build that cannot keep a process running: chats use `codex app-server`.
-      return ["exec", ...(session ? ["resume", session] : []), "--json", "--skip-git-repo-check", ...(bypass ? ["--dangerously-bypass-approvals-and-sandbox"] : session ? [] : ["--sandbox", "workspace-write"]), ...(model ? ["-m", model] : []), ...(effort ? ["-c", `model_reasoning_effort=${effort}`] : []), ...codexBridge, "-"];
+      return ["exec", ...(session ? ["resume", session] : []), "--json", "--skip-git-repo-check", ...(bypass ? ["--dangerously-bypass-approvals-and-sandbox"] : session ? [] : ["--sandbox", readOnly ? "read-only" : "workspace-write"]), ...(model ? ["-m", model] : []), ...(effort ? ["-c", `model_reasoning_effort=${effort}`] : []), ...codexBridge, "-"];
     case "opencode":
       // `--thinking` streams the model's reasoning: without it a thinking model (DeepSeek)
       // sends nothing for a minute or more and the chat looks stuck. `run` turns down every
@@ -245,7 +247,7 @@ export function cliLiveArgs(id: CliAgentId, options: Parameters<typeof cliArgs>[
   // asked in the app. Without it Claude Code refused every such call by itself ("This command
   // requires approval") and then told the person to approve a prompt nobody had shown them.
   // Checked with Claude Code 2.1.284. Full access asks nothing, so it needs no asking.
-  const asks = options.bypassPermissions === true ? [] : ["--permission-prompt-tool", "stdio"];
+  const asks = options.bypassPermissions === true && options.readOnly !== true ? [] : ["--permission-prompt-tool", "stdio"];
   const verbose = rest.indexOf("--verbose") + 1;
   return [print!, "--input-format", "stream-json", "--include-partial-messages", ...rest.slice(0, verbose), ...asks, ...rest.slice(verbose)];
 }
@@ -986,6 +988,12 @@ export interface CliProviderOptions {
    */
   readonly bypassPermissions?: () => boolean;
   /**
+   * Read-only for this turn: a side chat (/btw), which answers questions about a conversation and
+   * must not carry on its work. Claude Code runs in plan mode, Codex in a read-only sandbox, and
+   * anything the CLI asks permission for is refused without asking. Wins over Full access.
+   */
+  readonly readOnly?: () => boolean;
+  /**
    * Asks the person about a tool call the CLI's own settings leave open - a shell command under
    * Claude Code's acceptEdits, an ACP agent's `session/request_permission` for running or
    * deleting. Without it such calls are refused, as before, and the chat says why the turn stopped.
@@ -1078,9 +1086,10 @@ export function createCliProvider(options: CliProviderOptions): Provider {
       const key = chat !== undefined && chat !== "" ? `${spec.id}:${request.model}:chat:${chat}` : conversationKey(spec.id, request.model, request);
       const prior = sessions.get(key);
       const resume = prior !== undefined && request.messages.length > prior.messages;
-      const bypass = options.bypassPermissions?.() === true;
+      const readOnly = options.readOnly?.() === true;
+      const bypass = !readOnly && options.bypassPermissions?.() === true;
       const mcp = spec.id === "claude" || spec.id === "codex" || spec.id === "opencode" ? options.mcp?.() ?? null : null;
-      const argOptions = { model: request.model, mcp: spec.id === "claude" || spec.id === "codex" ? mcp : null, ...cliEffort(request, options.modelEfforts), bypassPermissions: bypass };
+      const argOptions = { model: request.model, mcp: spec.id === "claude" || spec.id === "codex" ? mcp : null, ...cliEffort(request, options.modelEfforts), bypassPermissions: bypass, readOnly };
       const cwd = options.cwd();
       const env = cliEnv(spec.id, mcp);
       const liveArgs = options.live === undefined ? null : cliLiveArgs(spec.id, argOptions);
@@ -1151,7 +1160,11 @@ export function createCliProvider(options: CliProviderOptions): Provider {
             }
             const ask: CliPermissionAsk = { agent: spec.name, action: permissionAction(control.tool), tool: control.tool || "a tool", detail: toolDetail(control.input), ...(control.reason === "" ? {} : { reason: control.reason }) };
             let answer: CliPermissionAnswer = "deny";
-            if (options.askPermission !== undefined) {
+            if (readOnly) {
+              // A side chat looks and answers; anything plan mode still asks about is refused unasked.
+              declined.add(control.toolUseId);
+              yield { kind: "thinking", text: `› Not in a side chat: ${ask.tool}${ask.detail ? ` (${ask.detail.slice(0, 120)})` : ""}\n` };
+            } else if (options.askPermission !== undefined) {
               yield { kind: "status", text: permissionWaiting(ask) };
               answer = await options.askPermission(ask, signal).catch((): CliPermissionAnswer => "deny");
               if (signal.aborted) break;

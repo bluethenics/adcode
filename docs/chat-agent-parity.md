@@ -7,7 +7,7 @@ Every feature in the catalogue (`packages/help`), and how the in-app chat reache
 finds features with `adcode_features`, runs their commands and changes their settings with
 `adcode_action`, and has dedicated tools where a feature needs more than a button.
 
-- 179 features: 26 with a dedicated tool, 141 through `adcode_action`, 10 only after the person confirms, 1 refused by design, 1 with nothing to run (explained by `adcode_features`).
+- 180 features: 26 with a dedicated tool, 142 through `adcode_action`, 10 only after the person confirms, 1 refused by design, 1 with nothing to run (explained by `adcode_features`).
 - Every command the window registers belongs to a feature (`featureCommandCoverage.test.ts`), so every command except `ai.fullAccess` and `app.quit` is runnable.
 - Guarded settings (ads, updates, edit approval, Full access, connector approvals, AI file tools, custom endpoint, provider, connections, agent profiles, language servers) and every text setting ask in the app's dialog first. Full access is refused outright.
 - Every change the chat makes through these tools is written to the debug log.
@@ -169,6 +169,7 @@ finds features with `adcode_features`, runs their commands and changes their set
 | Goals: keep going until it is done | `ai.goal` | adcode_action | adcode_action: commands `ai.setGoal` |
 | Side chats | `ai.sideChats` | adcode_action | adcode_action: commands `ai.sideChat` |
 | All-day chat: drafts, stash, big pastes and long conversations | `ai.composerMemory` | adcode_action | adcode_action: commands `ai.stashedPrompts` |
+| Attach files: pictures, PDFs, Word, Excel, PowerPoint and code | `ai.attachments` | adcode_action | adcode_action: commands `ai.attachFiles` |
 | This chat's usage | `ai.chatUsage` | adcode_action | adcode_action: commands `ai.chatUsage` |
 | Prompt caching | `ai.promptCaching` | adcode_action | adcode_action: commands `ai.showCacheSavings` |
 | Code and files beside the chat | `workbench.codeFiles` | adcode_action | adcode_action: commands `workspace.codeFiles` |

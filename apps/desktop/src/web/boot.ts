@@ -64,6 +64,8 @@ function localOverrides(socket: HostSocket, signOut: () => Promise<void>): Local
     }) as never,
     "clipboard.writeText": ((text: string) => navigator.clipboard.writeText(text).then(() => undefined)) as never,
     "clipboard.readText": (() => navigator.clipboard.readText().catch(() => "")) as never,
+    // The browser draws its own right-click menu on the web, so this is only ever a fallback.
+    "clipboard.edit": (async (command: string) => { document.execCommand(command); }) as never,
     "files.pathForDropped": (() => "") as never,
     "files.saveAs": (async (text: string, suggestedName: string) => {
       download(suggestedName, text);

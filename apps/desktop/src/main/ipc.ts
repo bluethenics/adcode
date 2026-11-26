@@ -74,7 +74,7 @@ import {
   toggleBreakpoint,
 } from "./debug.ts";
 import { partnerConversationId } from "./partnerNotification.ts";
-import { type ChatImportScanOptions, CHANNELS, IDE_VIEW_COMMANDS, type IdeView, type PreviewStatus, type RuntimeCheckView } from "../shared/api.ts";
+import { type ChatImportScanOptions, CHANNELS, EDIT_COMMANDS, type EditCommand, IDE_VIEW_COMMANDS, type IdeView, type PreviewStatus, type RuntimeCheckView } from "../shared/api.ts";
 import { lightSession, sessionsDelta } from "../shared/sessionDelta.ts";
 import { downloadUrlFor, installCommandFor, runtimeById, runtimeFor } from "../shared/runtimes.ts";
 import {
@@ -706,6 +706,13 @@ export function registerIpc(
 
   ipcMain.handle(CHANNELS.clipboardRead, () => clipboard.readText());
 
+  // The window's own cut, copy and paste, on its focused field: the paste event that follows is
+  // the real one, pictures and copied files included. Only these three; nothing else is run.
+  ipcMain.handle(CHANNELS.clipboardEdit, (event, command: unknown) => {
+    if (!EDIT_COMMANDS.includes(command as EditCommand)) throw new Error("expected cut, copy or paste");
+    event.sender[command as EditCommand]();
+  });
+
   /* ── Chat history ─────────────────────────────────────────────────────── */
 
   ipcMain.handle(CHANNELS.aiSessions, () => aiSessions());
@@ -746,8 +753,9 @@ export function registerIpc(
     isString(id) ? aiResumeSession(id) : null,
   );
 
-  ipcMain.handle(CHANNELS.aiForkSession, (_event, id: unknown) =>
-    isString(id) ? aiForkSession(id) : null,
+  // `{ side: true }` makes a /btw side chat: read-only, answering about the copy, never continuing it.
+  ipcMain.handle(CHANNELS.aiForkSession, (_event, id: unknown, options: unknown) =>
+    isString(id) ? aiForkSession(id, { side: typeof options === "object" && options !== null && (options as { side?: unknown }).side === true }) : null,
   );
 
   ipcMain.handle(CHANNELS.aiRenameSession, (_event, id: unknown, title: unknown) =>

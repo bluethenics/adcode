@@ -65,6 +65,8 @@ export interface ForkChatSessionInput {
   readonly at: number;
   /** Start empty rather than with the parent's transcript. */
   readonly fresh?: boolean;
+  /** A side chat (/btw): answers questions about the copy, never continues its work. */
+  readonly side?: boolean;
 }
 
 /**
@@ -91,6 +93,7 @@ export function forkChatSession(input: ForkChatSessionInput): ChatSession {
     parentId: input.parent.parentId ?? input.parent.id,
     forkedAt: input.at,
     ...(task.length === 0 ? {} : { forkTask: task.slice(0, 2_000) }),
+    ...(input.side === true ? { side: true } : {}),
     // A fork carries on its parent's work, on its parent's model - not on whatever another chat chose last.
     ...(input.parent.model === undefined ? {} : { model: { ...input.parent.model } }),
   };
@@ -114,6 +117,37 @@ export function chatForkBriefing(input: {
     `Use send_chat_message to ask a sibling or the main chat something, or to warn them about a shared file. Messages from them arrive between your tool calls; read_chat_messages shows anything still unread.`,
     `When your part is done, finish with a short report: what you changed or found (with file paths), how you checked it, and anything left undone. The main chat is waiting for it.`,
   ].filter((line): line is string => line !== null).join("\n");
+}
+
+/**
+ * What a side chat (/btw) is told with every message.
+ *
+ * Without it a side chat read the fork briefing - "finish your part with a report, the main
+ * chat is waiting" - on top of a transcript that ends mid-task, and did the obvious thing:
+ * carried on the main chat's work. Sent every turn rather than once, because it is not saved
+ * in the transcript and a side chat reopened after a restart must still know what it is.
+ */
+export function sideChatNote(input: { readonly parentTitle: string; readonly pictures?: number }): string {
+  const pictures = input.pictures ?? 0;
+  return [
+    `Automatic note from ADCode, not from the person: this is a side chat. The conversation above is a copy of "${input.parentTitle}", which is still doing that work in its own chat.`,
+    "The person is asking you a question on the side. Answer it - read files or look things up if that helps - but do not continue, redo or take over the main chat's task: do not edit files, run commands that change anything, or start work the question does not ask for. Your tools here are read-only.",
+    pictures === 0 ? null : `${pictures === 1 ? "The latest picture" : `The latest ${String(pictures)} pictures`} from the main chat ${pictures === 1 ? "is" : "are"} attached to this message, so you can see what the person saw there.`,
+    "Keep the answer short and direct. The person's question follows.",
+  ].filter((line): line is string => line !== null).join("\n");
+}
+
+/** The newest pictures in a conversation's live history, oldest first, at most `limit`. */
+export function latestPictures<T extends { readonly type: string }>(messages: readonly { readonly role: string; readonly content: readonly T[] }[], limit: number): T[] {
+  const found: T[] = [];
+  for (let index = messages.length - 1; index >= 0 && found.length < limit; index -= 1) {
+    const message = messages[index]!;
+    if (message.role !== "user") continue;
+    for (let block = message.content.length - 1; block >= 0 && found.length < limit; block -= 1) {
+      if (message.content[block]!.type === "image") found.push(message.content[block]!);
+    }
+  }
+  return found.reverse();
 }
 
 /**

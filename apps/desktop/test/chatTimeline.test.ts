@@ -230,14 +230,18 @@ describe("the timeline in the chat", () => {
     expect(timelineSource).toContain('aria-expanded');
   });
 
-  it("keeps one face at work: the mascot in the heading, pixel spinners on live rows", () => {
+  it("keeps one face at work: Buck at the foot while the turn runs, the heading's copy aside, pixel spinners on live rows", () => {
     // The face is Buck now (mascot/adcodeMascot.ts), behind the same small handle.
     expect(timelineSource).toContain("createAdcodeMascot(");
     expect(timelineSource).toContain("const mascot = buckForTurn();");
     expect(timelineSource).toContain("createPixelSpinner(");
     const finish = timelineSource.slice(timelineSource.indexOf("finish(outcome"), timelineSource.indexOf("destroy(): void {"));
     expect(finish).toContain("mascot.destroy()");
-    expect(widgetSource).toContain("createPixelSpinner(");
+    // The foot of a working turn is Buck, posing anew with each word, not the pixel mosaic.
+    expect(widgetSource).toContain("workingMascot.setMood(workingMood(");
+    expect(widgetSource).not.toContain("createPixelSpinner(\"turn\")");
+    // While he shows, the heading's Buck steps aside: still one face at work.
+    expect(read("../src/renderer/styles/chatControls.css")).toContain(".chat-card:has(.chat-working:not([hidden]) .chat-working-mascot) .chat-turn[data-state=\"running\"] .chat-turn-face { display: none; }");
   });
 
   it("moves smoothly, and not at all when asked not to", () => {

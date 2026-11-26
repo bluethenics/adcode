@@ -83,6 +83,7 @@
     "electron-vite": "^5.0.0",
     "fast-check": "^4.9.0",
     "monaco-editor": "^0.56.0",
+    "pdfjs-dist": "^6.5.438",
     "tree-sitter-wasms": "^0.1.13",
     "typescript": "^5.9.3",
     "vite": "^7.3.7",

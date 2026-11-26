@@ -113,6 +113,33 @@ describe("a coding CLI's turn, as a checkpoint", () => {
     expect(all.files.get("gen/out.ts")).toMatchObject({ before: null, after: "generated\n" });
   });
 
+  it("with core.autocrlf on, takes each clean file's line endings from the disk, not from a fresh checkout", async () => {
+    // Git for Windows turns autocrlf on by default. Files written with LF and committed stay LF on
+    // disk and git calls them clean, while `cat-file --filters` gives them CRLF.
+    const root = await repo({ "read.ts": "only read\n", "edited.ts": "one\ntwo\n", "late.ts": "a\nb\n", "fresh.ts": "x\ny\n" });
+    const git = (...args: string[]) => execFileSync("git", args, { cwd: root, stdio: "ignore" });
+    git("config", "core.autocrlf", "true");
+    // fresh.ts as a fresh checkout writes it: CRLF on disk.
+    await rm(join(root, "fresh.ts"));
+    git("checkout", "--", "fresh.ts");
+    expect(await readFile(join(root, "fresh.ts"), "utf8")).toBe("x\r\ny\r\n");
+
+    const snapshot = await startCliTurnSnapshot(root, workspaceSnapshotDeps(root));
+    snapshot.touch(["read.ts", "edited.ts", "fresh.ts"]);
+    await writeFile(join(root, "edited.ts"), "one\nTWO\n");
+    await writeFile(join(root, "fresh.ts"), "x\r\nY\r\n");
+    // Named only after it wrote, so the read at naming time is too late to tell.
+    await writeFile(join(root, "late.ts"), "a\nB\n");
+    snapshot.touch(["late.ts"]);
+
+    const out = recorder();
+    // read.ts was only read: unchanged, so not an edit with "+0 −0".
+    expect(await snapshot.finish(out)).toEqual(["edited.ts", "fresh.ts", "late.ts"]);
+    expect(out.files.get("edited.ts")).toEqual({ before: "one\ntwo\n", after: "one\nTWO\n", encoding: "utf8" });
+    expect(out.files.get("late.ts")).toEqual({ before: "a\nb\n", after: "a\nB\n", encoding: "utf8" });
+    expect(out.files.get("fresh.ts")).toEqual({ before: "x\r\ny\r\n", after: "x\r\nY\r\n", encoding: "utf8" });
+  });
+
   it("records a deleted file and keeps binary files byte for byte", async () => {
     const root = await repo({ "old.ts": "gone soon\n", "logo.bin": "\u0000\u0001\u0002" });
     const snapshot = await startCliTurnSnapshot(root, workspaceSnapshotDeps(root));

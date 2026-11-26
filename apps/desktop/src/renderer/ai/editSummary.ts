@@ -27,8 +27,9 @@ export function createEditSummary(checkpoint: AiCheckpointView, deps: {
     const minus = document.createElement("span"); minus.className = "chat-edit-removed"; minus.textContent = `−${removed}`;
     fragment.append(plus, minus); return fragment;
   }
-  const counted = checkpoint.files.filter(file => file.added !== undefined && file.removed !== undefined);
+  const counted = checkpoint.files.filter(file => file.added !== undefined && file.removed !== undefined && file.lineEndingsOnly !== true);
   if (counted.length > 0) totals.append(counts(counted.reduce((sum, f) => sum + f.added!, 0), counted.reduce((sum, f) => sum + f.removed!, 0)));
+  else if (count > 0 && checkpoint.files.every(file => file.lineEndingsOnly === true)) totals.textContent = "Line endings only";
   body.append(title, totals);
   const actions = document.createElement("div"); actions.className = "chat-checkpoint-actions";
   const undo = document.createElement("button"); undo.type = "button"; undo.className = "chat-checkpoint-undo";
@@ -45,7 +46,8 @@ export function createEditSummary(checkpoint: AiCheckpointView, deps: {
     if (file.deleted) { open.disabled = true; open.dataset["deleted"] = "true"; }
     else open.addEventListener("click", () => deps.openFile(file.path));
     const tally = document.createElement("span"); tally.className = "chat-checkpoint-counts";
-    if (file.added !== undefined && file.removed !== undefined) tally.append(counts(file.added, file.removed));
+    if (file.lineEndingsOnly === true) tally.textContent = "Line endings only";
+    else if (file.added !== undefined && file.removed !== undefined) tally.append(counts(file.added, file.removed));
     else tally.textContent = "File changed";
     row.append(open, tally); list.append(row); return row;
   });
@@ -65,6 +67,9 @@ export function createEditSummary(checkpoint: AiCheckpointView, deps: {
         const heading = document.createElement("h4"); heading.textContent = file.path; diffs.append(heading);
         if (file.hunks === undefined) {
           const note = document.createElement("p"); note.textContent = "Line review is unavailable for this file. Open it to inspect the current version."; diffs.append(note); continue;
+        }
+        if (file.lineEndingsOnly === true) {
+          const note = document.createElement("p"); note.textContent = "Only the line endings changed (Windows CRLF and Unix LF). Every line reads the same."; diffs.append(note); continue;
         }
         const pre = document.createElement("pre"); pre.className = "diff-body";
         let shown = 0;

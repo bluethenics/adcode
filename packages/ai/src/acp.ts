@@ -95,10 +95,13 @@ const ALLOWED_KINDS = new Set(["read", "edit", "search", "think", "fetch", "swit
  * commands, deleting and moving files need Full access, as they would at Claude Code's
  * acceptEdits. A refusal is reported so the chat can say why the turn stopped.
  */
-export function acpPermission(params: unknown, bypass: boolean): { optionId: string | null; denied: { tool: string; detail: string } | null } {
+/** What a side chat may still do when an agent asks: look, never change. */
+const READ_ONLY_KINDS = new Set(["read", "search", "think"]);
+
+export function acpPermission(params: unknown, bypass: boolean, readOnly = false): { optionId: string | null; denied: { tool: string; detail: string } | null } {
   const call = record(params) && record(params["toolCall"]) ? params["toolCall"] : {};
   const kind = str(call["kind"]);
-  const allow = bypass || ALLOWED_KINDS.has(kind);
+  const allow = readOnly ? READ_ONLY_KINDS.has(kind) : bypass || ALLOWED_KINDS.has(kind);
   if (allow) return { optionId: pickPermissionOption(params, ["allow_once", "allow_always"]), denied: null };
   return { optionId: pickPermissionOption(params, ["reject_once", "reject_always"]), denied: { tool: kind || "tool", detail: str(call["title"]) } };
 }
@@ -363,12 +366,13 @@ export function createAcpProvider(options: CliProviderOptions): Provider {
       const key = chat !== undefined && chat !== "" ? `${spec.id}:${request.model}:chat:${chat}` : conversationKey(spec.id, request.model, request);
       const prior = sessions.get(key);
       const resume = prior !== undefined && request.messages.length > prior.messages;
-      const bypass = options.bypassPermissions?.() === true;
+      const readOnly = options.readOnly?.() === true;
+      const bypass = !readOnly && options.bypassPermissions?.() === true;
       const mcp = options.mcp?.() ?? null;
       const cwd = options.cwd();
       const effort = cliEffort(request, options.modelEfforts).effort;
       // Access and tools are settled per session, so a change to either starts afresh.
-      const signature = JSON.stringify([cwd, acpArgs, request.model, effort ?? null, bypass, mcp?.url ?? null]);
+      const signature = JSON.stringify([cwd, acpArgs, request.model, effort ?? null, bypass, readOnly, mcp?.url ?? null]);
       const fail = (error: unknown): never => {
         const message = error instanceof Error ? error.message : String(error);
         const out = signedOut(error);
@@ -446,12 +450,12 @@ export function createAcpProvider(options: CliProviderOptions): Provider {
         /** Questions the person has not answered yet: the silence is theirs, not the agent's. */
         let waitingOnPerson = 0;
         connection.onPermission = (params) => {
-          const answer = acpPermission(params, bypass);
+          const answer = acpPermission(params, bypass, readOnly);
           if (answer.denied === null) return answer.optionId;
           const asker = options.askPermission;
-          if (asker === undefined || signal.aborted) {
+          if (asker === undefined || signal.aborted || readOnly) {
             denied.push(answer.denied);
-            queue.push({ kind: "thinking", text: `› Not allowed in a chat: ${answer.denied.tool}${answer.denied.detail ? ` (${answer.denied.detail.slice(0, 120)})` : ""}\n` });
+            queue.push({ kind: "thinking", text: `› ${readOnly ? "Not in a side chat" : "Not allowed in a chat"}: ${answer.denied.tool}${answer.denied.detail ? ` (${answer.denied.detail.slice(0, 120)})` : ""}\n` });
             return answer.optionId;
           }
           // Running a command or deleting a file: the person decides, in ADCode's own dialog.

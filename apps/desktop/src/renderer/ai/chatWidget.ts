@@ -38,6 +38,7 @@ import { isWebSurface } from "../surface.ts";
 import type { PreviewStatus } from "../../shared/api.ts";
 import type {
   AiAttachmentView,
+  EditCommand,
   AiContextUsageView,
   AiEditorContextView,
   AiAutomationView,
@@ -55,6 +56,7 @@ import type {
 } from "../../shared/api.ts";
 import {
   admitFiles,
+  classifyFile,
   fileToAttachment,
   formatBytes,
   MAX_ATTACHMENTS,
@@ -76,6 +78,7 @@ import { runChatWidgetIntent } from "./chatWidgetIntents.ts";
 import { createIcon, ICON, type IconSource } from "../workbench/icons.ts";
 import { WEB_ICON } from "../workbench/webIcons.ts";
 import { createContextMenu, attachContextMenuDismissal } from "../workbench/contextMenu.ts";
+import { formatMessageTime } from "./messageTime.ts";
 import { contextMeterModel, createContextMeter } from "./contextMeter.ts";
 import { openModelFeedback } from "./modelFeedback.ts";
 import { markFor } from "../motionFlip.ts";
@@ -90,8 +93,8 @@ import {
   stableChatBoundary,
 } from "./chatMarkdown.ts";
 import { createResultImage, summarizeToolInput, toolHeaderLabel } from "./chatActivity.ts";
-import { createPixelSpinner, createTurnTimeline, outsideToolFrom, outsideToolRowName, type TurnTimeline } from "./chatTimeline.ts";
-import { workingTone, workingWord, workingWordSeed, type WorkingPhase } from "./workingWords.ts";
+import { createTurnTimeline, outsideToolFrom, outsideToolRowName, type TurnTimeline } from "./chatTimeline.ts";
+import { workingMood, workingTone, workingWord, workingWordSeed, type WorkingPhase } from "./workingWords.ts";
 import { createFrameTask } from "../frameTask.ts";
 import { attachChatLayout } from "./chatLayout.ts";
 import {
@@ -195,6 +198,8 @@ export interface ChatWidget {
   startCommand(command: "goal" | "btw"): void;
   /** List the prompts put aside with Stash, or bring back the only one. */
   openStash(): void;
+  /** Bring chat forward and open the file picker for attachments. */
+  attachFiles(): void;
   /** Bring chat forward and open the existing, confirmed Team setup flow. */
   openTeamSetup(): void;
   /** Bring chat forward and open the existing local schedule composer. */
@@ -1731,9 +1736,23 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     const generation = ++resumeGeneration;
     if (docked) api.open();
     if (id !== activeSessionId) leaveShownChat();
+    // A long conversation takes a moment to read. Say so, rather than leave the last chat up -
+    // or a lone prompt with no answer under it, which looked as if the work had been lost.
+    const loading = window.setTimeout(() => {
+      if (generation !== resumeGeneration) return;
+      const line = document.createElement("p");
+      line.className = "chat-mode-note chat-loading-note";
+      line.setAttribute("role", "status");
+      line.textContent = "Opening this conversation…";
+      transcript.replaceChildren(line);
+    }, 250);
     const session = await window.adcode.chat.resume(id);
-    if (session === null || generation !== resumeGeneration) return;
+    if (session === null || generation !== resumeGeneration) {
+      window.clearTimeout(loading);
+      return;
+    }
     const recorded = await window.adcode.ai.checkpoints(session.id).catch(() => []);
+    window.clearTimeout(loading);
     if (generation !== resumeGeneration) return;
     const edits: AiCheckpointView[] = Array.isArray(recorded) ? [...recorded] : [];
     edits.sort((a, b) => a.createdAt - b.createdAt);
@@ -1794,6 +1813,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           continue;
         }
         const node = bubble(message.role === "user" ? "user" : "assistant", message.text, [], message.at, message.includedRequestId);
+        // Saved mid-turn and never finished: say so, and offer to carry on when it is the last word.
+        if (message.role === "assistant" && message.interrupted === true) {
+          markInterrupted(node, index === messages.length - 1 && !runningChats.has(session.id));
+        }
         // A team chat names its people: who wrote each message, and who asked for each answer.
         if (message.author !== undefined) {
           if (message.role === "user") {
@@ -1876,17 +1899,51 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
    */
   async function replayRunningTurn(id: string, generation: number): Promise<void> {
     replayingFor = id;
+    // The turn started before this chat was opened: its heading counts from then.
+    turnActive = false;
+    timelineStartsAt = runningChats.get(id)?.startedAt ?? null;
+    // Working, at once - before the turn so far arrives. A long turn's replay takes a moment,
+    // and a chat that showed only the prompt meanwhile looked as if nothing had happened.
+    handleAgentEvent({ kind: "status", text: "", sessionId: id }, true);
+    scrollToEnd(true);
     const answer = await window.adcode.ai.liveTurn(id).catch(() => [] as readonly unknown[]);
     const events: readonly unknown[] = Array.isArray(answer) ? answer : [];
     if (generation !== resumeGeneration || activeSessionId !== id) return;
     replayingFor = null;
-    // The turn started before this chat was opened: its heading counts from then.
-    turnActive = false;
-    timelineStartsAt = runningChats.get(id)?.startedAt ?? null;
-    // Working, even before its next event: an empty status opens the turn and its timeline.
-    handleAgentEvent({ kind: "status", text: "", sessionId: id }, true);
     for (const event of events) handleAgentEvent(event, true);
     scrollToEnd(true);
+  }
+
+  /**
+   * An answer saved while its turn worked, that never finished: ADCode was closed (or quit for an
+   * update) mid-task. It keeps what was written and the steps taken; this says it stopped, and on
+   * the conversation's last answer offers to pick up from there.
+   */
+  function markInterrupted(node: HTMLElement, offerContinue: boolean): void {
+    node.dataset["interrupted"] = "true";
+    const note = document.createElement("div");
+    note.className = "chat-stopped";
+    const words = document.createElement("p");
+    words.className = "chat-stopped-text";
+    words.textContent = offerContinue
+      ? "ADCode closed before this finished. Everything up to here is kept."
+      : "Stopped when ADCode closed.";
+    note.append(words);
+    if (offerContinue) {
+      const action = document.createElement("button");
+      action.type = "button";
+      action.className = "chat-send chat-nudge-action";
+      action.textContent = "Continue";
+      action.title = "Pick up where the assistant stopped";
+      action.addEventListener("click", () => {
+        if (resend(CONTINUE_PROMPT)) {
+          action.disabled = true;
+          words.textContent = "Continuing from here.";
+        }
+      });
+      note.append(action);
+    }
+    node.append(note);
   }
 
   /* -- What is being remembered ----------------------------------------- */
@@ -2368,7 +2425,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       name.title = item.name;
       const size = document.createElement("span");
       size.className = "chat-attachment-size";
-      size.textContent = formatBytes(item.size);
+      // A document says what it was read as - "PDF · 12 pages" - since its text is what goes.
+      size.textContent = item.detail === undefined ? formatBytes(item.size) : `${item.detail} · ${formatBytes(item.size)}`;
+      size.title = size.textContent;
       meta.append(name, size);
 
       const remove = document.createElement("button");
@@ -2424,19 +2483,40 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     return true;
   }
 
+  /** Documents still being read. A message waits for them rather than leaving without them. */
+  const reading = new Set<string>();
+  function showReading(): void {
+    if (reading.size > 0) {
+      composerNotice.textContent = `Reading ${[...reading].join(", ")}…`;
+      composerNotice.hidden = false;
+    } else if (composerNotice.textContent?.startsWith("Reading ") === true) {
+      composerNotice.hidden = true;
+    }
+  }
+
   async function addFiles(sources: readonly AttachmentSource[]): Promise<void> {
     if (sources.length === 0) return;
     const { admitted, rejected } = admitFiles(
       sources.map((file) => ({ name: file.name, type: file.type, size: file.size })),
       pending.length,
     );
+    // A PDF or a workbook takes a moment to read; say so, and name what is still coming.
+    const slow = admitted.map((index) => sources[index] as AttachmentSource).filter((source) => classifyFile(source.name, source.type) === "document");
+    for (const source of slow) reading.add(source.name);
+    showReading();
+    // After the reading line, so a refusal is the thing on screen.
     for (const message of rejected) complain(message);
     for (const index of admitted) {
       const source = sources[index] as AttachmentSource;
       try {
         pending = [...pending, await fileToAttachment(source)];
+        renderAttachments();
       } catch (error) {
+        reading.delete(source.name);
+        showReading();
         complain(error instanceof Error ? error.message : `${source.name} could not be attached.`);
+      } finally {
+        if (reading.delete(source.name)) showReading();
       }
     }
     renderAttachments();
@@ -2446,15 +2526,15 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   attachButton.className = "chat-team-button";
   attachButton.type = "button";
   attachButton.append(createIcon(ICON.plus), toolLabel("Attach"));
-  attachButton.title = "Attach images or documents (or drag them in, or paste)";
-  attachButton.setAttribute("aria-label", "Attach images or documents");
+  attachButton.title = "Attach pictures, PDFs, Word, Excel and PowerPoint files, or code (or drag them in, or paste)";
+  attachButton.setAttribute("aria-label", "Attach files");
 
   const filePicker = document.createElement("input");
   filePicker.type = "file";
   filePicker.multiple = true;
   filePicker.hidden = true;
-  // Images plus text documents; anything else is refused with an explanation.
-  filePicker.accept = "image/png,image/jpeg,image/webp,image/gif,.txt,.md,.markdown,.json,.jsonc,.csv,.tsv,.log,.yaml,.yml,.xml,.toml,.ini,.cfg,.conf,.sh,.js,.jsx,.ts,.tsx,.py,.java,.c,.h,.cpp,.hpp,.rs,.go,.rb,.php,.swift,.kt,.sql,.css,.scss";
+  // Every file shows in the picker: a .vue or a Dockerfile is text even without a known
+  // extension, and anything that cannot be read is refused with what to do instead.
   filePicker.setAttribute("aria-hidden", "true");
   filePicker.addEventListener("change", () => {
     void addFiles([...filePicker.files ?? []]);
@@ -2977,12 +3057,20 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       complain("Side chats start from a main conversation. Open its parent to ask on the side.");
       return;
     }
+    if (reading.size > 0) {
+      complain(`Still reading ${[...reading].join(", ")} - ask again in a moment.`);
+      return;
+    }
     const parentId = activeSessionId;
-    const child = await window.adcode.chat.fork(parentId).catch(() => null);
+    // What was attached with the question goes with it. Taken now: opening the side chat
+    // swaps the composer over, and the pictures went nowhere.
+    const attachments = pending;
+    const child = await window.adcode.chat.fork(parentId, { side: true }).catch(() => null);
     if (child === null) {
       complain("No side chat: a conversation keeps up to six forks and side chats. Remove one from History first.");
       return;
     }
+    if (pending === attachments) clearAttachments();
     const flat = words.replace(/\s+/g, " ");
     await window.adcode.chat.rename(child.id, `Side: ${flat.length > 60 ? `${flat.slice(0, 59)}…` : flat}`).catch(() => undefined);
     saved = soloChats(await chatSessions());
@@ -2990,8 +3078,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     renderHistory();
     await resume(child.id);
     if (activeSessionId !== child.id) return;
-    sendQueued({ id: -1, text: words, attachments: [] });
-    complain("Side chat: the main conversation keeps working. Its link is at the top of this chat.");
+    sendQueued({ id: -1, text: words, attachments: [...attachments] });
+    complain("Side chat: it answers without touching the main chat's work, which keeps going. Its link is at the top of this chat.");
   }
 
   /* /goal: keep working, turn after turn, until the goal is met (goalMode.ts). */
@@ -3724,9 +3812,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
    * - in the conversation, where the eye already is, rather than only as the square the send
    * button turns into at the far corner of the composer.
    *
-   * No face and no name of its own. Who is replying is the author line above the turn, and
-   * the face at work is the activity block's mascot; a third copy here made one running
-   * assistant look like three.
+   * The face at work is here: Buck, changing what he is doing with each word. The turn's
+   * heading has a Buck of its own, and it steps aside while this row shows (chatControls.css),
+   * so one running assistant is still one face, at the foot where the eye rests.
    */
   let appearance: ChatAppearance = chatAppearanceFrom({});
   const working = document.createElement("div");
@@ -3745,9 +3833,14 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const workingText = document.createElement("span");
   workingText.className = "chat-working-text";
   workingText.textContent = "Thinking";
-  // The pixel mosaic at the foot of the conversation: the assistant is still at it.
-  const workingDots = createPixelSpinner("turn");
-  workingDots.classList.add("chat-working-spinner");
+  /*
+   * Buck at the foot of the conversation, doing something different with each new word -
+   * chin in hand, peering about, typing, joining his brackets into a link, now and then
+   * flipping his coin (workingMood). The pixel mosaic he replaces said only "busy".
+   */
+  const workingMascot = createAdcodeMascot({ mood: "thinking", size: 34 });
+  workingMascot.element.classList.add("chat-working-spinner", "chat-working-mascot");
+  workingMascot.element.setAttribute("aria-hidden", "true");
   // Ticks every second, so it is kept out of the live region: a screen reader would read it.
   const workingElapsed = document.createElement("span");
   workingElapsed.className = "chat-working-elapsed";
@@ -3765,7 +3858,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   workingStopKey.setAttribute("aria-hidden", "true");
   workingStop.append(workingStopIcon, document.createTextNode("Stop"), workingStopKey);
   workingStop.addEventListener("click", () => stopTurn());
-  working.append(workingDots, workingText, workingElapsed, workingStop);
+  working.append(workingMascot.element, workingText, workingElapsed, workingStop);
   let workingSince = 0;
   let workingClock: number | null = null;
   function paintElapsed(): void {
@@ -3786,6 +3879,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     const word = workingWord(workingPhase, seconds, workingSeed);
     if (workingText.textContent === word) return;
     workingText.textContent = word;
+    workingMascot.setMood(workingMood(workingPhase, seconds, workingSeed));
     // Each word in its own colour, popping in as it arrives (ai.css .chat-working-text[data-tone]).
     workingText.dataset["tone"] = String(workingTone(workingPhase, seconds, workingSeed));
     workingText.classList.remove("is-new");
@@ -3796,12 +3890,22 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     if (workingPhase !== phase) { workingPhase = phase; workingPhaseSince = Date.now(); }
     paintWorkingWord();
   }
-  function setWorkingLabel(text: string): void {
+  function setWorkingLabel(text: string, mood: "loading" | "sleeping" | "searching" = "loading"): void {
     workingPhase = null;
     workingText.textContent = text;
     // A plain label (a tool run, a limit pause) says something real: no colour show.
     delete workingText.dataset["tone"];
     workingText.classList.remove("is-new");
+    workingMascot.setMood(mood);
+  }
+  /**
+   * A tool at work. Under an open timeline the step already has its own row naming it, so the
+   * foot of the turn keeps its changing word and Buck keeps busy instead of repeating the row;
+   * with no timeline yet, the row is where the tool is named.
+   */
+  function setWorkingTool(label: string): void {
+    if (working.dataset["activity"] === "open") setWorkingPhase("thinking");
+    else setWorkingLabel(label, "searching");
   }
 
   /* Faces and names on replies, and the reply layout, from Settings > Appearance. */
@@ -4277,31 +4381,6 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         icon.title = "Idle";
       }
     }
-  }
-
-  /** Relative time for a message ("just now", "3m ago"), full date on hover. */
-  function formatMessageTime(at: number, now: number = Date.now()): { text: string; title: string } {
-    const date = new Date(at);
-    const title = date.toLocaleString([], {
-      weekday: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-      day: "numeric",
-      month: "short",
-    });
-    const ageSeconds = Math.max(0, Math.floor((now - at) / 1000));
-    if (ageSeconds < 45) return { text: "just now", title };
-    if (ageSeconds < 90) return { text: "1m ago", title };
-    const minutes = Math.floor(ageSeconds / 60);
-    if (minutes < 60) return { text: `${String(minutes)}m ago`, title };
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24 && date.toDateString() === new Date(now).toDateString()) {
-      return { text: `${String(hours)}h ago`, title };
-    }
-    return {
-      text: date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      title,
-    };
   }
 
   function messageTime(at: number): HTMLElement {
@@ -4788,7 +4867,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   /*
    * Per-message action bar: Claude-style icon row under the message — copy,
-   * read aloud, helpful / not helpful, retry — with relative time and a
+   * read aloud, helpful / not helpful, retry — with the time it was sent and a
    * single overflow menu kept for secondary acts. Hover-revealed on precise
    * pointers (CSS), always visible on touch.
    */
@@ -5763,7 +5842,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     if (event.kind === "tool-draft") {
       const path = typeof event["path"] === "string" ? event["path"] : null;
       const label = path === null ? "Writing a file" : `Writing ${path}`;
-      setWorkingLabel(label);
+      setWorkingTool(label);
       ensureTimeline().setStatus(label);
       return;
     }
@@ -5794,7 +5873,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           limitCard.show(pause);
           if (working.isConnected) transcript.insertBefore(limitCard.element, working);
           else transcript.append(limitCard.element);
-          setWorkingLabel("Paused until the limit resets");
+          setWorkingLabel("Paused until the limit resets", "sleeping");
           ensureTimeline().setStatus("Paused until the limit resets");
           scrollToEnd();
           break;
@@ -5849,7 +5928,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
             bringCardsDown();
           }
         }
-        setWorkingLabel(toolHeaderLabel(call.name));
+        setWorkingTool(toolHeaderLabel(call.name));
         const rowId = typeof call.id === "string" && call.id.length > 0 ? call.id : `${call.name}-${String(Date.now())}`;
         ensureTimeline().toolCall({ id: rowId, name: call.name, detail: summarizeToolInput(call.input), input: call.input });
         // That bubble is finished: without this its streaming caret blinked forever.
@@ -5880,7 +5959,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           // A settle for a call this turn never showed opens nothing: it names no tool to draw.
           if (tool.status !== "running" && tool.name === "") break;
           rows.set(tool.id, false);
-          setWorkingLabel(toolHeaderLabel(name));
+          setWorkingTool(toolHeaderLabel(name));
           steps.toolCall({ id: tool.id, name, detail: tool.detail });
         }
         if (tool.status !== "running" && rows.get(tool.id) === false) {
@@ -5892,7 +5971,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       }
 
       case "tool-result": {
-        setWorkingLabel("Reviewing results");
+        setWorkingTool("Reviewing results");
         const isError = event["isError"] === true;
         const toolCallId = typeof event["toolCallId"] === "string" ? event["toolCallId"] : null;
         if (toolCallId !== null && previewCalls.delete(toolCallId)) {
@@ -6120,6 +6199,13 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       return;
     }
 
+    // A document still being read would be left out of the message. Stopping a turn never waits.
+    const stopping = sendButton.dataset["mode"] === "stop" && (!fromKey || (input.value.trim().length === 0 && pending.length === 0));
+    if (reading.size > 0 && !stopping) {
+      complain(`Still reading ${[...reading].join(", ")} - send again in a moment.`);
+      return;
+    }
+
     if (sendButton.dataset["mode"] === "stop") {
       if (fromKey && (input.value.trim().length > 0 || pending.length > 0)) {
         if (followUps.add(input.value, pending) !== null) {
@@ -6269,6 +6355,47 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     // Pasting a screenshot must attach it, not dump binary into the prompt.
     event.preventDefault();
     void addFiles(files);
+  });
+
+  /*
+   * Right-click in the box. Electron draws no menu of its own, so a right-click here used to do
+   * nothing at all. Paste is the window's real paste - the one Ctrl+V makes - so a copied
+   * screenshot or a file copied in Explorer attaches, and a long log becomes an attachment,
+   * exactly as from the keyboard.
+   */
+  const inputMenu = createContextMenu(document.body);
+  attachContextMenuDismissal(inputMenu, () => input.focus());
+  const modifier = navigator.platform.toLowerCase().startsWith("mac") ? "Cmd" : "Ctrl";
+  function nativeEdit(command: EditCommand): () => Promise<void> {
+    return async () => {
+      input.focus();
+      await window.adcode.clipboard.edit(command).catch(() => complain("The clipboard could not be reached. Try the keyboard shortcut instead."));
+    };
+  }
+  input.addEventListener("contextmenu", (event) => {
+    // A browser has its own menu with a real Paste in it; on the web, that one stays.
+    if (isWebSurface()) return;
+    event.preventDefault();
+    const selected = input.selectionStart !== input.selectionEnd;
+    inputMenu.open(event.clientX, event.clientY, [
+      { label: "Cut", accelerator: `${modifier}+X`, disabled: !selected, run: nativeEdit("cut") },
+      { label: "Copy", accelerator: `${modifier}+C`, disabled: !selected, run: nativeEdit("copy") },
+      { label: "Paste", accelerator: `${modifier}+V`, run: nativeEdit("paste") },
+      {
+        label: "Paste as plain text",
+        accelerator: `${modifier}+Shift+V`,
+        // The same as Ctrl+Shift+V: a long text goes into the box instead of becoming a file.
+        run: async () => {
+          pasteInline = true;
+          await nativeEdit("paste")();
+          window.setTimeout(() => { pasteInline = false; }, 1_000);
+        },
+      },
+      { kind: "separator" },
+      { label: "Select all", accelerator: `${modifier}+A`, disabled: input.value.length === 0, run: () => { input.focus(); input.select(); } },
+      { kind: "separator" },
+      { label: "Attach files…", run: () => filePicker.click() },
+    ], () => undefined);
   });
 
   composer.addEventListener("submit", (event) => {
@@ -6583,6 +6710,11 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     openStash(): void {
       api.open();
       openStash(toolsLabel);
+    },
+
+    attachFiles(): void {
+      api.open();
+      filePicker.click();
     },
 
     showConversations(): void {

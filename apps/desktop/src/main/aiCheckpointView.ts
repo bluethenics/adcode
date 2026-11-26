@@ -34,6 +34,9 @@ export function checkpointView(checkpoint: EditCheckpoint): AiCheckpointView {
         ...(hunks === undefined ? {} : {
           added: hunks.reduce((sum, hunk) => sum + hunk.replacement.length, 0),
           removed: hunks.reduce((sum, hunk) => sum + hunk.original.length, 0),
+          // A recorded change with no changed line: the diff reads lines without their CR, so only
+          // the line endings differ. "+0 −0" would read as a broken count.
+          ...(hunks.length === 0 && file.before !== null && file.after !== null && file.before !== file.after ? { lineEndingsOnly: true } : {}),
           hunks,
         }),
       };

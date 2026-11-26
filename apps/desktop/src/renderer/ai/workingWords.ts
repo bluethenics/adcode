@@ -82,3 +82,22 @@ export function workingWord(phase: WorkingPhase, seconds: number, seed: number):
 export function workingTone(phase: WorkingPhase, seconds: number, seed: number): number {
   return (seed + stepOf(seconds) + (phase === "writing" ? 3 : 0)) % WORKING_TONES;
 }
+
+/**
+ * What Buck is doing at the foot of a working turn, changing with each word: chin in hand,
+ * peering about, typing, joining the brackets into a link - and now and then flipping his coin.
+ * Writing is mostly typing; thinking is everything else. Never the same pose twice in a row.
+ */
+const MOODS: Readonly<Record<WorkingPhase, readonly WorkingMood[]>> = {
+  thinking: ["thinking", "searching", "connecting", "thinking", "searching", "loading", "earning"],
+  writing: ["working", "thinking", "working", "searching", "working", "connecting"],
+};
+
+/** The poses above, by the mascot's own mood names (styles/adcodeMascot.css). */
+export type WorkingMood = "thinking" | "searching" | "connecting" | "loading" | "earning" | "working";
+
+/** The pose that goes with the word for `phase` after `seconds` on it. */
+export function workingMood(phase: WorkingPhase, seconds: number, seed: number): WorkingMood {
+  const moods = MOODS[phase];
+  return moods[(seed + stepOf(seconds)) % moods.length]!;
+}

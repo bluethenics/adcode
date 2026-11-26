@@ -28,6 +28,11 @@ export interface ChatMessage {
   readonly author?: ChatAuthor;
   /** In a team chat, the message's number in the shared session, so it is merged once. */
   readonly seq?: number;
+  /**
+   * An answer saved while its turn was still working, kept because ADCode closed (or crashed)
+   * before the turn finished: the words so far and the steps taken. A finished turn replaces it.
+   */
+  readonly interrupted?: boolean;
 }
 
 export interface ChatAuthor {
@@ -82,6 +87,12 @@ export interface ChatSession {
   readonly forkedAt?: number;
   /** The part the parent gave this fork, carried into its briefing. */
   readonly forkTask?: string;
+  /**
+   * A side chat (/btw): a copy of the conversation that answers questions about it. It is told
+   * the main chat is still doing that work, its tools are read-only, and it never carries on
+   * the task - unlike a fork, which exists to do part of it.
+   */
+  readonly side?: boolean;
   /** Set when this chat is a team chat: the shared session it mirrors. */
   readonly team?: ChatTeamLink;
   /**
@@ -202,7 +213,8 @@ export function validateSession(raw: unknown): ChatSession | null {
       messages.push({ role, text, at: typeof at === "number" ? at : 0,
         ...(role === "assistant" && typeof requestId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId) ? { includedRequestId: requestId } : {}),
         ...(author === null ? {} : { author }),
-        ...(typeof seq === "number" && Number.isSafeInteger(seq) && seq > 0 ? { seq } : {}) });
+        ...(typeof seq === "number" && Number.isSafeInteger(seq) && seq > 0 ? { seq } : {}),
+        ...(role === "assistant" && message["interrupted"] === true ? { interrupted: true } : {}) });
     }
   }
 
@@ -224,6 +236,8 @@ export function validateSession(raw: unknown): ChatSession | null {
     ...(typeof parentId === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(parentId) ? { parentId } : {}),
     ...(typeof forkedAt === "number" && Number.isFinite(forkedAt) && forkedAt >= 0 ? { forkedAt } : {}),
     ...(typeof forkTask === "string" && forkTask.trim().length > 0 ? { forkTask: forkTask.slice(0, 2_000) } : {}),
+    // Only on a fork: a side chat is a copy of a conversation, so it always has a parent.
+    ...(record["side"] === true && typeof parentId === "string" ? { side: true } : {}),
     ...(validateTeam(record["team"]) ?? {}),
     ...(validateModelChoice(record["model"]) ?? {}),
   };

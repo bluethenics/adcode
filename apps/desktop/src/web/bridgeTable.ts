@@ -101,6 +101,7 @@ export const BRIDGE = [
   // clipboard
   { path: "clipboard.writeText", kind: "invoke", channel: CHANNELS.clipboardWrite },
   { path: "clipboard.readText", kind: "invoke", channel: CHANNELS.clipboardRead },
+  { path: "clipboard.edit", kind: "invoke", channel: CHANNELS.clipboardEdit },
 
   // terminal
   { path: "terminal.profiles", kind: "invoke", channel: CHANNELS.terminalProfiles },

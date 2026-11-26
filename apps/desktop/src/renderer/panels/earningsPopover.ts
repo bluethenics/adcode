@@ -66,6 +66,7 @@ export interface EarningsPopover extends AnchoredTool {
 function row(label: string, value: string, options: { wide?: boolean; tone?: "good" | "wait" | "off"; money?: boolean } = {}): HTMLElement {
   const line = document.createElement("div");
   line.className = "earnings-row";
+  line.setAttribute("role", "listitem");
   if (options.wide === true) line.dataset["wide"] = "true";
   if (options.money === true) line.dataset["money"] = "true";
 
@@ -109,11 +110,12 @@ export function splitMoneyLabel(label: string): { main: string; tail: string } {
 function accountIdRow(uid: string): HTMLElement {
   const line = document.createElement("div");
   line.className = "earnings-row";
+  line.setAttribute("role", "listitem");
   line.dataset["wide"] = "true";
 
   const name = document.createElement("span");
   name.className = "earnings-row-label";
-  name.textContent = "This editor's account";
+  name.textContent = "Account ID";
 
   const button = document.createElement("button");
   button.type = "button";
@@ -296,6 +298,8 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
 
   const facts = document.createElement("div");
   facts.className = "earnings-facts";
+  facts.setAttribute("role", "list");
+  facts.setAttribute("aria-label", "Earnings details");
 
   /* ── Account ────────────────────────────────────────────────────────────── */
 
@@ -522,13 +526,18 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
     const nextTone = !snapshot.enabled || snapshot.suppressedReason === "ads-disabled" || snapshot.suppressedReason === "frequency-off"
       ? "off"
       : snapshot.suppressedReason === null ? "good" : "wait";
+    /*
+     * One statement, label and value per line. Whether ads are on is the chip on the balance,
+     * said once: an "Ads: Off" row and a "Next card: Ads are switched off" row under it said
+     * the same thing three times, and an odd number of tiles left a hole in the grid.
+     */
     facts.replaceChildren(
       row("Lifetime earned", snapshot.hasServerBalance ? snapshot.lifetimeLabel : "—", { money: snapshot.hasServerBalance }),
-      row("Ads", snapshot.enabled ? "On" : "Off", { tone: snapshot.enabled ? "good" : "off" }),
       // Pay per card depends on the country the server sees (2026-11-25): this person's own rate.
       ...(snapshot.cardRateLabel ? [row("Pay per card", snapshot.cardRateLabel)] : []),
       // The server's reason cards are not paying right now (verify your email, under review).
       ...(snapshot.cardNotice ? [row("Sponsored cards", snapshot.cardNotice, { tone: "wait" })] : []),
+      ...(snapshot.enabled ? [row("Next card", next, { tone: nextTone })] : []),
       // Named for what it is. See the note at the top of this file on why this is not
       // presented as a count of ads seen.
       row(
@@ -537,16 +546,19 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
           ? "Nothing pending"
           : `${snapshot.pendingReceipts} receipt${snapshot.pendingReceipts === 1 ? "" : "s"}`,
       ),
-      row("Next card", next, { tone: nextTone }),
       // Last, because it is a diagnostic rather than something to read every day - but
       // here rather than buried in settings, because this popover is where somebody
       // already is when they are wondering why no card has arrived.
       ...(accountUid === null ? [] : [accountIdRow(accountUid)]),
     );
 
+    // Ads off is the one thing on this card somebody can change to earn: the settings button
+    // says so, instead of a third line repeating that they are off.
+    settingsButton.textContent = snapshot.enabled ? "Ad settings" : "Turn on ads";
+    settingsButton.dataset["emphasis"] = String(!snapshot.enabled);
     note.textContent = snapshot.hasServerBalance
-      ? "Only server-confirmed earnings are shown here."
-      : "Your balance will appear after a successful update. Use Refresh to try again.";
+      ? "Only server-confirmed earnings are shown."
+      : "Your balance appears after a successful update. Use Refresh to try again.";
 
   }
 

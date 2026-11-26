@@ -6587,6 +6587,7 @@ function registerCommands(): void {
   add("ai.setGoal", "AI: Set a Goal (Keep Going Until Done)", () => chat.startCommand("goal"));
   add("ai.sideChat", "AI: Ask on the Side", () => chat.startCommand("btw"));
   add("ai.stashedPrompts", "AI: Stashed Prompts", () => chat.openStash());
+  add("ai.attachFiles", "AI: Attach Files to the Chat", () => chat.attachFiles());
   add("ai.buyTokens", "AI: Buy AI Credits", () => void window.open(BUY_TOKENS_URL, "_blank", "noopener"));
   add("ai.upgradePlan", "AI: Upgrade Plan", () => void window.open(BUY_TOKENS_URL, "_blank", "noopener"));
   add("ads.openNetworks", "Ads: Open Network Settings", () => void window.open("https://adcode.bluethenics.com/admin/ad-networks", "_blank", "noopener"));

@@ -743,6 +743,7 @@ export const CHANNELS = {
   fsReveal: "fs:reveal",
   clipboardWrite: "clipboard:write",
   clipboardRead: "clipboard:read",
+  clipboardEdit: "clipboard:edit",
   terminalCreate: "terminal:create",
   terminalWrite: "terminal:write",
   terminalResize: "terminal:resize",
@@ -1602,6 +1603,8 @@ export interface ChatMessageView {
   /** In a team chat: who wrote it, or who asked for an AI answer. */
   readonly author?: { readonly id: string; readonly name: string; readonly self: boolean };
   readonly seq?: number;
+  /** Saved mid-turn and never finished: ADCode closed while this answer was being written. */
+  readonly interrupted?: boolean;
 }
 
 export interface ChatSessionView {
@@ -1702,6 +1705,8 @@ export interface AiCheckpointView {
     readonly deleted?: boolean;
     readonly added?: number;
     readonly removed?: number;
+    /** Only CRLF and LF differ: every line reads the same, so `added` and `removed` are 0. */
+    readonly lineEndingsOnly?: boolean;
     /** Recorded before/after changes, not a diff against later user edits. Absent for binary files. */
     readonly hunks?: readonly DiffHunkView[];
   }>;
@@ -1885,6 +1890,11 @@ export interface AiEditorContextView {
   /** Errors and warnings Monaco currently reports in the active file. */
   readonly problems: readonly string[];
 }
+
+/** The edits a right-click menu asks the focused field for, as the keyboard would make them. */
+export type EditCommand = "cut" | "copy" | "paste";
+
+export const EDIT_COMMANDS: readonly EditCommand[] = ["cut", "copy", "paste"];
 
 export interface AiAttachmentView {
   readonly name: string;
@@ -2230,6 +2240,14 @@ export interface AdcodeApi {
      * and a permission prompt that a custom protocol does not satisfy.
      */
     readText(): Promise<string>;
+    /**
+     * Cut, copy or paste in the focused field the way the keyboard does it.
+     *
+     * For a right-click menu: a paste made this way fires the page's real paste event, with
+     * the clipboard's pictures and copied files in it, which reading the clipboard's text
+     * cannot do - so a screenshot pasted from a menu attaches, as Ctrl+V does.
+     */
+    edit(command: EditCommand): Promise<void>;
   };
   readonly terminal: {
     profiles(): Promise<TerminalProfile[]>;
@@ -2659,8 +2677,11 @@ export interface AdcodeApi {
     /** The list as changes to what the window already holds (`shared/sessionDelta.ts`). */
     sessionsDelta(known: readonly import("./sessionDelta.ts").KnownSession[]): Promise<import("./sessionDelta.ts").SessionsDelta<ChatSessionView, ChatMessageView>>;
     resume(id: string): Promise<ChatSessionView | null>;
-    /** Copy this conversation into its own visible chat. Null when it cannot be forked. */
-    fork(id: string): Promise<ChatSessionView | null>;
+    /**
+     * Copy this conversation into its own visible chat. Null when it cannot be forked.
+     * `side`: a /btw side chat - read-only, it answers about the copy and never carries on its work.
+     */
+    fork(id: string, options?: { readonly side?: boolean }): Promise<ChatSessionView | null>;
     rename(id: string, title: string): Promise<readonly ChatSessionView[]>;
     remove(id: string): Promise<readonly ChatSessionView[]>;
     clear(): Promise<readonly ChatSessionView[]>;

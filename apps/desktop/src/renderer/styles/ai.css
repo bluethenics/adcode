@@ -1788,6 +1788,10 @@ button.chat-model[data-ready="false"]::before {
   color: var(--text-secondary);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
+  /* "PDF · 12 pages · 2.4 MB" stays on one line in the chip. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chat-attachment-remove {
@@ -4678,11 +4682,42 @@ input[type="checkbox"]:checked + .chat-question-mark::after { content: ""; width
 .chat-earlier-all { font-size: var(--text-xs); }
 .chat-earlier [hidden] { display: none; }
 
-/* The whole conversation as one document (ai/fullConversation.ts). */
-.full-conversation-dialog .form-dialog-card { width: min(960px, 92vw); height: min(820px, 88vh); display: flex; flex-direction: column; gap: var(--space-3); }
+/*
+ * The whole conversation as one document (ai/fullConversation.ts).
+ *
+ * The frame is what limits width: dialogs.css caps .form-dialog at 600px, and a 960px card inside
+ * it hung off the frame's left edge, cutting off the start of every line and the title. Widen the
+ * frame instead; the card fills it.
+ */
+.form-dialog.full-conversation-dialog { max-width: min(960px, calc(100vw - 48px)); }
+.full-conversation-dialog .form-dialog-card { box-sizing: border-box; width: 100%; min-width: 0; height: min(820px, calc(100vh - 64px)); overflow: hidden; display: flex; flex-direction: column; gap: var(--space-3); }
+.full-conversation-dialog .result-title { overflow-wrap: anywhere; }
 .full-conversation-bar { display: flex; align-items: center; gap: var(--space-2); }
 .full-conversation-search { flex: 1; min-width: 0; }
 .full-conversation-found { flex: none; color: var(--text-tertiary); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
 .full-conversation-text { flex: 1; min-height: 0; width: 100%; resize: none; font: 12px/1.6 var(--font-mono, monospace); white-space: pre-wrap; }
 .full-conversation-footer { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); }
 .full-conversation-size { margin-right: auto; color: var(--text-tertiary); font-size: var(--text-xs); }
+
+/*
+ * An answer saved mid-turn that never finished (main/turnProgress.ts): ADCode closed while the
+ * assistant worked. A quiet line under what was kept, and Continue on the conversation's last word.
+ */
+.chat-stopped {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-hairline);
+}
+.chat-stopped-text {
+  margin: 0;
+  flex: 1 1 220px;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+.chat-stopped .chat-nudge-action { margin-top: 0; }
+.chat-loading-note { padding: var(--space-6) 0; }

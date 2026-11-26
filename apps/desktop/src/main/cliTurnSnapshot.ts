@@ -17,7 +17,8 @@
  *      unsaved-to-git work is put back exactly as it was.
  *   2. A file git saw as clean is read from the commit the turn started on (t3code's idea:
  *      a clean file needs no copy, the commit already is one). `cat-file --filters` gives it
- *      with the line endings the checkout has.
+ *      as a fresh checkout writes it, which with core.autocrlf is not always what this checkout
+ *      holds: `checkedOut` picks the line endings the file really had.
  *   3. A file git does not track and does not ignore did not exist: Undo deletes it.
  *   4. Otherwise (no git, or an ignored file) the file as read when the CLI first named it,
  *      which is before it ran the tool for every CLI that asks first; a file it is too late
@@ -105,6 +106,8 @@ export function parsePorcelainZ(output: string, prefix: string): string[] {
 }
 
 const binary = (bytes: Buffer | null): boolean => bytes !== null && bytes.includes(0);
+/** The text with LF line endings: two forms equal under it differ in line endings alone. */
+const lf = (bytes: Buffer): string => bytes.toString("latin1").replaceAll("\r\n", "\n");
 
 /** Tools that can write files without naming them: a shell command, a helper agent, an MCP tool. */
 export function writesUnnamed(kind: string): boolean {
@@ -177,12 +180,32 @@ export async function startCliTurnSnapshot(root: string, deps: CliSnapshotDeps, 
   const touched = new Map<string, Promise<Buffer | null | undefined>>();
   let unnamed = false;
 
-  async function before(path: string): Promise<Buffer | null | undefined> {
+  /**
+   * A clean file as this checkout held it. With core.autocrlf on, `--filters` turns every line
+   * ending into CRLF, but a file written with LF and committed stays LF on disk and git still
+   * calls it clean. Taking the CRLF form as "before" made files the turn never changed - ones a
+   * CLI only read - show as edited with no line changed, and Undo would have rewritten them.
+   */
+  async function checkedOut(path: string, spec: string, filtered: Buffer, now: Buffer | null): Promise<Buffer> {
+    const raw = await deps.git(["cat-file", "blob", spec]);
+    // Only an end-of-line conversion is in doubt. Any other filter (Git LFS) means --filters is right.
+    if (raw === null || raw.equals(filtered) || lf(raw) !== lf(filtered)) return filtered;
+    // Read when the CLI named it, before it wrote: matching either form, that is the file as it was.
+    const early = await touched.get(path);
+    if (early?.equals(raw)) return raw;
+    if (early?.equals(filtered)) return filtered;
+    // Named too late to tell, or never named: an edit keeps a file's line endings, so take the form
+    // whose endings the file has now.
+    return now !== null && !now.includes("\r\n") ? raw : filtered;
+  }
+
+  async function before(path: string, now: Buffer | null): Promise<Buffer | null | undefined> {
     if (atStart.has(path)) return atStart.get(path);
     if (head !== null) {
-      // Clean when the turn started: the commit holds it, with the checkout's line endings.
-      const committed = await deps.git(["cat-file", "--filters", `${head}:./${path}`]);
-      if (committed !== null) return committed.length > maxFileBytes ? undefined : committed;
+      // Clean when the turn started: the commit holds it.
+      const spec = `${head}:./${path}`;
+      const committed = await deps.git(["cat-file", "--filters", spec]);
+      if (committed !== null) return committed.length > maxFileBytes ? undefined : checkedOut(path, spec, committed, now);
       // Not in the commit, not changed at the start, and git would have listed it: it was not there.
       const ignored = (await deps.git(["check-ignore", "-q", "--", path])) !== null;
       if (!ignored) return null;
@@ -212,10 +235,10 @@ export async function startCliTurnSnapshot(root: string, deps: CliSnapshotDeps, 
       }
       const recorded: string[] = [];
       for (const path of [...candidates].sort()) {
-        const was = await before(path);
-        if (was === undefined) continue;
         const now = await readCapped(path);
         if (now === undefined) continue;
+        const was = await before(path, now);
+        if (was === undefined) continue;
         if (was === null && now === null) continue;
         if (was !== null && now !== null && was.equals(now)) continue;
         const encoding = binary(was) || binary(now) ? "base64" : "utf8";

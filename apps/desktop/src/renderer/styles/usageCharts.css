@@ -115,6 +115,9 @@
 .usage-area-base { stroke: var(--border-strong); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .usage-area-fill { fill: color-mix(in srgb, var(--series) 30%, transparent); }
 .usage-area-line { fill: none; stroke: var(--series); stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+/* One stacked bar a day (providerChart): the series colour, a touch lighter than a line. */
+.usage-bar { fill: color-mix(in srgb, var(--series) 82%, transparent); }
+.usage-area-wrap[data-active="true"] .usage-bar { fill: color-mix(in srgb, var(--series) 62%, transparent); }
 .usage-area-cursor { position: absolute; top: 0; left: 0; width: 1px; height: 190px; background: var(--text-secondary); opacity: 0; pointer-events: none; }
 .usage-area-wrap[data-active="true"] .usage-area-cursor { opacity: 1; }
 .usage-area-y { position: absolute; inset: 0; pointer-events: none; }
@@ -134,6 +137,9 @@
 .usage-tip-rows b { color: var(--text-primary); font-weight: 600; }
 .usage-tip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .usage-tip-none { color: var(--text-tertiary); }
+/* "Of which re-read from cache": a note on the day, not another provider, so no swatch. */
+.usage-tip-rows li.usage-tip-cache { grid-template-columns: minmax(0, 1fr) auto; margin-top: 3px; padding-top: 5px; border-top: 1px solid var(--border-subtle); color: var(--text-tertiary); }
+.usage-tip-rows li.usage-tip-cache b { color: var(--text-secondary); font-weight: 500; }
 .usage-legend { display: flex; flex-wrap: wrap; gap: 4px var(--space-3); color: var(--text-secondary); font-size: var(--text-xs); }
 .usage-key { display: inline-flex; align-items: center; gap: 6px; }
 

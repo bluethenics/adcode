@@ -198,6 +198,11 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("ai.stashedPrompts", "Stashed prompts")],
     keywords: ["draft", "drafts", "lost my prompt", "reload", "autosave", "stash", "/stash", "save prompt for later", "paste large text", "big paste", "paste log", "paste as attachment", "ctrl+shift+v", "long conversation", "slow chat", "show earlier messages", "all day", "24 hours", "heavy use"],
   },
+  "ai.attachments": {
+    added: "2026-11-26",
+    actions: [command("ai.attachFiles", "Attach files")],
+    keywords: ["attach", "attachment", "attach file", "upload", "pdf", "read a pdf", "word", "docx", "excel", "xlsx", "spreadsheet", "powerpoint", "pptx", "slides", "odt", "ods", "document", "screenshot", "paste image", "paste picture", "right-click", "right click", "context menu", "paste menu", "drag and drop", "drop a file", "image", "picture"],
+  },
   "ai.promptCaching": {
     actions: [command("ai.showCacheSavings", "Show cached tokens")],
     keywords: ["prompt caching", "prompt cache", "cache", "cached", "cached tokens", "cache hits", "cache_control", "cheaper", "save tokens", "save money", "repeated context", "long sessions", "faster replies", "cost less"],

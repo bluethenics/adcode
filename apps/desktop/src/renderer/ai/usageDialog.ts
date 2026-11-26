@@ -109,7 +109,8 @@ export function openUsageDialog(options: UsageDialogOptions = {}): Promise<void>
       clearInterval(allowanceTimer);
       resolve();
     });
-    const nameOf = (provider: string): string => names.get(provider) ?? KNOWN_PROVIDERS[provider] ?? (provider.startsWith("cli-") ? `${provider.slice(4)} CLI` : provider.charAt(0).toUpperCase() + provider.slice(1));
+    // A connection removed since is no longer in the provider list: name it, not its id.
+    const nameOf = (provider: string): string => names.get(provider) ?? KNOWN_PROVIDERS[provider] ?? (provider.startsWith("connection-") ? `Custom connection (${provider.slice(11, 15)})` : provider.startsWith("cli-") ? `${provider.slice(4)} CLI` : provider.charAt(0).toUpperCase() + provider.slice(1));
 
     // Usage / All projects / All providers
     const head = el("header", "usage-head");

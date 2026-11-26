@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ALL_WORKING_WORDS, WORDS_EVERY_S, WORKING_TONES, workingTone, workingWord } from "../src/renderer/ai/workingWords.ts";
+import { ALL_WORKING_WORDS, WORDS_EVERY_S, WORKING_TONES, workingMood, workingTone, workingWord } from "../src/renderer/ai/workingWords.ts";
+import { ADCODE_MASCOT_MOODS } from "../src/renderer/mascot/adcodeMascot.ts";
 
 describe("working words", () => {
   it("changes the word every few seconds, never repeating one in a row", () => {
@@ -40,5 +41,24 @@ describe("working words", () => {
       expect(now).toBeGreaterThanOrEqual(0);
       expect(now).toBeLessThan(WORKING_TONES);
     }
+  });
+});
+
+describe("Buck at the foot of a working turn", () => {
+  it("changes pose with each word, never repeats one twice running, and only uses poses the mascot has", () => {
+    for (const phase of ["thinking", "writing"] as const) {
+      for (const seed of [0, 3, 41, 999]) {
+        const poses = Array.from({ length: 30 }, (_, step) => workingMood(phase, step * WORDS_EVERY_S, seed));
+        for (const pose of poses) expect(ADCODE_MASCOT_MOODS).toContain(pose);
+        for (let step = 1; step < poses.length; step += 1) expect(poses[step]).not.toBe(poses[step - 1]);
+        // The same pose for the whole of one word: it changes when the word does, not between.
+        expect(workingMood(phase, WORDS_EVERY_S * 2 + 0.5, seed)).toBe(workingMood(phase, WORDS_EVERY_S * 2 + 2.9, seed));
+      }
+    }
+    // Writing is mostly typing; thinking is everything else.
+    const writing = Array.from({ length: 12 }, (_, step) => workingMood("writing", step * WORDS_EVERY_S, 0));
+    expect(writing.filter((pose) => pose === "working").length).toBeGreaterThanOrEqual(5);
+    const thinking = new Set(Array.from({ length: 14 }, (_, step) => workingMood("thinking", step * WORDS_EVERY_S, 0)));
+    expect(thinking.size).toBeGreaterThanOrEqual(5);
   });
 });

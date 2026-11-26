@@ -22,4 +22,14 @@ it("reviews recorded text changes, counts edits and never exposes binary bytes o
   expect(view.files[2]).toMatchObject({ deleted: true, added: 0, removed: 1 });
   expect(view.files[3]).toEqual({ path: "asset.png", created: true, deleted: false });
   expect(JSON.stringify(view)).not.toMatch(/private-root|private-binary/);
+  expect(view.files[0]).not.toHaveProperty("lineEndingsOnly");
+});
+it("says a change of line endings alone is that, not a count of zero lines", () => {
+  const view = checkpointView({ id: "cp-eol", root: "project", createdAt: 10, undone: false, files: [
+    { path: "src/app.js", before: "a\r\nb\r\n", after: "a\nb\n" },
+    { path: "empty.txt", before: null, after: "" },
+  ] });
+  expect(view.files[0]).toMatchObject({ added: 0, removed: 0, lineEndingsOnly: true, hunks: [] });
+  // A new empty file has no lines either, but that is not a line-ending change.
+  expect(view.files[1]).not.toHaveProperty("lineEndingsOnly");
 });

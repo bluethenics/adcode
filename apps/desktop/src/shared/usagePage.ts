@@ -71,6 +71,8 @@ export interface UsagePageDay {
   readonly day: string;
   readonly requests: number;
   readonly tokens: number;
+  /** Of `tokens`, how many were read back from a prompt cache: re-reads of the same context. */
+  readonly cachedTokens: number;
   readonly costMicros: number;
   /** Per provider, in the order of `UsagePageView.series`. */
   readonly tokensBy: readonly number[];
@@ -242,13 +244,14 @@ export function usagePage(rows: readonly UsageRow[], range: UsageRange, now: num
   // Days, per provider.
   const first = start ?? chosen.reduce<string>((earliest, row) => (row.day < earliest ? row.day : earliest), today);
   const dayIndex = new Map(daysFrom(first, today).map((day, index) => [day, index] as const));
-  const days = [...dayIndex.keys()].map((day) => ({ day, requests: 0, tokens: 0, costMicros: 0, tokensBy: series.map(() => 0), costBy: series.map(() => 0) }));
+  const days = [...dayIndex.keys()].map((day) => ({ day, requests: 0, tokens: 0, cachedTokens: 0, costMicros: 0, tokensBy: series.map(() => 0), costBy: series.map(() => 0) }));
   for (const row of chosen) {
     const day = days[dayIndex.get(row.day) ?? -1];
     if (day === undefined) continue;
     const at = series.indexOf(row.provider);
     day.requests += row.requests;
     day.tokens += tokensOf(row);
+    day.cachedTokens += row.cachedTokens ?? 0;
     day.costMicros += row.costMicros;
     day.tokensBy[at]! += tokensOf(row);
     day.costBy[at]! += row.costMicros;
