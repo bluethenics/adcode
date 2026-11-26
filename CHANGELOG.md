@@ -3,6 +3,17 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
+## 2.7.1 — 2026-11-27
+
+- Attach more than pictures and text: **PDF, Word, Excel, PowerPoint and OpenDocument files** are read into text on your computer, so every model (and OpenCode, Claude Code and Codex) can use them. **Right-click in the message box** for Cut, Copy, Paste (screenshots and copied files attach, like Ctrl+V), Paste as plain text and Attach files. Unusual code and config files (Dockerfile, .env, .vue) are read as text.
+- **/btw side chats only answer.** They no longer carry on the main chat's task: they are read-only, on every model and coding CLI, and the pictures you attach (and the main chat's latest ones) go with the question.
+- **Closing ADCode mid-task keeps the output.** What the assistant has written and the steps it took are saved as it works; reopen the chat and press Continue. A chat that is still working shows "Working" at once, and a long one says "Opening this conversation…" instead of a bare prompt.
+- **Usage shows exact daily bars** instead of a curve that smeared a busy day across its neighbours, and each day says how much was re-read from cache. Removed connections and "Codex CLI (CLI)" are named properly.
+- **A cleaner Earnings panel**: the balance is never clipped, details read as one list, and "Turn on ads" appears when ads are off.
+- **Message times** show the clock time instead of "just now", and **Read the whole conversation** is no longer cut off at the left edge.
+- **Buck at work**: the dot box at the foot of a working turn is now Buck, doing something different with each changing word ("Marinating", "Untangling").
+- The Edited files card no longer shows "+0 −0" for files that only differed in line endings.
+
 ## 2.7.0 — 2026-11-26
 
 - **Choose what Move in imports.** Before scanning, pick which tools (Claude Code, Codex, OpenCode), how far back, how many per tool, and whether only the project open now. **Scan a folder** brings in sessions from another computer or ones a teammate sent you. Then search the list, filter by tool, hide ones already imported, sort four ways, and **Preview** the first messages of any conversation before you bring it over. Conversations you imported before are marked and start unticked; choose to update them or leave them alone, and keep every message or only the latest 200 or 50. Long imports count up as they go, and your choices are remembered.
